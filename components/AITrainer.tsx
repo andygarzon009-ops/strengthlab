@@ -249,7 +249,7 @@ export default function AITrainer() {
 
       {open && (
         <div
-          className="fixed inset-0 z-40 flex flex-col"
+          className="fixed inset-0 z-50 flex flex-col"
           style={{ background: "var(--bg)" }}
         >
           <div
@@ -340,21 +340,13 @@ export default function AITrainer() {
                   Your personalized coach
                 </h3>
                 <p
-                  className="text-sm leading-relaxed mb-3"
+                  className="text-sm leading-relaxed mb-6"
                   style={{ color: "var(--fg-muted)" }}
                 >
-                  I know every session you&apos;ve logged, your PRs, and your
-                  goals. Ask me anything.
+                  {messages.length > 0
+                    ? "Fresh chat. Your training history and PRs are still in my memory — ask anything."
+                    : "I know every session you've logged, your PRs, and your goals. Ask me anything."}
                 </p>
-                {messages.length > 0 && (
-                  <p
-                    className="text-[11px] mb-6 label"
-                    style={{ color: "var(--fg-dim)" }}
-                  >
-                    Chat cleared · your training history stays with me
-                  </p>
-                )}
-                {messages.length === 0 && <div className="mb-3" />}
                 <div className="space-y-2">
                   {QUICK_PROMPTS.map((p) => (
                     <button
@@ -483,14 +475,20 @@ export default function AITrainer() {
           )}
 
           <div
-            className="px-4 pt-2"
+            className="px-3 pt-2.5"
             style={{
-              paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 92px)",
+              paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)",
               borderTop: "1px solid var(--border)",
               background: "var(--bg-card)",
             }}
           >
-            <div className="flex gap-2">
+            <div
+              className="flex items-end gap-0 rounded-2xl overflow-hidden pr-1.5"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+              }}
+            >
               <input
                 ref={inputRef}
                 value={input}
@@ -498,21 +496,33 @@ export default function AITrainer() {
                 onKeyDown={(e) =>
                   e.key === "Enter" && !e.shiftKey && send(input)
                 }
-                placeholder="Ask your coach…"
+                placeholder="Message Coach"
                 disabled={loading}
-                className="flex-1 text-[14px] px-4 py-3 rounded-xl focus:outline-none disabled:opacity-50"
-                style={{
-                  background: "var(--bg-elevated)",
-                  border: "1px solid var(--border)",
-                  color: "var(--fg)",
-                }}
+                className="flex-1 text-[15px] px-4 py-3 focus:outline-none disabled:opacity-50 bg-transparent"
+                style={{ color: "var(--fg)" }}
               />
               <button
                 onClick={() => send(input)}
                 disabled={!input.trim() || loading}
-                className="btn-accent px-5 rounded-xl text-[14px]"
+                className="my-1 w-9 h-9 rounded-full flex items-center justify-center disabled:opacity-30 transition-opacity"
+                style={{
+                  background: input.trim() ? "var(--accent)" : "var(--border)",
+                  color: "#0a0a0a",
+                }}
+                aria-label="Send"
               >
-                Send
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 19V5M5 12l7-7 7 7" />
+                </svg>
               </button>
             </div>
           </div>
