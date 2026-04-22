@@ -7,6 +7,22 @@ import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+type SetData = {
+  type: "WARMUP" | "WORKING";
+  setNumber: number;
+  weight: string;
+  reps: string;
+  rir: string;
+  notes: string;
+};
+
+type ExerciseData = {
+  exerciseId: string;
+  exerciseName: string;
+  notes: string;
+  sets: SetData[];
+};
+
 export default function LogWorkoutPage() {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -18,22 +34,6 @@ export default function LogWorkoutPage() {
   const [feeling, setFeeling] = useState("");
   const [isDeload, setIsDeload] = useState(false);
   const [exercises, setExercises] = useState<ExerciseData[]>([]);
-
-  type ExerciseData = {
-    exerciseId: string;
-    exerciseName: string;
-    notes: string;
-    sets: SetData[];
-  };
-
-  type SetData = {
-    type: "WARMUP" | "WORKING";
-    setNumber: number;
-    weight: string;
-    reps: string;
-    rir: string;
-    notes: string;
-  };
 
   const handleTypeSelect = (type: string) => {
     setWorkoutType(type);
@@ -72,26 +72,54 @@ export default function LogWorkoutPage() {
 
   if (step === "type") {
     return (
-      <div className="max-w-lg mx-auto px-4 pt-6 pb-24">
-        <div className="flex items-center gap-3 mb-6">
-          <Link href="/" className="text-zinc-400 hover:text-white p-1">
-            ←
+      <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+        <div className="flex items-center gap-2 mb-8">
+          <Link
+            href="/"
+            className="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              color: "var(--fg-muted)",
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
           </Link>
-          <h1 className="text-2xl font-bold text-white">Start Workout</h1>
+          <div>
+            <p className="label">Step 1 of 2</p>
+            <h1 className="text-[22px] font-bold tracking-tight leading-none mt-1">
+              Pick your split
+            </h1>
+          </div>
         </div>
 
-        <p className="text-zinc-400 text-sm mb-4">Choose workout type</p>
-
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2.5">
           {WORKOUT_TYPES.map((type) => (
             <button
               key={type.value}
               onClick={() => handleTypeSelect(type.value)}
-              className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-5 text-left transition-all active:scale-95"
+              className="card p-5 text-left transition-all active:scale-[0.97] hover:border-zinc-700"
             >
-              <span className="text-3xl block mb-2">{type.emoji}</span>
-              <span className={`font-bold text-lg block ${type.color}`}>
+              <span className="text-2xl block mb-3">{type.emoji}</span>
+              <span className="font-semibold text-[15px] tracking-tight block">
                 {type.label}
+              </span>
+              <span
+                className="label text-[9px] mt-1 block"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                {type.value}
               </span>
             </button>
           ))}
@@ -101,80 +129,129 @@ export default function LogWorkoutPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-6 pb-24">
-      <div className="flex items-center gap-3 mb-6">
+    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+      <div className="flex items-center gap-2 mb-6">
         <button
           onClick={() => setStep("type")}
-          className="text-zinc-400 hover:text-white p-1"
+          className="w-9 h-9 rounded-full flex items-center justify-center"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            color: "var(--fg-muted)",
+          }}
         >
-          ←
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
         </button>
-        <h1 className="text-xl font-bold text-white flex-1">Log Workout</h1>
+        <div className="flex-1">
+          <p className="label">Live Session</p>
+          <h1 className="text-[18px] font-bold tracking-tight leading-none mt-0.5">
+            {title || "Workout"}
+          </h1>
+        </div>
         <button
           onClick={handleSave}
           disabled={!title || exercises.length === 0}
-          className="bg-orange-500 disabled:opacity-40 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-opacity"
+          className="btn-accent px-4 py-2 rounded-xl text-[13px]"
         >
           Save
         </button>
       </div>
 
-      {/* Workout meta */}
-      <div className="space-y-3 mb-6">
+      <div className="space-y-2.5 mb-6">
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Workout title"
-          className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-orange-500 transition-colors font-semibold"
+          className="w-full rounded-xl px-4 py-3 text-[15px] focus:outline-none font-semibold tracking-tight"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            color: "var(--fg)",
+          }}
         />
 
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Session notes (optional)"
+          placeholder="Session notes…"
           rows={2}
-          className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500 transition-colors resize-none"
+          className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            color: "var(--fg)",
+          }}
         />
 
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <p className="text-xs text-zinc-500 mb-2">How do you feel?</p>
-            <div className="flex gap-2">
-              {FEELING_OPTIONS.map((f) => (
+        <div>
+          <p className="label mb-2">Feeling</p>
+          <div className="flex gap-2">
+            {FEELING_OPTIONS.map((f) => {
+              const selected = feeling === f.value;
+              return (
                 <button
                   key={f.value}
-                  onClick={() => setFeeling(feeling === f.value ? "" : f.value)}
-                  className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${
-                    feeling === f.value
-                      ? "bg-orange-500/20 border border-orange-500/50 text-orange-400"
-                      : "bg-zinc-900 border border-zinc-800 text-zinc-400"
-                  }`}
+                  onClick={() => setFeeling(selected ? "" : f.value)}
+                  className="flex-1 py-2.5 rounded-xl text-[12px] font-medium transition-all"
+                  style={
+                    selected
+                      ? {
+                          background: "var(--accent-dim)",
+                          border: "1px solid rgba(255,90,31,0.4)",
+                          color: "var(--accent)",
+                        }
+                      : {
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border)",
+                          color: "var(--fg-muted)",
+                        }
+                  }
                 >
-                  {f.emoji} {f.label}
+                  <span className="mr-1">{f.emoji}</span>
+                  {f.label}
                 </button>
-              ))}
-            </div>
+              );
+            })}
           </div>
         </div>
 
-        <label className="flex items-center gap-3 cursor-pointer">
-          <div
+        <label className="flex items-center justify-between cursor-pointer py-1">
+          <span
+            className="text-[13px]"
+            style={{ color: "var(--fg-muted)" }}
+          >
+            Deload week
+          </span>
+          <button
+            type="button"
             onClick={() => setIsDeload(!isDeload)}
-            className={`w-10 h-6 rounded-full transition-colors ${
-              isDeload ? "bg-blue-500" : "bg-zinc-700"
-            } relative`}
+            className="w-10 h-6 rounded-full relative transition-colors"
+            style={{
+              background: isDeload ? "var(--accent)" : "var(--border-strong)",
+            }}
           >
             <div
-              className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${
-                isDeload ? "translate-x-5" : "translate-x-1"
-              }`}
+              className="w-4 h-4 rounded-full absolute top-1 transition-transform"
+              style={{
+                background: "#fff",
+                transform: isDeload ? "translateX(22px)" : "translateX(4px)",
+              }}
             />
-          </div>
-          <span className="text-zinc-400 text-sm">Deload week</span>
+          </button>
         </label>
       </div>
 
-      {/* Exercise logger */}
       <ExerciseLogger exercises={exercises} setExercises={setExercises} />
     </div>
   );

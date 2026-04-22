@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,7 +23,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#09090b",
+  themeColor: "#0a0a0a",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -35,15 +37,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="h-full">
+    <html
+      lang="en"
+      className={`${GeistSans.variable} ${GeistMono.variable} h-full`}
+    >
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta
+          name="apple-mobile-web-app-status-bar-style"
+          content="black-translucent"
+        />
         <meta name="apple-mobile-web-app-title" content="StrengthLab" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
-      <body className="min-h-full bg-zinc-950 text-zinc-100 antialiased">
+      <body className={`${GeistSans.className} min-h-full antialiased`}>
         {children}
       </body>
     </html>

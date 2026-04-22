@@ -35,43 +35,69 @@ export default function CommentSection({
   };
 
   return (
-    <div className="border-t border-zinc-800 px-4 py-3 space-y-2">
+    <div
+      className="px-4 py-3 space-y-3"
+      style={{ borderTop: "1px solid var(--border)" }}
+    >
       {comments.length > 2 && !showAll && (
         <button
           onClick={() => setShowAll(true)}
-          className="text-zinc-500 text-xs hover:text-zinc-300 transition-colors"
+          className="label text-[10px] transition-colors"
+          style={{ color: "var(--fg-dim)" }}
         >
           View all {comments.length} comments
         </button>
       )}
       {displayedComments.map((c) => (
-        <div key={c.id} className="flex gap-2">
-          <div className="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-300 flex-shrink-0 mt-0.5">
+        <div key={c.id} className="flex gap-2.5">
+          <div
+            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 mt-0.5"
+            style={{
+              background: "var(--bg-elevated)",
+              color: "var(--fg-muted)",
+            }}
+          >
             {c.user.name[0].toUpperCase()}
           </div>
-          <div>
-            <span className="text-white text-sm font-medium">
+          <div className="flex-1 min-w-0">
+            <span className="text-[13px] font-semibold">
               {c.userId === currentUserId ? "You" : c.user.name}
             </span>{" "}
-            <span className="text-zinc-300 text-sm">{c.text}</span>
-            <p className="text-zinc-600 text-xs mt-0.5">
+            <span
+              className="text-[13px]"
+              style={{ color: "var(--fg-muted)" }}
+            >
+              {c.text}
+            </span>
+            <p
+              className="text-[10px] mt-0.5 nums"
+              style={{
+                color: "var(--fg-dim)",
+                fontFamily: "var(--font-geist-mono)",
+              }}
+            >
               {formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}
             </p>
           </div>
         </div>
       ))}
 
-      <form onSubmit={handleSubmit} className="flex gap-2 mt-2">
+      <form onSubmit={handleSubmit} className="flex gap-2 pt-1">
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Add a comment..."
-          className="flex-1 bg-zinc-800 text-white placeholder-zinc-600 text-sm px-3 py-2 rounded-xl focus:outline-none focus:border-zinc-600 border border-transparent"
+          placeholder="Add a comment…"
+          className="flex-1 text-[13px] px-3 py-2 rounded-lg focus:outline-none"
+          style={{
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            color: "var(--fg)",
+          }}
         />
         <button
           type="submit"
           disabled={!text.trim()}
-          className="bg-orange-500 disabled:opacity-30 text-white px-3 py-2 rounded-xl text-sm font-medium transition-opacity"
+          className="btn-accent px-3 py-2 rounded-lg text-[12px]"
         >
           Send
         </button>

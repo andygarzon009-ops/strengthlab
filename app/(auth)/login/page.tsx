@@ -8,52 +8,105 @@ export default function LoginPage() {
   const [state, action, pending] = useActionState(login, undefined);
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-zinc-950">
+    <div
+      className="min-h-screen flex items-center justify-center px-5"
+      style={{ background: "var(--bg)" }}
+    >
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="text-5xl mb-3">🏋️</div>
-          <h1 className="text-3xl font-bold text-white">StrengthLab</h1>
-          <p className="text-zinc-400 mt-1 text-sm">Train hard. Track smarter.</p>
+        <div className="mb-10">
+          <div
+            className="w-12 h-12 rounded-xl mb-6 flex items-center justify-center"
+            style={{
+              background: "var(--accent-dim)",
+              border: "1px solid rgba(255,90,31,0.25)",
+            }}
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--accent)"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
+            </svg>
+          </div>
+          <h1 className="text-[32px] font-bold tracking-tight leading-none mb-2">
+            StrengthLab
+          </h1>
+          <p
+            className="text-[14px]"
+            style={{ color: "var(--fg-muted)" }}
+          >
+            Log in to continue your training.
+          </p>
         </div>
 
-        <form action={action} className="space-y-4">
+        <form action={action} className="space-y-3">
           {state?.error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl">
+            <div
+              className="text-[13px] px-4 py-3 rounded-xl"
+              style={{
+                background: "rgba(239,68,68,0.08)",
+                border: "1px solid rgba(239,68,68,0.25)",
+                color: "#f87171",
+              }}
+            >
               {state.error}
             </div>
           )}
 
           <div>
+            <label className="label block mb-1.5">Email</label>
             <input
               name="email"
               type="email"
-              placeholder="Email"
               required
-              className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-orange-500 transition-colors"
+              className="w-full rounded-xl px-4 py-3.5 text-[15px] focus:outline-none transition-colors"
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
+              }}
             />
           </div>
           <div>
+            <label className="label block mb-1.5">Password</label>
             <input
               name="password"
               type="password"
-              placeholder="Password"
               required
-              className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-orange-500 transition-colors"
+              className="w-full rounded-xl px-4 py-3.5 text-[15px] focus:outline-none transition-colors"
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
+              }}
             />
           </div>
 
           <button
             type="submit"
             disabled={pending}
-            className="w-full bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white font-semibold py-3.5 rounded-xl text-base transition-colors"
+            className="btn-accent w-full py-3.5 rounded-xl text-[15px] mt-2"
           >
-            {pending ? "Logging in..." : "Log In"}
+            {pending ? "Signing in…" : "Log In"}
           </button>
         </form>
 
-        <p className="text-center text-zinc-500 text-sm mt-6">
+        <p
+          className="text-center text-[13px] mt-8"
+          style={{ color: "var(--fg-muted)" }}
+        >
           New here?{" "}
-          <Link href="/signup" className="text-orange-400 hover:text-orange-300 font-medium">
+          <Link
+            href="/signup"
+            className="font-semibold"
+            style={{ color: "var(--accent)" }}
+          >
             Create account
           </Link>
         </p>

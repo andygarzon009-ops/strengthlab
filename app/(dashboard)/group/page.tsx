@@ -54,52 +54,74 @@ export default function GroupPage() {
   };
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-6 pb-24">
-      <h1 className="text-2xl font-bold text-white mb-6">Groups</h1>
+    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+      <div className="mb-8">
+        <p className="label">Crew</p>
+        <h1 className="text-[28px] font-bold tracking-tight leading-none mt-1">
+          Train together
+        </h1>
+      </div>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl mb-4">
+        <div
+          className="text-[13px] px-4 py-3 rounded-xl mb-4"
+          style={{
+            background: "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.25)",
+            color: "#f87171",
+          }}
+        >
           {error}
         </div>
       )}
 
-      {/* Action buttons */}
-      <div className="flex gap-3 mb-6">
+      <div className="flex gap-2 mb-6">
         <button
-          onClick={() => { setCreating(true); setJoining(false); }}
-          className="flex-1 bg-orange-500 hover:bg-orange-400 text-white font-semibold py-3 rounded-xl transition-colors"
+          onClick={() => {
+            setCreating(true);
+            setJoining(false);
+          }}
+          className="btn-accent flex-1 py-3 rounded-xl text-[14px]"
         >
-          Create Group
+          Create
         </button>
         <button
-          onClick={() => { setJoining(true); setCreating(false); }}
-          className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-3 rounded-xl transition-colors"
+          onClick={() => {
+            setJoining(true);
+            setCreating(false);
+          }}
+          className="btn-ghost flex-1 py-3 rounded-xl text-[14px]"
         >
-          Join Group
+          Join
         </button>
       </div>
 
       {creating && (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4">
-          <h3 className="text-white font-semibold mb-3">New Group</h3>
+        <div className="card p-4 mb-4">
+          <p className="label mb-2">New crew</p>
           <input
             autoFocus
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
-            placeholder="Group name (e.g. The Crew)"
-            className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500 transition-colors mb-3"
+            placeholder="e.g. The Iron Club"
+            className="w-full rounded-xl px-4 py-3 text-[14px] focus:outline-none mb-3"
+            style={{
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              color: "var(--fg)",
+            }}
           />
           <div className="flex gap-2">
             <button
               onClick={handleCreate}
               disabled={!groupName.trim()}
-              className="flex-1 bg-orange-500 disabled:opacity-40 text-white font-semibold py-3 rounded-xl"
+              className="btn-accent flex-1 py-3 rounded-xl text-[14px]"
             >
               Create
             </button>
             <button
               onClick={() => setCreating(false)}
-              className="px-4 bg-zinc-800 text-zinc-400 rounded-xl"
+              className="btn-ghost px-5 rounded-xl text-[14px]"
             >
               Cancel
             </button>
@@ -108,27 +130,33 @@ export default function GroupPage() {
       )}
 
       {joining && (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4">
-          <h3 className="text-white font-semibold mb-3">Join Group</h3>
+        <div className="card p-4 mb-4">
+          <p className="label mb-2">Join with code</p>
           <input
             autoFocus
             value={joinCode}
             onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-            placeholder="Enter invite code (e.g. ABC123)"
-            className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500 transition-colors mb-3 font-mono tracking-widest"
+            placeholder="ABC123"
             maxLength={6}
+            className="w-full rounded-xl px-4 py-3 text-[16px] focus:outline-none mb-3 font-mono tracking-[0.3em] text-center"
+            style={{
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              color: "var(--fg)",
+              fontFamily: "var(--font-geist-mono)",
+            }}
           />
           <div className="flex gap-2">
             <button
               onClick={handleJoin}
               disabled={joinCode.length < 6}
-              className="flex-1 bg-orange-500 disabled:opacity-40 text-white font-semibold py-3 rounded-xl"
+              className="btn-accent flex-1 py-3 rounded-xl text-[14px]"
             >
               Join
             </button>
             <button
               onClick={() => setJoining(false)}
-              className="px-4 bg-zinc-800 text-zinc-400 rounded-xl"
+              className="btn-ghost px-5 rounded-xl text-[14px]"
             >
               Cancel
             </button>
@@ -136,50 +164,90 @@ export default function GroupPage() {
         </div>
       )}
 
-      {/* Groups list */}
       {groups.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-5xl mb-3">👥</div>
-          <p className="text-zinc-400 font-medium">No groups yet</p>
-          <p className="text-zinc-600 text-sm mt-1">
-            Create a group and invite your friends and family.
+        <div className="text-center py-16 card">
+          <p className="font-medium text-[14px]">No crew yet</p>
+          <p
+            className="text-[12px] mt-1.5"
+            style={{ color: "var(--fg-muted)" }}
+          >
+            Create one and invite your friends.
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {groups.map((group) => (
-            <div
-              key={group.id}
-              className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="text-white font-bold text-lg">{group.name}</h3>
-                  <p className="text-zinc-500 text-sm">
+            <div key={group.id} className="card p-5">
+              <div className="flex items-start justify-between mb-4 gap-3">
+                <div className="min-w-0">
+                  <h3 className="font-bold text-[17px] tracking-tight truncate">
+                    {group.name}
+                  </h3>
+                  <p
+                    className="text-[11px] mt-0.5 nums"
+                    style={{
+                      color: "var(--fg-dim)",
+                      fontFamily: "var(--font-geist-mono)",
+                    }}
+                  >
                     {group.members.length}{" "}
                     {group.members.length === 1 ? "member" : "members"}
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="text-zinc-500 text-xs mb-1">Invite code</p>
-                  <p className="text-orange-400 font-bold font-mono tracking-widest text-lg">
+                <div
+                  className="text-right shrink-0 px-3 py-2 rounded-lg"
+                  style={{ background: "var(--bg-elevated)" }}
+                >
+                  <p
+                    className="label text-[9px] mb-0.5"
+                    style={{ color: "var(--fg-dim)" }}
+                  >
+                    Code
+                  </p>
+                  <p
+                    className="font-bold tracking-[0.2em] text-[15px] nums"
+                    style={{
+                      color: "var(--accent)",
+                      fontFamily: "var(--font-geist-mono)",
+                    }}
+                  >
                     {group.code}
                   </p>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {group.members.map((m) => (
                   <div
                     key={m.user.id}
-                    className="flex items-center gap-1.5 bg-zinc-800 rounded-xl px-3 py-1.5"
+                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1"
+                    style={{
+                      background: "var(--bg-elevated)",
+                      border: "1px solid var(--border)",
+                    }}
                   >
-                    <div className="w-5 h-5 rounded-full bg-orange-500/20 flex items-center justify-center text-xs font-bold text-orange-400">
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold"
+                      style={{
+                        background: "var(--accent-dim)",
+                        color: "var(--accent)",
+                      }}
+                    >
                       {m.user.name[0].toUpperCase()}
                     </div>
-                    <span className="text-zinc-300 text-sm">{m.user.name}</span>
+                    <span
+                      className="text-[12px]"
+                      style={{ color: "var(--fg)" }}
+                    >
+                      {m.user.name}
+                    </span>
                     {m.role === "ADMIN" && (
-                      <span className="text-xs text-orange-400">★</span>
+                      <span
+                        className="text-[9px]"
+                        style={{ color: "var(--accent)" }}
+                      >
+                        ★
+                      </span>
                     )}
                   </div>
                 ))}

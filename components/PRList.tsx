@@ -10,19 +10,49 @@ type PR = {
 
 export default function PRList({ prs }: { prs: PR[] }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {prs.map((pr) => (
-        <div key={pr.id} className="flex items-center justify-between">
-          <div>
-            <p className="text-white text-sm font-medium">{pr.exercise.name}</p>
-            <p className="text-zinc-500 text-xs">
+        <div
+          key={pr.id}
+          className="flex items-center justify-between py-1"
+        >
+          <div className="min-w-0 flex-1 pr-3">
+            <p className="text-[14px] font-medium truncate">
+              {pr.exercise.name}
+            </p>
+            <p
+              className="text-[11px] mt-0.5 nums"
+              style={{
+                color: "var(--fg-dim)",
+                fontFamily: "var(--font-geist-mono)",
+              }}
+            >
               {format(new Date(pr.date), "MMM d, yyyy")}
             </p>
           </div>
-          <div className="text-right">
-            <p className="text-orange-400 font-bold">{pr.value} lbs</p>
+          <div
+            className="text-right shrink-0 nums"
+            style={{ fontFamily: "var(--font-geist-mono)" }}
+          >
+            <p
+              className="font-semibold text-[16px] leading-tight"
+              style={{ color: "var(--accent)" }}
+            >
+              {pr.value}
+              <span
+                className="text-[10px] ml-0.5 font-normal"
+                style={{ color: "var(--accent)", opacity: 0.6 }}
+              >
+                lb
+              </span>
+            </p>
             {pr.reps && (
-              <p className="text-zinc-500 text-xs">for {pr.reps} reps</p>
+              <p
+                className="text-[10px] mt-0.5"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                × {pr.reps} reps
+              </p>
             )}
           </div>
         </div>

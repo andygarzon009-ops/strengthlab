@@ -22,7 +22,7 @@ export default function ReactionButtons({
   };
 
   return (
-    <div className="flex gap-2 flex-wrap">
+    <div className="flex gap-1.5 flex-wrap">
       {REACTION_TYPES.map((rt) => {
         const count = reactions.filter((r) => r.type === rt.value).length;
         const hasReacted = reactions.some(
@@ -32,16 +32,27 @@ export default function ReactionButtons({
           <button
             key={rt.value}
             onClick={() => handleReaction(rt.value)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all active:scale-95 ${
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium transition-all active:scale-95"
+            style={
               hasReacted
-                ? "bg-orange-500/20 text-orange-400 border border-orange-500/30"
-                : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border border-transparent"
-            }`}
+                ? {
+                    background: "var(--accent-dim)",
+                    color: "var(--accent)",
+                    border: "1px solid rgba(255,90,31,0.35)",
+                  }
+                : {
+                    background: "var(--bg-elevated)",
+                    color: "var(--fg-muted)",
+                    border: "1px solid var(--border)",
+                  }
+            }
           >
-            <span>{rt.emoji}</span>
-            <span>{rt.label}</span>
+            <span className="text-[14px]">{rt.emoji}</span>
             {count > 0 && (
-              <span className={`ml-0.5 ${hasReacted ? "text-orange-300" : "text-zinc-500"}`}>
+              <span
+                className="nums text-[11px]"
+                style={{ fontFamily: "var(--font-geist-mono)" }}
+              >
                 {count}
               </span>
             )}

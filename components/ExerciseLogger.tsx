@@ -20,6 +20,12 @@ type ExerciseData = {
 
 type Exercise = { id: string; name: string; muscleGroup: string | null };
 
+type PreviousData = {
+  lastWeight?: number;
+  lastReps?: number;
+  daysAgo?: number;
+};
+
 type Props = {
   exercises: ExerciseData[];
   setExercises: (exercises: ExerciseData[]) => void;
@@ -29,7 +35,7 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
-  const [previousData, setPreviousData] = useState<Record<string, any>>({});
+  const [previousData, setPreviousData] = useState<Record<string, PreviousData>>({});
 
   useEffect(() => {
     fetch("/api/exercises")
@@ -42,9 +48,8 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
   );
 
   const addExercise = async (ex: Exercise) => {
-    // Fetch previous workout data for this exercise
     const res = await fetch(`/api/exercises/${ex.id}/previous`);
-    const prev = await res.json();
+    const prev: PreviousData = await res.json();
 
     const newEx: ExerciseData = {
       exerciseId: ex.id,
@@ -94,7 +99,6 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
   const removeSet = (exIdx: number, setIdx: number) => {
     const updated = [...exercises];
     updated[exIdx].sets.splice(setIdx, 1);
-    // Renumber
     updated[exIdx].sets
       .filter((s) => s.type === updated[exIdx].sets[setIdx]?.type)
       .forEach((s, i) => (s.setNumber = i + 1));
@@ -108,7 +112,7 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
     value: string
   ) => {
     const updated = [...exercises];
-    (updated[exIdx].sets[setIdx] as any)[field] = value;
+    (updated[exIdx].sets[setIdx] as unknown as Record<string, string>)[field] = value;
     setExercises(updated);
   };
 
@@ -119,48 +123,69 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {exercises.map((ex, exIdx) => {
         const prev = previousData[ex.exerciseId];
         const warmupSets = ex.sets.filter((s) => s.type === "WARMUP");
         const workingSets = ex.sets.filter((s) => s.type === "WORKING");
 
         return (
-          <div
-            key={exIdx}
-            className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden"
-          >
-            <div className="p-4 pb-2">
-              <div className="flex items-start justify-between">
-                <h3 className="font-bold text-white text-base flex-1">
-                  {ex.exerciseName}
-                </h3>
+          <div key={exIdx} className="card overflow-hidden">
+            <div className="p-4 pb-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-[15px] tracking-tight truncate">
+                    {ex.exerciseName}
+                  </h3>
+                  {prev && (
+                    <p
+                      className="text-[11px] mt-1 nums"
+                      style={{
+                        color: "var(--fg-dim)",
+                        fontFamily: "var(--font-geist-mono)",
+                      }}
+                    >
+                      Last: {prev.lastWeight}lb × {prev.lastReps} · {prev.daysAgo}d ago
+                    </p>
+                  )}
+                </div>
                 <button
                   onClick={() => removeExercise(exIdx)}
-                  className="text-zinc-600 hover:text-red-400 text-xl leading-none ml-2 transition-colors"
+                  className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+                  style={{ color: "var(--fg-dim)" }}
+                  aria-label="Remove exercise"
                 >
-                  ×
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
-
-              {prev && (
-                <p className="text-zinc-500 text-xs mt-1">
-                  Last: {prev.lastWeight}lbs × {prev.lastReps} ({prev.daysAgo}d ago)
-                </p>
-              )}
 
               <input
                 value={ex.notes}
                 onChange={(e) => updateExerciseNotes(exIdx, e.target.value)}
-                placeholder="Cues / notes (e.g. neutral neck)"
-                className="mt-2 w-full bg-zinc-800 text-zinc-300 placeholder-zinc-600 text-xs rounded-lg px-3 py-2 focus:outline-none"
+                placeholder="Cues…"
+                className="mt-2.5 w-full text-[12px] rounded-lg px-3 py-2 focus:outline-none"
+                style={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg-muted)",
+                }}
               />
             </div>
 
-            {/* Warm-up sets */}
             {warmupSets.length > 0 && (
-              <div className="px-4 pb-2">
-                <p className="text-zinc-500 text-xs font-medium mb-2">WARM-UP</p>
+              <div className="px-4 pb-1">
+                <p className="label mb-2">Warm-up</p>
                 {warmupSets.map((set, setIdx) => {
                   const actualIdx = ex.sets.indexOf(set);
                   return (
@@ -168,7 +193,9 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
                       key={setIdx}
                       set={set}
                       setIdx={setIdx}
-                      onUpdate={(field, val) => updateSet(exIdx, actualIdx, field, val)}
+                      onUpdate={(field, val) =>
+                        updateSet(exIdx, actualIdx, field, val)
+                      }
                       onRemove={() => removeSet(exIdx, actualIdx)}
                       isWarmup
                     />
@@ -177,9 +204,8 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
               </div>
             )}
 
-            {/* Working sets */}
-            <div className="px-4 pb-2">
-              <p className="text-zinc-500 text-xs font-medium mb-2">WORKING SETS</p>
+            <div className="px-4 pb-3">
+              <p className="label mb-2">Working sets</p>
               {workingSets.map((set, setIdx) => {
                 const actualIdx = ex.sets.indexOf(set);
                 return (
@@ -187,7 +213,9 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
                     key={setIdx}
                     set={set}
                     setIdx={setIdx}
-                    onUpdate={(field, val) => updateSet(exIdx, actualIdx, field, val)}
+                    onUpdate={(field, val) =>
+                      updateSet(exIdx, actualIdx, field, val)
+                    }
                     onRemove={() => removeSet(exIdx, actualIdx)}
                     isWarmup={false}
                   />
@@ -195,54 +223,86 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
               })}
             </div>
 
-            {/* Add set buttons */}
-            <div className="px-4 pb-4 flex gap-2">
+            <div
+              className="px-4 py-3 flex gap-2"
+              style={{ borderTop: "1px solid var(--border)" }}
+            >
               <button
                 onClick={() => addSet(exIdx, "WARMUP")}
-                className="flex-1 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-medium transition-colors"
+                className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors label"
+                style={{
+                  background: "var(--bg-elevated)",
+                  color: "var(--fg-muted)",
+                  letterSpacing: "0.1em",
+                }}
               >
                 + Warm-up
               </button>
               <button
                 onClick={() => addSet(exIdx, "WORKING")}
-                className="flex-1 py-2 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 text-xs font-medium transition-colors"
+                className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors label"
+                style={{
+                  background: "var(--accent-dim)",
+                  color: "var(--accent)",
+                  letterSpacing: "0.1em",
+                }}
               >
-                + Working Set
+                + Working
               </button>
             </div>
           </div>
         );
       })}
 
-      {/* Add exercise */}
       {showSearch ? (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+        <div className="card overflow-hidden">
           <div className="p-4">
             <div className="flex items-center gap-2 mb-3">
               <input
                 autoFocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search exercises..."
-                className="flex-1 bg-zinc-800 text-white placeholder-zinc-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none"
+                placeholder="Search exercises…"
+                className="flex-1 rounded-xl px-4 py-2.5 text-[14px] focus:outline-none"
+                style={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg)",
+                }}
               />
               <button
                 onClick={() => setShowSearch(false)}
-                className="text-zinc-500 hover:text-white px-2 py-2"
+                className="w-8 h-8 flex items-center justify-center rounded-full"
+                style={{ color: "var(--fg-muted)" }}
               >
-                ✕
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
               </button>
             </div>
-            <div className="space-y-1 max-h-64 overflow-y-auto">
+            <div className="space-y-0.5 max-h-64 overflow-y-auto">
               {filtered.slice(0, 15).map((ex) => (
                 <button
                   key={ex.id}
                   onClick={() => addExercise(ex)}
-                  className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition-colors"
+                  className="w-full text-left px-3 py-2.5 rounded-lg transition-colors flex items-center justify-between"
+                  style={{ color: "var(--fg)" }}
                 >
-                  <span className="text-white text-sm font-medium">{ex.name}</span>
+                  <span className="text-[14px] font-medium">{ex.name}</span>
                   {ex.muscleGroup && (
-                    <span className="text-zinc-500 text-xs ml-2">
+                    <span
+                      className="label text-[9px]"
+                      style={{ color: "var(--fg-dim)" }}
+                    >
                       {ex.muscleGroup}
                     </span>
                   )}
@@ -251,7 +311,6 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
               {search && filtered.length === 0 && (
                 <button
                   onClick={() => {
-                    // Create custom exercise
                     fetch("/api/exercises", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
@@ -263,7 +322,8 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
                         addExercise(ex);
                       });
                   }}
-                  className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-zinc-800 text-orange-400 text-sm transition-colors"
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-[14px] transition-colors"
+                  style={{ color: "var(--accent)" }}
                 >
                   + Create &quot;{search}&quot;
                 </button>
@@ -274,7 +334,12 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
       ) : (
         <button
           onClick={() => setShowSearch(true)}
-          className="w-full py-4 rounded-2xl border-2 border-dashed border-zinc-700 hover:border-orange-500/50 text-zinc-500 hover:text-orange-400 font-medium transition-all"
+          className="w-full py-4 rounded-2xl text-[13px] font-medium transition-all"
+          style={{
+            border: "1px dashed var(--border-strong)",
+            color: "var(--fg-muted)",
+            background: "transparent",
+          }}
         >
           + Add Exercise
         </button>
@@ -297,41 +362,76 @@ function SetRow({
   isWarmup: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2 mb-2">
+    <div className="flex items-center gap-2 mb-1.5">
       <span
-        className={`text-xs font-mono w-5 text-center flex-shrink-0 ${
-          isWarmup ? "text-zinc-600" : "text-orange-400"
-        }`}
+        className="nums text-[11px] w-5 text-center shrink-0 font-semibold"
+        style={{
+          color: isWarmup ? "var(--fg-dim)" : "var(--accent)",
+          fontFamily: "var(--font-geist-mono)",
+        }}
       >
         {setIdx + 1}
       </span>
       <input
         type="number"
+        inputMode="decimal"
         value={set.weight}
         onChange={(e) => onUpdate("weight", e.target.value)}
-        placeholder="lbs"
-        className="w-16 bg-zinc-800 text-white text-center text-sm rounded-lg py-2 focus:outline-none focus:ring-1 focus:ring-orange-500"
+        placeholder="lb"
+        className="w-16 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
+        style={{
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border)",
+          color: "var(--fg)",
+          fontFamily: "var(--font-geist-mono)",
+        }}
       />
-      <span className="text-zinc-600 text-xs">×</span>
+      <span style={{ color: "var(--fg-dim)", fontSize: "11px" }}>×</span>
       <input
         type="number"
+        inputMode="numeric"
         value={set.reps}
         onChange={(e) => onUpdate("reps", e.target.value)}
         placeholder="reps"
-        className="w-14 bg-zinc-800 text-white text-center text-sm rounded-lg py-2 focus:outline-none focus:ring-1 focus:ring-orange-500"
+        className="w-14 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
+        style={{
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border)",
+          color: "var(--fg)",
+          fontFamily: "var(--font-geist-mono)",
+        }}
       />
       <input
         type="number"
+        inputMode="numeric"
         value={set.rir}
         onChange={(e) => onUpdate("rir", e.target.value)}
         placeholder="RIR"
-        className="w-12 bg-zinc-800 text-zinc-400 text-center text-xs rounded-lg py-2 focus:outline-none"
+        className="w-12 text-center text-[11px] rounded-lg py-2 focus:outline-none"
+        style={{
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border)",
+          color: "var(--fg-muted)",
+        }}
       />
       <button
         onClick={onRemove}
-        className="text-zinc-700 hover:text-red-400 text-lg leading-none transition-colors ml-auto"
+        className="ml-auto w-7 h-7 flex items-center justify-center"
+        style={{ color: "var(--fg-dim)" }}
+        aria-label="Remove set"
       >
-        ×
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M18 6 6 18M6 6l12 12" />
+        </svg>
       </button>
     </div>
   );

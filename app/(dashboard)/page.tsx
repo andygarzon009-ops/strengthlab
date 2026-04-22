@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
-import { REACTION_TYPES, WORKOUT_TYPES, FEELING_OPTIONS } from "@/lib/exercises";
+import { WORKOUT_TYPES, FEELING_OPTIONS } from "@/lib/exercises";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import ReactionButtons from "@/components/ReactionButtons";
@@ -9,7 +9,6 @@ import CommentSection from "@/components/CommentSection";
 export default async function FeedPage() {
   const userId = await requireAuth();
 
-  // Get user's groups
   const memberships = await prisma.groupMember.findMany({
     where: { userId },
     include: { group: { include: { members: { include: { user: true } } } } },
@@ -39,38 +38,71 @@ export default async function FeedPage() {
   const currentUser = await prisma.user.findUnique({ where: { id: userId } });
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-lg mx-auto px-4 pt-8">
+      <div className="flex items-end justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white">
-            Hey, {currentUser?.name?.split(" ")[0]} 👋
+          <p className="label mb-1">Feed</p>
+          <h1 className="text-[28px] font-bold tracking-tight leading-none">
+            {currentUser?.name?.split(" ")[0] ?? "Athlete"}
           </h1>
-          <p className="text-zinc-500 text-sm">Your crew&apos;s activity</p>
         </div>
         <Link
           href="/log"
-          className="bg-orange-500 hover:bg-orange-400 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-colors"
+          className="btn-accent px-4 py-2.5 rounded-xl text-sm inline-flex items-center gap-1.5"
         >
-          + Log
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          New
         </Link>
       </div>
 
       {workouts.length === 0 ? (
-        <div className="text-center py-16">
-          <div className="text-6xl mb-4">🏋️</div>
-          <h2 className="text-xl font-semibold text-white mb-2">No workouts yet</h2>
-          <p className="text-zinc-500 text-sm mb-6">
+        <div className="text-center py-16 card px-6">
+          <div
+            className="w-14 h-14 mx-auto mb-5 rounded-2xl flex items-center justify-center"
+            style={{
+              background: "var(--accent-dim)",
+              border: "1px solid rgba(255,90,31,0.25)",
+            }}
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--accent)"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-semibold tracking-tight mb-1.5">
+            Nothing logged yet
+          </h2>
+          <p
+            className="text-sm mb-6"
+            style={{ color: "var(--fg-muted)" }}
+          >
             Log your first session or join a group to see your crew&apos;s workouts.
           </p>
-          <Link
-            href="/log"
-            className="inline-block bg-orange-500 text-white font-semibold px-6 py-3 rounded-xl"
-          >
-            Log First Workout
+          <Link href="/log" className="btn-accent inline-block px-6 py-3 rounded-xl text-sm">
+            Log First Session
           </Link>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {workouts.map((workout) => {
             const workoutType = WORKOUT_TYPES.find((t) => t.value === workout.type);
             const feeling = FEELING_OPTIONS.find((f) => f.value === workout.feeling);
@@ -84,97 +116,118 @@ export default async function FeedPage() {
             const isOwn = workout.userId === userId;
 
             return (
-              <div
+              <article
                 key={workout.id}
-                className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden animate-slide-up"
+                className="card overflow-hidden animate-slide-up"
               >
-                {/* Header */}
                 <div className="p-4 pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-orange-500/20 flex items-center justify-center text-lg font-bold text-orange-400">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-semibold shrink-0"
+                        style={{
+                          background: "var(--accent-dim)",
+                          color: "var(--accent)",
+                          border: "1px solid rgba(255,90,31,0.2)",
+                        }}
+                      >
                         {workout.user.name[0].toUpperCase()}
                       </div>
-                      <div>
-                        <p className="font-semibold text-white text-sm">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-[14px] truncate">
                           {isOwn ? "You" : workout.user.name}
                         </p>
-                        <p className="text-zinc-500 text-xs">
-                          {formatDistanceToNow(new Date(workout.date), { addSuffix: true })}
+                        <p
+                          className="text-[11px] mt-0.5"
+                          style={{ color: "var(--fg-dim)" }}
+                        >
+                          {formatDistanceToNow(new Date(workout.date), {
+                            addSuffix: true,
+                          })}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {feeling && (
-                        <span className="text-sm">{feeling.emoji}</span>
-                      )}
-                      <span className={`text-xs font-medium px-2 py-1 rounded-lg bg-zinc-800 ${workoutType?.color ?? "text-zinc-400"}`}>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {feeling && <span className="text-sm">{feeling.emoji}</span>}
+                      <span
+                        className="label text-[9px] px-2 py-1 rounded-md"
+                        style={{
+                          background: "var(--bg-elevated)",
+                          color: "var(--fg-muted)",
+                        }}
+                      >
                         {workoutType?.label ?? workout.type}
                       </span>
                     </div>
                   </div>
 
                   <Link href={`/workout/${workout.id}`}>
-                    <h3 className="font-bold text-white text-lg mt-3 hover:text-orange-400 transition-colors">
+                    <h3 className="font-bold text-[17px] mt-3 tracking-tight leading-tight hover:opacity-80 transition-opacity">
                       {workout.title}
                     </h3>
                   </Link>
 
                   {workout.notes && (
-                    <p className="text-zinc-400 text-sm mt-1 line-clamp-2">{workout.notes}</p>
+                    <p
+                      className="text-[13px] mt-1.5 line-clamp-2 leading-relaxed"
+                      style={{ color: "var(--fg-muted)" }}
+                    >
+                      {workout.notes}
+                    </p>
                   )}
                 </div>
 
-                {/* Stats row */}
-                <div className="px-4 pb-3 flex gap-4">
-                  <div className="text-center">
-                    <p className="text-white font-bold">{workout.exercises.length}</p>
-                    <p className="text-zinc-500 text-xs">exercises</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-white font-bold">{workingSets.length}</p>
-                    <p className="text-zinc-500 text-xs">sets</p>
-                  </div>
-                  {totalVolume > 0 && (
-                    <div className="text-center">
-                      <p className="text-white font-bold">
-                        {totalVolume >= 1000
-                          ? `${(totalVolume / 1000).toFixed(1)}k`
-                          : totalVolume}
-                      </p>
-                      <p className="text-zinc-500 text-xs">lbs vol</p>
-                    </div>
-                  )}
-                  {workout.isDeload && (
-                    <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg self-start">
-                      Deload
-                    </span>
-                  )}
+                <div
+                  className="px-4 py-3 grid grid-cols-3 gap-px"
+                  style={{ background: "var(--border)" }}
+                >
+                  <Stat label="Exercises" value={workout.exercises.length} />
+                  <Stat label="Sets" value={workingSets.length} />
+                  <Stat
+                    label="Volume"
+                    value={
+                      totalVolume >= 1000
+                        ? `${(totalVolume / 1000).toFixed(1)}k`
+                        : totalVolume
+                    }
+                    suffix={totalVolume > 0 ? "lb" : undefined}
+                  />
                 </div>
 
-                {/* Exercise preview */}
                 {workout.exercises.length > 0 && (
-                  <div className="px-4 pb-3">
+                  <div className="px-4 pt-3 pb-3">
                     <div className="flex flex-wrap gap-1.5">
                       {workout.exercises.slice(0, 4).map((ex) => (
                         <span
                           key={ex.id}
-                          className="text-xs bg-zinc-800 text-zinc-300 px-2 py-1 rounded-lg"
+                          className="text-[11px] px-2 py-1 rounded-md"
+                          style={{
+                            background: "var(--bg-elevated)",
+                            color: "var(--fg-muted)",
+                            border: "1px solid var(--border)",
+                          }}
                         >
                           {ex.exercise.name}
                         </span>
                       ))}
                       {workout.exercises.length > 4 && (
-                        <span className="text-xs bg-zinc-800 text-zinc-500 px-2 py-1 rounded-lg">
-                          +{workout.exercises.length - 4} more
+                        <span
+                          className="text-[11px] px-2 py-1 rounded-md"
+                          style={{
+                            color: "var(--fg-dim)",
+                          }}
+                        >
+                          +{workout.exercises.length - 4}
                         </span>
                       )}
                     </div>
                   </div>
                 )}
 
-                {/* Reactions */}
-                <div className="border-t border-zinc-800 px-4 py-3">
+                <div
+                  className="px-4 py-3"
+                  style={{ borderTop: "1px solid var(--border)" }}
+                >
                   <ReactionButtons
                     workoutId={workout.id}
                     reactions={workout.reactions}
@@ -182,17 +235,51 @@ export default async function FeedPage() {
                   />
                 </div>
 
-                {/* Comments */}
                 <CommentSection
                   workoutId={workout.id}
                   comments={workout.comments}
                   currentUserId={userId}
                 />
-              </div>
+              </article>
             );
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  suffix,
+}: {
+  label: string;
+  value: number | string;
+  suffix?: string;
+}) {
+  return (
+    <div
+      className="py-1.5"
+      style={{ background: "var(--bg-card)" }}
+    >
+      <p className="label text-[9px]" style={{ color: "var(--fg-dim)" }}>
+        {label}
+      </p>
+      <p
+        className="nums font-mono text-[15px] font-semibold leading-tight mt-0.5"
+        style={{ fontFamily: "var(--font-geist-mono)" }}
+      >
+        {value}
+        {suffix && (
+          <span
+            className="text-[10px] ml-0.5 font-normal"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            {suffix}
+          </span>
+        )}
+      </p>
     </div>
   );
 }

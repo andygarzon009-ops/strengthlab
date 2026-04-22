@@ -1,7 +1,13 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { WORKOUT_TYPES } from "@/lib/exercises";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from "date-fns";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  getDay,
+} from "date-fns";
 import Link from "next/link";
 
 export default async function HistoryPage() {
@@ -18,7 +24,6 @@ export default async function HistoryPage() {
     orderBy: { date: "desc" },
   });
 
-  // Calendar for current month
   const now = new Date();
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
@@ -26,19 +31,67 @@ export default async function HistoryPage() {
   const workoutDates = new Set(
     workouts.map((w) => format(new Date(w.date), "yyyy-MM-dd"))
   );
-
   const startDayOfWeek = getDay(monthStart);
 
-  return (
-    <div className="max-w-lg mx-auto px-4 pt-6 pb-24">
-      <h1 className="text-2xl font-bold text-white mb-6">Workout History</h1>
+  const avgPerWeek =
+    workouts.length > 0
+      ? (
+          workouts.length /
+          Math.max(
+            1,
+            Math.ceil(
+              (Date.now() -
+                new Date(workouts[workouts.length - 1].date).getTime()) /
+                (7 * 24 * 60 * 60 * 1000)
+            )
+          )
+        ).toFixed(1)
+      : "0";
 
-      {/* Calendar */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-6">
-        <p className="text-white font-semibold mb-4">{format(now, "MMMM yyyy")}</p>
+  const stats = [
+    { label: "All Time", value: workouts.length },
+    {
+      label: "This Month",
+      value: workouts.filter(
+        (w) => new Date(w.date) >= monthStart && new Date(w.date) <= monthEnd
+      ).length,
+    },
+    { label: "Per Week", value: avgPerWeek },
+  ];
+
+  return (
+    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+      <div className="mb-8">
+        <p className="label">History</p>
+        <h1 className="text-[28px] font-bold tracking-tight leading-none mt-1">
+          Every session
+        </h1>
+      </div>
+
+      <div className="card p-5 mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <p className="font-semibold text-[14px] tracking-tight">
+            {format(now, "MMMM yyyy")}
+          </p>
+          <p
+            className="label text-[9px] nums"
+            style={{
+              color: "var(--fg-dim)",
+              fontFamily: "var(--font-geist-mono)",
+            }}
+          >
+            {workoutDates.size} sessions
+          </p>
+        </div>
         <div className="grid grid-cols-7 gap-1 text-center">
-          {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
-            <div key={d} className="text-zinc-600 text-xs pb-1">{d}</div>
+          {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+            <div
+              key={i}
+              className="text-[10px] pb-2"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              {d}
+            </div>
           ))}
           {Array.from({ length: startDayOfWeek }).map((_, i) => (
             <div key={`empty-${i}`} />
@@ -50,13 +103,22 @@ export default async function HistoryPage() {
             return (
               <div
                 key={key}
-                className={`aspect-square flex items-center justify-center rounded-lg text-sm font-medium ${
-                  hasWorkout
-                    ? "bg-orange-500 text-white"
+                className="aspect-square flex items-center justify-center rounded-md text-[12px] nums"
+                style={{
+                  fontFamily: "var(--font-geist-mono)",
+                  background: hasWorkout
+                    ? "var(--accent)"
                     : isToday
-                    ? "bg-zinc-700 text-white"
-                    : "text-zinc-600"
-                }`}
+                      ? "var(--bg-elevated)"
+                      : "transparent",
+                  color: hasWorkout
+                    ? "#0a0a0a"
+                    : isToday
+                      ? "var(--fg)"
+                      : "var(--fg-dim)",
+                  fontWeight: hasWorkout || isToday ? 600 : 400,
+                  border: isToday && !hasWorkout ? "1px solid var(--border-strong)" : "none",
+                }}
               >
                 {format(day, "d")}
               </div>
@@ -65,51 +127,51 @@ export default async function HistoryPage() {
         </div>
       </div>
 
-      {/* Stats summary */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        {[
-          { label: "Total Workouts", value: workouts.length },
-          {
-            label: "This Month",
-            value: workouts.filter(
-              (w) =>
-                new Date(w.date) >= monthStart &&
-                new Date(w.date) <= monthEnd
-            ).length,
-          },
-          {
-            label: "Avg/Week",
-            value:
-              workouts.length > 0
-                ? (workouts.length / Math.max(1, Math.ceil(
-                    (Date.now() - new Date(workouts[workouts.length - 1].date).getTime()) /
-                      (7 * 24 * 60 * 60 * 1000)
-                  ))).toFixed(1)
-                : 0,
-          },
-        ].map((stat) => (
+      <div
+        className="grid grid-cols-3 gap-px mb-6 card overflow-hidden"
+        style={{ background: "var(--border)", padding: 0 }}
+      >
+        {stats.map((stat) => (
           <div
             key={stat.label}
-            className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-center"
+            className="px-3 py-4 text-center"
+            style={{ background: "var(--bg-card)" }}
           >
-            <p className="text-white font-bold text-xl">{stat.value}</p>
-            <p className="text-zinc-500 text-xs">{stat.label}</p>
+            <p
+              className="font-semibold text-[20px] leading-none tracking-tight nums"
+              style={{ fontFamily: "var(--font-geist-mono)" }}
+            >
+              {stat.value}
+            </p>
+            <p
+              className="label text-[9px] mt-1.5"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              {stat.label}
+            </p>
           </div>
         ))}
       </div>
 
-      {/* Workout list */}
       {workouts.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-zinc-500">No workouts logged yet.</p>
-          <Link href="/log" className="text-orange-400 text-sm mt-2 inline-block">
-            Log your first workout
+          <p className="text-[14px]" style={{ color: "var(--fg-muted)" }}>
+            No workouts logged yet.
+          </p>
+          <Link
+            href="/log"
+            className="text-[13px] mt-3 inline-block font-semibold"
+            style={{ color: "var(--accent)" }}
+          >
+            Log your first →
           </Link>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {workouts.map((workout) => {
-            const workoutType = WORKOUT_TYPES.find((t) => t.value === workout.type);
+            const workoutType = WORKOUT_TYPES.find(
+              (t) => t.value === workout.type
+            );
             const workingSets = workout.exercises.flatMap((e) =>
               e.sets.filter((s) => s.type === "WORKING")
             );
@@ -122,43 +184,89 @@ export default async function HistoryPage() {
               <Link
                 key={workout.id}
                 href={`/workout/${workout.id}`}
-                className="block bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 transition-colors"
+                className="card p-4 block transition-colors"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-xs font-medium ${workoutType?.color ?? "text-zinc-400"}`}>
+                      <span
+                        className="label text-[9px]"
+                        style={{ color: "var(--fg-dim)" }}
+                      >
                         {workoutType?.label ?? workout.type}
                       </span>
                       {workout.isDeload && (
-                        <span className="text-xs text-blue-400">Deload</span>
+                        <span
+                          className="label text-[9px]"
+                          style={{ color: "#60a5fa" }}
+                        >
+                          · Deload
+                        </span>
                       )}
                     </div>
-                    <h3 className="font-semibold text-white">{workout.title}</h3>
-                    <p className="text-zinc-500 text-xs mt-1">
-                      {format(new Date(workout.date), "EEE, MMM d")}
+                    <h3 className="font-semibold text-[15px] tracking-tight truncate">
+                      {workout.title}
+                    </h3>
+                    <p
+                      className="text-[11px] mt-1 nums"
+                      style={{
+                        color: "var(--fg-dim)",
+                        fontFamily: "var(--font-geist-mono)",
+                      }}
+                    >
+                      {format(new Date(workout.date), "EEE · MMM d")}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-white font-bold">{workout.exercises.length} ex</p>
-                    <p className="text-zinc-500 text-xs">{workingSets.length} sets</p>
+                  <div
+                    className="text-right nums"
+                    style={{ fontFamily: "var(--font-geist-mono)" }}
+                  >
+                    <p className="font-semibold text-[15px] leading-tight">
+                      {workout.exercises.length}
+                      <span
+                        className="text-[10px] ml-0.5 font-normal"
+                        style={{ color: "var(--fg-dim)" }}
+                      >
+                        ex
+                      </span>
+                    </p>
+                    <p
+                      className="text-[11px] mt-0.5"
+                      style={{ color: "var(--fg-dim)" }}
+                    >
+                      {workingSets.length} sets
+                    </p>
                     {totalVolume > 0 && (
-                      <p className="text-zinc-500 text-xs">
+                      <p
+                        className="text-[11px]"
+                        style={{ color: "var(--fg-dim)" }}
+                      >
                         {totalVolume >= 1000
                           ? `${(totalVolume / 1000).toFixed(1)}k`
-                          : totalVolume} lbs
+                          : totalVolume}
+                        lb
                       </p>
                     )}
                   </div>
                 </div>
-                <div className="flex gap-1.5 mt-2 flex-wrap">
+                <div className="flex gap-1 mt-3 flex-wrap">
                   {workout.exercises.slice(0, 3).map((ex) => (
-                    <span key={ex.id} className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-lg">
+                    <span
+                      key={ex.id}
+                      className="text-[10px] px-2 py-0.5 rounded"
+                      style={{
+                        background: "var(--bg-elevated)",
+                        color: "var(--fg-muted)",
+                      }}
+                    >
                       {ex.exercise.name}
                     </span>
                   ))}
                   {workout.exercises.length > 3 && (
-                    <span className="text-xs bg-zinc-800 text-zinc-600 px-2 py-0.5 rounded-lg">
+                    <span
+                      className="text-[10px] px-2 py-0.5"
+                      style={{ color: "var(--fg-dim)" }}
+                    >
                       +{workout.exercises.length - 3}
                     </span>
                   )}
