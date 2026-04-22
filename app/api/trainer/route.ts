@@ -126,7 +126,14 @@ COACHING GUIDELINES:
 - If they've been training hard 5+ days straight, suggest recovery
 - Keep responses concise and practical — max 3-4 paragraphs
 - Use a motivating but honest coach tone
-- When suggesting a workout, give specific exercises with specific target weights based on their history`;
+- When suggesting a workout, give specific exercises with specific target weights based on their history${
+      user?.coachPrompt?.trim()
+        ? `
+
+ATHLETE'S PERSONAL COACHING INSTRUCTIONS (follow these — they override defaults where they conflict):
+${user.coachPrompt.trim()}`
+        : ""
+    }`;
 
     await prisma.trainerMessage.create({
       data: { userId, role: "user", content: message },

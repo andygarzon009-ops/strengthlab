@@ -270,6 +270,7 @@ export async function updateProfile(data: {
   goals?: string;
   preferredSplit?: string;
   bio?: string;
+  coachPrompt?: string;
 }) {
   const userId = await requireAuth();
   await prisma.user.update({ where: { id: userId }, data });

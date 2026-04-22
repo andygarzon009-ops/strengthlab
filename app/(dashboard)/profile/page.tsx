@@ -137,6 +137,7 @@ export default async function ProfilePage() {
               goals: formData.get("goals") as string,
               preferredSplit: formData.get("preferredSplit") as string,
               bio: formData.get("bio") as string,
+              coachPrompt: formData.get("coachPrompt") as string,
             });
           }}
           className="space-y-3"
@@ -170,6 +171,29 @@ export default async function ProfilePage() {
               placeholder="A bit about you…"
               rows={2}
               className="w-full rounded-xl px-4 py-3 text-[14px] focus:outline-none resize-none"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
+              }}
+            />
+          </div>
+          <div>
+            <div className="flex items-baseline justify-between mb-1.5">
+              <label className="label">Coach instructions</label>
+              <span
+                className="text-[10px]"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                Shapes your AI coach
+              </span>
+            </div>
+            <textarea
+              name="coachPrompt"
+              defaultValue={user.coachPrompt ?? ""}
+              placeholder="e.g. Be brutal and honest. Focus on powerlifting. Push progressive overload hard. Never sugarcoat it."
+              rows={4}
+              className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none leading-relaxed"
               style={{
                 background: "var(--bg-elevated)",
                 border: "1px solid var(--border)",
