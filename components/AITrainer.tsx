@@ -118,8 +118,37 @@ export default function AITrainer() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState("");
+  const [clearedAt, setClearedAt] = useState<number>(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = parseInt(
+        localStorage.getItem("sl:coachClearedAt") || "0",
+        10
+      );
+      setClearedAt(Number.isFinite(saved) ? saved : 0);
+    }
+  }, []);
+
+  // Auto-close the coach when the user navigates to a different page
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  const clearChat = () => {
+    const now = Date.now();
+    setClearedAt(now);
+    setStreaming("");
+    if (typeof window !== "undefined") {
+      localStorage.setItem("sl:coachClearedAt", String(now));
+    }
+  };
+
+  const visibleMessages = messages.filter(
+    (m) => new Date(m.createdAt).getTime() > clearedAt
+  );
 
   useEffect(() => {
     if (open && messages.length === 0) {
@@ -186,7 +215,7 @@ export default function AITrainer() {
     }
   };
 
-  const isEmpty = messages.length === 0 && !streaming;
+  const isEmpty = visibleMessages.length === 0 && !streaming;
 
   return (
     <>
@@ -220,62 +249,68 @@ export default function AITrainer() {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex flex-col"
+          className="fixed inset-0 z-40 flex flex-col"
           style={{ background: "var(--bg)" }}
         >
           <div
-            className="flex items-center gap-3 px-4 pt-12 pb-4"
+            className="flex items-center gap-2 px-3 pb-3"
             style={{
+              paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)",
               borderBottom: "1px solid var(--border)",
               background: "var(--bg-card)",
             }}
           >
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center"
-              style={{
-                background: "var(--accent-dim)",
-                border: "1px solid rgba(34,197,94,0.25)",
-              }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--accent)"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 2v4M4.93 4.93l2.83 2.83M2 12h4M4.93 19.07l2.83-2.83M12 22v-4M19.07 19.07l-2.83-2.83M22 12h-4M19.07 4.93l-2.83 2.83" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h2 className="text-[15px] font-semibold tracking-tight">
-                Personalized Coach
-              </h2>
-              <p className="text-[11px] label mt-0.5" style={{ color: "var(--fg-dim)" }}>
-                Built around your training
-              </p>
-            </div>
             <button
               onClick={() => setOpen(false)}
-              className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
-              style={{ color: "var(--fg-muted)" }}
+              className="w-11 h-11 flex items-center justify-center rounded-full active:scale-95 transition-transform"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
+              }}
+              aria-label="Close coach"
             >
               <svg
-                width="18"
-                height="18"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth="2.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
                 <path d="M18 6 6 18M6 6l12 12" />
               </svg>
             </button>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-[15px] font-semibold tracking-tight leading-none">
+                Coach
+              </h2>
+              <p
+                className="text-[10px] label mt-0.5"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                {visibleMessages.length === 0
+                  ? "Fresh conversation"
+                  : `${visibleMessages.length} message${visibleMessages.length === 1 ? "" : "s"}`}
+              </p>
+            </div>
+            {visibleMessages.length > 0 && (
+              <button
+                onClick={clearChat}
+                className="h-9 px-3 rounded-full text-[12px] label"
+                style={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg-muted)",
+                }}
+                aria-label="Start a fresh chat"
+                title="Clears the on-screen chat. Coach still remembers your training history."
+              >
+                Clear
+              </button>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
@@ -305,12 +340,21 @@ export default function AITrainer() {
                   Your personalized coach
                 </h3>
                 <p
-                  className="text-sm leading-relaxed mb-6"
+                  className="text-sm leading-relaxed mb-3"
                   style={{ color: "var(--fg-muted)" }}
                 >
                   I know every session you&apos;ve logged, your PRs, and your
                   goals. Ask me anything.
                 </p>
+                {messages.length > 0 && (
+                  <p
+                    className="text-[11px] mb-6 label"
+                    style={{ color: "var(--fg-dim)" }}
+                  >
+                    Chat cleared · your training history stays with me
+                  </p>
+                )}
+                {messages.length === 0 && <div className="mb-3" />}
                 <div className="space-y-2">
                   {QUICK_PROMPTS.map((p) => (
                     <button
@@ -330,7 +374,7 @@ export default function AITrainer() {
               </div>
             )}
 
-            {messages.map((m) => (
+            {visibleMessages.map((m) => (
               <div
                 key={m.id}
                 className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
@@ -439,8 +483,9 @@ export default function AITrainer() {
           )}
 
           <div
-            className="px-4 pt-2 pb-8"
+            className="px-4 pt-2"
             style={{
+              paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 92px)",
               borderTop: "1px solid var(--border)",
               background: "var(--bg-card)",
             }}
