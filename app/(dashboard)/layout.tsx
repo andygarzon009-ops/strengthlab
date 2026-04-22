@@ -1,6 +1,7 @@
 import BottomNav from "@/components/BottomNav";
 import AITrainer from "@/components/AITrainer";
 import Celebrations from "@/components/Celebrations";
+import { Suspense } from "react";
 
 export default function DashboardLayout({
   children,
@@ -14,7 +15,9 @@ export default function DashboardLayout({
     >
       {children}
       <BottomNav />
-      <AITrainer />
+      <Suspense fallback={null}>
+        <AITrainer />
+      </Suspense>
       <Celebrations />
     </div>
   );
