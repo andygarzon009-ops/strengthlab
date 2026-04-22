@@ -282,6 +282,41 @@ export default function WorkoutForm({
         >
           Forgot a session? You can backdate to any past day on the next step.
         </p>
+
+        <Link
+          href="/exercises"
+          className="mt-4 w-full card px-4 py-3.5 flex items-center justify-between transition-all active:scale-[0.98]"
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: "var(--bg-elevated)" }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--fg-muted)"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-[13px] font-medium">Exercise library</p>
+              <p
+                className="text-[11px] mt-0.5"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                Add, edit, or tag exercises
+              </p>
+            </div>
+          </div>
+          <span style={{ color: "var(--fg-dim)" }}>→</span>
+        </Link>
       </div>
     );
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 type SetData = {
@@ -373,20 +374,60 @@ export default function ExerciseLogger({
                 </button>
               )}
             </div>
+
+            <div
+              className="mt-3 pt-3 flex items-center justify-between"
+              style={{ borderTop: "1px solid var(--border)" }}
+            >
+              <p
+                className="label text-[10px]"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                Missing something?
+              </p>
+              <Link
+                href="/exercises"
+                className="label text-[10px]"
+                style={{ color: "var(--accent)" }}
+              >
+                Manage library →
+              </Link>
+            </div>
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => setShowSearch(true)}
-          className="w-full py-4 rounded-2xl text-[13px] font-medium transition-all"
-          style={{
-            border: "1px dashed var(--border-strong)",
-            color: "var(--fg-muted)",
-            background: "transparent",
-          }}
-        >
-          + Add Exercise
-        </button>
+        <div className="space-y-2">
+          <button
+            onClick={() => setShowSearch(true)}
+            className="w-full py-4 rounded-2xl text-[13px] font-medium transition-all"
+            style={{
+              border: "1px dashed var(--border-strong)",
+              color: "var(--fg-muted)",
+              background: "transparent",
+            }}
+          >
+            + Add Exercise
+          </button>
+          <Link
+            href="/exercises"
+            className="flex items-center justify-center gap-1.5 py-2 text-[11px] label"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
+            </svg>
+            <span>Exercise library</span>
+          </Link>
+        </div>
       )}
     </div>
   );
