@@ -278,7 +278,7 @@ export default async function FeedPage() {
                 )}
 
                 <div
-                  className="px-4 py-3"
+                  className="px-4 py-3 flex items-center gap-2"
                   style={{ borderTop: "1px solid var(--border)" }}
                 >
                   <ReactionButtons
@@ -286,6 +286,19 @@ export default async function FeedPage() {
                     reactions={workout.reactions}
                     currentUserId={userId}
                   />
+                  {!isOwn && (
+                    <Link
+                      href={`/log?clone=${workout.id}`}
+                      className="ml-auto text-[11px] label px-2.5 py-1.5 rounded-lg"
+                      style={{
+                        background: "var(--accent-dim)",
+                        color: "var(--accent)",
+                        border: "1px solid rgba(34,197,94,0.3)",
+                      }}
+                    >
+                      ⚡ Do this workout
+                    </Link>
+                  )}
                 </div>
 
                 <CommentSection

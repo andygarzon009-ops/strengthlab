@@ -8,6 +8,10 @@ import {
   leaveGroup,
 } from "@/lib/actions/workouts";
 import { useState, useEffect, useTransition } from "react";
+import GroupFeed from "@/components/GroupFeed";
+import GroupChallenges, {
+  GroupChallengePRs,
+} from "@/components/GroupChallenges";
 
 type Group = {
   id: string;
@@ -313,7 +317,12 @@ function GroupCard({
         </div>
       </div>
 
+      <GroupChallenges members={group.members} />
+      <GroupChallengePRs groupId={group.id} />
+
       <Leaderboard members={group.members} />
+
+      <GroupFeed groupId={group.id} />
 
       <div
         className="flex gap-2 pt-3"
