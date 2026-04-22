@@ -293,7 +293,6 @@ export async function joinGroup(code: string) {
 export async function updateProfile(data: {
   name: string;
   bodyweight?: number;
-  goals?: string;
   preferredSplit?: string;
   bio?: string;
   experienceLevel?: string;
@@ -301,6 +300,18 @@ export async function updateProfile(data: {
   trainingDays?: number;
   injuries?: string;
   coachPrompt?: string;
+  height?: number | null;
+  bodyFat?: number | null;
+  restingHR?: number | null;
+  waist?: number | null;
+  hips?: number | null;
+  chest?: number | null;
+  shoulders?: number | null;
+  neck?: number | null;
+  arm?: number | null;
+  forearm?: number | null;
+  thigh?: number | null;
+  calf?: number | null;
 }) {
   const userId = await requireAuth();
   await prisma.user.update({ where: { id: userId }, data });

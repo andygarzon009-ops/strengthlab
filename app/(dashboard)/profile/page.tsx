@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { logout } from "@/lib/actions/auth";
-import { updateProfile as updateProfileAction } from "@/lib/actions/workouts";
 import Link from "next/link";
+import ProfileForm from "@/components/ProfileForm";
 
 export default async function ProfilePage() {
   const userId = await requireAuth();
@@ -122,168 +122,32 @@ export default async function ProfilePage() {
         </div>
       )}
 
-      <div className="card p-5 mb-4">
-        <h2 className="font-semibold text-[14px] tracking-tight mb-1">
-          Your profile
-        </h2>
-        <p
-          className="text-[11px] mb-4"
-          style={{ color: "var(--fg-dim)" }}
-        >
-          Your coach tunes itself to these answers.
-        </p>
-        <form
-          action={async (formData) => {
-            "use server";
-            await updateProfileAction({
-              name: formData.get("name") as string,
-              bodyweight: formData.get("bodyweight")
-                ? parseFloat(formData.get("bodyweight") as string)
-                : undefined,
-              goals: formData.get("goals") as string,
-              preferredSplit: formData.get("preferredSplit") as string,
-              bio: formData.get("bio") as string,
-              experienceLevel: formData.get("experienceLevel") as string,
-              primaryFocus: formData.get("primaryFocus") as string,
-              trainingDays: formData.get("trainingDays")
-                ? parseInt(formData.get("trainingDays") as string)
-                : undefined,
-              injuries: formData.get("injuries") as string,
-              coachPrompt: formData.get("coachPrompt") as string,
-            });
-          }}
-          className="space-y-3"
-        >
-          <Field label="Name" name="name" defaultValue={user.name} />
-
-          <div className="grid grid-cols-2 gap-2.5">
-            <Field
-              label="Body weight"
-              name="bodyweight"
-              type="number"
-              defaultValue={user.bodyweight?.toString() ?? ""}
-              placeholder="185"
-              suffix="lb"
-            />
-            <Field
-              label="Days / week"
-              name="trainingDays"
-              type="number"
-              defaultValue={user.trainingDays?.toString() ?? ""}
-              placeholder="4"
-            />
-          </div>
-
-          <div>
-            <label className="label block mb-1.5">Experience</label>
-            <SelectField
-              name="experienceLevel"
-              defaultValue={user.experienceLevel ?? ""}
-              options={[
-                { value: "", label: "—" },
-                { value: "BEGINNER", label: "Beginner (<1 yr)" },
-                { value: "INTERMEDIATE", label: "Intermediate (1–3 yrs)" },
-                { value: "ADVANCED", label: "Advanced (3+ yrs)" },
-                { value: "ELITE", label: "Elite / Competitive" },
-              ]}
-            />
-          </div>
-
-          <div>
-            <label className="label block mb-1.5">Primary focus</label>
-            <SelectField
-              name="primaryFocus"
-              defaultValue={user.primaryFocus ?? ""}
-              options={[
-                { value: "", label: "—" },
-                { value: "STRENGTH", label: "Strength" },
-                { value: "HYPERTROPHY", label: "Hypertrophy" },
-                { value: "POWERBUILDING", label: "Powerbuilding" },
-                { value: "RECOMP", label: "Body recomposition" },
-                { value: "CUT", label: "Fat loss, preserve muscle" },
-                { value: "ATHLETIC", label: "Athletic performance" },
-                { value: "GENERAL", label: "General fitness" },
-              ]}
-            />
-          </div>
-
-          <Field
-            label="Goals (specifics)"
-            name="goals"
-            defaultValue={user.goals ?? ""}
-            placeholder="e.g. 315 squat by June, 185lb lean"
-          />
-          <Field
-            label="Preferred split"
-            name="preferredSplit"
-            defaultValue={user.preferredSplit ?? ""}
-            placeholder="e.g. Push / Pull / Legs"
-          />
-
-          <div>
-            <label className="label block mb-1.5">Injuries / limitations</label>
-            <textarea
-              name="injuries"
-              defaultValue={user.injuries ?? ""}
-              placeholder="e.g. Tweaky left shoulder on heavy overhead. Tight lower back from sitting — warm up longer."
-              rows={2}
-              className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none leading-relaxed"
-              style={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
-                color: "var(--fg)",
-              }}
-            />
-          </div>
-
-          <div>
-            <label className="label block mb-1.5">Bio</label>
-            <textarea
-              name="bio"
-              defaultValue={user.bio ?? ""}
-              placeholder="A bit about you…"
-              rows={2}
-              className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none leading-relaxed"
-              style={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
-                color: "var(--fg)",
-              }}
-            />
-          </div>
-
-          <div>
-            <div className="flex items-baseline justify-between mb-1.5">
-              <label className="label">Coach notes</label>
-              <span
-                className="text-[10px]"
-                style={{ color: "var(--fg-dim)" }}
-              >
-                Optional extras
-              </span>
-            </div>
-            <textarea
-              name="coachPrompt"
-              defaultValue={user.coachPrompt ?? ""}
-              placeholder="Anything else the coach should know — tone preferences, equipment limits, schedule constraints."
-              rows={3}
-              className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none leading-relaxed"
-              style={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
-                color: "var(--fg)",
-              }}
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="btn-accent w-full py-3 rounded-xl text-[14px] mt-2"
-          >
-            Save changes
-          </button>
-        </form>
-      </div>
+      <ProfileForm
+        user={{
+          name: user.name,
+          email: user.email,
+          bodyweight: user.bodyweight,
+          preferredSplit: user.preferredSplit,
+          bio: user.bio,
+          experienceLevel: user.experienceLevel,
+          primaryFocus: user.primaryFocus,
+          trainingDays: user.trainingDays,
+          injuries: user.injuries,
+          coachPrompt: user.coachPrompt,
+          height: user.height,
+          bodyFat: user.bodyFat,
+          restingHR: user.restingHR,
+          waist: user.waist,
+          hips: user.hips,
+          chest: user.chest,
+          shoulders: user.shoulders,
+          neck: user.neck,
+          arm: user.arm,
+          forearm: user.forearm,
+          thigh: user.thigh,
+          calf: user.calf,
+        }}
+      />
 
       <div className="space-y-2">
         <Link
@@ -354,80 +218,3 @@ export default async function ProfilePage() {
   );
 }
 
-function Field({
-  label,
-  name,
-  defaultValue,
-  placeholder,
-  type = "text",
-  suffix,
-}: {
-  label: string;
-  name: string;
-  defaultValue?: string;
-  placeholder?: string;
-  type?: string;
-  suffix?: string;
-}) {
-  return (
-    <div>
-      <label className="label block mb-1.5">{label}</label>
-      <div className="relative">
-        <input
-          name={name}
-          type={type}
-          defaultValue={defaultValue}
-          placeholder={placeholder}
-          className="w-full rounded-xl px-4 py-3 text-[14px] focus:outline-none"
-          style={{
-            background: "var(--bg-elevated)",
-            border: "1px solid var(--border)",
-            color: "var(--fg)",
-            paddingRight: suffix ? "3rem" : undefined,
-          }}
-        />
-        {suffix && (
-          <span
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-[11px] label"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            {suffix}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function SelectField({
-  name,
-  defaultValue,
-  options,
-}: {
-  name: string;
-  defaultValue?: string;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <select
-      name={name}
-      defaultValue={defaultValue}
-      className="w-full rounded-xl px-4 py-3 text-[14px] focus:outline-none appearance-none"
-      style={{
-        background: "var(--bg-elevated)",
-        border: "1px solid var(--border)",
-        color: "var(--fg)",
-        backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2352525b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-        backgroundRepeat: "no-repeat",
-        backgroundPosition: "right 0.75rem center",
-        paddingRight: "2rem",
-      }}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  );
-}

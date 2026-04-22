@@ -32,6 +32,18 @@ model User {
   trainingDays   Int?
   injuries       String?
   coachPrompt    String?
+  height         Float?
+  bodyFat        Float?
+  restingHR      Int?
+  waist          Float?
+  hips           Float?
+  chest          Float?
+  shoulders      Float?
+  neck           Float?
+  arm            Float?
+  forearm        Float?
+  thigh          Float?
+  calf           Float?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

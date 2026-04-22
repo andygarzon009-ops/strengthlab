@@ -283,12 +283,33 @@ PROFILE:
 - Primary focus: ${user?.primaryFocus ?? "not specified"}
 - Target training days per week: ${user?.trainingDays ?? "not specified"}
 - Bodyweight: ${user?.bodyweight ? `${user.bodyweight}lbs` : "not set"}
-- Stated goals: ${user?.goals ?? "not specified"}
 - Preferred split: ${user?.preferredSplit ?? "not specified"}
 - Injury / pain history: ${user?.injuries?.trim() ? user.injuries.trim() : "none reported"}
 - Total sessions logged: ${workouts.length}
 - This week: ${thisWeek} sessions | This month: ${thisMonth} sessions
 - Last trained: ${daysSinceLast === null ? "no sessions yet" : daysSinceLast === 0 ? "today" : `${daysSinceLast} days ago`}
+
+BODY METRICS (cm unless noted, optional — may be blank):
+- Height: ${user?.height ? `${user.height}cm` : "not set"}
+- Body fat: ${user?.bodyFat ? `${user.bodyFat}%` : "not set"}
+- Resting HR: ${user?.restingHR ? `${user.restingHR}bpm` : "not set"}
+- Neck: ${user?.neck ?? "—"} | Shoulders: ${user?.shoulders ?? "—"} | Chest: ${user?.chest ?? "—"}
+- Arm: ${user?.arm ?? "—"} | Forearm: ${user?.forearm ?? "—"} | Waist: ${user?.waist ?? "—"}
+- Hips: ${user?.hips ?? "—"} | Thigh: ${user?.thigh ?? "—"} | Calf: ${user?.calf ?? "—"}
+
+ACTIVE GOALS (explicit targets the athlete is chasing):
+${
+  (await prisma.goal.findMany({
+    where: { userId, completed: false },
+    include: { exercise: true },
+    orderBy: { createdAt: "desc" },
+  }))
+    .map(
+      (g) =>
+        `- ${g.title}${g.deadline ? ` (by ${format(new Date(g.deadline), "MMM d, yyyy")})` : ""}`
+    )
+    .join("\n") || "- none set"
+}
 
 ADAPT YOUR COACHING BASED ON THE PROFILE ABOVE:
 - Match your intensity and complexity to their experience level.
