@@ -137,6 +137,35 @@ export default function AITrainer() {
     setOpen(false);
   }, [pathname]);
 
+  // Lock background scroll while the modal is open so the underlying
+  // page can't bleed in at the bottom when the mobile keyboard opens.
+  useEffect(() => {
+    if (!open) return;
+    const body = document.body;
+    const html = document.documentElement;
+    const scrollY = window.scrollY;
+    const prev = {
+      bodyOverflow: body.style.overflow,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyWidth: body.style.width,
+      htmlOverflow: html.style.overflow,
+    };
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    html.style.overflow = "hidden";
+    return () => {
+      body.style.overflow = prev.bodyOverflow;
+      body.style.position = prev.bodyPosition;
+      body.style.top = prev.bodyTop;
+      body.style.width = prev.bodyWidth;
+      html.style.overflow = prev.htmlOverflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, [open]);
+
   const clearChat = () => {
     const now = Date.now();
     setClearedAt(now);
@@ -250,7 +279,11 @@ export default function AITrainer() {
       {open && (
         <div
           className="fixed inset-0 z-50 flex flex-col"
-          style={{ background: "var(--bg)" }}
+          style={{
+            background: "var(--bg)",
+            height: "100dvh",
+            maxHeight: "100dvh",
+          }}
         >
           <div
             className="flex items-center gap-2 px-3 pb-3"
