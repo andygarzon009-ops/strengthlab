@@ -12,21 +12,33 @@ import ReactionButtons from "@/components/ReactionButtons";
 import CommentSection from "@/components/CommentSection";
 import WeeklyRecap from "@/components/WeeklyRecap";
 
-export default async function FeedPage() {
+export default async function FeedPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string }>;
+}) {
   const userId = await requireAuth();
+  const { view } = await searchParams;
 
   const memberships = await prisma.groupMember.findMany({
     where: { userId },
-    include: { group: { include: { members: { include: { user: true } } } } },
+    include: { group: { include: { members: { select: { userId: true } } } } },
   });
 
-  const groupMemberIds = memberships.flatMap((m) =>
-    m.group.members.map((gm) => gm.userId)
-  );
-  const allUserIds = [...new Set([userId, ...groupMemberIds])];
+  const activeView = view ?? "mine";
+  const activeGroup =
+    activeView.startsWith("group-") &&
+    memberships.find((m) => `group-${m.groupId}` === activeView);
+
+  let scopedUserIds: string[];
+  if (activeGroup) {
+    scopedUserIds = activeGroup.group.members.map((gm) => gm.userId);
+  } else {
+    scopedUserIds = [userId];
+  }
 
   const workouts = await prisma.workout.findMany({
-    where: { userId: { in: allUserIds } },
+    where: { userId: { in: scopedUserIds } },
     include: {
       user: true,
       exercises: {
@@ -72,7 +84,28 @@ export default async function FeedPage() {
         </Link>
       </div>
 
-      <WeeklyRecap userId={userId} />
+      {memberships.length > 0 && (
+        <div
+          className="flex gap-1.5 mb-5 overflow-x-auto -mx-4 px-4 pb-1"
+          style={{ scrollbarWidth: "none" }}
+        >
+          <FeedTab
+            href="/"
+            label="Mine"
+            active={!activeGroup}
+          />
+          {memberships.map((m) => (
+            <FeedTab
+              key={m.groupId}
+              href={`/?view=group-${m.groupId}`}
+              label={m.group.name}
+              active={activeGroup && activeGroup.groupId === m.groupId ? true : false}
+            />
+          ))}
+        </div>
+      )}
+
+      {!activeGroup && <WeeklyRecap userId={userId} />}
 
       {workouts.length === 0 ? (
         <div className="text-center py-16 card px-6">
@@ -312,6 +345,39 @@ export default async function FeedPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function FeedTab({
+  href,
+  label,
+  active,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      className="text-[12px] px-3.5 py-1.5 rounded-full whitespace-nowrap shrink-0 label"
+      style={
+        active
+          ? {
+              background: "var(--accent)",
+              color: "#0a0a0a",
+              border: "1px solid var(--accent)",
+            }
+          : {
+              background: "var(--bg-elevated)",
+              color: "var(--fg-muted)",
+              border: "1px solid var(--border)",
+            }
+      }
+    >
+      {label}
+    </Link>
   );
 }
 
