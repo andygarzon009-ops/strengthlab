@@ -11,6 +11,7 @@ import Link from "next/link";
 import ReactionButtons from "@/components/ReactionButtons";
 import CommentSection from "@/components/CommentSection";
 import WeeklyRecap from "@/components/WeeklyRecap";
+import GroupFeed from "@/components/GroupFeed";
 
 export default async function FeedPage({
   searchParams,
@@ -105,9 +106,16 @@ export default async function FeedPage({
         </div>
       )}
 
+      {activeGroup && (
+        <GroupFeed
+          groupId={activeGroup.groupId}
+          height="calc(100vh - 260px)"
+        />
+      )}
+
       {!activeGroup && <WeeklyRecap userId={userId} />}
 
-      {workouts.length === 0 ? (
+      {!activeGroup && (workouts.length === 0 ? (
         <div className="text-center py-16 card px-6">
           <div
             className="w-14 h-14 mx-auto mb-5 rounded-2xl flex items-center justify-center"
@@ -343,7 +351,7 @@ export default async function FeedPage({
             );
           })}
         </div>
-      )}
+      ))}
     </div>
   );
 }

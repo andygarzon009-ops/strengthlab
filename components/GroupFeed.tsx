@@ -38,7 +38,13 @@ type Post = {
 const REACTIONS = ["🔥", "💪", "👏", "🫡"];
 const POLL_MS = 6000;
 
-export default function GroupFeed({ groupId }: { groupId: string }) {
+export default function GroupFeed({
+  groupId,
+  height,
+}: {
+  groupId: string;
+  height?: string;
+}) {
   const [data, setData] = useState<{
     posts: Post[];
     currentUserId: string;
@@ -78,7 +84,7 @@ export default function GroupFeed({ groupId }: { groupId: string }) {
       style={{
         border: "1px solid var(--border)",
         background: "var(--bg-card)",
-        height: 520,
+        height: height ?? 520,
       }}
     >
       <div
