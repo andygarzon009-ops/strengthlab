@@ -297,6 +297,7 @@ export async function updateProfile(data: {
   bio?: string;
   experienceLevel?: string;
   primaryFocus?: string;
+  trainingPhase?: string;
   trainingDays?: number;
   injuries?: string;
   coachPrompt?: string;

@@ -11,11 +11,11 @@ type UserProfile = {
   bio: string | null;
   experienceLevel: string | null;
   primaryFocus: string | null;
+  trainingPhase: string | null;
   trainingDays: number | null;
   injuries: string | null;
   coachPrompt: string | null;
   height: number | null;
-  bodyFat: number | null;
   restingHR: number | null;
   waist: number | null;
   hips: number | null;
@@ -41,12 +41,12 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
     trainingDays: user.trainingDays?.toString() ?? "",
     experienceLevel: user.experienceLevel ?? "",
     primaryFocus: user.primaryFocus ?? "",
+    trainingPhase: user.trainingPhase ?? "",
     preferredSplit: user.preferredSplit ?? "",
     injuries: user.injuries ?? "",
     bio: user.bio ?? "",
     coachPrompt: user.coachPrompt ?? "",
     height: user.height?.toString() ?? "",
-    bodyFat: user.bodyFat?.toString() ?? "",
     restingHR: user.restingHR?.toString() ?? "",
     waist: user.waist?.toString() ?? "",
     hips: user.hips?.toString() ?? "",
@@ -80,12 +80,12 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
           : undefined,
         experienceLevel: form.experienceLevel,
         primaryFocus: form.primaryFocus,
+        trainingPhase: form.trainingPhase,
         preferredSplit: form.preferredSplit,
         injuries: form.injuries,
         bio: form.bio,
         coachPrompt: form.coachPrompt,
         height: numOrNull(form.height),
-        bodyFat: numOrNull(form.bodyFat),
         restingHR: intOrNull(form.restingHR),
         waist: numOrNull(form.waist),
         hips: numOrNull(form.hips),
@@ -157,22 +157,39 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
             />
           </div>
 
-          <div>
-            <label className="label block mb-1.5">Primary focus</label>
-            <Select
-              value={form.primaryFocus}
-              onChange={set("primaryFocus")}
-              options={[
-                { value: "", label: "—" },
-                { value: "STRENGTH", label: "Strength" },
-                { value: "HYPERTROPHY", label: "Hypertrophy" },
-                { value: "POWERBUILDING", label: "Powerbuilding" },
-                { value: "RECOMP", label: "Body recomposition" },
-                { value: "CUT", label: "Fat loss, preserve muscle" },
-                { value: "ATHLETIC", label: "Athletic performance" },
-                { value: "GENERAL", label: "General fitness" },
-              ]}
-            />
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <label className="label block mb-1.5">Primary focus</label>
+              <Select
+                value={form.primaryFocus}
+                onChange={set("primaryFocus")}
+                options={[
+                  { value: "", label: "—" },
+                  { value: "STRENGTH", label: "Strength" },
+                  { value: "HYPERTROPHY", label: "Hypertrophy" },
+                  { value: "POWERBUILDING", label: "Powerbuilding" },
+                  { value: "ATHLETIC", label: "Athletic performance" },
+                  { value: "ENDURANCE", label: "Endurance" },
+                  { value: "GENERAL", label: "General fitness" },
+                ]}
+              />
+            </div>
+            <div>
+              <label className="label block mb-1.5">Current phase</label>
+              <Select
+                value={form.trainingPhase}
+                onChange={set("trainingPhase")}
+                options={[
+                  { value: "", label: "—" },
+                  { value: "CUT", label: "Cutting" },
+                  { value: "BULK", label: "Bulking" },
+                  { value: "MAINTAIN", label: "Maintaining" },
+                  { value: "RECOMP", label: "Recomp" },
+                  { value: "PEAK", label: "Peaking" },
+                  { value: "OFFSEASON", label: "Off-season" },
+                ]}
+              />
+            </div>
           </div>
 
           <Field
@@ -293,9 +310,9 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                   className="label text-[9px]"
                   style={{ color: "var(--fg-dim)" }}
                 >
-                  Body composition
+                  Baseline
                 </p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <Field
                     label="Height"
                     type="number"
@@ -303,15 +320,6 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                     onChange={set("height")}
                     placeholder="178"
                     suffix="cm"
-                    compact
-                  />
-                  <Field
-                    label="Body fat"
-                    type="number"
-                    value={form.bodyFat}
-                    onChange={set("bodyFat")}
-                    placeholder="14"
-                    suffix="%"
                     compact
                   />
                   <Field
@@ -526,7 +534,6 @@ function hasAnyMeasurement(user: UserProfile): boolean {
 function countMeasurements(user: UserProfile): number {
   const keys: (keyof UserProfile)[] = [
     "height",
-    "bodyFat",
     "restingHR",
     "waist",
     "hips",
