@@ -18,7 +18,12 @@ type ExerciseData = {
   sets: SetData[];
 };
 
-type Exercise = { id: string; name: string; muscleGroup: string | null };
+type Exercise = {
+  id: string;
+  name: string;
+  muscleGroup: string | null;
+  splits: string | null;
+};
 
 type PreviousData = {
   lastWeight?: number;
@@ -29,13 +34,21 @@ type PreviousData = {
 type Props = {
   exercises: ExerciseData[];
   setExercises: (exercises: ExerciseData[]) => void;
+  currentSplit?: string;
 };
 
-export default function ExerciseLogger({ exercises, setExercises }: Props) {
+export default function ExerciseLogger({
+  exercises,
+  setExercises,
+  currentSplit,
+}: Props) {
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
-  const [previousData, setPreviousData] = useState<Record<string, PreviousData>>({});
+  const [showAll, setShowAll] = useState(false);
+  const [previousData, setPreviousData] = useState<
+    Record<string, PreviousData>
+  >({});
 
   useEffect(() => {
     fetch("/api/exercises")
@@ -43,8 +56,17 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
       .then(setAllExercises);
   }, []);
 
-  const filtered = allExercises.filter((e) =>
-    e.name.toLowerCase().includes(search.toLowerCase())
+  const matchesSplit = (ex: Exercise) => {
+    if (!currentSplit) return true;
+    if (showAll) return true;
+    const splits = (ex.splits ?? "").split(",").map((s) => s.trim());
+    return splits.includes(currentSplit);
+  };
+
+  const filtered = allExercises.filter(
+    (e) =>
+      matchesSplit(e) &&
+      e.name.toLowerCase().includes(search.toLowerCase())
   );
 
   const addExercise = async (ex: Exercise) => {
@@ -271,7 +293,10 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
                 }}
               />
               <button
-                onClick={() => setShowSearch(false)}
+                onClick={() => {
+                  setShowSearch(false);
+                  setShowAll(false);
+                }}
                 className="w-8 h-8 flex items-center justify-center rounded-full"
                 style={{ color: "var(--fg-muted)" }}
               >
@@ -289,8 +314,27 @@ export default function ExerciseLogger({ exercises, setExercises }: Props) {
                 </svg>
               </button>
             </div>
-            <div className="space-y-0.5 max-h-64 overflow-y-auto">
-              {filtered.slice(0, 15).map((ex) => (
+            {currentSplit && (
+              <div className="flex items-center justify-between mb-3 px-1">
+                <p
+                  className="label text-[10px]"
+                  style={{ color: "var(--fg-dim)" }}
+                >
+                  {showAll
+                    ? "Showing all exercises"
+                    : `Filtered to ${currentSplit.toLowerCase()} · ${filtered.length}`}
+                </p>
+                <button
+                  onClick={() => setShowAll(!showAll)}
+                  className="label text-[10px]"
+                  style={{ color: "var(--accent)" }}
+                >
+                  {showAll ? "Filter by split" : "Show all"}
+                </button>
+              </div>
+            )}
+            <div className="space-y-0.5 max-h-72 overflow-y-auto">
+              {filtered.slice(0, 30).map((ex) => (
                 <button
                   key={ex.id}
                   onClick={() => addExercise(ex)}

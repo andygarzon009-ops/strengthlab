@@ -11,11 +11,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   await requireAuth();
-  const { name, muscleGroup } = await req.json();
+  const { name, muscleGroup, splits } = await req.json();
   const exercise = await prisma.exercise.upsert({
     where: { name },
     update: {},
-    create: { name, muscleGroup, isCustom: true },
+    create: { name, muscleGroup, splits, isCustom: true },
   });
   return Response.json(exercise);
 }

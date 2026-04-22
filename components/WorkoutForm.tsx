@@ -533,7 +533,11 @@ export default function WorkoutForm({
       </div>
 
       {shape === "STRENGTH" && (
-        <ExerciseLogger exercises={exercises} setExercises={setExercises} />
+        <ExerciseLogger
+          exercises={exercises}
+          setExercises={setExercises}
+          currentSplit={split || undefined}
+        />
       )}
     </div>
   );
