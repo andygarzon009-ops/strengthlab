@@ -1,12 +1,99 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type Message = {
   id: string;
   role: string;
   content: string;
   createdAt: string;
+};
+
+const MD_COMPONENTS: Components = {
+  h1: ({ children }) => (
+    <h1 className="text-[20px] font-bold tracking-tight leading-tight mt-3 mb-2">
+      {children}
+    </h1>
+  ),
+  h2: ({ children }) => (
+    <h2 className="text-[17px] font-bold tracking-tight leading-tight mt-4 mb-2">
+      {children}
+    </h2>
+  ),
+  h3: ({ children }) => (
+    <h3 className="text-[15px] font-semibold tracking-tight leading-tight mt-3 mb-1.5">
+      {children}
+    </h3>
+  ),
+  p: ({ children }) => (
+    <p className="text-[15px] leading-[1.6] mb-3 last:mb-0">{children}</p>
+  ),
+  ul: ({ children }) => (
+    <ul className="space-y-1 mb-3 pl-1 list-none">{children}</ul>
+  ),
+  ol: ({ children }) => (
+    <ol className="space-y-1 mb-3 pl-5 list-decimal">{children}</ol>
+  ),
+  li: ({ children }) => (
+    <li className="text-[15px] leading-[1.6] flex gap-2 items-start">
+      <span
+        className="mt-[0.55rem] w-[4px] h-[4px] rounded-full shrink-0"
+        style={{ background: "var(--accent)" }}
+      />
+      <span className="flex-1">{children}</span>
+    </li>
+  ),
+  strong: ({ children }) => (
+    <strong
+      className="font-bold"
+      style={{ color: "var(--fg)" }}
+    >
+      {children}
+    </strong>
+  ),
+  em: ({ children }) => <em className="italic opacity-90">{children}</em>,
+  code: ({ children }) => (
+    <code
+      className="px-1.5 py-0.5 rounded text-[13px] nums"
+      style={{
+        background: "var(--bg-elevated)",
+        fontFamily: "var(--font-geist-mono)",
+        color: "var(--accent)",
+      }}
+    >
+      {children}
+    </code>
+  ),
+  hr: () => (
+    <hr
+      className="my-4 border-0 h-px"
+      style={{ background: "var(--border)" }}
+    />
+  ),
+  blockquote: ({ children }) => (
+    <blockquote
+      className="pl-3 my-3 italic"
+      style={{
+        borderLeft: "2px solid var(--accent)",
+        color: "var(--fg-muted)",
+      }}
+    >
+      {children}
+    </blockquote>
+  ),
+  a: ({ children, href }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ color: "var(--accent)" }}
+      className="underline underline-offset-2"
+    >
+      {children}
+    </a>
+  ),
 };
 
 const QUICK_PROMPTS = [
@@ -237,40 +324,55 @@ export default function AITrainer() {
                 key={m.id}
                 className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                <div
-                  className="max-w-[85%] rounded-2xl px-4 py-3 text-[14px] leading-relaxed whitespace-pre-wrap"
-                  style={
-                    m.role === "user"
-                      ? {
-                          background: "var(--accent)",
-                          color: "#0a0a0a",
-                          borderBottomRightRadius: "6px",
-                          fontWeight: 500,
-                        }
-                      : {
-                          background: "var(--bg-card)",
-                          border: "1px solid var(--border)",
-                          color: "var(--fg)",
-                          borderBottomLeftRadius: "6px",
-                        }
-                  }
-                >
-                  {m.content}
-                </div>
+                {m.role === "user" ? (
+                  <div
+                    className="max-w-[85%] rounded-2xl px-4 py-3 text-[15px] leading-[1.5] whitespace-pre-wrap"
+                    style={{
+                      background: "var(--accent)",
+                      color: "#0a0a0a",
+                      borderBottomRightRadius: "6px",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {m.content}
+                  </div>
+                ) : (
+                  <div
+                    className="max-w-[92%] rounded-2xl px-4 py-3.5"
+                    style={{
+                      background: "var(--bg-card)",
+                      border: "1px solid var(--border)",
+                      color: "var(--fg)",
+                      borderBottomLeftRadius: "6px",
+                    }}
+                  >
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={MD_COMPONENTS}
+                    >
+                      {m.content}
+                    </ReactMarkdown>
+                  </div>
+                )}
               </div>
             ))}
 
             {streaming && (
               <div className="flex justify-start">
                 <div
-                  className="max-w-[85%] rounded-2xl px-4 py-3 text-[14px] leading-relaxed whitespace-pre-wrap"
+                  className="max-w-[92%] rounded-2xl px-4 py-3.5"
                   style={{
                     background: "var(--bg-card)",
                     border: "1px solid var(--border)",
                     borderBottomLeftRadius: "6px",
                   }}
                 >
-                  {streaming}
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={MD_COMPONENTS}
+                  >
+                    {streaming}
+                  </ReactMarkdown>
                   <span
                     className="inline-block w-[2px] h-4 ml-0.5 align-middle animate-pulse"
                     style={{ background: "var(--accent)" }}
