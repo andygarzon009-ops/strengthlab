@@ -7,17 +7,7 @@ import ProfileForm from "@/components/ProfileForm";
 export default async function ProfilePage() {
   const userId = await requireAuth();
 
-  const [user, workoutCount, prCount, prs] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId } }),
-    prisma.workout.count({ where: { userId } }),
-    prisma.personalRecord.count({ where: { userId } }),
-    prisma.personalRecord.findMany({
-      where: { userId, type: "WEIGHT" },
-      include: { exercise: true },
-      orderBy: { value: "desc" },
-      take: 5,
-    }),
-  ]);
+  const user = await prisma.user.findUnique({ where: { id: userId } });
 
   if (!user) return null;
 
@@ -46,81 +36,6 @@ export default async function ProfilePage() {
           </p>
         </div>
       </div>
-
-      <div
-        className="grid grid-cols-3 gap-px card overflow-hidden mb-4"
-        style={{ background: "var(--border)", padding: 0 }}
-      >
-        {[
-          { label: "Sessions", value: workoutCount },
-          { label: "PRs", value: prCount },
-          {
-            label: "Body",
-            value: user.bodyweight ?? "—",
-            suffix: user.bodyweight ? "lb" : undefined,
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="px-3 py-4 text-center"
-            style={{ background: "var(--bg-card)" }}
-          >
-            <p
-              className="font-semibold text-[20px] leading-none tracking-tight nums"
-              style={{ fontFamily: "var(--font-geist-mono)" }}
-            >
-              {stat.value}
-              {stat.suffix && (
-                <span
-                  className="text-[11px] ml-0.5 font-normal"
-                  style={{ color: "var(--fg-dim)" }}
-                >
-                  {stat.suffix}
-                </span>
-              )}
-            </p>
-            <p
-              className="label text-[9px] mt-1.5"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              {stat.label}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {prs.length > 0 && (
-        <div className="card p-5 mb-4">
-          <h2 className="font-semibold text-[14px] tracking-tight mb-3">
-            Top lifts
-          </h2>
-          <div className="space-y-2">
-            {prs.map((pr) => (
-              <div
-                key={pr.id}
-                className="flex items-center justify-between py-1"
-              >
-                <span className="text-[13px]">{pr.exercise.name}</span>
-                <span
-                  className="font-semibold text-[14px] nums"
-                  style={{
-                    color: "var(--accent)",
-                    fontFamily: "var(--font-geist-mono)",
-                  }}
-                >
-                  {pr.value}
-                  <span
-                    className="text-[10px] ml-0.5 font-normal"
-                    style={{ opacity: 0.6 }}
-                  >
-                    lb
-                  </span>
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <ProfileForm
         user={{
