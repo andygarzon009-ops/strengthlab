@@ -35,7 +35,18 @@ type Post = {
   }[];
 };
 
-const REACTIONS = ["🔥", "💪", "👏", "🫡"];
+const REACTIONS = [
+  "🔥",
+  "💪",
+  "👏",
+  "🫡",
+  "😂",
+  "❤️",
+  "💯",
+  "👀",
+  "🤯",
+  "🙌",
+];
 const POLL_MS = 6000;
 
 export default function GroupFeed({
@@ -421,7 +432,7 @@ function Message({
         </div>
 
         <div
-          className={`flex items-center gap-1 mt-1 px-1 ${isOwn ? "flex-row-reverse" : ""}`}
+          className={`flex items-center gap-1.5 mt-1 px-1 relative ${isOwn ? "flex-row-reverse" : ""}`}
         >
           <span
             className="text-[10px] nums"
@@ -437,19 +448,29 @@ function Message({
 
           <button
             onClick={() => setShowReact((v) => !v)}
-            className="text-[10px] opacity-60 hover:opacity-100"
-            style={{ color: "var(--fg-dim)" }}
-            aria-label="React"
+            className="w-6 h-6 rounded-md flex items-center justify-center text-[13px]"
+            style={{
+              background: showReact
+                ? "var(--accent-dim)"
+                : "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+            }}
+            aria-label="Add reaction"
           >
-            + react
+            😀
           </button>
 
           <button
             onClick={() => setCommenting((v) => !v)}
-            className="text-[10px] opacity-60 hover:opacity-100"
-            style={{ color: "var(--fg-dim)" }}
+            className="w-6 h-6 rounded-md flex items-center justify-center text-[11px]"
+            style={{
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              color: "var(--fg-muted)",
+            }}
+            aria-label="Reply"
           >
-            reply
+            💬
           </button>
 
           {isOwn && (
@@ -462,31 +483,42 @@ function Message({
               delete
             </button>
           )}
-        </div>
 
-        {showReact && (
-          <div
-            className={`mt-1 flex gap-1 ${isOwn ? "flex-row-reverse" : ""}`}
-          >
-            {REACTIONS.map((r) => (
-              <button
-                key={r}
-                onClick={() => toggleReact(r)}
-                className="text-[15px] w-8 h-8 rounded-full"
+          {showReact && (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowReact(false)}
+              />
+              <div
+                className={`absolute z-50 flex gap-0.5 rounded-full px-2 py-1.5 shadow-lg ${
+                  isOwn ? "right-0" : "left-0"
+                }`}
                 style={{
-                  background: myReactions.has(r)
-                    ? "var(--accent-dim)"
-                    : "var(--bg-elevated)",
-                  border: myReactions.has(r)
-                    ? "1px solid rgba(34,197,94,0.4)"
-                    : "1px solid var(--border)",
+                  top: -44,
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--border-strong)",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
                 }}
               >
-                {r}
-              </button>
-            ))}
-          </div>
-        )}
+                {REACTIONS.map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => toggleReact(r)}
+                    className="text-[18px] w-8 h-8 rounded-full transition-transform hover:scale-125"
+                    style={{
+                      background: myReactions.has(r)
+                        ? "var(--accent-dim)"
+                        : "transparent",
+                    }}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
 
         {Object.keys(reactionCounts).length > 0 && (
           <div
