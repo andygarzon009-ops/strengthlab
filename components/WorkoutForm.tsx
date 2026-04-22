@@ -997,6 +997,7 @@ function DateSelector({
   date: string;
   setDate: (d: string) => void;
 }) {
+  const [showCalendar, setShowCalendar] = useState(false);
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
@@ -1021,6 +1022,8 @@ function DateSelector({
     weekday: "short",
     month: "short",
     day: "numeric",
+    year:
+      display.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
   });
   const isToday = date === fmt(today);
 
@@ -1045,8 +1048,9 @@ function DateSelector({
         >
           {niceDate}
         </div>
-        <label
-          className="cursor-pointer"
+        <button
+          type="button"
+          onClick={() => setShowCalendar((v) => !v)}
           style={{
             background: "var(--bg-elevated)",
             border: "1px solid var(--border)",
@@ -1058,17 +1062,21 @@ function DateSelector({
             className="label text-[10px]"
             style={{ color: "var(--fg-muted)" }}
           >
-            Pick date
+            {showCalendar ? "Close" : "Pick date"}
           </span>
-          <input
-            type="date"
-            value={date}
-            max={fmt(today)}
-            onChange={(e) => e.target.value && setDate(e.target.value)}
-            className="sr-only"
-          />
-        </label>
+        </button>
       </div>
+
+      {showCalendar && (
+        <CalendarPopup
+          value={date}
+          max={fmt(today)}
+          onPick={(d) => {
+            setDate(d);
+            setShowCalendar(false);
+          }}
+        />
+      )}
 
       <div className="flex gap-1.5">
         {shortcuts.map((s) => {
@@ -1094,6 +1102,155 @@ function DateSelector({
               }
             >
               {s.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CalendarPopup({
+  value,
+  max,
+  onPick,
+}: {
+  value: string;
+  max: string;
+  onPick: (d: string) => void;
+}) {
+  const fmtYMD = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  const initial = new Date(`${value}T12:00:00`);
+  const [viewYear, setViewYear] = useState(initial.getFullYear());
+  const [viewMonth, setViewMonth] = useState(initial.getMonth());
+
+  const maxDate = new Date(`${max}T12:00:00`);
+  const maxYear = maxDate.getFullYear();
+
+  const firstOfMonth = new Date(viewYear, viewMonth, 1);
+  const startOffset = firstOfMonth.getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+  const monthLabel = firstOfMonth.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  const shiftMonth = (delta: number) => {
+    const next = new Date(viewYear, viewMonth + delta, 1);
+    setViewYear(next.getFullYear());
+    setViewMonth(next.getMonth());
+  };
+
+  const weekDays = ["S", "M", "T", "W", "T", "F", "S"];
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const years: number[] = [];
+  for (let y = maxYear; y >= 1970; y--) years.push(y);
+
+  return (
+    <div
+      className="mt-2 p-3 rounded-xl"
+      style={{
+        background: "var(--bg-elevated)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <button
+          type="button"
+          onClick={() => shiftMonth(-1)}
+          className="px-2 py-1 rounded-md text-[14px]"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          ‹
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] font-semibold">{monthLabel}</span>
+          <select
+            value={viewYear}
+            onChange={(e) => setViewYear(parseInt(e.target.value))}
+            className="text-[11px] rounded-md px-1.5 py-1 nums"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              color: "var(--fg)",
+              fontFamily: "var(--font-geist-mono)",
+            }}
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={() => shiftMonth(1)}
+          disabled={
+            viewYear > maxYear ||
+            (viewYear === maxYear && viewMonth >= maxDate.getMonth())
+          }
+          className="px-2 py-1 rounded-md text-[14px] disabled:opacity-30"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          ›
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 mb-1">
+        {weekDays.map((d, i) => (
+          <div
+            key={i}
+            className="text-center text-[10px] label"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            {d}
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((d, i) => {
+          if (d === null) return <div key={i} />;
+          const cellDate = new Date(viewYear, viewMonth, d);
+          const cellStr = fmtYMD(cellDate);
+          const disabled = cellStr > max;
+          const selected = cellStr === value;
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => !disabled && onPick(cellStr)}
+              disabled={disabled}
+              className="h-8 rounded-md text-[12px] nums disabled:opacity-20"
+              style={{
+                fontFamily: "var(--font-geist-mono)",
+                background: selected
+                  ? "var(--accent-dim)"
+                  : "transparent",
+                color: selected ? "var(--accent)" : "var(--fg)",
+                border: selected
+                  ? "1px solid rgba(34,197,94,0.35)"
+                  : "1px solid transparent",
+              }}
+            >
+              {d}
             </button>
           );
         })}
