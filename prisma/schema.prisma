@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  password       String
+  image          String?
+  bodyweight     Float?
+  goals          String?
+  preferredSplit String?
+  bio            String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  workouts     Workout[]
+  prs          PersonalRecord[]
+  groupMembers GroupMember[]
+  comments     Comment[]
+  reactions    Reaction[]
+}
+
+model Workout {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  type      String
+  date      DateTime @default(now())
+  notes     String?
+  feeling   String?
+  isDeload  Boolean  @default(false)
+  duration  Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises WorkoutExercise[]
+  comments  Comment[]
+  reactions Reaction[]
+}
+
+model Exercise {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  muscleGroup String?
+  isCustom    Boolean @default(false)
+
+  workoutExercises WorkoutExercise[]
+  prs              PersonalRecord[]
+}
+
+model WorkoutExercise {
+  id         String @id @default(cuid())
+  workoutId  String
+  exerciseId String
+  order      Int
+  notes      String?
+
+  workout  Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id])
+  sets     Set[]
+}
+
+model Set {
+  id                String  @id @default(cuid())
+  workoutExerciseId String
+  type              String
+  setNumber         Int
+  weight            Float?
+  reps              Int?
+  rir               Int?
+  notes             String?
+
+  workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+}
+
+model PersonalRecord {
+  id         String   @id @default(cuid())
+  userId     String
+  exerciseId String
+  type       String
+  value      Float
+  reps       Int?
+  date       DateTime @default(now())
+  workoutId  String?
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id])
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  createdAt DateTime @default(now())
+
+  members GroupMember[]
+}
+
+model GroupMember {
+  id       String   @id @default(cuid())
+  groupId  String
+  userId   String
+  role     String   @default("MEMBER")
+  joinedAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  workoutId String
+  userId    String
+  text      String
+  createdAt DateTime @default(now())
+
+  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Reaction {
+  id        String @id @default(cuid())
+  workoutId String
+  userId    String
+  type      String
+
+  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workoutId, userId, type])
+}
