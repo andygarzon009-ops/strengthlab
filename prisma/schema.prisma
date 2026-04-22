@@ -64,6 +64,7 @@ model Goal {
   title        String
   exerciseId   String?
   targetValue  Float
+  targetReps   Int?
   unit         String?
   deadline     DateTime?
   completed    Boolean   @default(false)

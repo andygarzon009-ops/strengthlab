@@ -55,11 +55,13 @@ export default async function AnalyticsPage() {
     let currentReps: number | null = null;
 
     if (g.type === "STRENGTH" && g.exerciseId) {
-      const bestPR = prs
-        .filter(
-          (p) => p.type === "WEIGHT" && p.exerciseId === g.exerciseId
-        )
-        .sort((a, b) => b.value - a.value)[0];
+      const eligible = prs.filter(
+        (p) =>
+          p.type === "WEIGHT" &&
+          p.exerciseId === g.exerciseId &&
+          (g.targetReps == null || (p.reps ?? 1) >= g.targetReps)
+      );
+      const bestPR = eligible.sort((a, b) => b.value - a.value)[0];
       currentValue = bestPR?.value ?? 0;
       currentReps = bestPR?.reps ?? null;
     } else if (g.type === "FREQUENCY") {
@@ -109,6 +111,7 @@ export default async function AnalyticsPage() {
       exerciseId: g.exerciseId,
       exerciseName: g.exercise?.name ?? null,
       targetValue: g.targetValue,
+      targetReps: g.targetReps ?? null,
       unit: g.unit,
       deadline: g.deadline?.toISOString() ?? null,
       currentValue,

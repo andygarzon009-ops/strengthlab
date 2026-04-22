@@ -46,14 +46,12 @@ export default function PRList({ prs }: { prs: PR[] }) {
                 lb
               </span>
             </p>
-            {pr.reps && (
-              <p
-                className="text-[10px] mt-0.5"
-                style={{ color: "var(--fg-dim)" }}
-              >
-                × {pr.reps} reps
-              </p>
-            )}
+            <p
+              className="text-[10px] mt-0.5"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              × {pr.reps ?? 1} reps
+            </p>
           </div>
         </div>
       ))}

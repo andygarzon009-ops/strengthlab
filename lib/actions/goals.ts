@@ -17,6 +17,7 @@ export async function createGoal(data: {
   title: string;
   exerciseId?: string;
   targetValue: number;
+  targetReps?: number;
   unit?: string;
   deadline?: string;
 }) {
@@ -28,6 +29,7 @@ export async function createGoal(data: {
       title: data.title,
       exerciseId: data.exerciseId,
       targetValue: data.targetValue,
+      targetReps: data.targetReps ?? null,
       unit: data.unit,
       deadline: data.deadline ? new Date(data.deadline) : null,
     },

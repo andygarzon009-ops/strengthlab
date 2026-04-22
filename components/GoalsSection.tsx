@@ -12,6 +12,7 @@ export type GoalWithProgress = {
   exerciseId: string | null;
   exerciseName: string | null;
   targetValue: number;
+  targetReps: number | null;
   unit: string | null;
   deadline: string | null;
   currentValue: number;
@@ -170,12 +171,12 @@ function GoalCard({ goal }: { goal: GoalWithProgress }) {
           }}
         >
           {formatValue(goal.currentValue, goal.unit)}
-          {goal.type === "STRENGTH" && goal.currentReps != null && (
+          {goal.type === "STRENGTH" && (
             <span
               className="text-[13px] ml-1 font-normal"
               style={{ color: "var(--fg-dim)" }}
             >
-              × {goal.currentReps}
+              × {goal.currentReps ?? 1}
             </span>
           )}
           <span
@@ -183,6 +184,9 @@ function GoalCard({ goal }: { goal: GoalWithProgress }) {
             style={{ color: "var(--fg-dim)" }}
           >
             / {formatValue(goal.targetValue, goal.unit)}
+            {goal.type === "STRENGTH" && goal.targetReps != null && (
+              <> × {goal.targetReps}</>
+            )}
           </span>
         </span>
         <span
@@ -257,6 +261,7 @@ function AddGoalForm({
   const [type, setType] = useState<GoalType>("STRENGTH");
   const [exerciseId, setExerciseId] = useState("");
   const [target, setTarget] = useState("");
+  const [reps, setReps] = useState("");
   const [deadline, setDeadline] = useState("");
   const [title, setTitle] = useState("");
   const [pending, startTransition] = useTransition();
@@ -281,7 +286,10 @@ function AddGoalForm({
     const t = parseFloat(target);
     if (!t) return "";
     const ex = exercises.find((e) => e.id === exerciseId);
-    if (type === "STRENGTH" && ex) return `${t}lb ${ex.name}`;
+    if (type === "STRENGTH" && ex) {
+      const r = parseInt(reps);
+      return r > 0 ? `${t}lb ${ex.name} × ${r}` : `${t}lb ${ex.name}`;
+    }
     if (type === "FREQUENCY") return `Train ${t}× per week`;
     if (type === "BODYWEIGHT_GAIN") return `Reach ${t}lb`;
     if (type === "BODYWEIGHT_CUT") return `Cut to ${t}lb`;
@@ -297,12 +305,17 @@ function AddGoalForm({
     const finalExerciseId =
       type === "STRENGTH" && exerciseId ? exerciseId : undefined;
 
+    const parsedReps = parseInt(reps);
+    const targetReps =
+      type === "STRENGTH" && parsedReps > 0 ? parsedReps : undefined;
+
     startTransition(async () => {
       await createGoal({
         type,
         title: finalTitle || "Goal",
         exerciseId: finalExerciseId,
         targetValue: parsedTarget,
+        targetReps,
         unit: unitForType(type),
         deadline: deadline || undefined,
       });
@@ -391,6 +404,26 @@ function AddGoalForm({
             }}
           />
         </div>
+
+        {type === "STRENGTH" && (
+          <div>
+            <p className="label mb-1.5">Reps (optional)</p>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={reps}
+              onChange={(e) => setReps(e.target.value)}
+              placeholder="5"
+              className="w-full rounded-xl px-4 py-3 text-[15px] focus:outline-none nums"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
+                fontFamily: "var(--font-geist-mono)",
+              }}
+            />
+          </div>
+        )}
 
         <div>
           <p className="label mb-1.5">Deadline (optional)</p>
