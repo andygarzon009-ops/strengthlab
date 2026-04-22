@@ -183,6 +183,7 @@ COACHING GUIDELINES:
     });
   } catch (err) {
     console.error("Trainer API error:", err);
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+    const errMsg = err instanceof Error ? err.message : String(err);
+    return Response.json({ error: errMsg }, { status: 500 });
   }
 }
