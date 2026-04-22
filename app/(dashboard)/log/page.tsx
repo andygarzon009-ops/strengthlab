@@ -105,21 +105,23 @@ export default function LogWorkoutPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-2.5">
-          {WORKOUT_TYPES.map((type) => (
+          {WORKOUT_TYPES.map((type, i) => (
             <button
               key={type.value}
               onClick={() => handleTypeSelect(type.value)}
-              className="card p-5 text-left transition-all active:scale-[0.97] hover:border-zinc-700"
+              className="card p-5 text-left transition-all active:scale-[0.97]"
             >
-              <span className="text-2xl block mb-3">{type.emoji}</span>
-              <span className="font-semibold text-[15px] tracking-tight block">
-                {type.label}
-              </span>
               <span
-                className="label text-[9px] mt-1 block"
-                style={{ color: "var(--fg-dim)" }}
+                className="label text-[9px] block mb-3 nums"
+                style={{
+                  color: "var(--fg-dim)",
+                  fontFamily: "var(--font-geist-mono)",
+                }}
               >
-                {type.value}
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span className="font-semibold text-[17px] tracking-tight block">
+                {type.label}
               </span>
             </button>
           ))}
@@ -208,7 +210,7 @@ export default function LogWorkoutPage() {
                     selected
                       ? {
                           background: "var(--accent-dim)",
-                          border: "1px solid rgba(255,90,31,0.4)",
+                          border: "1px solid rgba(34,197,94,0.4)",
                           color: "var(--accent)",
                         }
                       : {
@@ -218,7 +220,6 @@ export default function LogWorkoutPage() {
                         }
                   }
                 >
-                  <span className="mr-1">{f.emoji}</span>
                   {f.label}
                 </button>
               );

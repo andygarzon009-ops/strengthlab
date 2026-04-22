@@ -108,7 +108,17 @@ export default async function WorkoutDetailPage({
           >
             {workoutType?.label ?? workout.type}
           </span>
-          {feeling && <span className="text-[16px]">{feeling.emoji}</span>}
+          {feeling && (
+            <span
+              className="label text-[9px] px-2 py-1 rounded-md"
+              style={{
+                background: "var(--accent-dim)",
+                color: "var(--accent)",
+              }}
+            >
+              {feeling.label}
+            </span>
+          )}
           {workout.isDeload && (
             <span
               className="label text-[9px] px-2 py-1 rounded-md"
@@ -198,14 +208,14 @@ export default async function WorkoutDetailPage({
           className="rounded-2xl p-4 mb-6"
           style={{
             background: "var(--accent-dim)",
-            border: "1px solid rgba(255,90,31,0.3)",
+            border: "1px solid rgba(34,197,94,0.3)",
           }}
         >
           <p
             className="label mb-2"
             style={{ color: "var(--accent)" }}
           >
-            ★ Personal Records
+            Personal Records
           </p>
           <div className="space-y-1">
             {prs.map((pr) => (

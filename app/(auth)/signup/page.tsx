@@ -18,7 +18,7 @@ export default function SignupPage() {
             className="w-12 h-12 rounded-xl mb-6 flex items-center justify-center"
             style={{
               background: "var(--accent-dim)",
-              border: "1px solid rgba(255,90,31,0.25)",
+              border: "1px solid rgba(34,197,94,0.25)",
             }}
           >
             <svg

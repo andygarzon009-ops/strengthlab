@@ -29,7 +29,7 @@ export default function VolumeChart({ data }: { data: DataPoint[] }) {
           tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v)}
         />
         <Tooltip
-          cursor={{ fill: "rgba(255,90,31,0.06)" }}
+          cursor={{ fill: "rgba(34,197,94,0.06)" }}
           contentStyle={{
             background: "#0a0a0a",
             border: "1px solid #1f1f1f",
@@ -47,7 +47,7 @@ export default function VolumeChart({ data }: { data: DataPoint[] }) {
           }}
           labelStyle={{ color: "#71717a", marginBottom: "4px" }}
         />
-        <Bar dataKey="volume" fill="#ff5a1f" radius={[3, 3, 0, 0]} maxBarSize={14} />
+        <Bar dataKey="volume" fill="#22c55e" radius={[3, 3, 0, 0]} maxBarSize={14} />
       </BarChart>
     </ResponsiveContainer>
   );

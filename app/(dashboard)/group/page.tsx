@@ -243,10 +243,10 @@ export default function GroupPage() {
                     </span>
                     {m.role === "ADMIN" && (
                       <span
-                        className="text-[9px]"
+                        className="label text-[9px]"
                         style={{ color: "var(--accent)" }}
                       >
-                        ★
+                        Admin
                       </span>
                     )}
                   </div>

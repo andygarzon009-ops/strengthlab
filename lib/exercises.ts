@@ -42,23 +42,23 @@ export const DEFAULT_EXERCISES = [
 ];
 
 export const WORKOUT_TYPES = [
-  { value: "PUSH", label: "Push", emoji: "🔼", color: "text-orange-400" },
-  { value: "PULL", label: "Pull", emoji: "🔽", color: "text-blue-400" },
-  { value: "LEGS", label: "Legs", emoji: "🦵", color: "text-green-400" },
-  { value: "UPPER", label: "Upper", emoji: "💪", color: "text-purple-400" },
-  { value: "LOWER", label: "Lower", emoji: "⬇️", color: "text-yellow-400" },
-  { value: "ARMS", label: "Arms", emoji: "💪", color: "text-pink-400" },
-  { value: "CUSTOM", label: "Custom", emoji: "⚡", color: "text-zinc-400" },
+  { value: "PUSH", label: "Push" },
+  { value: "PULL", label: "Pull" },
+  { value: "LEGS", label: "Legs" },
+  { value: "UPPER", label: "Upper" },
+  { value: "LOWER", label: "Lower" },
+  { value: "ARMS", label: "Arms" },
+  { value: "CUSTOM", label: "Custom" },
 ];
 
 export const FEELING_OPTIONS = [
-  { value: "STRONG", label: "Strong", emoji: "🔥", color: "text-green-400" },
-  { value: "NORMAL", label: "Normal", emoji: "😐", color: "text-yellow-400" },
-  { value: "FATIGUED", label: "Fatigued", emoji: "😴", color: "text-red-400" },
+  { value: "STRONG", label: "Strong" },
+  { value: "NORMAL", label: "Steady" },
+  { value: "FATIGUED", label: "Fatigued" },
 ];
 
 export const REACTION_TYPES = [
-  { value: "STRONG_SESSION", label: "Strong Session", emoji: "🔥" },
-  { value: "PR", label: "PR!", emoji: "🏆" },
-  { value: "GOOD_WORK", label: "Good Work", emoji: "💪" },
+  { value: "STRONG_SESSION", label: "Fire", icon: "flame" },
+  { value: "PR", label: "PR", icon: "trophy" },
+  { value: "GOOD_WORK", label: "Respect", icon: "bolt" },
 ];

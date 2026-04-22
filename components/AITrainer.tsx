@@ -137,7 +137,7 @@ export default function AITrainer() {
               className="w-9 h-9 rounded-full flex items-center justify-center"
               style={{
                 background: "var(--accent-dim)",
-                border: "1px solid rgba(255,90,31,0.25)",
+                border: "1px solid rgba(34,197,94,0.25)",
               }}
             >
               <svg
@@ -188,7 +188,7 @@ export default function AITrainer() {
                   className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5"
                   style={{
                     background: "var(--accent-dim)",
-                    border: "1px solid rgba(255,90,31,0.25)",
+                    border: "1px solid rgba(34,197,94,0.25)",
                   }}
                 >
                   <svg

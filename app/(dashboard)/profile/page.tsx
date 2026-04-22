@@ -29,7 +29,7 @@ export default async function ProfilePage() {
           style={{
             background: "var(--accent-dim)",
             color: "var(--accent)",
-            border: "1px solid rgba(255,90,31,0.25)",
+            border: "1px solid rgba(34,197,94,0.25)",
           }}
         >
           {user.name[0].toUpperCase()}

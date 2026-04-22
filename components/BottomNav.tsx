@@ -12,7 +12,7 @@ const navItems = [
 ];
 
 function Icon({ name, active }: { name: string; active: boolean }) {
-  const stroke = active ? "#ff5a1f" : "#71717a";
+  const stroke = active ? "#22c55e" : "#71717a";
   const common = {
     width: 22,
     height: 22,
@@ -83,7 +83,7 @@ export default function BottomNav() {
                 style={{
                   background: "var(--accent)",
                   boxShadow:
-                    "0 8px 24px -6px rgba(255, 90, 31, 0.5), 0 0 0 4px var(--bg)",
+                    "0 8px 24px -6px rgba(34, 197, 94, 0.5), 0 0 0 4px var(--bg)",
                 }}
                 aria-label={item.label}
               >

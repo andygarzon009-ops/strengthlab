@@ -72,7 +72,7 @@ export default async function FeedPage() {
             className="w-14 h-14 mx-auto mb-5 rounded-2xl flex items-center justify-center"
             style={{
               background: "var(--accent-dim)",
-              border: "1px solid rgba(255,90,31,0.25)",
+              border: "1px solid rgba(34,197,94,0.25)",
             }}
           >
             <svg
@@ -128,7 +128,7 @@ export default async function FeedPage() {
                         style={{
                           background: "var(--accent-dim)",
                           color: "var(--accent)",
-                          border: "1px solid rgba(255,90,31,0.2)",
+                          border: "1px solid rgba(34,197,94,0.2)",
                         }}
                       >
                         {workout.user.name[0].toUpperCase()}
@@ -148,7 +148,14 @@ export default async function FeedPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {feeling && <span className="text-sm">{feeling.emoji}</span>}
+                      {feeling && (
+                        <span
+                          className="label text-[9px]"
+                          style={{ color: "var(--fg-dim)" }}
+                        >
+                          {feeling.label}
+                        </span>
+                      )}
                       <span
                         className="label text-[9px] px-2 py-1 rounded-md"
                         style={{
