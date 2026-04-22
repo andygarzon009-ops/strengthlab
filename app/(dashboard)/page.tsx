@@ -133,7 +133,7 @@ export default async function FeedPage({
       {activeGroup && groupMode === "chat" && (
         <GroupFeed
           groupId={activeGroup.groupId}
-          height="calc(100vh - 300px)"
+          height="calc(100dvh - 380px)"
         />
       )}
 

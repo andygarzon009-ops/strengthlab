@@ -155,6 +155,7 @@ export default function GroupFeed({
         border: "1px solid var(--border)",
         background: "var(--bg-card)",
         height: height ?? 520,
+        minHeight: 360,
       }}
     >
       <div
