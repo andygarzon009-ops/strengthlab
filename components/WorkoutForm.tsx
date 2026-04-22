@@ -166,6 +166,13 @@ export default function WorkoutForm({
             </button>
           ))}
         </div>
+
+        <p
+          className="text-center text-[12px] mt-8"
+          style={{ color: "var(--fg-dim)" }}
+        >
+          Forgot a session? You can backdate to any past day on the next step.
+        </p>
       </div>
     );
   }
@@ -237,6 +244,8 @@ export default function WorkoutForm({
         </button>
       </div>
 
+      <DateSelector date={date} setDate={setDate} />
+
       <div className="space-y-2.5 mb-6">
         <input
           value={title}
@@ -250,46 +259,28 @@ export default function WorkoutForm({
           }}
         />
 
-        <div className="grid grid-cols-2 gap-2.5">
-          <div>
-            <p className="label mb-1.5">Date</p>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full rounded-xl px-4 py-3 text-[14px] focus:outline-none nums"
-              style={{
-                background: "var(--bg-card)",
-                border: "1px solid var(--border)",
-                color: "var(--fg)",
-                fontFamily: "var(--font-geist-mono)",
-                colorScheme: "dark",
-              }}
-            />
-          </div>
-          <div>
-            <p className="label mb-1.5">Type</p>
-            <select
-              value={workoutType}
-              onChange={(e) => setWorkoutType(e.target.value)}
-              className="w-full rounded-xl px-4 py-3 text-[14px] focus:outline-none appearance-none"
-              style={{
-                background: "var(--bg-card)",
-                border: "1px solid var(--border)",
-                color: "var(--fg)",
-                backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2352525b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                backgroundRepeat: "no-repeat",
-                backgroundPosition: "right 0.75rem center",
-                paddingRight: "2rem",
-              }}
-            >
-              {WORKOUT_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div>
+          <p className="label mb-1.5">Type</p>
+          <select
+            value={workoutType}
+            onChange={(e) => setWorkoutType(e.target.value)}
+            className="w-full rounded-xl px-4 py-3 text-[14px] focus:outline-none appearance-none"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              color: "var(--fg)",
+              backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2352525b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+              backgroundRepeat: "no-repeat",
+              backgroundPosition: "right 0.75rem center",
+              paddingRight: "2rem",
+            }}
+          >
+            {WORKOUT_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <textarea
@@ -360,6 +351,115 @@ export default function WorkoutForm({
       </div>
 
       <ExerciseLogger exercises={exercises} setExercises={setExercises} />
+    </div>
+  );
+}
+
+function DateSelector({
+  date,
+  setDate,
+}: {
+  date: string;
+  setDate: (d: string) => void;
+}) {
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const twoDaysAgo = new Date();
+  twoDaysAgo.setDate(today.getDate() - 2);
+
+  const fmt = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  const shortcuts = [
+    { label: "Today", value: fmt(today) },
+    { label: "Yesterday", value: fmt(yesterday) },
+    { label: "2 days ago", value: fmt(twoDaysAgo) },
+  ];
+
+  const display = new Date(`${date}T12:00:00`);
+  const niceDate = display.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+  const isToday = date === fmt(today);
+
+  return (
+    <div className="card p-4 mb-3">
+      <div className="flex items-baseline justify-between mb-3">
+        <p className="label">Logging for</p>
+        {!isToday && (
+          <p
+            className="label text-[9px]"
+            style={{ color: "var(--accent)" }}
+          >
+            Backdated
+          </p>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3 mb-3">
+        <div
+          className="flex-1 nums text-[18px] font-semibold tracking-tight"
+          style={{ fontFamily: "var(--font-geist-mono)" }}
+        >
+          {niceDate}
+        </div>
+        <label
+          className="cursor-pointer"
+          style={{
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            padding: "0.4rem 0.7rem",
+            borderRadius: "0.5rem",
+          }}
+        >
+          <span className="label text-[10px]" style={{ color: "var(--fg-muted)" }}>
+            Pick date
+          </span>
+          <input
+            type="date"
+            value={date}
+            max={fmt(today)}
+            onChange={(e) => e.target.value && setDate(e.target.value)}
+            className="sr-only"
+          />
+        </label>
+      </div>
+
+      <div className="flex gap-1.5">
+        {shortcuts.map((s) => {
+          const active = date === s.value;
+          return (
+            <button
+              key={s.value}
+              type="button"
+              onClick={() => setDate(s.value)}
+              className="flex-1 text-[11px] py-2 rounded-lg transition-colors label"
+              style={
+                active
+                  ? {
+                      background: "var(--accent-dim)",
+                      color: "var(--accent)",
+                      border: "1px solid rgba(34,197,94,0.35)",
+                    }
+                  : {
+                      background: "var(--bg-elevated)",
+                      color: "var(--fg-muted)",
+                      border: "1px solid var(--border)",
+                    }
+              }
+            >
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
