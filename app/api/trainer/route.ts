@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "AI trainer not configured" }, { status: 500 });
     }
 
-    const [user, workouts, prs, history] = await Promise.all([
+    const [user, workouts, prs, history, goals] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId } }),
       prisma.workout.findMany({
         where: { userId },
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
           },
         },
         orderBy: { date: "desc" },
-        take: 15,
+        take: 60,
       }),
       prisma.personalRecord.findMany({
         where: { userId, type: "WEIGHT" },
@@ -53,14 +53,37 @@ export async function POST(req: NextRequest) {
         orderBy: { createdAt: "asc" },
         take: 20,
       }),
+      prisma.goal.findMany({
+        where: { userId, completed: false },
+        include: { exercise: true },
+        orderBy: { createdAt: "desc" },
+      }),
     ]);
 
-    const recentWorkouts = workouts.slice(0, 10).map((w) => {
+    const formatSet = (s: {
+      weight: number | null;
+      reps: number | null;
+      rir: number | null;
+      notes: string | null;
+    }) => {
+      const base = `${s.weight ?? 0}lb×${s.reps ?? 0}`;
+      const rir = s.rir != null ? `@RIR${s.rir}` : "";
+      const note = s.notes?.trim() ? `(${s.notes.trim()})` : "";
+      return [base, rir, note].filter(Boolean).join("");
+    };
+
+    const recentWorkouts = workouts.slice(0, 30).map((w) => {
       const daysAgo = differenceInDays(new Date(), new Date(w.date));
       const when = daysAgo === 0 ? "today" : `${daysAgo}d ago`;
       const whenFmt = format(new Date(w.date), "EEE MMM d");
       const shape = shapeForType(w.type);
       const typeLbl = labelForType(w.type);
+      const tags: string[] = [];
+      if (w.split) tags.push(w.split);
+      if (w.isDeload) tags.push("DELOAD");
+      if (w.feeling) tags.push(`felt:${w.feeling}`);
+      const tagStr = tags.length ? ` {${tags.join(", ")}}` : "";
+      const noteStr = w.notes?.trim() ? ` — note: "${w.notes.trim()}"` : "";
 
       if (shape === "STRENGTH") {
         const workingSets = w.exercises.flatMap((e) =>
@@ -70,17 +93,20 @@ export async function POST(req: NextRequest) {
           (sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0),
           0
         );
-        const exerciseSummary = w.exercises
+        const exerciseLines = w.exercises
           .map((e) => {
-            const ws = e.sets.filter((s) => s.type === "WORKING");
-            const topSet = ws.reduce(
-              (best, s) => ((s.weight ?? 0) > (best.weight ?? 0) ? s : best),
-              ws[0] ?? { weight: 0, reps: 0 }
-            );
-            return `${e.exercise.name}: ${ws.length}×${topSet.weight}lb×${topSet.reps}`;
+            const warmups = e.sets.filter((s) => s.type === "WARMUP");
+            const working = e.sets.filter((s) => s.type === "WORKING");
+            const parts: string[] = [];
+            if (warmups.length)
+              parts.push(`warmup ${warmups.map(formatSet).join(", ")}`);
+            if (working.length)
+              parts.push(`working ${working.map(formatSet).join(", ")}`);
+            const exNote = e.notes?.trim() ? ` [${e.notes.trim()}]` : "";
+            return `    • ${e.exercise.name}${exNote}: ${parts.join(" | ")}`;
           })
-          .join("; ");
-        return `- [${typeLbl}${w.split ? "/" + w.split : ""}] ${w.title} (${when}, ${whenFmt}): ${exerciseSummary}. Total volume: ${Math.round(volume)}lb`;
+          .join("\n");
+        return `- [${typeLbl}]${tagStr} ${w.title} (${when}, ${whenFmt}) — ${Math.round(volume)}lb total volume${noteStr}\n${exerciseLines}`;
       }
 
       if (shape === "DISTANCE") {
@@ -91,7 +117,7 @@ export async function POST(req: NextRequest) {
         if (w.avgHeartRate) parts.push(`avg HR ${w.avgHeartRate}`);
         if (w.maxHeartRate) parts.push(`max HR ${w.maxHeartRate}`);
         if (w.elevation) parts.push(`${w.elevation}m gain`);
-        return `- [${typeLbl}] ${w.title} (${when}, ${whenFmt}): ${parts.join(" · ")}`;
+        return `- [${typeLbl}]${tagStr} ${w.title} (${when}, ${whenFmt}): ${parts.join(" · ")}${noteStr}`;
       }
 
       // DURATION
@@ -101,8 +127,41 @@ export async function POST(req: NextRequest) {
       if (w.rpe) parts.push(`RPE ${w.rpe}`);
       if (w.avgHeartRate) parts.push(`avg HR ${w.avgHeartRate}`);
       if (w.maxHeartRate) parts.push(`max HR ${w.maxHeartRate}`);
-      return `- [${typeLbl}] ${w.title} (${when}, ${whenFmt}): ${parts.join(" · ") || "logged"}`;
+      return `- [${typeLbl}]${tagStr} ${w.title} (${when}, ${whenFmt}): ${parts.join(" · ") || "logged"}${noteStr}`;
     });
+
+    // Per-exercise progression: last 6 top working sets for every strength exercise the athlete has hit
+    const exerciseHistory = new Map<
+      string,
+      { name: string; entries: string[] }
+    >();
+    for (const w of workouts) {
+      if (shapeForType(w.type) !== "STRENGTH") continue;
+      const daysAgo = differenceInDays(new Date(), new Date(w.date));
+      for (const e of w.exercises) {
+        const working = e.sets.filter((s) => s.type === "WORKING");
+        if (!working.length) continue;
+        const topSet = working.reduce(
+          (best, s) => ((s.weight ?? 0) > (best.weight ?? 0) ? s : best),
+          working[0]
+        );
+        const key = e.exerciseId;
+        if (!exerciseHistory.has(key)) {
+          exerciseHistory.set(key, { name: e.exercise.name, entries: [] });
+        }
+        const slot = exerciseHistory.get(key)!;
+        if (slot.entries.length < 6) {
+          slot.entries.push(
+            `${daysAgo}d ago: ${working.length}×(top ${topSet.weight}lb×${topSet.reps}${topSet.rir != null ? `@RIR${topSet.rir}` : ""})`
+          );
+        }
+      }
+    }
+    const progressionLines = Array.from(exerciseHistory.values())
+      .sort((a, b) => b.entries.length - a.entries.length)
+      .slice(0, 20)
+      .map((x) => `- ${x.name}:\n    ${x.entries.join("\n    ")}`)
+      .join("\n");
 
     const topPRs = Object.values(
       prs.reduce((acc, pr) => {
@@ -113,9 +172,12 @@ export async function POST(req: NextRequest) {
       }, {} as Record<string, (typeof prs)[0]>)
     )
       .sort((a, b) => b.value - a.value)
-      .slice(0, 10)
-      .map((pr) => `${pr.exercise.name}: ${pr.value}lbs`)
-      .join(", ");
+      .slice(0, 15)
+      .map(
+        (pr) =>
+          `${pr.exercise.name}: ${pr.value}lb × ${pr.reps ?? 1} (${format(new Date(pr.date), "MMM d, yyyy")})`
+      )
+      .join("\n");
 
     const thisWeek = workouts.filter(
       (w) => new Date(w.date) >= subDays(new Date(), 7)
@@ -299,15 +361,14 @@ BODY METRICS (cm unless noted, optional — may be blank):
 
 ACTIVE GOALS (explicit targets the athlete is chasing):
 ${
-  (await prisma.goal.findMany({
-    where: { userId, completed: false },
-    include: { exercise: true },
-    orderBy: { createdAt: "desc" },
-  }))
-    .map(
-      (g) =>
-        `- ${g.title}${g.deadline ? ` (by ${format(new Date(g.deadline), "MMM d, yyyy")})` : ""}`
-    )
+  goals
+    .map((g) => {
+      const repPart = g.targetReps ? ` × ${g.targetReps} reps` : "";
+      const deadlinePart = g.deadline
+        ? ` (by ${format(new Date(g.deadline), "MMM d, yyyy")})`
+        : "";
+      return `- ${g.title} [target: ${g.targetValue}${g.unit ?? ""}${repPart}]${deadlinePart}`;
+    })
     .join("\n") || "- none set"
 }
 
@@ -334,11 +395,20 @@ Sessions are logged across categories — weight training, running, cycling, swi
 - Reference heart rate zones when HR data is logged (Z2/Z3/Z4/Z5 interpretation).
 - If the athlete mixes modalities, coach them as the whole athlete — conditioning affects lifting, lifting affects running, etc.
 
-RECENT SESSIONS (most recent first):
-${recentWorkouts.join("\n") || "No sessions logged yet."}
+RECENT SESSIONS (most recent first, full set-by-set breakdown — USE THIS DATA when giving advice; do not make up numbers, reference actual loads, reps, and trends):
+${recentWorkouts.join("\n\n") || "No sessions logged yet."}
 
-PERSONAL RECORDS (best weight per lift):
+PER-EXERCISE PROGRESSION (each lift's top working set across its most recent appearances — use these to judge whether the athlete is progressing, stalling, or regressing on any given movement):
+${progressionLines || "No strength exercises logged yet."}
+
+PERSONAL RECORDS (best weight per lift, with the rep count it was achieved at):
 ${topPRs || "No PRs yet."}
+
+DATA-USE RULES (MANDATORY):
+- Always reference specific numbers from the sessions above when reviewing performance or prescribing next loads.
+- If the athlete asks "what should I do today" or "how am I progressing on X", do NOT give generic advice — pull the exact last 2–3 sessions for that lift from the progression block and base the answer on it.
+- Never invent a PR, a load, or a session that isn't in the data. If the data doesn't contain the answer, say "I don't see that in your log yet" and ask the athlete to confirm.
+- Recommended next loads must be anchored to the athlete's actual most recent top set, not a generic percentage of a made-up 1RM.
 ${
   user?.coachPrompt?.trim()
     ? `
