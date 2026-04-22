@@ -1,14 +1,9 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { labelForType, shapeForType, formatDuration } from "@/lib/exercises";
-import {
-  format,
-  startOfMonth,
-  endOfMonth,
-  eachDayOfInterval,
-  getDay,
-} from "date-fns";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import Link from "next/link";
+import HistoryCalendar from "@/components/HistoryCalendar";
 
 export default async function HistoryPage() {
   const userId = await requireAuth();
@@ -27,11 +22,13 @@ export default async function HistoryPage() {
   const now = new Date();
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
-  const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
-  const workoutDates = new Set(
-    workouts.map((w) => format(new Date(w.date), "yyyy-MM-dd"))
+  const workoutDateStrings = workouts.map((w) =>
+    format(new Date(w.date), "yyyy-MM-dd")
   );
-  const startDayOfWeek = getDay(monthStart);
+  const earliestYear =
+    workouts.length > 0
+      ? new Date(workouts[workouts.length - 1].date).getFullYear()
+      : now.getFullYear();
 
   const avgPerWeek =
     workouts.length > 0
@@ -68,64 +65,10 @@ export default async function HistoryPage() {
         </h1>
       </div>
 
-      <div className="card p-5 mb-4">
-        <div className="flex items-center justify-between mb-4">
-          <p className="font-semibold text-[14px] tracking-tight">
-            {format(now, "MMMM yyyy")}
-          </p>
-          <p
-            className="label text-[9px] nums"
-            style={{
-              color: "var(--fg-dim)",
-              fontFamily: "var(--font-geist-mono)",
-            }}
-          >
-            {workoutDates.size} sessions
-          </p>
-        </div>
-        <div className="grid grid-cols-7 gap-1 text-center">
-          {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-            <div
-              key={i}
-              className="text-[10px] pb-2"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              {d}
-            </div>
-          ))}
-          {Array.from({ length: startDayOfWeek }).map((_, i) => (
-            <div key={`empty-${i}`} />
-          ))}
-          {days.map((day) => {
-            const key = format(day, "yyyy-MM-dd");
-            const hasWorkout = workoutDates.has(key);
-            const isToday = key === format(now, "yyyy-MM-dd");
-            return (
-              <div
-                key={key}
-                className="aspect-square flex items-center justify-center rounded-md text-[12px] nums"
-                style={{
-                  fontFamily: "var(--font-geist-mono)",
-                  background: hasWorkout
-                    ? "var(--accent)"
-                    : isToday
-                      ? "var(--bg-elevated)"
-                      : "transparent",
-                  color: hasWorkout
-                    ? "#0a0a0a"
-                    : isToday
-                      ? "var(--fg)"
-                      : "var(--fg-dim)",
-                  fontWeight: hasWorkout || isToday ? 600 : 400,
-                  border: isToday && !hasWorkout ? "1px solid var(--border-strong)" : "none",
-                }}
-              >
-                {format(day, "d")}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <HistoryCalendar
+        workoutDates={workoutDateStrings}
+        earliestYear={earliestYear}
+      />
 
       <div
         className="grid grid-cols-3 gap-px mb-6 card overflow-hidden"
