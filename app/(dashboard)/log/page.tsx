@@ -1,16 +1,21 @@
 import WorkoutForm, {
   type WorkoutFormInitial,
 } from "@/components/WorkoutForm";
+import WorkoutFormVoiceHydrator from "@/components/WorkoutFormVoiceHydrator";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 
 export default async function LogWorkoutPage({
   searchParams,
 }: {
-  searchParams: Promise<{ clone?: string }>;
+  searchParams: Promise<{ clone?: string; voice?: string }>;
 }) {
   const userId = await requireAuth();
-  const { clone } = await searchParams;
+  const { clone, voice } = await searchParams;
+
+  if (voice) {
+    return <WorkoutFormVoiceHydrator />;
+  }
 
   let initial: WorkoutFormInitial | undefined;
   if (clone) {

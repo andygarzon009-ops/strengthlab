@@ -245,6 +245,56 @@ export default function WorkoutForm({
           </div>
         </div>
 
+        <Link
+          href="/log/voice"
+          className="card p-4 flex items-center justify-between mb-3 transition-all active:scale-[0.98]"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(34,197,94,0.1) 0%, var(--bg-card) 80%)",
+            border: "1px solid rgba(34,197,94,0.3)",
+          }}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+              style={{
+                background: "var(--accent-dim)",
+                color: "var(--accent)",
+              }}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M5 10a7 7 0 0 0 14 0" />
+                <path d="M12 17v5" />
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <p
+                className="font-semibold text-[15px] tracking-tight truncate"
+                style={{ color: "var(--accent)" }}
+              >
+                Voice log
+              </p>
+              <p
+                className="text-[11px] mt-0.5"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                Speak it, we&apos;ll structure it
+              </p>
+            </div>
+          </div>
+          <span style={{ color: "var(--accent)" }}>›</span>
+        </Link>
+
         <div className="grid grid-cols-1 gap-2">
           {WORKOUT_TYPES.map((type) => (
             <button
