@@ -58,6 +58,8 @@ model User {
   groupPosts      GroupPost[]
   postComments    PostComment[]
   postReactions   PostReaction[]
+  challenges      Challenge[]           @relation("ChallengeCreator")
+  challengeJoins  ChallengeParticipant[]
 }
 
 model Goal {
@@ -117,6 +119,7 @@ model Exercise {
   workoutExercises WorkoutExercise[]
   prs              PersonalRecord[]
   goals            Goal[]
+  challenges       Challenge[]
 }
 
 model WorkoutExercise {
@@ -164,24 +167,61 @@ model Group {
   code      String   @unique
   createdAt DateTime @default(now())
 
-  members GroupMember[]
-  posts   GroupPost[]
+  members    GroupMember[]
+  posts      GroupPost[]
+  challenges Challenge[]
 }
 
 model GroupPost {
-  id        String   @id @default(cuid())
-  groupId   String
-  userId    String
-  text      String
-  imageUrl  String?
-  workoutId String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  groupId     String
+  userId      String
+  text        String
+  imageUrl    String?
+  workoutId   String?
+  cardType    String?
+  cardData    Json?
+  challengeId String?
+  createdAt   DateTime @default(now())
 
   group     Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   workout   Workout?       @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+  challenge Challenge?     @relation(fields: [challengeId], references: [id], onDelete: SetNull)
   comments  PostComment[]
   reactions PostReaction[]
+}
+
+model Challenge {
+  id           String    @id @default(cuid())
+  groupId      String
+  creatorId    String
+  type         String
+  exerciseId   String?
+  targetValue  Float
+  targetReps   Int?
+  deadline     DateTime?
+  resolved     Boolean   @default(false)
+  winnerId     String?
+  createdAt    DateTime  @default(now())
+
+  group        Group                  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator      User                   @relation("ChallengeCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  exercise     Exercise?              @relation(fields: [exerciseId], references: [id])
+  participants ChallengeParticipant[]
+  posts        GroupPost[]
+}
+
+model ChallengeParticipant {
+  id          String    @id @default(cuid())
+  challengeId String
+  userId      String
+  joinedAt    DateTime  @default(now())
+
+  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, userId])
 }
 
 model PostComment {
