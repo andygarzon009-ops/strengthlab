@@ -105,14 +105,27 @@ async function detectAndSavePRs(
     const workingSets = ex.sets.filter((s: any) => s.type === "WORKING");
     if (workingSets.length === 0) continue;
 
-    const maxWeight = Math.max(...workingSets.map((s: any) => s.weight ?? 0));
-    const maxReps = Math.max(...workingSets.map((s: any) => s.reps ?? 0));
+    // Identify the set with the heaviest weight (and its reps)
+    const heaviestSet = workingSets.reduce(
+      (best: any, s: any) =>
+        (s.weight ?? 0) > (best.weight ?? 0) ? s : best,
+      workingSets[0]
+    );
+    const maxWeight = heaviestSet.weight ?? 0;
+    const weightAtMaxReps = heaviestSet.reps ?? null;
+
+    // Identify the set with the most reps (and its weight)
+    const highestRepSet = workingSets.reduce(
+      (best: any, s: any) => ((s.reps ?? 0) > (best.reps ?? 0) ? s : best),
+      workingSets[0]
+    );
+    const maxReps = highestRepSet.reps ?? 0;
+
     const totalVolume = workingSets.reduce(
       (sum: number, s: any) => sum + (s.weight ?? 0) * (s.reps ?? 0),
       0
     );
 
-    // Check existing PRs
     const [weightPR, repsPR, volumePR] = await Promise.all([
       prisma.personalRecord.findFirst({
         where: { userId, exerciseId: ex.exerciseId, type: "WEIGHT" },
@@ -136,6 +149,7 @@ async function detectAndSavePRs(
         exerciseId: ex.exerciseId,
         type: "WEIGHT",
         value: maxWeight,
+        reps: weightAtMaxReps,
         workoutId,
       });
     }
@@ -145,6 +159,7 @@ async function detectAndSavePRs(
         exerciseId: ex.exerciseId,
         type: "REPS",
         value: maxReps,
+        reps: maxReps,
         workoutId,
       });
     }

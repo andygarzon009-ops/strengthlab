@@ -52,6 +52,7 @@ export default async function AnalyticsPage() {
   // ---------- Goal progress ----------
   const goalsWithProgress: GoalWithProgress[] = goals.map((g) => {
     let currentValue = 0;
+    let currentReps: number | null = null;
 
     if (g.type === "STRENGTH" && g.exerciseId) {
       const bestPR = prs
@@ -60,6 +61,7 @@ export default async function AnalyticsPage() {
         )
         .sort((a, b) => b.value - a.value)[0];
       currentValue = bestPR?.value ?? 0;
+      currentReps = bestPR?.reps ?? null;
     } else if (g.type === "FREQUENCY") {
       currentValue = last7.length;
     } else if (g.type === "BODYWEIGHT_GAIN" || g.type === "BODYWEIGHT_CUT") {
@@ -110,6 +112,7 @@ export default async function AnalyticsPage() {
       unit: g.unit,
       deadline: g.deadline?.toISOString() ?? null,
       currentValue,
+      currentReps,
       progressPct,
     };
   });

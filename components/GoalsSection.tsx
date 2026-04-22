@@ -15,6 +15,7 @@ export type GoalWithProgress = {
   unit: string | null;
   deadline: string | null;
   currentValue: number;
+  currentReps: number | null;
   progressPct: number;
 };
 
@@ -169,6 +170,14 @@ function GoalCard({ goal }: { goal: GoalWithProgress }) {
           }}
         >
           {formatValue(goal.currentValue, goal.unit)}
+          {goal.type === "STRENGTH" && goal.currentReps != null && (
+            <span
+              className="text-[13px] ml-1 font-normal"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              × {goal.currentReps}
+            </span>
+          )}
           <span
             className="text-[12px] ml-1 font-normal"
             style={{ color: "var(--fg-dim)" }}
