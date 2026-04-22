@@ -190,7 +190,7 @@ export default function AITrainer() {
           border: "1px solid var(--border-strong)",
           boxShadow: "0 6px 20px -6px rgba(0,0,0,0.6)",
         }}
-        aria-label="Open AI Coach"
+        aria-label="Open Personalized Coach"
       >
         <svg
           width="20"
@@ -242,10 +242,10 @@ export default function AITrainer() {
             </div>
             <div className="flex-1">
               <h2 className="text-[15px] font-semibold tracking-tight">
-                Coach
+                Personalized Coach
               </h2>
               <p className="text-[11px] label mt-0.5" style={{ color: "var(--fg-dim)" }}>
-                Knows your lifts
+                Built around your training
               </p>
             </div>
             <button
@@ -292,13 +292,14 @@ export default function AITrainer() {
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold tracking-tight mb-1.5">
-                  Personal coach, on call
+                  Your personalized coach
                 </h3>
                 <p
                   className="text-sm leading-relaxed mb-6"
                   style={{ color: "var(--fg-muted)" }}
                 >
-                  I know your training history, PRs, and goals. Ask anything.
+                  I know every session you&apos;ve logged, your PRs, and your
+                  goals. Ask me anything.
                 </p>
                 <div className="space-y-2">
                   {QUICK_PROMPTS.map((p) => (
