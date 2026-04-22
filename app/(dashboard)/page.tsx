@@ -61,9 +61,14 @@ export default async function FeedPage({
     <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-end justify-between mb-8">
         <div>
-          <p className="label mb-1">Feed</p>
-          <h1 className="text-[28px] font-bold tracking-tight leading-none">
+          <p
+            className="label mb-1"
+            style={{ color: "var(--accent)" }}
+          >
             {currentUser?.name?.split(" ")[0] ?? "Athlete"}
+          </p>
+          <h1 className="text-[28px] font-bold tracking-tight leading-none">
+            StrengthLab
           </h1>
         </div>
         <Link
