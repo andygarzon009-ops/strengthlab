@@ -91,8 +91,25 @@ export async function createWorkout(data: CreateWorkoutInput) {
 
   await detectAndSavePRs(userId, workout.id, workout.exercises);
 
+  // Auto-broadcast to every group the athlete is in as a chat message
+  const memberships = await prisma.groupMember.findMany({
+    where: { userId },
+    select: { groupId: true },
+  });
+  if (memberships.length > 0) {
+    await prisma.groupPost.createMany({
+      data: memberships.map((m) => ({
+        groupId: m.groupId,
+        userId,
+        text: "",
+        workoutId: workout.id,
+      })),
+    });
+  }
+
   revalidatePath("/");
   revalidatePath("/history");
+  revalidatePath("/group");
   redirect(`/workout/${workout.id}`);
 }
 
