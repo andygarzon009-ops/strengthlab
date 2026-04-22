@@ -270,6 +270,10 @@ export async function updateProfile(data: {
   goals?: string;
   preferredSplit?: string;
   bio?: string;
+  experienceLevel?: string;
+  primaryFocus?: string;
+  trainingDays?: number;
+  injuries?: string;
   coachPrompt?: string;
 }) {
   const userId = await requireAuth();

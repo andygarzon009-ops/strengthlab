@@ -251,12 +251,22 @@ ATHLETE DATA — ${user?.name ?? "this athlete"}
 
 PROFILE:
 - Name: ${user?.name ?? "unknown"}
+- Experience level: ${user?.experienceLevel ?? "not specified"}
+- Primary focus: ${user?.primaryFocus ?? "not specified"}
+- Target training days per week: ${user?.trainingDays ?? "not specified"}
 - Bodyweight: ${user?.bodyweight ? `${user.bodyweight}lbs` : "not set"}
 - Stated goals: ${user?.goals ?? "not specified"}
 - Preferred split: ${user?.preferredSplit ?? "not specified"}
+- Injury / pain history: ${user?.injuries?.trim() ? user.injuries.trim() : "none reported"}
 - Total sessions logged: ${workouts.length}
 - This week: ${thisWeek} sessions | This month: ${thisMonth} sessions
 - Last trained: ${daysSinceLast === null ? "no sessions yet" : daysSinceLast === 0 ? "today" : `${daysSinceLast} days ago`}
+
+ADAPT YOUR COACHING BASED ON THE PROFILE ABOVE:
+- Match your intensity and complexity to their experience level.
+- Prioritize their primary focus (strength vs hypertrophy vs powerbuilding vs recomp vs athletic vs general).
+- Use their actual training frequency to plan weekly distribution.
+- Treat injury notes as non-negotiable — always work around them.
 
 RECENT SESSIONS (most recent first):
 ${recentWorkouts.join("\n") || "No sessions logged yet."}
