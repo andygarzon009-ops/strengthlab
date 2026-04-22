@@ -1,22 +1,13 @@
 import { PrismaClient } from "@/app/generated/prisma";
-import { PrismaLibSql } from "@prisma/adapter-libsql";
-import path from "path";
+import { PrismaPg } from "@prisma/adapter-pg";
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
 function createPrismaClient() {
-  // Cloud: set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN in env
-  // Local dev: falls back to SQLite file
-  const url =
-    process.env.TURSO_DATABASE_URL ??
-    `file:${path.join(process.cwd(), "prisma", "dev.db")}`;
-
-  const authToken = process.env.TURSO_AUTH_TOKEN;
-
-  const adapter = new PrismaLibSql(
-    authToken ? { url, authToken } : { url }
-  );
-
+  // DATABASE_URL = Supabase direct connection string
+  // DIRECT_URL   = same, but used for migrations (Supabase calls it "direct connection")
+  const connectionString = process.env.DATABASE_URL!;
+  const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({ adapter } as any);
 }
 
