@@ -53,8 +53,6 @@ export async function syncDefaultExercises() {
       data: { muscleGroup: u.muscleGroup, splits: u.splits },
     });
   }
-  revalidatePath("/exercises");
-  revalidatePath("/log");
   return { created: toCreate.length, updated: toUpdate.length };
 }
 
