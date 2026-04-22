@@ -131,9 +131,28 @@ export default function WorkoutForm({
     }
   };
 
+  // Strength sets with weight but missing reps block save
+  const missingRepsCount =
+    shape === "STRENGTH"
+      ? exercises.reduce((count, ex) => {
+          return (
+            count +
+            ex.sets.filter(
+              (s) =>
+                s.type === "WORKING" &&
+                s.weight.trim() !== "" &&
+                parseFloat(s.weight) > 0 &&
+                s.reps.trim() === ""
+            ).length
+          );
+        }, 0)
+      : 0;
+
   const canSave = (() => {
     if (!title) return false;
-    if (shape === "STRENGTH") return exercises.length > 0;
+    if (shape === "STRENGTH") {
+      return exercises.length > 0 && missingRepsCount === 0;
+    }
     if (shape === "DISTANCE") {
       return (
         (distance && parseFloat(distance) > 0) ||
@@ -310,6 +329,38 @@ export default function WorkoutForm({
           {pending ? "Saving…" : "Save"}
         </button>
       </div>
+
+      {missingRepsCount > 0 && (
+        <div
+          className="mb-3 px-4 py-2.5 rounded-xl flex items-center gap-2.5"
+          style={{
+            background: "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.2)",
+          }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#f87171"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="shrink-0"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 8v4M12 16h.01" />
+          </svg>
+          <p className="text-[12px] leading-snug" style={{ color: "#fca5a5" }}>
+            <span className="font-semibold">
+              {missingRepsCount} set{missingRepsCount === 1 ? "" : "s"} missing
+              reps.
+            </span>{" "}
+            Fill them in to save.
+          </p>
+        </div>
+      )}
 
       <DateSelector date={date} setDate={setDate} />
 

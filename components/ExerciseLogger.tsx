@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type SetData = {
   type: "WARMUP" | "WORKING";
@@ -361,6 +361,26 @@ function SetRow({
   onRemove: () => void;
   isWarmup: boolean;
 }) {
+  const repsRef = useRef<HTMLInputElement>(null);
+
+  // A working set with a weight but no reps is invalid — highlight it.
+  const repsMissing =
+    !isWarmup &&
+    set.weight.trim() !== "" &&
+    parseFloat(set.weight) > 0 &&
+    set.reps.trim() === "";
+
+  const handleWeightBlur = () => {
+    // If user entered a weight and reps is empty, nudge focus to reps
+    if (
+      set.weight.trim() !== "" &&
+      parseFloat(set.weight) > 0 &&
+      set.reps.trim() === ""
+    ) {
+      setTimeout(() => repsRef.current?.focus(), 0);
+    }
+  };
+
   return (
     <div className="flex items-center gap-2 mb-1.5">
       <span
@@ -377,6 +397,7 @@ function SetRow({
         inputMode="decimal"
         value={set.weight}
         onChange={(e) => onUpdate("weight", e.target.value)}
+        onBlur={handleWeightBlur}
         placeholder="lb"
         className="w-16 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
         style={{
@@ -388,6 +409,7 @@ function SetRow({
       />
       <span style={{ color: "var(--fg-dim)", fontSize: "11px" }}>×</span>
       <input
+        ref={repsRef}
         type="number"
         inputMode="numeric"
         value={set.reps}
@@ -395,9 +417,13 @@ function SetRow({
         placeholder="reps"
         className="w-14 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
         style={{
-          background: "var(--bg-elevated)",
-          border: "1px solid var(--border)",
-          color: "var(--fg)",
+          background: repsMissing
+            ? "rgba(239,68,68,0.08)"
+            : "var(--bg-elevated)",
+          border: `1px solid ${
+            repsMissing ? "rgba(239,68,68,0.5)" : "var(--border)"
+          }`,
+          color: repsMissing ? "#fca5a5" : "var(--fg)",
           fontFamily: "var(--font-geist-mono)",
         }}
       />
