@@ -342,98 +342,28 @@ function Message({
     });
   };
 
+  const timeStr = new Date(post.createdAt).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
   return (
-    <div
-      className={`flex gap-2 ${isOwn ? "flex-row-reverse" : ""}`}
-    >
-      {!isOwn && (
-        <div
-          className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 mt-4"
-          style={{
-            background: "var(--accent-dim)",
-            color: "var(--accent)",
-          }}
-        >
-          {post.user.name[0]?.toUpperCase()}
-        </div>
-      )}
+    <div className="group flex gap-2 relative">
+      <div
+        className="w-8 h-8 rounded-md flex items-center justify-center text-[12px] font-semibold shrink-0"
+        style={{
+          background: isOwn ? "var(--accent)" : "var(--accent-dim)",
+          color: isOwn ? "#0a0a0a" : "var(--accent)",
+        }}
+      >
+        {post.user.name[0]?.toUpperCase()}
+      </div>
 
-      <div className={`min-w-0 ${isOwn ? "items-end" : "items-start"} flex flex-col max-w-[80%]`}>
-        {!isOwn && (
-          <p
-            className="text-[10px] mb-0.5 px-1"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            {post.user.name}
-          </p>
-        )}
-
-        <div
-          className="rounded-2xl px-3 py-2"
-          style={{
-            background: isOwn ? "var(--accent-dim)" : "var(--bg-elevated)",
-            border: isOwn
-              ? "1px solid rgba(34,197,94,0.3)"
-              : "1px solid var(--border)",
-            borderTopRightRadius: isOwn ? 4 : undefined,
-            borderTopLeftRadius: !isOwn ? 4 : undefined,
-          }}
-        >
-          {isAuto && post.workout ? (
-            <a
-              href={`/workout/${post.workout.id}`}
-              className="block"
-            >
-              <p
-                className="text-[11px] mb-0.5"
-                style={{
-                  color: isOwn ? "var(--accent)" : "var(--fg-dim)",
-                }}
-              >
-                🏋️ Just logged
-              </p>
-              <p className="text-[14px] font-semibold">
-                {post.workout.title}
-              </p>
-            </a>
-          ) : (
-            <>
-              {post.text && (
-                <p className="text-[13px] whitespace-pre-wrap break-words">
-                  {post.text}
-                </p>
-              )}
-              {post.imageUrl && (
-                <img
-                  src={post.imageUrl}
-                  alt=""
-                  className="rounded-lg mt-1"
-                  style={{
-                    maxHeight: 280,
-                    maxWidth: "100%",
-                    objectFit: "cover",
-                  }}
-                />
-              )}
-              {post.workout && post.text && (
-                <a
-                  href={`/workout/${post.workout.id}`}
-                  className="block mt-2 rounded-lg px-2 py-1.5 text-[11px]"
-                  style={{
-                    background: "var(--bg-card)",
-                    border: "1px solid var(--border)",
-                  }}
-                >
-                  🏋️ {post.workout.title}
-                </a>
-              )}
-            </>
-          )}
-        </div>
-
-        <div
-          className={`flex items-center gap-1.5 mt-1 px-1 relative ${isOwn ? "flex-row-reverse" : ""}`}
-        >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2 mb-0.5">
+          <span className="text-[13px] font-semibold leading-none">
+            {isOwn ? "You" : post.user.name}
+          </span>
           <span
             className="text-[10px] nums"
             style={{
@@ -441,96 +371,71 @@ function Message({
               fontFamily: "var(--font-geist-mono)",
             }}
           >
-            {formatDistanceToNow(new Date(post.createdAt), {
-              addSuffix: true,
-            })}
+            {timeStr}
           </span>
-
-          <button
-            onClick={() => setShowReact((v) => !v)}
-            className="w-6 h-6 rounded-md flex items-center justify-center text-[13px]"
-            style={{
-              background: showReact
-                ? "var(--accent-dim)"
-                : "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-            }}
-            aria-label="Add reaction"
+          <span
+            className="text-[10px]"
+            style={{ color: "var(--fg-dim)" }}
           >
-            😀
-          </button>
+            · {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
+          </span>
+        </div>
 
-          <button
-            onClick={() => setCommenting((v) => !v)}
-            className="w-6 h-6 rounded-md flex items-center justify-center text-[11px]"
+        {isAuto && post.workout ? (
+          <a
+            href={`/workout/${post.workout.id}`}
+            className="inline-block rounded-lg px-3 py-2 text-[13px]"
             style={{
               background: "var(--bg-elevated)",
               border: "1px solid var(--border)",
-              color: "var(--fg-muted)",
             }}
-            aria-label="Reply"
           >
-            💬
-          </button>
-
-          {isOwn && (
-            <button
-              onClick={remove}
-              disabled={pending}
-              className="text-[10px] opacity-60 hover:opacity-100"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              delete
-            </button>
-          )}
-
-          {showReact && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setShowReact(false)}
-              />
-              <div
-                className={`absolute z-50 flex gap-0.5 rounded-full px-2 py-1.5 shadow-lg ${
-                  isOwn ? "right-0" : "left-0"
-                }`}
+            <span style={{ color: "var(--fg-dim)" }}>🏋️ Just logged </span>
+            <span className="font-semibold">{post.workout.title}</span>
+          </a>
+        ) : (
+          <>
+            {post.text && (
+              <p className="text-[13px] whitespace-pre-wrap break-words leading-relaxed">
+                {post.text}
+              </p>
+            )}
+            {post.imageUrl && (
+              <img
+                src={post.imageUrl}
+                alt=""
+                className="rounded-lg mt-1.5"
                 style={{
-                  top: -44,
-                  background: "var(--bg-card)",
-                  border: "1px solid var(--border-strong)",
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                  maxHeight: 320,
+                  maxWidth: "100%",
+                  objectFit: "cover",
+                }}
+              />
+            )}
+            {post.workout && post.text && (
+              <a
+                href={`/workout/${post.workout.id}`}
+                className="inline-block mt-1.5 rounded-lg px-2.5 py-1.5 text-[11px]"
+                style={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border)",
                 }}
               >
-                {REACTIONS.map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => toggleReact(r)}
-                    className="text-[18px] w-8 h-8 rounded-full transition-transform hover:scale-125"
-                    style={{
-                      background: myReactions.has(r)
-                        ? "var(--accent-dim)"
-                        : "transparent",
-                    }}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+                🏋️ {post.workout.title}
+              </a>
+            )}
+          </>
+        )}
 
-        {Object.keys(reactionCounts).length > 0 && (
-          <div
-            className={`flex gap-1 mt-1 flex-wrap ${isOwn ? "justify-end" : ""}`}
-          >
+        {(Object.keys(reactionCounts).length > 0 || showReact) && (
+          <div className="flex items-center gap-1 mt-1.5 flex-wrap relative">
             {Object.entries(reactionCounts).map(([type, count]) => {
               const mine = myReactions.has(type);
               return (
                 <button
                   key={type}
                   onClick={() => toggleReact(type)}
-                  className="text-[11px] px-2 py-0.5 rounded-full"
+                  className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-md"
                   style={{
                     background: mine
                       ? "var(--accent-dim)"
@@ -541,9 +446,9 @@ function Message({
                     color: mine ? "var(--accent)" : "var(--fg)",
                   }}
                 >
-                  {type}{" "}
+                  <span className="text-[13px]">{type}</span>
                   <span
-                    className="nums opacity-70"
+                    className="nums font-semibold"
                     style={{ fontFamily: "var(--font-geist-mono)" }}
                   >
                     {count}
@@ -551,39 +456,122 @@ function Message({
                 </button>
               );
             })}
+            <button
+              onClick={() => setShowReact((v) => !v)}
+              className="w-7 h-6 rounded-md flex items-center justify-center text-[11px]"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--fg-muted)",
+              }}
+              aria-label="Add reaction"
+            >
+              😀<span className="text-[9px] ml-0.5">+</span>
+            </button>
+
+            {showReact && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowReact(false)}
+                />
+                <div
+                  className="absolute z-50 flex gap-0.5 rounded-full px-2 py-1.5"
+                  style={{
+                    top: -48,
+                    left: 0,
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--border-strong)",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  {REACTIONS.map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => toggleReact(r)}
+                      className="text-[18px] w-8 h-8 rounded-full transition-transform hover:scale-125"
+                      style={{
+                        background: myReactions.has(r)
+                          ? "var(--accent-dim)"
+                          : "transparent",
+                      }}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {Object.keys(reactionCounts).length === 0 && !showReact && (
+          <div className="flex items-center gap-2 mt-1">
+            <button
+              onClick={() => setShowReact(true)}
+              className="text-[10px] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              😀 react
+            </button>
+            <button
+              onClick={() => setCommenting((v) => !v)}
+              className="text-[10px] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              💬 reply
+            </button>
+            {isOwn && (
+              <button
+                onClick={remove}
+                disabled={pending}
+                className="text-[10px] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                delete
+              </button>
+            )}
+          </div>
+        )}
+
+        {(Object.keys(reactionCounts).length > 0 || showReact) && (
+          <div className="flex items-center gap-2 mt-1">
+            <button
+              onClick={() => setCommenting((v) => !v)}
+              className="text-[10px]"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              💬 reply
+            </button>
+            {isOwn && (
+              <button
+                onClick={remove}
+                disabled={pending}
+                className="text-[10px]"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                delete
+              </button>
+            )}
           </div>
         )}
 
         {post.comments.length > 0 && (
           <div
-            className={`mt-1 space-y-0.5 ${isOwn ? "items-end" : ""} flex flex-col`}
+            className="mt-2 pl-2 space-y-1"
+            style={{ borderLeft: "2px solid var(--border)" }}
           >
             {post.comments.map((c) => (
-              <p
-                key={c.id}
-                className="text-[11px] px-2 py-1 rounded-lg"
-                style={{
-                  background: "var(--bg-elevated)",
-                  color: "var(--fg-muted)",
-                  maxWidth: "100%",
-                }}
-              >
-                <span
-                  className="font-semibold"
-                  style={{ color: "var(--fg)" }}
-                >
-                  {c.user.name}
-                </span>{" "}
-                {c.text}
+              <p key={c.id} className="text-[12px] leading-snug">
+                <span className="font-semibold">{c.user.name}</span>{" "}
+                <span style={{ color: "var(--fg-muted)" }}>{c.text}</span>
               </p>
             ))}
           </div>
         )}
 
         {commenting && (
-          <div
-            className={`mt-1 flex gap-1 ${isOwn ? "flex-row-reverse" : ""} w-full`}
-          >
+          <div className="mt-2 flex gap-1">
             <input
               autoFocus
               value={commentText}
@@ -591,8 +579,8 @@ function Message({
               onKeyDown={(e) => {
                 if (e.key === "Enter") submitComment();
               }}
-              placeholder="Reply…"
-              className="flex-1 rounded-lg px-2 py-1 text-[11px] focus:outline-none"
+              placeholder="Reply in thread…"
+              className="flex-1 rounded-lg px-2 py-1 text-[12px] focus:outline-none"
               style={{
                 background: "var(--bg-elevated)",
                 border: "1px solid var(--border)",
