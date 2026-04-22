@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { format, subDays, differenceInDays } from "date-fns";
 import { NextRequest } from "next/server";
 
 export const maxDuration = 60;
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function GET() {
   const userId = await requireAuth();
@@ -25,11 +25,10 @@ export async function POST(req: NextRequest) {
 
     if (!message?.trim()) return Response.json({ error: "Empty message" }, { status: 400 });
 
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return Response.json({ error: "AI trainer not configured" }, { status: 500 });
     }
 
-    // Fetch user context
     const [user, workouts, prs, history] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId } }),
       prisma.workout.findMany({
@@ -68,8 +67,7 @@ export async function POST(req: NextRequest) {
         .map((e) => {
           const ws = e.sets.filter((s) => s.type === "WORKING");
           const topSet = ws.reduce(
-            (best, s) =>
-              (s.weight ?? 0) > (best.weight ?? 0) ? s : best,
+            (best, s) => ((s.weight ?? 0) > (best.weight ?? 0) ? s : best),
             ws[0] ?? { weight: 0, reps: 0 }
           );
           return `${e.exercise.name}: ${ws.length} sets, top set ${topSet.weight}lbs×${topSet.reps}`;
@@ -84,7 +82,7 @@ export async function POST(req: NextRequest) {
           acc[pr.exerciseId] = pr;
         }
         return acc;
-      }, {} as Record<string, typeof prs[0]>)
+      }, {} as Record<string, (typeof prs)[0]>)
     )
       .sort((a, b) => b.value - a.value)
       .slice(0, 10)
@@ -134,9 +132,9 @@ COACHING GUIDELINES:
       data: { userId, role: "user", content: message },
     });
 
-    const chatHistory = history.map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
+    const geminiHistory = history.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
     }));
 
     const encoder = new TextEncoder();
@@ -145,23 +143,17 @@ COACHING GUIDELINES:
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const response = await anthropic.messages.create({
-            model: "claude-haiku-4-5-20251001",
-            max_tokens: 1024,
-            system: systemPrompt,
-            messages: [
-              ...chatHistory,
-              { role: "user", content: message },
-            ],
-            stream: true,
+          const model = genAI.getGenerativeModel({
+            model: "gemini-2.5-flash-preview-04-17",
+            systemInstruction: systemPrompt,
           });
 
-          for await (const event of response) {
-            if (
-              event.type === "content_block_delta" &&
-              event.delta.type === "text_delta"
-            ) {
-              const text = event.delta.text;
+          const chat = model.startChat({ history: geminiHistory });
+          const result = await chat.sendMessageStream(message);
+
+          for await (const chunk of result.stream) {
+            const text = chunk.text();
+            if (text) {
               fullResponse += text;
               controller.enqueue(encoder.encode(text));
             }
@@ -175,7 +167,9 @@ COACHING GUIDELINES:
         } catch (err) {
           console.error("Trainer stream error:", err);
           const errMsg = err instanceof Error ? err.message : "Unknown error";
-          controller.enqueue(encoder.encode(`Sorry, I encountered an error: ${errMsg}`));
+          controller.enqueue(
+            encoder.encode(`Sorry, I encountered an error: ${errMsg}`)
+          );
           controller.close();
         }
       },
