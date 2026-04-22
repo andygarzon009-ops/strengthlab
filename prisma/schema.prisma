@@ -7,6 +7,16 @@ datasource db {
   provider = "postgresql"
 }
 
+model TrainerMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 model User {
   id             String   @id @default(cuid())
   name           String
@@ -20,11 +30,12 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  workouts     Workout[]
-  prs          PersonalRecord[]
-  groupMembers GroupMember[]
-  comments     Comment[]
-  reactions    Reaction[]
+  workouts        Workout[]
+  prs             PersonalRecord[]
+  groupMembers    GroupMember[]
+  comments        Comment[]
+  reactions       Reaction[]
+  trainerMessages TrainerMessage[]
 }
 
 model Workout {
