@@ -140,6 +140,73 @@ async function detectAndSavePRs(
   }
 }
 
+export async function updateWorkout(
+  workoutId: string,
+  data: {
+    title: string;
+    type: string;
+    date: string;
+    notes?: string;
+    feeling?: string;
+    isDeload?: boolean;
+    exercises: ExerciseInput[];
+  }
+) {
+  const userId = await requireAuth();
+
+  const existing = await prisma.workout.findUnique({
+    where: { id: workoutId },
+    select: { userId: true },
+  });
+  if (!existing || existing.userId !== userId) {
+    throw new Error("Not authorized");
+  }
+
+  await prisma.$transaction([
+    prisma.personalRecord.deleteMany({ where: { workoutId, userId } }),
+    prisma.workoutExercise.deleteMany({ where: { workoutId } }),
+    prisma.workout.update({
+      where: { id: workoutId },
+      data: {
+        title: data.title,
+        type: data.type,
+        date: new Date(data.date),
+        notes: data.notes,
+        feeling: data.feeling,
+        isDeload: data.isDeload ?? false,
+        exercises: {
+          create: data.exercises.map((ex) => ({
+            exerciseId: ex.exerciseId,
+            order: ex.order,
+            notes: ex.notes,
+            sets: {
+              create: ex.sets.map((s) => ({
+                type: s.type,
+                setNumber: s.setNumber,
+                weight: s.weight,
+                reps: s.reps,
+                rir: s.rir,
+                notes: s.notes,
+              })),
+            },
+          })),
+        },
+      },
+    }),
+  ]);
+
+  const fresh = await prisma.workout.findUnique({
+    where: { id: workoutId },
+    include: { exercises: { include: { sets: true, exercise: true } } },
+  });
+  if (fresh) await detectAndSavePRs(userId, workoutId, fresh.exercises);
+
+  revalidatePath("/");
+  revalidatePath("/history");
+  revalidatePath(`/workout/${workoutId}`);
+  redirect(`/workout/${workoutId}`);
+}
+
 export async function deleteWorkout(workoutId: string) {
   const userId = await requireAuth();
   await prisma.workout.deleteMany({ where: { id: workoutId, userId } });

@@ -80,20 +80,35 @@ export default async function WorkoutDetailPage({
           </svg>
         </Link>
         {isOwn && (
-          <form
-            action={async () => {
-              "use server";
-              await deleteWorkout(id);
-            }}
-          >
-            <button
-              type="submit"
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/workout/${id}/edit`}
               className="text-[12px] label"
-              style={{ color: "#f87171" }}
+              style={{ color: "var(--accent)" }}
             >
-              Delete
-            </button>
-          </form>
+              Edit
+            </Link>
+            <span
+              className="text-[10px]"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              ·
+            </span>
+            <form
+              action={async () => {
+                "use server";
+                await deleteWorkout(id);
+              }}
+            >
+              <button
+                type="submit"
+                className="text-[12px] label"
+                style={{ color: "#f87171" }}
+              >
+                Delete
+              </button>
+            </form>
+          </div>
         )}
       </div>
 
