@@ -16,10 +16,11 @@ import GroupFeed from "@/components/GroupFeed";
 export default async function FeedPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; mode?: string }>;
 }) {
   const userId = await requireAuth();
-  const { view } = await searchParams;
+  const { view, mode } = await searchParams;
+  const groupMode = mode === "chat" ? "chat" : "feed";
 
   const memberships = await prisma.groupMember.findMany({
     where: { userId },
@@ -107,15 +108,38 @@ export default async function FeedPage({
       )}
 
       {activeGroup && (
+        <div
+          className="flex gap-1.5 mb-4"
+          style={{
+            padding: 3,
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            borderRadius: 10,
+          }}
+        >
+          <SubTab
+            href={`/?view=group-${activeGroup.groupId}`}
+            label="Feed"
+            active={groupMode === "feed"}
+          />
+          <SubTab
+            href={`/?view=group-${activeGroup.groupId}&mode=chat`}
+            label="Chat"
+            active={groupMode === "chat"}
+          />
+        </div>
+      )}
+
+      {activeGroup && groupMode === "chat" && (
         <GroupFeed
           groupId={activeGroup.groupId}
-          height="calc(100vh - 260px)"
+          height="calc(100vh - 300px)"
         />
       )}
 
       {!activeGroup && <WeeklyRecap userId={userId} />}
 
-      {!activeGroup && (workouts.length === 0 ? (
+      {(!activeGroup || groupMode === "feed") && (workouts.length === 0 ? (
         <div className="text-center py-16 card px-6">
           <div
             className="w-14 h-14 mx-auto mb-5 rounded-2xl flex items-center justify-center"
@@ -353,6 +377,36 @@ export default async function FeedPage({
         </div>
       ))}
     </div>
+  );
+}
+
+function SubTab({
+  href,
+  label,
+  active,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      className="flex-1 text-center text-[12px] py-2 rounded-md label"
+      style={
+        active
+          ? {
+              background: "var(--accent)",
+              color: "#0a0a0a",
+            }
+          : {
+              color: "var(--fg-muted)",
+            }
+      }
+    >
+      {label}
+    </Link>
   );
 }
 
