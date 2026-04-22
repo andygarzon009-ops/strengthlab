@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -105,6 +106,13 @@ const QUICK_PROMPTS = [
 ];
 
 export default function AITrainer() {
+  const pathname = usePathname();
+  const search = useSearchParams();
+  const hideForChat =
+    pathname === "/" &&
+    search.get("view")?.startsWith("group-") &&
+    search.get("mode") === "chat";
+
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -182,6 +190,7 @@ export default function AITrainer() {
 
   return (
     <>
+      {!hideForChat && (
       <button
         onClick={() => setOpen(true)}
         className="fixed bottom-24 right-4 z-40 w-12 h-12 rounded-full flex items-center justify-center active:scale-95 transition-transform"
@@ -207,6 +216,7 @@ export default function AITrainer() {
           <circle cx="15" cy="13" r="1" fill="var(--accent)" />
         </svg>
       </button>
+      )}
 
       {open && (
         <div
