@@ -121,6 +121,9 @@ export default function AITrainer() {
   const [clearedAt, setClearedAt] = useState<number>(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const lastUserAnchorRef = useRef<HTMLDivElement>(null);
+  const lastUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -190,9 +193,27 @@ export default function AITrainer() {
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
   }, [open]);
 
+  // Anchor-on-user-message scroll: when a new user message lands, pin it
+  // to the top of the scroll area so the coach's reply reads from the top.
+  // We do NOT auto-scroll while streaming — the user is reading.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streaming]);
+    const lastUser = [...visibleMessages]
+      .reverse()
+      .find((m) => m.role === "user");
+    if (!lastUser || lastUser.id === lastUserIdRef.current) return;
+    lastUserIdRef.current = lastUser.id;
+    requestAnimationFrame(() => {
+      const el = lastUserAnchorRef.current;
+      const scroller = scrollerRef.current;
+      if (!el || !scroller) return;
+      // Align the user message to the top with a small offset.
+      const offset =
+        el.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top -
+        8;
+      scroller.scrollBy({ top: offset, behavior: "smooth" });
+    });
+  }, [visibleMessages]);
 
   const send = async (text: string) => {
     if (!text.trim() || loading) return;
@@ -346,7 +367,10 @@ export default function AITrainer() {
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+          <div
+            ref={scrollerRef}
+            className="flex-1 overflow-y-auto px-4 py-6 space-y-4"
+          >
             {isEmpty && (
               <div className="text-center pt-8 max-w-sm mx-auto">
                 <div
@@ -399,11 +423,16 @@ export default function AITrainer() {
               </div>
             )}
 
-            {visibleMessages.map((m) => (
-              <div
-                key={m.id}
-                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-              >
+            {(() => {
+              const lastUserId = [...visibleMessages]
+                .reverse()
+                .find((m) => m.role === "user")?.id;
+              return visibleMessages.map((m) => (
+                <div
+                  key={m.id}
+                  ref={m.id === lastUserId ? lastUserAnchorRef : undefined}
+                  className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                >
                 {m.role === "user" ? (
                   <div
                     className="max-w-[85%] rounded-2xl px-4 py-3 text-[15px] leading-[1.5] whitespace-pre-wrap"
@@ -435,7 +464,8 @@ export default function AITrainer() {
                   </div>
                 )}
               </div>
-            ))}
+              ));
+            })()}
 
             {streaming && (
               <div className="flex justify-start">
