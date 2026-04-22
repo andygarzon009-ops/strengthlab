@@ -410,22 +410,44 @@ export default function ExerciseLogger({
           </button>
           <Link
             href="/exercises"
-            className="flex items-center justify-center gap-1.5 py-2 text-[11px] label"
-            style={{ color: "var(--fg-dim)" }}
+            className="card px-4 py-3 flex items-center justify-between transition-all active:scale-[0.98]"
           >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+            <div className="flex items-center gap-3">
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: "var(--bg-elevated)" }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--accent)"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold">
+                  Manage exercise library
+                </p>
+                <p
+                  className="text-[11px] mt-0.5"
+                  style={{ color: "var(--fg-dim)" }}
+                >
+                  Add or edit custom exercises and split tags
+                </p>
+              </div>
+            </div>
+            <span
+              className="text-[16px]"
+              style={{ color: "var(--fg-dim)" }}
             >
-              <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
-            </svg>
-            <span>Exercise library</span>
+              →
+            </span>
           </Link>
         </div>
       )}
