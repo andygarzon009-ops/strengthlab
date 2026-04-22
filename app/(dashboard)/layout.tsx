@@ -7,7 +7,10 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen pb-20">
+    <div
+      className="min-h-screen pb-20"
+      style={{ paddingTop: "env(safe-area-inset-top)" }}
+    >
       {children}
       <BottomNav />
       <AITrainer />
