@@ -167,8 +167,22 @@ COACHING GUIDELINES:
         } catch (err) {
           console.error("Trainer stream error:", err);
           const errMsg = err instanceof Error ? err.message : "Unknown error";
+          let available = "";
+          try {
+            const res = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`
+            );
+            const data = await res.json();
+            const names = (data.models ?? [])
+              .filter((m: { supportedGenerationMethods?: string[] }) =>
+                m.supportedGenerationMethods?.includes("generateContent")
+              )
+              .map((m: { name: string }) => m.name)
+              .join("\n");
+            available = `\n\n---\nModels available to your key:\n${names}`;
+          } catch {}
           controller.enqueue(
-            encoder.encode(`Sorry, I encountered an error: ${errMsg}`)
+            encoder.encode(`Error: ${errMsg}${available}`)
           );
           controller.close();
         }
