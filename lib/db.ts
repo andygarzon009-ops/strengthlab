@@ -4,10 +4,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
 function createPrismaClient() {
-  // DATABASE_URL = Supabase direct connection string
-  // DIRECT_URL   = same, but used for migrations (Supabase calls it "direct connection")
   const connectionString = process.env.DATABASE_URL!;
-  const adapter = new PrismaPg({ connectionString });
+  // Pass connection string directly; ssl required for Supabase pooler
+  const adapter = new PrismaPg(connectionString, {
+    schema: "public",
+  });
   return new PrismaClient({ adapter } as any);
 }
 
