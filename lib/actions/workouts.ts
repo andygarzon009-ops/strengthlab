@@ -305,6 +305,41 @@ export async function joinGroup(code: string) {
   return { success: true };
 }
 
+export async function renameGroup(groupId: string, name: string) {
+  const userId = await requireAuth();
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Name required" };
+  const membership = await prisma.groupMember.findFirst({
+    where: { groupId, userId },
+  });
+  if (!membership || membership.role !== "ADMIN") {
+    return { error: "Only admins can rename" };
+  }
+  await prisma.group.update({ where: { id: groupId }, data: { name: trimmed } });
+  revalidatePath("/group");
+  return { success: true };
+}
+
+export async function deleteGroup(groupId: string) {
+  const userId = await requireAuth();
+  const membership = await prisma.groupMember.findFirst({
+    where: { groupId, userId },
+  });
+  if (!membership || membership.role !== "ADMIN") {
+    return { error: "Only admins can delete" };
+  }
+  await prisma.group.delete({ where: { id: groupId } });
+  revalidatePath("/group");
+  return { success: true };
+}
+
+export async function leaveGroup(groupId: string) {
+  const userId = await requireAuth();
+  await prisma.groupMember.deleteMany({ where: { groupId, userId } });
+  revalidatePath("/group");
+  return { success: true };
+}
+
 export async function updateProfile(data: {
   name: string;
   bodyweight?: number;

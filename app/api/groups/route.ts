@@ -13,6 +13,6 @@ export async function GET() {
       },
     },
   });
-  const groups = memberships.map((m) => m.group);
+  const groups = memberships.map((m) => ({ ...m.group, myRole: m.role }));
   return Response.json(groups);
 }
