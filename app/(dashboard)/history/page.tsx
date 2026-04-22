@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
-import { WORKOUT_TYPES } from "@/lib/exercises";
+import { labelForType, shapeForType, formatDuration } from "@/lib/exercises";
 import {
   format,
   startOfMonth,
@@ -169,9 +169,8 @@ export default async function HistoryPage() {
       ) : (
         <div className="space-y-2">
           {workouts.map((workout) => {
-            const workoutType = WORKOUT_TYPES.find(
-              (t) => t.value === workout.type
-            );
+            const typeLabel = labelForType(workout.type);
+            const shape = shapeForType(workout.type);
             const workingSets = workout.exercises.flatMap((e) =>
               e.sets.filter((s) => s.type === "WORKING")
             );
@@ -193,7 +192,7 @@ export default async function HistoryPage() {
                         className="label text-[9px]"
                         style={{ color: "var(--fg-dim)" }}
                       >
-                        {workoutType?.label ?? workout.type}
+                        {typeLabel}
                       </span>
                       {workout.isDeload && (
                         <span
@@ -221,56 +220,112 @@ export default async function HistoryPage() {
                     className="text-right nums"
                     style={{ fontFamily: "var(--font-geist-mono)" }}
                   >
-                    <p className="font-semibold text-[15px] leading-tight">
-                      {workout.exercises.length}
-                      <span
-                        className="text-[10px] ml-0.5 font-normal"
-                        style={{ color: "var(--fg-dim)" }}
-                      >
-                        ex
-                      </span>
-                    </p>
-                    <p
-                      className="text-[11px] mt-0.5"
-                      style={{ color: "var(--fg-dim)" }}
-                    >
-                      {workingSets.length} sets
-                    </p>
-                    {totalVolume > 0 && (
-                      <p
-                        className="text-[11px]"
-                        style={{ color: "var(--fg-dim)" }}
-                      >
-                        {totalVolume >= 1000
-                          ? `${(totalVolume / 1000).toFixed(1)}k`
-                          : totalVolume}
-                        lb
-                      </p>
+                    {shape === "STRENGTH" ? (
+                      <>
+                        <p className="font-semibold text-[15px] leading-tight">
+                          {workout.exercises.length}
+                          <span
+                            className="text-[10px] ml-0.5 font-normal"
+                            style={{ color: "var(--fg-dim)" }}
+                          >
+                            ex
+                          </span>
+                        </p>
+                        <p
+                          className="text-[11px] mt-0.5"
+                          style={{ color: "var(--fg-dim)" }}
+                        >
+                          {workingSets.length} sets
+                        </p>
+                        {totalVolume > 0 && (
+                          <p
+                            className="text-[11px]"
+                            style={{ color: "var(--fg-dim)" }}
+                          >
+                            {totalVolume >= 1000
+                              ? `${(totalVolume / 1000).toFixed(1)}k`
+                              : totalVolume}
+                            lb
+                          </p>
+                        )}
+                      </>
+                    ) : shape === "DISTANCE" ? (
+                      <>
+                        <p className="font-semibold text-[15px] leading-tight">
+                          {workout.distance ?? "—"}
+                          {workout.distance && (
+                            <span
+                              className="text-[10px] ml-0.5 font-normal"
+                              style={{ color: "var(--fg-dim)" }}
+                            >
+                              km
+                            </span>
+                          )}
+                        </p>
+                        <p
+                          className="text-[11px] mt-0.5"
+                          style={{ color: "var(--fg-dim)" }}
+                        >
+                          {formatDuration(workout.duration)}
+                        </p>
+                        {workout.pace && (
+                          <p
+                            className="text-[11px]"
+                            style={{ color: "var(--fg-dim)" }}
+                          >
+                            {workout.pace}/km
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-semibold text-[15px] leading-tight">
+                          {formatDuration(workout.duration)}
+                        </p>
+                        {workout.rounds && (
+                          <p
+                            className="text-[11px] mt-0.5"
+                            style={{ color: "var(--fg-dim)" }}
+                          >
+                            {workout.rounds} rounds
+                          </p>
+                        )}
+                        {workout.rpe && (
+                          <p
+                            className="text-[11px]"
+                            style={{ color: "var(--fg-dim)" }}
+                          >
+                            RPE {workout.rpe}
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
-                <div className="flex gap-1 mt-3 flex-wrap">
-                  {workout.exercises.slice(0, 3).map((ex) => (
-                    <span
-                      key={ex.id}
-                      className="text-[10px] px-2 py-0.5 rounded"
-                      style={{
-                        background: "var(--bg-elevated)",
-                        color: "var(--fg-muted)",
-                      }}
-                    >
-                      {ex.exercise.name}
-                    </span>
-                  ))}
-                  {workout.exercises.length > 3 && (
-                    <span
-                      className="text-[10px] px-2 py-0.5"
-                      style={{ color: "var(--fg-dim)" }}
-                    >
-                      +{workout.exercises.length - 3}
-                    </span>
-                  )}
-                </div>
+                {shape === "STRENGTH" && (
+                  <div className="flex gap-1 mt-3 flex-wrap">
+                    {workout.exercises.slice(0, 3).map((ex) => (
+                      <span
+                        key={ex.id}
+                        className="text-[10px] px-2 py-0.5 rounded"
+                        style={{
+                          background: "var(--bg-elevated)",
+                          color: "var(--fg-muted)",
+                        }}
+                      >
+                        {ex.exercise.name}
+                      </span>
+                    ))}
+                    {workout.exercises.length > 3 && (
+                      <span
+                        className="text-[10px] px-2 py-0.5"
+                        style={{ color: "var(--fg-dim)" }}
+                      >
+                        +{workout.exercises.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
               </Link>
             );
           })}

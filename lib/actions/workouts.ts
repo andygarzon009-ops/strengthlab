@@ -21,7 +21,20 @@ type ExerciseInput = {
   sets: SetInput[];
 };
 
-export async function createWorkout(data: {
+type WorkoutMetrics = {
+  split?: string | null;
+  duration?: number | null;
+  distance?: number | null;
+  pace?: string | null;
+  avgHeartRate?: number | null;
+  maxHeartRate?: number | null;
+  rounds?: number | null;
+  elevation?: number | null;
+  calories?: number | null;
+  rpe?: number | null;
+};
+
+export type CreateWorkoutInput = {
   title: string;
   type: string;
   date: string;
@@ -29,7 +42,9 @@ export async function createWorkout(data: {
   feeling?: string;
   isDeload?: boolean;
   exercises: ExerciseInput[];
-}) {
+} & WorkoutMetrics;
+
+export async function createWorkout(data: CreateWorkoutInput) {
   const userId = await requireAuth();
 
   const workout = await prisma.workout.create({
@@ -37,10 +52,20 @@ export async function createWorkout(data: {
       userId,
       title: data.title,
       type: data.type,
+      split: data.split ?? null,
       date: new Date(data.date),
       notes: data.notes,
       feeling: data.feeling,
       isDeload: data.isDeload ?? false,
+      duration: data.duration ?? null,
+      distance: data.distance ?? null,
+      pace: data.pace ?? null,
+      avgHeartRate: data.avgHeartRate ?? null,
+      maxHeartRate: data.maxHeartRate ?? null,
+      rounds: data.rounds ?? null,
+      elevation: data.elevation ?? null,
+      calories: data.calories ?? null,
+      rpe: data.rpe ?? null,
       exercises: {
         create: data.exercises.map((ex) => ({
           exerciseId: ex.exerciseId,
@@ -64,7 +89,6 @@ export async function createWorkout(data: {
     },
   });
 
-  // Detect and save PRs
   await detectAndSavePRs(userId, workout.id, workout.exercises);
 
   revalidatePath("/");
@@ -142,15 +166,7 @@ async function detectAndSavePRs(
 
 export async function updateWorkout(
   workoutId: string,
-  data: {
-    title: string;
-    type: string;
-    date: string;
-    notes?: string;
-    feeling?: string;
-    isDeload?: boolean;
-    exercises: ExerciseInput[];
-  }
+  data: CreateWorkoutInput
 ) {
   const userId = await requireAuth();
 
@@ -170,10 +186,20 @@ export async function updateWorkout(
       data: {
         title: data.title,
         type: data.type,
+        split: data.split ?? null,
         date: new Date(data.date),
         notes: data.notes,
         feeling: data.feeling,
         isDeload: data.isDeload ?? false,
+        duration: data.duration ?? null,
+        distance: data.distance ?? null,
+        pace: data.pace ?? null,
+        avgHeartRate: data.avgHeartRate ?? null,
+        maxHeartRate: data.maxHeartRate ?? null,
+        rounds: data.rounds ?? null,
+        elevation: data.elevation ?? null,
+        calories: data.calories ?? null,
+        rpe: data.rpe ?? null,
         exercises: {
           create: data.exercises.map((ex) => ({
             exerciseId: ex.exerciseId,

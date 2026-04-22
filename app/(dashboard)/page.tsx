@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
-import { WORKOUT_TYPES, FEELING_OPTIONS } from "@/lib/exercises";
+import {
+  FEELING_OPTIONS,
+  labelForType,
+  shapeForType,
+  formatDuration,
+} from "@/lib/exercises";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import ReactionButtons from "@/components/ReactionButtons";
@@ -104,7 +109,8 @@ export default async function FeedPage() {
       ) : (
         <div className="space-y-3">
           {workouts.map((workout) => {
-            const workoutType = WORKOUT_TYPES.find((t) => t.value === workout.type);
+            const typeLabel = labelForType(workout.type);
+            const shape = shapeForType(workout.type);
             const feeling = FEELING_OPTIONS.find((f) => f.value === workout.feeling);
             const workingSets = workout.exercises.flatMap((e) =>
               e.sets.filter((s) => s.type === "WORKING")
@@ -163,7 +169,7 @@ export default async function FeedPage() {
                           color: "var(--fg-muted)",
                         }}
                       >
-                        {workoutType?.label ?? workout.type}
+                        {typeLabel}
                       </span>
                     </div>
                   </div>
@@ -188,20 +194,57 @@ export default async function FeedPage() {
                   className="px-4 py-3 grid grid-cols-3 gap-px"
                   style={{ background: "var(--border)" }}
                 >
-                  <Stat label="Exercises" value={workout.exercises.length} />
-                  <Stat label="Sets" value={workingSets.length} />
-                  <Stat
-                    label="Volume"
-                    value={
-                      totalVolume >= 1000
-                        ? `${(totalVolume / 1000).toFixed(1)}k`
-                        : totalVolume
-                    }
-                    suffix={totalVolume > 0 ? "lb" : undefined}
-                  />
+                  {shape === "STRENGTH" ? (
+                    <>
+                      <Stat label="Exercises" value={workout.exercises.length} />
+                      <Stat label="Sets" value={workingSets.length} />
+                      <Stat
+                        label="Volume"
+                        value={
+                          totalVolume >= 1000
+                            ? `${(totalVolume / 1000).toFixed(1)}k`
+                            : totalVolume
+                        }
+                        suffix={totalVolume > 0 ? "lb" : undefined}
+                      />
+                    </>
+                  ) : shape === "DISTANCE" ? (
+                    <>
+                      <Stat
+                        label="Distance"
+                        value={workout.distance ?? "—"}
+                        suffix={workout.distance ? "km" : undefined}
+                      />
+                      <Stat
+                        label="Time"
+                        value={formatDuration(workout.duration)}
+                      />
+                      <Stat
+                        label="Pace"
+                        value={workout.pace ?? "—"}
+                        suffix={workout.pace ? "/km" : undefined}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Stat
+                        label="Time"
+                        value={formatDuration(workout.duration)}
+                      />
+                      <Stat
+                        label="Rounds"
+                        value={workout.rounds ?? "—"}
+                      />
+                      <Stat
+                        label="RPE"
+                        value={workout.rpe ?? "—"}
+                        suffix={workout.rpe ? "/10" : undefined}
+                      />
+                    </>
+                  )}
                 </div>
 
-                {workout.exercises.length > 0 && (
+                {shape === "STRENGTH" && workout.exercises.length > 0 && (
                   <div className="px-4 pt-3 pb-3">
                     <div className="flex flex-wrap gap-1.5">
                       {workout.exercises.slice(0, 4).map((ex) => (

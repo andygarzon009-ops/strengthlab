@@ -41,15 +41,66 @@ export const DEFAULT_EXERCISES = [
   { name: "Cable Crunch", muscleGroup: "Core" },
 ];
 
-export const WORKOUT_TYPES = [
+export type WorkoutShape = "STRENGTH" | "DISTANCE" | "DURATION";
+
+export const WORKOUT_TYPES: {
+  value: string;
+  label: string;
+  shape: WorkoutShape;
+}[] = [
+  { value: "WEIGHT_TRAINING", label: "Weight training", shape: "STRENGTH" },
+  { value: "RUNNING", label: "Running", shape: "DISTANCE" },
+  { value: "CYCLING", label: "Cycling", shape: "DISTANCE" },
+  { value: "SWIMMING", label: "Swimming", shape: "DISTANCE" },
+  { value: "ROWING", label: "Rowing", shape: "DISTANCE" },
+  { value: "HIIT", label: "HIIT / Conditioning", shape: "DURATION" },
+  { value: "COMBAT", label: "Combat", shape: "DURATION" },
+  { value: "MOBILITY", label: "Mobility / Yoga", shape: "DURATION" },
+  { value: "SPORT", label: "Sport", shape: "DURATION" },
+  { value: "OTHER", label: "Other", shape: "DURATION" },
+];
+
+export const STRENGTH_SPLITS = [
   { value: "PUSH", label: "Push" },
   { value: "PULL", label: "Pull" },
   { value: "LEGS", label: "Legs" },
   { value: "UPPER", label: "Upper" },
   { value: "LOWER", label: "Lower" },
   { value: "ARMS", label: "Arms" },
+  { value: "FULL_BODY", label: "Full body" },
   { value: "CUSTOM", label: "Custom" },
 ];
+
+// Legacy strength types → always treated as WEIGHT_TRAINING
+const LEGACY_STRENGTH_TYPES = [
+  "PUSH",
+  "PULL",
+  "LEGS",
+  "UPPER",
+  "LOWER",
+  "ARMS",
+  "CUSTOM",
+];
+
+export function shapeForType(type: string): WorkoutShape {
+  if (LEGACY_STRENGTH_TYPES.includes(type)) return "STRENGTH";
+  return WORKOUT_TYPES.find((t) => t.value === type)?.shape ?? "STRENGTH";
+}
+
+export function labelForType(type: string): string {
+  if (LEGACY_STRENGTH_TYPES.includes(type)) return "Weight training";
+  return WORKOUT_TYPES.find((t) => t.value === type)?.label ?? type;
+}
+
+export function formatDuration(seconds: number | null | undefined): string {
+  if (!seconds) return "—";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0)
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
 
 export const FEELING_OPTIONS = [
   { value: "STRONG", label: "Strong" },

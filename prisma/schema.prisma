@@ -44,17 +44,26 @@ model User {
 }
 
 model Workout {
-  id        String   @id @default(cuid())
-  userId    String
-  title     String
-  type      String
-  date      DateTime @default(now())
-  notes     String?
-  feeling   String?
-  isDeload  Boolean  @default(false)
-  duration  Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  userId       String
+  title        String
+  type         String
+  split        String?
+  date         DateTime @default(now())
+  notes        String?
+  feeling      String?
+  isDeload     Boolean  @default(false)
+  duration     Int?
+  distance     Float?
+  pace         String?
+  avgHeartRate Int?
+  maxHeartRate Int?
+  rounds       Int?
+  elevation    Int?
+  calories     Int?
+  rpe          Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   exercises WorkoutExercise[]

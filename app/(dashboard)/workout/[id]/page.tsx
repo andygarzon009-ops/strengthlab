@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
-import { WORKOUT_TYPES, FEELING_OPTIONS } from "@/lib/exercises";
+import {
+  FEELING_OPTIONS,
+  STRENGTH_SPLITS,
+  labelForType,
+  shapeForType,
+  formatDuration,
+} from "@/lib/exercises";
 import { format } from "date-fns";
 import Link from "next/link";
 import { deleteWorkout } from "@/lib/actions/workouts";
@@ -43,7 +49,11 @@ export default async function WorkoutDetailPage({
     include: { exercise: true },
   });
 
-  const workoutType = WORKOUT_TYPES.find((t) => t.value === workout.type);
+  const typeLabel = labelForType(workout.type);
+  const shape = shapeForType(workout.type);
+  const splitLabel = workout.split
+    ? STRENGTH_SPLITS.find((s) => s.value === workout.split)?.label
+    : null;
   const feeling = FEELING_OPTIONS.find((f) => f.value === workout.feeling);
   const isOwn = workout.userId === userId;
 
@@ -121,8 +131,19 @@ export default async function WorkoutDetailPage({
               color: "var(--fg-muted)",
             }}
           >
-            {workoutType?.label ?? workout.type}
+            {typeLabel}
           </span>
+          {splitLabel && (
+            <span
+              className="label text-[9px] px-2 py-1 rounded-md"
+              style={{
+                background: "var(--bg-elevated)",
+                color: "var(--fg-muted)",
+              }}
+            >
+              {splitLabel}
+            </span>
+          )}
           {feeling && (
             <span
               className="label text-[9px] px-2 py-1 rounded-md"
@@ -173,50 +194,76 @@ export default async function WorkoutDetailPage({
         )}
       </div>
 
-      <div
-        className="grid grid-cols-3 gap-px card overflow-hidden mb-6"
-        style={{ background: "var(--border)", padding: 0 }}
-      >
-        {[
-          { label: "Exercises", value: workout.exercises.length },
-          { label: "Working Sets", value: totalSets },
-          {
-            label: "Volume",
-            value:
-              totalVolume >= 1000
-                ? `${(totalVolume / 1000).toFixed(1)}k`
-                : totalVolume,
-            suffix: totalVolume > 0 ? "lb" : undefined,
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="px-3 py-4 text-center"
-            style={{ background: "var(--bg-card)" }}
-          >
-            <p
-              className="font-semibold text-[20px] leading-none tracking-tight nums"
-              style={{ fontFamily: "var(--font-geist-mono)" }}
-            >
-              {stat.value}
-              {stat.suffix && (
-                <span
-                  className="text-[11px] ml-0.5 font-normal"
-                  style={{ color: "var(--fg-dim)" }}
-                >
-                  {stat.suffix}
-                </span>
-              )}
-            </p>
-            <p
-              className="label text-[9px] mt-1.5"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              {stat.label}
-            </p>
-          </div>
-        ))}
-      </div>
+      <StatsGrid
+        stats={
+          shape === "STRENGTH"
+            ? [
+                { label: "Exercises", value: workout.exercises.length },
+                { label: "Working Sets", value: totalSets },
+                {
+                  label: "Volume",
+                  value:
+                    totalVolume >= 1000
+                      ? `${(totalVolume / 1000).toFixed(1)}k`
+                      : totalVolume,
+                  suffix: totalVolume > 0 ? "lb" : undefined,
+                },
+              ]
+            : shape === "DISTANCE"
+              ? [
+                  {
+                    label: "Distance",
+                    value: workout.distance ?? "—",
+                    suffix: workout.distance ? "km" : undefined,
+                  },
+                  {
+                    label: "Time",
+                    value: formatDuration(workout.duration),
+                  },
+                  {
+                    label: "Pace",
+                    value: workout.pace ?? "—",
+                    suffix: workout.pace ? "/km" : undefined,
+                  },
+                ]
+              : [
+                  {
+                    label: "Time",
+                    value: formatDuration(workout.duration),
+                  },
+                  {
+                    label: "Rounds",
+                    value: workout.rounds ?? "—",
+                  },
+                  {
+                    label: "RPE",
+                    value: workout.rpe ?? "—",
+                    suffix: workout.rpe ? "/10" : undefined,
+                  },
+                ]
+        }
+      />
+
+      {/* Secondary metrics: HR, elevation, calories */}
+      {(workout.avgHeartRate ||
+        workout.maxHeartRate ||
+        workout.elevation ||
+        workout.calories) && (
+        <div className="grid grid-cols-2 gap-2 mb-6">
+          {workout.avgHeartRate && (
+            <MetricChip label="Avg HR" value={workout.avgHeartRate} suffix="bpm" />
+          )}
+          {workout.maxHeartRate && (
+            <MetricChip label="Max HR" value={workout.maxHeartRate} suffix="bpm" />
+          )}
+          {workout.elevation && (
+            <MetricChip label="Elevation" value={workout.elevation} suffix="m" />
+          )}
+          {workout.calories && (
+            <MetricChip label="Calories" value={workout.calories} suffix="kcal" />
+          )}
+        </div>
+      )}
 
       {prs.length > 0 && (
         <div
@@ -256,6 +303,7 @@ export default async function WorkoutDetailPage({
         </div>
       )}
 
+      {shape === "STRENGTH" && (
       <div className="space-y-3 mb-6">
         {workout.exercises.map((ex) => {
           const warmupSets = ex.sets.filter((s) => s.type === "WARMUP");
@@ -316,6 +364,7 @@ export default async function WorkoutDetailPage({
           );
         })}
       </div>
+      )}
 
       <div className="card p-4 mb-3">
         <ReactionButtons
@@ -391,6 +440,87 @@ function SetLine({
           {note}
         </span>
       )}
+    </div>
+  );
+}
+
+function StatsGrid({
+  stats,
+}: {
+  stats: {
+    label: string;
+    value: string | number;
+    suffix?: string;
+  }[];
+}) {
+  return (
+    <div
+      className="grid grid-cols-3 gap-px card overflow-hidden mb-3"
+      style={{ background: "var(--border)", padding: 0 }}
+    >
+      {stats.map((stat) => (
+        <div
+          key={stat.label}
+          className="px-3 py-4 text-center"
+          style={{ background: "var(--bg-card)" }}
+        >
+          <p
+            className="font-semibold text-[20px] leading-none tracking-tight nums"
+            style={{ fontFamily: "var(--font-geist-mono)" }}
+          >
+            {stat.value}
+            {stat.suffix && (
+              <span
+                className="text-[11px] ml-0.5 font-normal"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                {stat.suffix}
+              </span>
+            )}
+          </p>
+          <p
+            className="label text-[9px] mt-1.5"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            {stat.label}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MetricChip({
+  label,
+  value,
+  suffix,
+}: {
+  label: string;
+  value: string | number;
+  suffix?: string;
+}) {
+  return (
+    <div className="card px-3 py-2.5 flex items-baseline justify-between">
+      <span
+        className="label text-[9px]"
+        style={{ color: "var(--fg-dim)" }}
+      >
+        {label}
+      </span>
+      <span
+        className="text-[14px] font-semibold nums"
+        style={{ fontFamily: "var(--font-geist-mono)" }}
+      >
+        {value}
+        {suffix && (
+          <span
+            className="text-[10px] ml-0.5 font-normal"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            {suffix}
+          </span>
+        )}
+      </span>
     </div>
   );
 }

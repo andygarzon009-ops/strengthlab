@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/session";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { format, subDays, differenceInDays } from "date-fns";
 import { NextRequest } from "next/server";
+import { shapeForType, labelForType, formatDuration } from "@/lib/exercises";
 
 export const maxDuration = 60;
 
@@ -54,26 +55,53 @@ export async function POST(req: NextRequest) {
       }),
     ]);
 
-    const recentWorkouts = workouts.slice(0, 8).map((w) => {
+    const recentWorkouts = workouts.slice(0, 10).map((w) => {
       const daysAgo = differenceInDays(new Date(), new Date(w.date));
-      const workingSets = w.exercises.flatMap((e) =>
-        e.sets.filter((s) => s.type === "WORKING")
-      );
-      const volume = workingSets.reduce(
-        (sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0),
-        0
-      );
-      const exerciseSummary = w.exercises
-        .map((e) => {
-          const ws = e.sets.filter((s) => s.type === "WORKING");
-          const topSet = ws.reduce(
-            (best, s) => ((s.weight ?? 0) > (best.weight ?? 0) ? s : best),
-            ws[0] ?? { weight: 0, reps: 0 }
-          );
-          return `${e.exercise.name}: ${ws.length} sets, top set ${topSet.weight}lbs×${topSet.reps}`;
-        })
-        .join("; ");
-      return `- ${w.title} (${daysAgo === 0 ? "today" : `${daysAgo}d ago`}, ${format(new Date(w.date), "EEE MMM d")}): ${exerciseSummary}. Volume: ${Math.round(volume)}lbs`;
+      const when = daysAgo === 0 ? "today" : `${daysAgo}d ago`;
+      const whenFmt = format(new Date(w.date), "EEE MMM d");
+      const shape = shapeForType(w.type);
+      const typeLbl = labelForType(w.type);
+
+      if (shape === "STRENGTH") {
+        const workingSets = w.exercises.flatMap((e) =>
+          e.sets.filter((s) => s.type === "WORKING")
+        );
+        const volume = workingSets.reduce(
+          (sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0),
+          0
+        );
+        const exerciseSummary = w.exercises
+          .map((e) => {
+            const ws = e.sets.filter((s) => s.type === "WORKING");
+            const topSet = ws.reduce(
+              (best, s) => ((s.weight ?? 0) > (best.weight ?? 0) ? s : best),
+              ws[0] ?? { weight: 0, reps: 0 }
+            );
+            return `${e.exercise.name}: ${ws.length}×${topSet.weight}lb×${topSet.reps}`;
+          })
+          .join("; ");
+        return `- [${typeLbl}${w.split ? "/" + w.split : ""}] ${w.title} (${when}, ${whenFmt}): ${exerciseSummary}. Total volume: ${Math.round(volume)}lb`;
+      }
+
+      if (shape === "DISTANCE") {
+        const parts: string[] = [];
+        if (w.distance) parts.push(`${w.distance}km`);
+        if (w.duration) parts.push(formatDuration(w.duration));
+        if (w.pace) parts.push(`${w.pace}/km`);
+        if (w.avgHeartRate) parts.push(`avg HR ${w.avgHeartRate}`);
+        if (w.maxHeartRate) parts.push(`max HR ${w.maxHeartRate}`);
+        if (w.elevation) parts.push(`${w.elevation}m gain`);
+        return `- [${typeLbl}] ${w.title} (${when}, ${whenFmt}): ${parts.join(" · ")}`;
+      }
+
+      // DURATION
+      const parts: string[] = [];
+      if (w.duration) parts.push(formatDuration(w.duration));
+      if (w.rounds) parts.push(`${w.rounds} rounds`);
+      if (w.rpe) parts.push(`RPE ${w.rpe}`);
+      if (w.avgHeartRate) parts.push(`avg HR ${w.avgHeartRate}`);
+      if (w.maxHeartRate) parts.push(`max HR ${w.maxHeartRate}`);
+      return `- [${typeLbl}] ${w.title} (${when}, ${whenFmt}): ${parts.join(" · ") || "logged"}`;
     });
 
     const topPRs = Object.values(
@@ -267,6 +295,16 @@ ADAPT YOUR COACHING BASED ON THE PROFILE ABOVE:
 - Prioritize their primary focus (strength vs hypertrophy vs powerbuilding vs recomp vs athletic vs general).
 - Use their actual training frequency to plan weekly distribution.
 - Treat injury notes as non-negotiable — always work around them.
+
+MULTI-SPORT CONTEXT:
+Sessions are logged across categories — weight training, running, cycling, swimming, rowing, HIIT, combat (boxing/MMA), mobility/yoga, sport, other. Each carries its own metrics: distance sessions include km/duration/pace/HR/elevation; duration sessions include time/rounds/RPE/HR; strength includes sets/reps/weight/volume.
+
+- All distances are in KILOMETERS (km). Weights remain in pounds (lb).
+- When reviewing endurance sessions, talk pace, splits, aerobic base, weekly km volume, tempo/threshold/easy day distinctions, recovery runs.
+- When reviewing combat work, talk round intensity, technique vs conditioning focus, round structure.
+- When reviewing strength, talk sets/reps/weight progression as defined in the main coaching framework.
+- Reference heart rate zones when HR data is logged (Z2/Z3/Z4/Z5 interpretation).
+- If the athlete mixes modalities, coach them as the whole athlete — conditioning affects lifting, lifting affects running, etc.
 
 RECENT SESSIONS (most recent first):
 ${recentWorkouts.join("\n") || "No sessions logged yet."}
