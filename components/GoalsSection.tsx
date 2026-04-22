@@ -27,14 +27,26 @@ export default function GoalsSection({
 }) {
   const [adding, setAdding] = useState(false);
 
+  const activeCount = goals.length;
+
   return (
     <div className="mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <p className="label">Goals</p>
-          <h2 className="text-[18px] font-bold tracking-tight leading-none mt-1">
-            Where you&apos;re headed
+      <div className="flex items-end justify-between mb-4">
+        <div className="flex items-baseline gap-2.5">
+          <h2 className="text-[22px] font-bold tracking-tight leading-none">
+            Targets
           </h2>
+          {activeCount > 0 && (
+            <p
+              className="nums text-[12px] font-semibold"
+              style={{
+                color: "var(--fg-dim)",
+                fontFamily: "var(--font-geist-mono)",
+              }}
+            >
+              Chasing {activeCount}
+            </p>
+          )}
         </div>
         <button
           onClick={() => setAdding(!adding)}

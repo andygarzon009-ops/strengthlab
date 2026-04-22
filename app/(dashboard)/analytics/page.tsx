@@ -312,13 +312,78 @@ export default async function AnalyticsPage() {
   const totalVolume30 = volumeData.reduce((s, d) => s + d.volume, 0);
   const totalSets30 = volumeData.reduce((s, d) => s + d.sets, 0);
 
+  // Training streak — consecutive days ending today or yesterday
+  const streakDays = (() => {
+    if (workouts.length === 0) return 0;
+    const dates = [
+      ...new Set(
+        workouts.map((w) => format(new Date(w.date), "yyyy-MM-dd"))
+      ),
+    ].sort();
+    const today = format(new Date(), "yyyy-MM-dd");
+    const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
+    const lastDate = dates[dates.length - 1];
+    if (lastDate !== today && lastDate !== yesterday) return 0;
+    let streak = 1;
+    for (let i = dates.length - 2; i >= 0; i--) {
+      const diff = differenceInDays(
+        new Date(dates[i + 1]),
+        new Date(dates[i])
+      );
+      if (diff === 1) streak++;
+      else break;
+    }
+    return streak;
+  })();
+
   return (
-    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
-      <div className="mb-6">
-        <p className="label">Stats</p>
-        <h1 className="text-[28px] font-bold tracking-tight leading-none mt-1">
-          Your numbers
-        </h1>
+    <div className="max-w-lg mx-auto px-4 pt-10 pb-24">
+      <div className="mb-8">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="label" style={{ color: "var(--accent)" }}>
+              Stats
+            </p>
+            <h1 className="text-[40px] font-bold tracking-[-0.02em] leading-none mt-1.5">
+              Progress
+            </h1>
+          </div>
+          {streakDays > 0 && (
+            <div
+              className="shrink-0 text-right px-3 py-2 rounded-xl"
+              style={{
+                background: "var(--accent-dim)",
+                border: "1px solid rgba(34,197,94,0.3)",
+              }}
+            >
+              <p
+                className="label text-[9px]"
+                style={{ color: "var(--accent)" }}
+              >
+                Streak
+              </p>
+              <p
+                className="nums font-bold text-[18px] leading-none tracking-tight mt-0.5"
+                style={{
+                  color: "var(--accent)",
+                  fontFamily: "var(--font-geist-mono)",
+                }}
+              >
+                {streakDays}
+                <span className="text-[11px] font-normal ml-0.5 opacity-70">
+                  d
+                </span>
+              </p>
+            </div>
+          )}
+        </div>
+        <div
+          className="mt-5 h-px"
+          style={{
+            background:
+              "linear-gradient(90deg, var(--accent) 0%, transparent 70%)",
+          }}
+        />
       </div>
 
       {/* Goals at top */}
