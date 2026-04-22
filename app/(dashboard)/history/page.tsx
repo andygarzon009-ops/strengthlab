@@ -19,6 +19,20 @@ export default async function HistoryPage() {
     orderBy: { date: "desc" },
   });
 
+  const workoutIdsWithPR = new Set(
+    (
+      await prisma.personalRecord.findMany({
+        where: {
+          userId,
+          workoutId: { in: workouts.map((w) => w.id) },
+        },
+        select: { workoutId: true },
+      })
+    )
+      .map((p) => p.workoutId)
+      .filter((x): x is string => !!x)
+  );
+
   const now = new Date();
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
@@ -143,6 +157,14 @@ export default async function HistoryPage() {
                           style={{ color: "#60a5fa" }}
                         >
                           · Deload
+                        </span>
+                      )}
+                      {workoutIdsWithPR.has(workout.id) && (
+                        <span
+                          className="label text-[9px]"
+                          style={{ color: "var(--accent)" }}
+                        >
+                          · PR
                         </span>
                       )}
                     </div>
