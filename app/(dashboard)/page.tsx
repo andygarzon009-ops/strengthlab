@@ -10,6 +10,7 @@ import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import ReactionButtons from "@/components/ReactionButtons";
 import CommentSection from "@/components/CommentSection";
+import WeeklyRecap from "@/components/WeeklyRecap";
 
 export default async function FeedPage() {
   const userId = await requireAuth();
@@ -70,6 +71,8 @@ export default async function FeedPage() {
           New
         </Link>
       </div>
+
+      <WeeklyRecap userId={userId} />
 
       {workouts.length === 0 ? (
         <div className="text-center py-16 card px-6">

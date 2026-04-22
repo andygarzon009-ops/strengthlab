@@ -14,7 +14,12 @@ type Group = {
   name: string;
   code: string;
   myRole: string;
-  members: { user: { name: string; id: string }; role: string }[];
+  members: {
+    user: { name: string; id: string };
+    role: string;
+    weekSessions: number;
+    weekVolume: number;
+  }[];
 };
 
 export default function GroupPage() {
@@ -308,39 +313,7 @@ function GroupCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        {group.members.map((m) => (
-          <div
-            key={m.user.id}
-            className="flex items-center gap-1.5 rounded-full px-2.5 py-1"
-            style={{
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <div
-              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold"
-              style={{
-                background: "var(--accent-dim)",
-                color: "var(--accent)",
-              }}
-            >
-              {m.user.name[0].toUpperCase()}
-            </div>
-            <span className="text-[12px]" style={{ color: "var(--fg)" }}>
-              {m.user.name}
-            </span>
-            {m.role === "ADMIN" && (
-              <span
-                className="label text-[9px]"
-                style={{ color: "var(--accent)" }}
-              >
-                Admin
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
+      <Leaderboard members={group.members} />
 
       <div
         className="flex gap-2 pt-3"
@@ -415,6 +388,119 @@ function GroupCard({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function Leaderboard({ members }: { members: Group["members"] }) {
+  const ranked = [...members].sort((a, b) => {
+    if (b.weekSessions !== a.weekSessions)
+      return b.weekSessions - a.weekSessions;
+    return b.weekVolume - a.weekVolume;
+  });
+
+  const anyActivity = ranked.some((m) => m.weekSessions > 0);
+  const fmtVol = (v: number) =>
+    v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${v}`;
+
+  return (
+    <div className="mb-3">
+      <p
+        className="label text-[9px] mb-2"
+        style={{ color: "var(--fg-dim)" }}
+      >
+        This week
+      </p>
+      {!anyActivity ? (
+        <p
+          className="text-[12px]"
+          style={{ color: "var(--fg-muted)" }}
+        >
+          Nobody has logged this week yet. Be first.
+        </p>
+      ) : (
+        <div className="space-y-1">
+          {ranked.map((m, i) => {
+            const isLeader = i === 0 && m.weekSessions > 0;
+            return (
+              <div
+                key={m.user.id}
+                className="flex items-center gap-2.5 rounded-lg px-2.5 py-2"
+                style={{
+                  background: isLeader
+                    ? "var(--accent-dim)"
+                    : "var(--bg-elevated)",
+                  border: isLeader
+                    ? "1px solid rgba(34,197,94,0.35)"
+                    : "1px solid var(--border)",
+                }}
+              >
+                <span
+                  className="nums text-[11px] w-4 shrink-0"
+                  style={{
+                    fontFamily: "var(--font-geist-mono)",
+                    color: isLeader ? "var(--accent)" : "var(--fg-dim)",
+                  }}
+                >
+                  {i + 1}
+                </span>
+                <div
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0"
+                  style={{
+                    background: isLeader
+                      ? "var(--accent)"
+                      : "var(--accent-dim)",
+                    color: isLeader ? "#0a0a0a" : "var(--accent)",
+                  }}
+                >
+                  {m.user.name[0].toUpperCase()}
+                </div>
+                <span
+                  className="text-[12px] flex-1 truncate"
+                  style={{ color: "var(--fg)" }}
+                >
+                  {m.user.name}
+                  {m.role === "ADMIN" && (
+                    <span
+                      className="label text-[8px] ml-1.5"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      Admin
+                    </span>
+                  )}
+                </span>
+                <div
+                  className="text-right nums shrink-0"
+                  style={{ fontFamily: "var(--font-geist-mono)" }}
+                >
+                  <p
+                    className="text-[12px] font-semibold leading-none"
+                    style={{
+                      color: isLeader ? "var(--accent)" : "var(--fg)",
+                    }}
+                  >
+                    {m.weekSessions}
+                    <span
+                      className="text-[9px] font-normal ml-0.5"
+                      style={{ color: "var(--fg-dim)" }}
+                    >
+                      {m.weekSessions === 1 ? "session" : "sessions"}
+                    </span>
+                  </p>
+                  {m.weekVolume > 0 && (
+                    <p
+                      className="text-[10px] mt-0.5"
+                      style={{ color: "var(--fg-dim)" }}
+                    >
+                      {fmtVol(m.weekVolume)}lb
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

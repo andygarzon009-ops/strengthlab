@@ -1,5 +1,6 @@
 import BottomNav from "@/components/BottomNav";
 import AITrainer from "@/components/AITrainer";
+import Celebrations from "@/components/Celebrations";
 
 export default function DashboardLayout({
   children,
@@ -14,6 +15,7 @@ export default function DashboardLayout({
       {children}
       <BottomNav />
       <AITrainer />
+      <Celebrations />
     </div>
   );
 }
