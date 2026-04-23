@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { usesPlates, PLATE_WEIGHT_LB } from "@/lib/exercises";
+import {
+  usesPlates,
+  PLATE_WEIGHT_LB,
+  isBodyweightCapable,
+} from "@/lib/exercises";
 
 type SetData = {
   type: "WARMUP" | "WORKING";
@@ -178,7 +182,11 @@ export default function ExerciseLogger({
                       Last:{" "}
                       {usesPlates(ex.exerciseName)
                         ? `${(prev.lastWeight ?? 0) / (PLATE_WEIGHT_LB * 2)} plates`
-                        : `${prev.lastWeight}lb`}{" "}
+                        : isBodyweightCapable(ex.exerciseName)
+                          ? (prev.lastWeight ?? 0) > 0
+                            ? `+${prev.lastWeight}lb`
+                            : "BW"
+                          : `${prev.lastWeight}lb`}{" "}
                       × {prev.lastReps} · {prev.daysAgo}d ago
                     </p>
                   )}
@@ -746,6 +754,7 @@ function SetRow({
 }) {
   const repsRef = useRef<HTMLInputElement>(null);
   const plateMode = usesPlates(exerciseName);
+  const bodyweightMode = !plateMode && isBodyweightCapable(exerciseName);
 
   // A working set with a weight but no reps is invalid — highlight it.
   const repsMissing =
@@ -817,7 +826,7 @@ function SetRow({
           value={set.weight}
           onChange={(e) => onUpdate("weight", e.target.value)}
           onBlur={handleWeightBlur}
-          placeholder="lb"
+          placeholder={bodyweightMode ? "+lb" : "lb"}
           className="w-16 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
           style={{
             background: "var(--bg-elevated)",
@@ -828,7 +837,11 @@ function SetRow({
         />
       )}
       <span style={{ color: "var(--fg-dim)", fontSize: "11px" }}>
-        {plateMode ? "plates ×" : "×"}
+        {plateMode
+          ? "plates ×"
+          : bodyweightMode && (!set.weight || parseFloat(set.weight) === 0)
+            ? "BW ×"
+            : "×"}
       </span>
       <input
         ref={repsRef}

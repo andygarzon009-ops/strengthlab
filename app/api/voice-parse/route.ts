@@ -72,7 +72,7 @@ Rules:
 - Fractional plates are common: "25s" = 25 lb plates, "tens" = 10 lb, etc. Compute the total accurately.
 - Calisthenics: if the athlete says things like "pull-ups", "push-ups", "dips", "muscle-ups", "pistol squats", "L-sit", "planche", "front lever", "handstand push-up", "ring" variants — set type to "CALISTHENICS" (unless they mixed it with barbell work, in which case WEIGHT_TRAINING is fine). Bodyweight sets have weight="" and reps filled in.
 - For time-based holds (planks, L-sit, front lever, handstand, human flag, etc. — often named "…Hold (sec)" in the library), put the HELD SECONDS in the "reps" field and leave weight="". Example: "L-sit hold 30 seconds, three sets" → three sets with reps="30", weight="".
-- Weighted calisthenics: "weighted pull-up 45 for 5" → weight="45", reps="5", exerciseName="Weighted Pull-Up".
+- Weighted calisthenics: on bodyweight-capable lifts (pull-ups, chin-ups, push-ups, dips, muscle-ups, pistol squats, etc.), the "weight" field is ADDED load on top of bodyweight — leave it "" for a clean bodyweight set, use the added lb otherwise. Example: "pull-ups 4 sets of 8" → weight="", reps="8". "Weighted pull-up 45 for 5" → weight="45", reps="5", exerciseName="Pull-Up" (NOT "Weighted Pull-Up").
 - Map spoken exercise names to the closest match from this canonical list if possible (otherwise return the spoken name exactly and the server will create a custom entry):
 ${exercises.map((e) => `  - ${e.name}`).join("\n")}
 - Each set has type "WORKING" by default; mark "WARMUP" only if the athlete explicitly calls it a warmup.

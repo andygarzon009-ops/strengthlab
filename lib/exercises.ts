@@ -20,7 +20,6 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "High-to-Low Cable Fly", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Pec Deck", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Push-Up", muscleGroup: "Chest", splits: "PUSH,UPPER" },
-  { name: "Weighted Push-Up", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Deficit Push-Up", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Diamond Push-Up", muscleGroup: "Chest", splits: "PUSH,UPPER,ARMS" },
   { name: "Chest Dip", muscleGroup: "Chest", splits: "PUSH,UPPER" },
@@ -30,7 +29,6 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
 
   // Back
   { name: "Pull-Up", muscleGroup: "Back", splits: "PULL,UPPER" },
-  { name: "Weighted Pull-Up", muscleGroup: "Back", splits: "PULL,UPPER" },
   { name: "Chin-Up", muscleGroup: "Back", splits: "PULL,UPPER,ARMS" },
   { name: "Neutral-Grip Pull-Up", muscleGroup: "Back", splits: "PULL,UPPER" },
   { name: "Lat Pulldown", muscleGroup: "Back", splits: "PULL,UPPER" },
@@ -165,7 +163,6 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Ab Wheel Rollout", muscleGroup: "Core", splits: "CORE" },
   { name: "Cable Crunch", muscleGroup: "Core", splits: "CORE" },
   { name: "Decline Sit-Up", muscleGroup: "Core", splits: "CORE" },
-  { name: "Weighted Decline Sit-Up", muscleGroup: "Core", splits: "CORE" },
   { name: "Russian Twist", muscleGroup: "Core", splits: "CORE" },
   { name: "Dead Bug", muscleGroup: "Core", splits: "CORE" },
   { name: "Pallof Press", muscleGroup: "Core", splits: "CORE" },
@@ -252,7 +249,6 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Ring Push-Up", muscleGroup: "Chest", splits: "PUSH" },
   { name: "Ring Dip", muscleGroup: "Chest", splits: "PUSH" },
   { name: "Parallel Bar Dip", muscleGroup: "Chest", splits: "PUSH" },
-  { name: "Weighted Dip", muscleGroup: "Chest", splits: "PUSH" },
   { name: "Bench Dip", muscleGroup: "Triceps", splits: "PUSH" },
   { name: "Pike Push-Up", muscleGroup: "Shoulders", splits: "PUSH" },
   { name: "Deficit Pike Push-Up", muscleGroup: "Shoulders", splits: "PUSH" },
@@ -408,6 +404,63 @@ export const PLATE_WEIGHT_LB = 45;
 
 export function usesPlates(name: string): boolean {
   return PLATE_LOADED_PATTERNS.some((re) => re.test(name));
+}
+
+// Movements that default to bodyweight but can optionally be loaded with a
+// dip belt, vest, etc. For these, the "weight" field represents ADDED load
+// on top of bodyweight — leaving it blank means a clean bodyweight set.
+const BODYWEIGHT_CAPABLE_PATTERNS = [
+  /\bpull-up\b/i,
+  /\bchin-up\b/i,
+  /\bpush-up\b/i,
+  /\bdip\b/i,
+  /\bmuscle-up\b/i,
+  /\bpistol squat\b/i,
+  /\bshrimp squat\b/i,
+  /\bskater squat\b/i,
+  /\bnordic curl\b/i,
+  /\bhandstand\b/i,
+  /\bplanche\b/i,
+  /\blever\b/i,
+  /\bl-sit\b/i,
+  /\bv-sit\b/i,
+  /\bhollow\b/i,
+  /\barch hold\b/i,
+  /\bhuman flag\b/i,
+  /\bdragon flag\b/i,
+  /\bskin the cat\b/i,
+  /\bscapular\b/i,
+  /\baustralian pull-up\b/i,
+  /\binverted row\b/i,
+  /\bring row\b/i,
+  /\bring dip\b/i,
+  /\bring push\b/i,
+  /\bring muscle\b/i,
+  /\bwall walk\b/i,
+  /\btoes-to-bar\b/i,
+  /\bwindshield wiper\b/i,
+  /\bburpee\b/i,
+  /\bbear crawl\b/i,
+  /\bcrab walk\b/i,
+  /\bmountain climber\b/i,
+  /\bbox jump\b/i,
+  /\bbroad jump\b/i,
+  /\bjump squat\b/i,
+  /\bbodyweight\b/i,
+  /\bsingle-leg glute bridge\b/i,
+  /\bsingle-leg hip thrust\b/i,
+  /\bsingle-leg calf raise \(bodyweight\)\b/i,
+  /\bcalf raise \(bodyweight\)\b/i,
+  /\bplank\b/i,
+  /\bside plank\b/i,
+  /\bhanging leg raise\b/i,
+  /\bhanging knee raise\b/i,
+  /\bab wheel\b/i,
+  /\bdead bug\b/i,
+];
+
+export function isBodyweightCapable(name: string): boolean {
+  return BODYWEIGHT_CAPABLE_PATTERNS.some((re) => re.test(name));
 }
 
 export function shapeForType(type: string): WorkoutShape {
