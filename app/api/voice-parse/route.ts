@@ -80,7 +80,7 @@ ${exercises.map((e) => `  - ${e.name}`).join("\n")}
 
 {
   "type": "${WORKOUT_TYPES.map((t) => t.value).join('" | "')}",
-  "split": "PUSH" | "PULL" | "LEGS" | "UPPER" | "LOWER" | "ARMS" | "FULL_BODY" | "CUSTOM" | null,
+  "split": ${STRENGTH_SPLITS.map((s) => `"${s.value}"`).join(" | ")} | null,
   "title": string,
   "notes": string,
   "feeling": "",
@@ -108,12 +108,26 @@ ${transcript.trim()}
 
 Output ONLY the JSON object. No prose, no markdown, no code fences.`;
 
-  try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-3.1-flash-lite-preview",
+  const callModel = async (name: string) => {
+    const m = genAI.getGenerativeModel({
+      model: name,
       generationConfig: { responseMimeType: "application/json" },
     });
-    const result = await model.generateContent(prompt);
+    return m.generateContent(prompt);
+  };
+
+  try {
+    let result;
+    try {
+      result = await callModel("gemini-2.5-flash-lite");
+    } catch (primaryErr) {
+      const msg = primaryErr instanceof Error ? primaryErr.message : "";
+      if (/503|overload|unavailable|quota/i.test(msg)) {
+        result = await callModel("gemini-2.5-flash");
+      } else {
+        throw primaryErr;
+      }
+    }
     const text = result.response.text().trim();
 
     let parsed: ParsedWorkout;
@@ -156,11 +170,15 @@ Output ONLY the JSON object. No prose, no markdown, no code fences.`;
       })
     );
 
+    const validSplits = new Set(STRENGTH_SPLITS.map((s) => s.value));
+    const normalizedSplit =
+      parsed.split && validSplits.has(parsed.split) ? parsed.split : null;
+
     const draft = {
       id: "",
       title: parsed.title || "Voice-logged workout",
       type: parsed.type || "WEIGHT_TRAINING",
-      split: parsed.split ?? null,
+      split: normalizedSplit,
       date: new Date().toISOString(),
       notes: parsed.notes ?? "",
       feeling: parsed.feeling ?? "",

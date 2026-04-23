@@ -84,7 +84,7 @@ export default function WorkoutForm({
   const [pending, setPending] = useState(false);
 
   const [step, setStep] = useState<"type" | "log">(
-    mode === "edit" ? "log" : "type"
+    mode === "edit" || initial ? "log" : "type"
   );
   const [workoutType, setWorkoutType] = useState(initial?.type ?? "");
   const [split, setSplit] = useState(initial?.split ?? "");
