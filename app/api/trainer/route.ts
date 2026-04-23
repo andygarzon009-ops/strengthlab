@@ -5,6 +5,8 @@ import { format, subDays, differenceInDays } from "date-fns";
 import { NextRequest } from "next/server";
 import { shapeForType, labelForType, formatDuration } from "@/lib/exercises";
 import { normalizeExerciseName } from "@/lib/exerciseIdentity";
+import { parseLiveLog } from "@/lib/parseLiveLog";
+import { appendLiveSets } from "@/lib/appendLiveSets";
 
 export const maxDuration = 60;
 
@@ -454,6 +456,19 @@ ${user.coachPrompt.trim()}`
       data: { userId, role: "user", content: message },
     });
 
+    // Silently parse the user's message for any completed sets they just
+    // reported, and append them to today's live workout. Stays fire-and-
+    // forget if no sets were reported — most chat messages return [].
+    let logSummary: Awaited<ReturnType<typeof appendLiveSets>> | null = null;
+    try {
+      const parsed = await parseLiveLog(message);
+      if (parsed.length > 0) {
+        logSummary = await appendLiveSets(userId, parsed);
+      }
+    } catch (err) {
+      console.error("Live-log parse/append failed:", err);
+    }
+
     const geminiHistory = history.map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
@@ -467,17 +482,42 @@ ${user.coachPrompt.trim()}`
     const PRIMARY_MODEL = "gemini-2.5-flash-lite";
     const FALLBACK_MODEL = "gemini-2.5-flash";
 
+    let liveMessage = message;
+    if (logSummary && logSummary.summary.length > 0) {
+      const logged = logSummary.summary
+        .map((e) => {
+          const sets = e.sets
+            .map((s) => `${s.weight || "BW"}×${s.reps || "?"}`)
+            .join(", ");
+          return `${e.exerciseName}: ${sets}`;
+        })
+        .join("; ");
+      liveMessage = `${message}\n\n[System note: the app silently logged these sets from the message above: ${logged}. Acknowledge briefly and coach on what's next; do NOT restate the sets verbatim.]`;
+    }
+
     const tryStream = async (modelName: string) => {
       const model = genAI.getGenerativeModel({
         model: modelName,
         systemInstruction: systemPrompt,
       });
       const chat = model.startChat({ history: geminiHistory });
-      return chat.sendMessageStream(message);
+      return chat.sendMessageStream(liveMessage);
     };
 
     const stream = new ReadableStream({
       async start(controller) {
+        // Prepend a machine-readable marker line so the client can render
+        // a "logged" chip above the coach's reply. The \x1e (RS) sentinel
+        // delimits the marker from coach text to avoid collisions with
+        // normal prose.
+        if (logSummary && logSummary.summary.length > 0) {
+          const payload = JSON.stringify({
+            workoutId: logSummary.workoutId,
+            created: logSummary.created,
+            summary: logSummary.summary,
+          });
+          controller.enqueue(encoder.encode(`[LOGGED]${payload}\x1e`));
+        }
         try {
           let result;
           try {

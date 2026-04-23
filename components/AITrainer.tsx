@@ -5,12 +5,38 @@ import { usePathname, useSearchParams } from "next/navigation";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+type LoggedSummary = {
+  workoutId: string;
+  created: boolean;
+  summary: {
+    exerciseName: string;
+    sets: { weight: string; reps: string; type: "WARMUP" | "WORKING" }[];
+  }[];
+};
+
 type Message = {
   id: string;
   role: string;
   content: string;
   createdAt: string;
+  logged?: LoggedSummary;
 };
+
+function splitLoggedMarker(raw: string): {
+  logged: LoggedSummary | null;
+  text: string;
+} {
+  if (!raw.startsWith("[LOGGED]")) return { logged: null, text: raw };
+  const endIdx = raw.indexOf("\x1e");
+  if (endIdx === -1) return { logged: null, text: raw };
+  const jsonPart = raw.slice("[LOGGED]".length, endIdx);
+  try {
+    const logged = JSON.parse(jsonPart) as LoggedSummary;
+    return { logged, text: raw.slice(endIdx + 1) };
+  } catch {
+    return { logged: null, text: raw };
+  }
+}
 
 const MD_COMPONENTS: Components = {
   h1: ({ children }) => (
@@ -247,14 +273,19 @@ export default function AITrainer() {
         if (done) break;
         const chunk = decoder.decode(value);
         full += chunk;
-        setStreaming(full);
+        // Strip the [LOGGED]…\x1e marker from the streaming preview so
+        // users never see the raw marker.
+        const { text } = splitLoggedMarker(full);
+        setStreaming(text);
       }
 
+      const { logged, text: finalText } = splitLoggedMarker(full);
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: full,
+        content: finalText,
         createdAt: new Date().toISOString(),
+        logged: logged ?? undefined,
       };
       setMessages((prev) => [...prev, assistantMsg]);
       setStreaming("");
@@ -401,7 +432,7 @@ export default function AITrainer() {
                   style={{ color: "var(--fg-muted)" }}
                 >
                   {messages.length > 0
-                    ? "Fresh chat. Your training history and PRs are still in my memory — ask anything."
+                    ? "Fresh chat. Your training history, PRs, and targets are still in my memory — ask anything."
                     : "I know every session you've logged, your PRs, and your goals. Ask me anything."}
                 </p>
                 <div className="space-y-2">
@@ -446,21 +477,26 @@ export default function AITrainer() {
                     {m.content}
                   </div>
                 ) : (
-                  <div
-                    className="max-w-[92%] rounded-2xl px-4 py-3.5"
-                    style={{
-                      background: "var(--bg-card)",
-                      border: "1px solid var(--border)",
-                      color: "var(--fg)",
-                      borderBottomLeftRadius: "6px",
-                    }}
-                  >
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={MD_COMPONENTS}
+                  <div className="max-w-[92%] space-y-2">
+                    {m.logged && m.logged.summary.length > 0 && (
+                      <LoggedChip logged={m.logged} />
+                    )}
+                    <div
+                      className="rounded-2xl px-4 py-3.5"
+                      style={{
+                        background: "var(--bg-card)",
+                        border: "1px solid var(--border)",
+                        color: "var(--fg)",
+                        borderBottomLeftRadius: "6px",
+                      }}
                     >
-                      {m.content}
-                    </ReactMarkdown>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={MD_COMPONENTS}
+                      >
+                        {m.content}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 )}
               </div>
@@ -592,5 +628,41 @@ export default function AITrainer() {
         </div>
       )}
     </>
+  );
+}
+
+function LoggedChip({ logged }: { logged: LoggedSummary }) {
+  const totalSets = logged.summary.reduce((n, e) => n + e.sets.length, 0);
+  const preview = logged.summary
+    .map((e) => {
+      const setsStr = e.sets
+        .map((s) => `${s.weight || "BW"}×${s.reps || "?"}`)
+        .join(", ");
+      return `${e.exerciseName} (${setsStr})`;
+    })
+    .join(" · ");
+  return (
+    <div
+      className="rounded-xl px-3 py-2 text-[12px] leading-tight flex items-start gap-2"
+      style={{
+        background: "var(--accent-dim)",
+        color: "var(--accent)",
+        border: "1px solid rgba(34,197,94,0.35)",
+      }}
+    >
+      <span className="shrink-0">✓</span>
+      <div className="min-w-0">
+        <p className="font-semibold">
+          {logged.created ? "Started a live session" : "Logged"}{" "}
+          · {totalSets} set{totalSets === 1 ? "" : "s"}
+        </p>
+        <p
+          className="text-[11px] mt-0.5 truncate"
+          style={{ color: "var(--fg-muted)" }}
+        >
+          {preview}
+        </p>
+      </div>
+    </div>
   );
 }
