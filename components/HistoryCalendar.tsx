@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 export default function HistoryCalendar({
   workoutDates,
+  workoutIdByDate,
   earliestYear,
 }: {
   workoutDates: string[];
+  workoutIdByDate?: Record<string, string>;
   earliestYear: number;
 }) {
   const dateSet = new Set(workoutDates);
@@ -125,29 +128,42 @@ export default function HistoryCalendar({
           const key = fmtYMD(viewYear, viewMonth, d);
           const hasWorkout = dateSet.has(key);
           const isToday = key === todayKey;
+          const workoutId = workoutIdByDate?.[key];
+          const cellClass =
+            "aspect-square flex items-center justify-center rounded-md text-[12px] nums transition-transform active:scale-95";
+          const cellStyle = {
+            fontFamily: "var(--font-geist-mono)",
+            background: hasWorkout
+              ? "var(--accent)"
+              : isToday
+                ? "var(--bg-elevated)"
+                : "transparent",
+            color: hasWorkout
+              ? "#0a0a0a"
+              : isToday
+                ? "var(--fg)"
+                : "var(--fg-dim)",
+            fontWeight: hasWorkout || isToday ? 600 : 400,
+            border:
+              isToday && !hasWorkout
+                ? "1px solid var(--border-strong)"
+                : "none",
+          } as const;
+          if (hasWorkout && workoutId) {
+            return (
+              <Link
+                key={key}
+                href={`/workout/${workoutId}`}
+                className={cellClass}
+                style={cellStyle}
+                aria-label={`Open workout on ${key}`}
+              >
+                {d}
+              </Link>
+            );
+          }
           return (
-            <div
-              key={key}
-              className="aspect-square flex items-center justify-center rounded-md text-[12px] nums"
-              style={{
-                fontFamily: "var(--font-geist-mono)",
-                background: hasWorkout
-                  ? "var(--accent)"
-                  : isToday
-                    ? "var(--bg-elevated)"
-                    : "transparent",
-                color: hasWorkout
-                  ? "#0a0a0a"
-                  : isToday
-                    ? "var(--fg)"
-                    : "var(--fg-dim)",
-                fontWeight: hasWorkout || isToday ? 600 : 400,
-                border:
-                  isToday && !hasWorkout
-                    ? "1px solid var(--border-strong)"
-                    : "none",
-              }}
-            >
+            <div key={key} className={cellClass} style={cellStyle}>
               {d}
             </div>
           );

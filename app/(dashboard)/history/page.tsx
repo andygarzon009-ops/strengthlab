@@ -39,6 +39,14 @@ export default async function HistoryPage() {
   const workoutDateStrings = workouts.map((w) =>
     format(new Date(w.date), "yyyy-MM-dd")
   );
+  // Build a date → workoutId map so calendar days are clickable. When
+  // multiple workouts share a day, pick the most recent (workouts are
+  // already ordered by date desc).
+  const workoutIdByDate: Record<string, string> = {};
+  for (const w of workouts) {
+    const key = format(new Date(w.date), "yyyy-MM-dd");
+    if (!workoutIdByDate[key]) workoutIdByDate[key] = w.id;
+  }
   const earliestYear =
     workouts.length > 0
       ? new Date(workouts[workouts.length - 1].date).getFullYear()
@@ -81,6 +89,7 @@ export default async function HistoryPage() {
 
       <HistoryCalendar
         workoutDates={workoutDateStrings}
+        workoutIdByDate={workoutIdByDate}
         earliestYear={earliestYear}
       />
 
