@@ -492,7 +492,15 @@ ${user.coachPrompt.trim()}`
           return `${e.exerciseName}: ${sets}`;
         })
         .join("; ");
-      liveMessage = `${message}\n\n[System note — LOG-AS-YOU-GO MODE: the app already logged these sets: ${logged}. Keep your reply VERY SHORT: max 2 short lines (40 words total). One small coaching tip on what they just did, plus one line on what to aim for on the next set. No headings, no emojis clusters, no recaps of the numbers. Do NOT restate the sets verbatim. Do NOT sign off.]`;
+      liveMessage = `${message}\n\n[System note: the app already logged these sets: ${logged}. Decide which reply mode to use based on the athlete's message above:
+
+MODE A — pure log-as-you-go (the message is ONLY reporting sets, no question/plan request):
+  Keep it VERY SHORT — max 2 short lines, ~40 words. One small cue on what they just did + one line on what to aim for next set. No headings, no recaps, no sign-off.
+
+MODE B — the athlete also asked a substantive question, requested a plan/programming, asked for advice on what to do next, for analysis, or for anything that needs a real answer:
+  Give your normal full coaching response to that question. You may briefly acknowledge the logged sets in one line, then answer properly.
+
+In both modes: do NOT restate the numbers verbatim — the "✓ Logged" chip already shows them.]`;
     }
 
     const tryStream = async (modelName: string) => {
