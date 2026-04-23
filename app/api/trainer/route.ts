@@ -472,7 +472,10 @@ ${user.coachPrompt.trim()}`
     // forget if no sets were reported — most chat messages return [].
     let logSummary: Awaited<ReturnType<typeof appendLiveSets>> | null = null;
     try {
-      const parsed = await parseLiveLog(message);
+      const parsed = await parseLiveLog(
+        message,
+        history.map((m) => ({ role: m.role, content: m.content }))
+      );
       if (parsed.length > 0) {
         logSummary = await appendLiveSets(userId, parsed);
       }

@@ -61,7 +61,10 @@ Output ONLY minified JSON of the form:
 
 If no sets reported, return: {"exercises":[]}`;
 
-export async function parseLiveLog(message: string): Promise<LiveParsedExercise[]> {
+export async function parseLiveLog(
+  message: string,
+  context?: { role: string; content: string }[]
+): Promise<LiveParsedExercise[]> {
   if (!process.env.GEMINI_API_KEY) return [];
 
   const exercises = await prisma.exercise.findMany({
@@ -69,13 +72,29 @@ export async function parseLiveLog(message: string): Promise<LiveParsedExercise[
     select: { id: true, name: true },
   });
 
+  const contextBlock =
+    context && context.length > 0
+      ? `RECENT CONVERSATION (oldest first — use ONLY to infer the exercise when the athlete mentions weight/reps without naming the lift; do NOT create sets from this context, only from MESSAGE):
+${context
+  .slice(-6)
+  .map(
+    (m) => `${m.role === "assistant" ? "Coach" : "Athlete"}: ${m.content.slice(0, 500)}`
+  )
+  .join("\n")}
+
+`
+      : "";
+
   const prompt = `${PARSE_INSTRUCTIONS}
 
 Canonical exercise names (map spoken names to closest match; otherwise return the spoken name and a custom entry will be created):
 ${exercises.map((e) => `  - ${e.name}`).join("\n")}
 
-MESSAGE:
+${contextBlock}MESSAGE:
 ${message.trim()}
+
+EXERCISE INFERENCE RULE:
+- If MESSAGE reports numbers but does not name the lift (e.g. "just did 225 for 1", "got it for 5"), check the RECENT CONVERSATION above. If the coach or athlete was clearly discussing a specific lift in the last 1–2 turns, use that lift. Otherwise return empty — never guess wildly.
 
 Output ONLY the JSON object. No prose, no code fences.`;
 
