@@ -515,7 +515,7 @@ function Field({
           placeholder={placeholder}
           className={`w-full rounded-xl px-3 text-[14px] focus:outline-none ${
             compact ? "py-2.5 nums" : "py-3"
-          }`}
+          } ${type === "date" ? "profile-date-input" : ""}`}
           style={{
             background: "var(--bg-card)",
             border: "1px solid var(--border)",
@@ -523,6 +523,9 @@ function Field({
             paddingRight: suffix ? "2.5rem" : undefined,
             fontFamily: compact ? "var(--font-geist-mono)" : undefined,
             colorScheme: type === "date" ? "dark" : undefined,
+            minHeight: 46,
+            WebkitAppearance: type === "date" ? "none" : undefined,
+            appearance: type === "date" ? "none" : undefined,
           }}
         />
         {suffix && (
@@ -560,6 +563,7 @@ function Select({
         backgroundRepeat: "no-repeat",
         backgroundPosition: "right 0.75rem center",
         paddingRight: "2rem",
+        minHeight: 46,
       }}
     >
       {options.map((o) => (

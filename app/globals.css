@@ -137,3 +137,28 @@ input[type="number"]::-webkit-outer-spin-button {
 .pulse-accent {
   animation: pulse-accent 2s ease-out infinite;
 }
+
+/* Normalize iOS Safari date inputs so they align with text inputs
+   and use the app's font instead of the chunky system calendar font. */
+.profile-date-input {
+  -webkit-appearance: none;
+  appearance: none;
+  font-size: 14px;
+  line-height: 1.2;
+  text-align: left;
+  font-family: var(--font-geist-sans, inherit);
+}
+.profile-date-input::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.2em;
+  padding: 0;
+}
+.profile-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.6);
+  cursor: pointer;
+}
+.profile-date-input:empty::before,
+.profile-date-input:invalid::before {
+  content: attr(placeholder);
+  color: var(--fg-dim);
+}
