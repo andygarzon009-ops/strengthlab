@@ -90,7 +90,7 @@ export async function createWorkout(data: CreateWorkoutInput) {
     },
   });
 
-  await detectAndSavePRs(userId, workout.id, workout.exercises);
+  await detectAndSavePRs(userId, workout.id, workout.exercises, workout.date);
 
   // Auto-broadcast to every group the athlete is in as a chat message
   const memberships = await prisma.groupMember.findMany({
@@ -117,7 +117,8 @@ export async function createWorkout(data: CreateWorkoutInput) {
 async function detectAndSavePRs(
   userId: string,
   workoutId: string,
-  exercises: any[]
+  exercises: any[],
+  workoutDate: Date
 ) {
   // Pull the full exercise pool once so we can compare PRs across
   // near-duplicate exercise rows (e.g. a user's typo of a canonical lift).
@@ -174,6 +175,7 @@ async function detectAndSavePRs(
         value: maxWeight,
         reps: weightAtMaxReps,
         workoutId,
+        date: workoutDate,
       });
     }
     if (maxReps > 0 && (!repsPR || maxReps > repsPR.value)) {
@@ -184,6 +186,7 @@ async function detectAndSavePRs(
         value: maxReps,
         reps: maxReps,
         workoutId,
+        date: workoutDate,
       });
     }
     if (prCreates.length > 0) {
@@ -253,7 +256,8 @@ export async function updateWorkout(
     where: { id: workoutId },
     include: { exercises: { include: { sets: true, exercise: true } } },
   });
-  if (fresh) await detectAndSavePRs(userId, workoutId, fresh.exercises);
+  if (fresh)
+    await detectAndSavePRs(userId, workoutId, fresh.exercises, fresh.date);
 
   revalidatePath("/");
   revalidatePath("/history");

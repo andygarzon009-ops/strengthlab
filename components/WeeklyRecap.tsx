@@ -4,25 +4,36 @@ import { shapeForType } from "@/lib/exercises";
 
 export default async function WeeklyRecap({ userId }: { userId: string }) {
   const since = subDays(new Date(), 14);
+  const weekAgo = subDays(new Date(), 7);
 
-  const [workouts, recentPR] = await Promise.all([
-    prisma.workout.findMany({
-      where: { userId, date: { gte: since } },
-      include: {
-        exercises: { include: { sets: true } },
-      },
-      orderBy: { date: "desc" },
-    }),
-    prisma.personalRecord.findFirst({
-      where: { userId, type: "WEIGHT", date: { gte: subDays(new Date(), 7) } },
-      include: { exercise: true },
-      orderBy: { value: "desc" },
-    }),
-  ]);
+  const workouts = await prisma.workout.findMany({
+    where: { userId, date: { gte: since } },
+    include: {
+      exercises: { include: { sets: true } },
+    },
+    orderBy: { date: "desc" },
+  });
 
   if (workouts.length === 0) return null;
 
-  const weekAgo = subDays(new Date(), 7);
+  // Only consider PRs whose underlying workout was in the last 7 days.
+  // The PR row's own `date` is unreliable for legacy rows (older records
+  // defaulted to now() at save time instead of the workout date).
+  const thisWeekWorkoutIds = workouts
+    .filter((w) => new Date(w.date) >= weekAgo)
+    .map((w) => w.id);
+  const recentPR =
+    thisWeekWorkoutIds.length === 0
+      ? null
+      : await prisma.personalRecord.findFirst({
+          where: {
+            userId,
+            type: "WEIGHT",
+            workoutId: { in: thisWeekWorkoutIds },
+          },
+          include: { exercise: true },
+          orderBy: { value: "desc" },
+        });
 
   const workingSetsFor = (list: typeof workouts) =>
     list
