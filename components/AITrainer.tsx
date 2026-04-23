@@ -5,6 +5,27 @@ import { usePathname, useSearchParams } from "next/navigation";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+type SR = {
+  new (): {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    start: () => void;
+    stop: () => void;
+    onresult: (e: {
+      results: {
+        [i: number]: {
+          [i: number]: { transcript: string };
+          isFinal?: boolean;
+        };
+        length: number;
+      };
+    }) => void;
+    onerror: (e: { error?: string }) => void;
+    onend: () => void;
+  };
+};
+
 type LoggedSummary = {
   workoutId: string;
   created: boolean;
@@ -151,6 +172,59 @@ export default function AITrainer() {
   const lastUserAnchorRef = useRef<HTMLDivElement>(null);
   const lastUserIdRef = useRef<string | null>(null);
 
+  const [listening, setListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const recRef = useRef<InstanceType<SR> | null>(null);
+  const baseInputRef = useRef("");
+
+  useEffect(() => {
+    const win = window as unknown as {
+      SpeechRecognition?: SR;
+      webkitSpeechRecognition?: SR;
+    };
+    if (win.SpeechRecognition ?? win.webkitSpeechRecognition) {
+      setVoiceSupported(true);
+    }
+  }, []);
+
+  const stopVoice = () => {
+    recRef.current?.stop?.();
+    setListening(false);
+  };
+
+  const startVoice = () => {
+    const win = window as unknown as {
+      SpeechRecognition?: SR;
+      webkitSpeechRecognition?: SR;
+    };
+    const SRClass = win.SpeechRecognition ?? win.webkitSpeechRecognition;
+    if (!SRClass) return;
+    const rec = new SRClass();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = "en-US";
+    baseInputRef.current = input ? input.trimEnd() + " " : "";
+    let finalText = "";
+    rec.onresult = (e) => {
+      let interim = "";
+      for (let i = 0; i < e.results.length; i++) {
+        const chunk = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += chunk;
+        else interim += chunk;
+      }
+      setInput(baseInputRef.current + finalText + interim);
+    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+    recRef.current = rec;
+    try {
+      rec.start();
+      setListening(true);
+    } catch {
+      setListening(false);
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const saved = parseInt(
@@ -243,6 +317,7 @@ export default function AITrainer() {
 
   const send = async (text: string) => {
     if (!text.trim() || loading) return;
+    if (listening) stopVoice();
     setInput("");
     setLoading(true);
     setStreaming("");
@@ -622,6 +697,37 @@ export default function AITrainer() {
                 className="flex-1 text-[15px] px-4 py-3 focus:outline-none disabled:opacity-50 bg-transparent"
                 style={{ color: "var(--fg)" }}
               />
+              {voiceSupported && (
+                <button
+                  onClick={listening ? stopVoice : startVoice}
+                  disabled={loading}
+                  className="my-1 mr-1 w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30"
+                  style={{
+                    background: listening ? "#ef4444" : "var(--bg-card)",
+                    color: listening ? "#fff" : "var(--fg)",
+                    border: "1px solid var(--border-strong)",
+                    boxShadow: listening
+                      ? "0 0 0 4px rgba(239,68,68,0.2)"
+                      : "none",
+                  }}
+                  aria-label={listening ? "Stop voice input" : "Start voice input"}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="9" y="2" width="6" height="12" rx="3" />
+                    <path d="M5 10v2a7 7 0 0 0 14 0v-2" />
+                    <line x1="12" y1="19" x2="12" y2="22" />
+                  </svg>
+                </button>
+              )}
               <button
                 onClick={() => send(input)}
                 disabled={!input.trim() || loading}
