@@ -113,14 +113,22 @@ export async function getChallengeProgress(challengeId: string) {
   }> = [];
 
   if (challenge.type === "LIFT" && challenge.exerciseId) {
-    // Scan working sets directly — PR rows only track each user's all-time
-    // best weight, so a rep-count filter would hide sets that qualify
-    // for this challenge but weren't their top PR.
+    // Gather every exercise row whose name is close enough to match —
+    // protects against duplicate/misspelled exercises for the same lift.
+    const allEx = await prisma.exercise.findMany({
+      select: { id: true, name: true },
+    });
+    const matchIds = similarExerciseIds(
+      challenge.exerciseId,
+      challenge.exercise?.name ?? null,
+      allEx
+    );
+
     const sets = await prisma.set.findMany({
       where: {
         type: "WORKING",
         workoutExercise: {
-          exerciseId: challenge.exerciseId,
+          exerciseId: { in: Array.from(matchIds) },
           workout: { userId: { in: userIds } },
         },
         ...(challenge.targetReps
@@ -282,4 +290,58 @@ export async function createCompareCard(input: {
   revalidatePath("/");
   revalidatePath("/group");
   return { success: true };
+}
+
+function similarExerciseIds(
+  targetId: string,
+  targetName: string | null,
+  allExercises: { id: string; name: string }[]
+): Set<string> {
+  const matches = new Set<string>([targetId]);
+  if (!targetName) return matches;
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "")
+      .replace(/s$/, "");
+  const target = norm(targetName);
+  if (!target) return matches;
+  for (const ex of allExercises) {
+    if (ex.id === targetId) continue;
+    const n = norm(ex.name);
+    if (!n) continue;
+    if (
+      n === target ||
+      n.includes(target) ||
+      target.includes(n) ||
+      editDistance(n, target) <= 2
+    ) {
+      matches.add(ex.id);
+    }
+  }
+  return matches;
+}
+
+function editDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const prev = Array(b.length + 1)
+    .fill(0)
+    .map((_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let curr = i;
+    let prevDiag = i - 1;
+    for (let j = 1; j <= b.length; j++) {
+      const temp = prev[j];
+      curr =
+        a[i - 1] === b[j - 1]
+          ? prevDiag
+          : 1 + Math.min(prev[j], prev[j - 1], prevDiag);
+      prevDiag = temp;
+      prev[j - 1] = curr;
+    }
+    prev[b.length] = curr;
+  }
+  return prev[b.length];
 }

@@ -55,13 +55,18 @@ export default async function AnalyticsPage() {
     let currentReps: number | null = null;
 
     if (g.type === "STRENGTH" && g.exerciseId) {
-      // Scan every working set ever logged for this exercise,
-      // filter by required rep count, take the heaviest weight.
+      // Match by id AND by near-identical exercise name so sets logged
+      // against a duplicate/misspelled exercise row still count.
+      const matchingExerciseIds = exerciseIdsSimilarToGoal(
+        g.exerciseId,
+        g.exercise?.name ?? null,
+        exercises
+      );
       let bestWeight = 0;
       let bestReps: number | null = null;
       for (const w of workouts) {
         for (const ex of w.exercises) {
-          if (ex.exerciseId !== g.exerciseId) continue;
+          if (!matchingExerciseIds.has(ex.exerciseId)) continue;
           for (const s of ex.sets) {
             if (s.type !== "WORKING") continue;
             const weight = s.weight ?? 0;
@@ -648,4 +653,62 @@ export default async function AnalyticsPage() {
       </div>
     </div>
   );
+}
+
+// Matches an exercise id AND any other exercise whose name is close
+// enough to be considered the same lift (e.g. "Weighted Pull-Up" vs
+// "weighed pull ups"). Used so goal progress still counts sets logged
+// against a duplicate or misspelled exercise row.
+function exerciseIdsSimilarToGoal(
+  goalExerciseId: string,
+  goalExerciseName: string | null,
+  allExercises: { id: string; name: string }[]
+): Set<string> {
+  const matches = new Set<string>([goalExerciseId]);
+  if (!goalExerciseName) return matches;
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "")
+      .replace(/s$/, ""); // strip trailing plural 's'
+  const target = norm(goalExerciseName);
+  if (!target) return matches;
+  for (const ex of allExercises) {
+    if (ex.id === goalExerciseId) continue;
+    const n = norm(ex.name);
+    if (!n) continue;
+    if (
+      n === target ||
+      n.includes(target) ||
+      target.includes(n) ||
+      editDistance(n, target) <= 2
+    ) {
+      matches.add(ex.id);
+    }
+  }
+  return matches;
+}
+
+function editDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const prev = Array(b.length + 1)
+    .fill(0)
+    .map((_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let curr = i;
+    let prevDiag = i - 1;
+    for (let j = 1; j <= b.length; j++) {
+      const temp = prev[j];
+      curr =
+        a[i - 1] === b[j - 1]
+          ? prevDiag
+          : 1 + Math.min(prev[j], prev[j - 1], prevDiag);
+      prevDiag = temp;
+      prev[j - 1] = curr;
+    }
+    prev[b.length] = curr;
+  }
+  return prev[b.length];
 }
