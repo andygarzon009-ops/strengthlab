@@ -6,16 +6,27 @@ import { useTransition } from "react";
 
 type Reaction = { id: string; userId: string; type: string };
 
-function ReactionIcon({ name, active }: { name: string; active: boolean }) {
+function ReactionIcon({
+  name,
+  color,
+  active,
+}: {
+  name: string;
+  color: string;
+  active: boolean;
+}) {
+  const stroke = active ? color : `${color}`;
+  const fill = active ? color : "none";
   const common = {
-    width: 14,
-    height: 14,
+    width: 15,
+    height: 15,
     viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: active ? "var(--accent)" : "var(--fg-muted)",
+    stroke,
     strokeWidth: 1.8,
     strokeLinecap: "round" as const,
     strokeLinejoin: "round" as const,
+    fill,
+    style: { opacity: active ? 1 : 0.85 },
   };
   switch (name) {
     case "flame":
@@ -33,10 +44,11 @@ function ReactionIcon({ name, active }: { name: string; active: boolean }) {
           <path d="M12 17v4" />
         </svg>
       );
-    case "bolt":
+    case "thumbsup":
       return (
         <svg {...common}>
-          <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" />
+          <path d="M7 10v11h10a2 2 0 0 0 2-1.7l1.2-7A2 2 0 0 0 18.2 10H14V5a2 2 0 0 0-2-2l-3 7v0Z" />
+          <path d="M3 10h4v11H3z" />
         </svg>
       );
     default:
@@ -66,6 +78,7 @@ export default function ReactionButtons({
         const hasReacted = reactions.some(
           (r) => r.type === rt.value && r.userId === currentUserId
         );
+        const color = rt.color;
         return (
           <button
             key={rt.value}
@@ -74,9 +87,9 @@ export default function ReactionButtons({
             style={
               hasReacted
                 ? {
-                    background: "var(--accent-dim)",
-                    color: "var(--accent)",
-                    border: "1px solid rgba(34,197,94,0.35)",
+                    background: `${color}22`,
+                    color,
+                    border: `1px solid ${color}66`,
                   }
                 : {
                     background: "var(--bg-elevated)",
@@ -85,14 +98,14 @@ export default function ReactionButtons({
                   }
             }
           >
-            <ReactionIcon name={rt.icon} active={hasReacted} />
+            <ReactionIcon name={rt.icon} color={color} active={hasReacted} />
             <span>{rt.label}</span>
             {count > 0 && (
               <span
                 className="nums text-[11px]"
                 style={{
                   fontFamily: "var(--font-geist-mono)",
-                  color: hasReacted ? "var(--accent)" : "var(--fg-dim)",
+                  color: hasReacted ? color : "var(--fg-dim)",
                 }}
               >
                 {count}

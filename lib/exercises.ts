@@ -490,7 +490,7 @@ export const FEELING_OPTIONS = [
 ];
 
 export const REACTION_TYPES = [
-  { value: "STRONG_SESSION", label: "Fire", icon: "flame" },
-  { value: "PR", label: "PR", icon: "trophy" },
-  { value: "GOOD_WORK", label: "Respect", icon: "bolt" },
+  { value: "STRONG_SESSION", label: "Fire", icon: "flame", color: "#f97316" },
+  { value: "PR", label: "PR", icon: "trophy", color: "#eab308" },
+  { value: "GOOD_WORK", label: "Like", icon: "thumbsup", color: "#22c55e" },
 ];
