@@ -89,6 +89,10 @@ export default function VoiceLogger() {
   };
 
   const parseAndGo = async () => {
+    // Make sure the mic is released before we fire off the parse —
+    // otherwise the in-flight recognizer keeps appending and the UI
+    // glitches while the request is pending.
+    if (listening) stop();
     const text = transcript.trim();
     if (!text) return;
     setParsing(true);

@@ -572,6 +572,7 @@ function VoiceAddModal({
   };
 
   const parse = async () => {
+    if (listening) stop();
     const text = transcript.trim();
     if (!text) return;
     setParsing(true);
