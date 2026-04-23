@@ -67,6 +67,11 @@ export async function parseLiveLog(
 ): Promise<LiveParsedExercise[]> {
   if (!process.env.GEMINI_API_KEY) return [];
 
+  // Fast path: set reports always contain digits (weights, reps, or
+  // set counts). Conversational messages without digits can skip the
+  // parse call entirely, saving 500–2000ms per message.
+  if (!/\d/.test(message)) return [];
+
   const exercises = await prisma.exercise.findMany({
     orderBy: { name: "asc" },
     select: { id: true, name: true },

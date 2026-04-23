@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import Anthropic from "@anthropic-ai/sdk";
 import { format, subDays, differenceInDays } from "date-fns";
 import { NextRequest } from "next/server";
 import { shapeForType, labelForType, formatDuration } from "@/lib/exercises";
@@ -11,6 +12,9 @@ import { appendLiveSets } from "@/lib/appendLiveSets";
 export const maxDuration = 60;
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const anthropic = process.env.ANTHROPIC_API_KEY
+  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  : null;
 
 export async function GET() {
   const userId = await requireAuth();
@@ -53,9 +57,9 @@ export async function POST(req: NextRequest) {
       }),
       prisma.trainerMessage.findMany({
         where: { userId },
-        orderBy: { createdAt: "asc" },
-        take: 20,
-      }),
+        orderBy: { createdAt: "desc" },
+        take: 12,
+      }).then((rows) => rows.reverse()),
       prisma.goal.findMany({
         where: { userId, completed: false },
         include: { exercise: true },
@@ -75,7 +79,7 @@ export async function POST(req: NextRequest) {
       return [base, rir, note].filter(Boolean).join("");
     };
 
-    const recentWorkouts = workouts.slice(0, 15).map((w) => {
+    const recentWorkouts = workouts.slice(0, 10).map((w) => {
       const daysAgo = differenceInDays(new Date(), new Date(w.date));
       const when = daysAgo === 0 ? "today" : `${daysAgo}d ago`;
       const whenFmt = format(new Date(w.date), "EEE MMM d");
@@ -175,7 +179,7 @@ export async function POST(req: NextRequest) {
       }, {} as Record<string, (typeof prs)[0]>)
     )
       .sort((a, b) => b.value - a.value)
-      .slice(0, 15)
+      .slice(0, 10)
       .map(
         (pr) =>
           `${pr.exercise.name}: ${pr.value}lb × ${pr.reps ?? 1} (${format(new Date(pr.date), "MMM d, yyyy")})`
@@ -574,44 +578,113 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
           }
         };
 
-        // Attempt to run an end-to-end stream with a given model. If it
-        // fails mid-reply after partial text has been streamed, emit a
-        // [RESET] marker so the client discards the half-reply, then
-        // throw so the outer loop can retry with another model.
-        const runAttempt = async (modelName: string) => {
+        const onStreamFailMidReply = () => {
+          if (fullResponse.length > 0) {
+            controller.enqueue(encoder.encode("[RESET]\x1e"));
+            fullResponse = "";
+          }
+        };
+
+        // Attempt to run an end-to-end stream with a given Gemini model.
+        // If it fails mid-reply after partial text has been streamed,
+        // emit a [RESET] marker so the client discards the half-reply.
+        const runGeminiAttempt = async (modelName: string) => {
           const result = await tryStream(modelName);
           try {
             await drainStream(result);
           } catch (streamErr) {
-            if (fullResponse.length > 0) {
-              controller.enqueue(encoder.encode("[RESET]\x1e"));
-              fullResponse = "";
-            }
+            onStreamFailMidReply();
             throw streamErr;
           }
         };
 
-        // Try up to 3 models in sequence: primary → fallback → primary.
-        // Between attempts the [RESET] marker (emitted by runAttempt on
-        // partial-text failure) tells the client to wipe what it has
-        // streamed so the retry replaces the broken first attempt.
-        const ATTEMPTS: string[] = [PRIMARY_MODEL, FALLBACK_MODEL, PRIMARY_MODEL];
+        // Ultimate fallback: Claude Haiku via Anthropic. Different API,
+        // but same streaming contract — drain tokens into the same
+        // controller. System prompt is cached so repeat calls within
+        // 5min are much faster on the input side.
+        const runAnthropicAttempt = async () => {
+          if (!anthropic) throw new Error("Anthropic not configured");
+          const claudeMessages: {
+            role: "user" | "assistant";
+            content: string;
+          }[] = [];
+          for (const m of geminiHistory) {
+            const role = m.role === "model" ? "assistant" : "user";
+            const content = m.parts.map((p) => p.text).join("");
+            const last = claudeMessages[claudeMessages.length - 1];
+            if (last && last.role === role) {
+              last.content += "\n\n" + content;
+            } else {
+              claudeMessages.push({ role, content });
+            }
+          }
+          // Ensure first message is "user" (Anthropic requires it)
+          while (claudeMessages.length && claudeMessages[0].role !== "user") {
+            claudeMessages.shift();
+          }
+          const last = claudeMessages[claudeMessages.length - 1];
+          if (last && last.role === "user") {
+            last.content += "\n\n" + liveMessage;
+          } else {
+            claudeMessages.push({ role: "user", content: liveMessage });
+          }
+
+          try {
+            const stream = anthropic.messages.stream({
+              model: "claude-haiku-4-5",
+              max_tokens: 2048,
+              system: [
+                {
+                  type: "text",
+                  text: systemPrompt,
+                  cache_control: { type: "ephemeral" },
+                },
+              ],
+              messages: claudeMessages,
+            });
+            for await (const event of stream) {
+              if (
+                event.type === "content_block_delta" &&
+                event.delta.type === "text_delta"
+              ) {
+                const text = event.delta.text;
+                if (text) {
+                  fullResponse += text;
+                  controller.enqueue(encoder.encode(text));
+                }
+              }
+            }
+          } catch (streamErr) {
+            onStreamFailMidReply();
+            throw streamErr;
+          }
+        };
+
+        // Try Gemini primary → flash → primary → Claude Haiku.
+        // [RESET] marker (emitted on partial-text failure) tells the
+        // client to wipe what it has streamed so the retry replaces
+        // the broken first attempt.
+        const ATTEMPTS: (() => Promise<void>)[] = [
+          () => runGeminiAttempt(PRIMARY_MODEL),
+          () => runGeminiAttempt(FALLBACK_MODEL),
+          () => runGeminiAttempt(PRIMARY_MODEL),
+        ];
+        if (anthropic) ATTEMPTS.push(runAnthropicAttempt);
+
         let lastErr: unknown = null;
         let succeeded = false;
         try {
           for (let i = 0; i < ATTEMPTS.length; i++) {
             try {
-              await runAttempt(ATTEMPTS[i]);
+              await ATTEMPTS[i]();
               succeeded = true;
               break;
             } catch (attemptErr) {
               lastErr = attemptErr;
               console.warn(
-                `Trainer attempt ${i + 1}/${ATTEMPTS.length} (${ATTEMPTS[i]}) failed:`,
+                `Trainer attempt ${i + 1}/${ATTEMPTS.length} failed:`,
                 attemptErr
               );
-              // small backoff between retries to let transient Gemini
-              // outages clear — 250ms, 500ms.
               if (i < ATTEMPTS.length - 1) {
                 await new Promise((r) => setTimeout(r, 250 * (i + 1)));
               }
