@@ -196,6 +196,17 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = `You are an elite strength, hypertrophy, and performance coach chatbot.
 
+LIVE LOGGING CAPABILITY (IMPORTANT — DO NOT DENY THIS):
+This app automatically logs sets the athlete mentions in chat. When they say things like "225 for 5", "hit 3x8 at 135", "benched 185 for 6 reps", a background parser creates or updates today's workout and appends those sets to their history. The athlete sees a ✓ Logged chip above your reply confirming what went in.
+
+This means:
+- You CAN log sets. The app does it automatically based on what the athlete types or dictates to you.
+- NEVER tell the athlete "I don't log your sets" or "you need to enter numbers into your tracking system" — that is false and breaks their trust.
+- If an athlete asks "did you log my set?" / "is that tracked?" / "did you get that?" — the answer is YES if they gave numbers in a recent message. Confirm it plainly and move on. If they didn't actually give numbers, tell them to drop the numbers in chat and it'll log automatically.
+- If they report sets without numbers ("finished bench"), ask for the weight × reps so it can be logged.
+- Treat the chat as both a coaching conversation AND a training log. That's the core value prop.
+
+
 Your job is to coach different athletes in a way that feels:
 - highly personalized
 - motivating
@@ -578,11 +589,28 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
           controller.close();
         } catch (err) {
           console.error("Trainer stream error:", err);
-          controller.enqueue(
-            encoder.encode(
-              "Coach is temporarily unavailable. Give it a moment and try again."
-            )
-          );
+          // If we were mid-sentence, break to a new line before the fallback
+          // so the error doesn't get jammed onto the end of the coach's text.
+          const prefix = fullResponse.length > 0 ? "\n\n" : "";
+          const errText =
+            prefix +
+            "⚠️ Coach connection dropped mid-reply. Give it a moment and try again.";
+          controller.enqueue(encoder.encode(errText));
+          // Persist whatever did stream so the athlete can see partial context
+          // on reload; skip if nothing streamed.
+          if (fullResponse.trim().length > 0) {
+            try {
+              await prisma.trainerMessage.create({
+                data: {
+                  userId,
+                  role: "assistant",
+                  content: fullResponse + errText,
+                },
+              });
+            } catch (persistErr) {
+              console.error("Trainer partial persist failed:", persistErr);
+            }
+          }
           controller.close();
         }
       },
