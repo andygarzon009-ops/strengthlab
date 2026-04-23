@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
-import { WORKOUT_TYPES, shapeForType, formatDuration } from "@/lib/exercises";
+import {
+  WORKOUT_TYPES,
+  shapeForType,
+  formatDuration,
+  isMachineExercise,
+} from "@/lib/exercises";
 import { format, subDays, differenceInDays } from "date-fns";
 import PRList from "@/components/PRList";
 import Projections from "@/components/Projections";
@@ -323,7 +328,7 @@ export default async function AnalyticsPage() {
     .slice(0, 5);
 
   const weightPRs = prs
-    .filter((pr) => pr.type === "WEIGHT")
+    .filter((pr) => pr.type === "WEIGHT" && !isMachineExercise(pr.exercise.name))
     .reduce(
       (acc, pr) => {
         const key =
@@ -349,6 +354,7 @@ export default async function AnalyticsPage() {
   >();
   for (const w of workouts) {
     for (const ex of w.exercises) {
+      if (isMachineExercise(ex.exercise.name)) continue;
       const key =
         normalizeExerciseName(ex.exercise.name) || ex.exerciseId;
       for (const s of ex.sets) {

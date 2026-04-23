@@ -180,6 +180,63 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Reverse Wrist Curl", muscleGroup: "Forearms", splits: "ARMS,UPPER,PULL" },
   { name: "Farmer Carry", muscleGroup: "Forearms", splits: "FULL_BODY" },
   { name: "Plate Pinch Hold", muscleGroup: "Forearms", splits: "ARMS" },
+
+  // Smith machine (push)
+  { name: "Smith Machine Incline Bench Press", muscleGroup: "Chest", splits: "PUSH" },
+  { name: "Smith Machine Decline Bench Press", muscleGroup: "Chest", splits: "PUSH" },
+  { name: "Smith Machine Close-Grip Bench Press", muscleGroup: "Triceps", splits: "PUSH" },
+  { name: "Smith Machine Overhead Press", muscleGroup: "Shoulders", splits: "PUSH" },
+  { name: "Smith Machine Shoulder Press", muscleGroup: "Shoulders", splits: "PUSH" },
+  { name: "Smith Machine Upright Row", muscleGroup: "Shoulders", splits: "PULL" },
+
+  // Smith machine (pull / back)
+  { name: "Smith Machine Bent-Over Row", muscleGroup: "Back", splits: "PULL" },
+  { name: "Smith Machine Inverted Row", muscleGroup: "Back", splits: "PULL" },
+  { name: "Smith Machine Shrug", muscleGroup: "Back", splits: "PULL" },
+
+  // Smith machine (legs)
+  { name: "Smith Machine Squat", muscleGroup: "Quads", splits: "LEGS" },
+  { name: "Smith Machine Front Squat", muscleGroup: "Quads", splits: "LEGS" },
+  { name: "Smith Machine Bulgarian Split Squat", muscleGroup: "Quads", splits: "LEGS" },
+  { name: "Smith Machine Reverse Lunge", muscleGroup: "Quads", splits: "LEGS" },
+  { name: "Smith Machine Romanian Deadlift", muscleGroup: "Hamstrings", splits: "LEGS" },
+  { name: "Smith Machine Good Morning", muscleGroup: "Hamstrings", splits: "LEGS" },
+  { name: "Smith Machine Hip Thrust", muscleGroup: "Glutes", splits: "LEGS" },
+  { name: "Smith Machine Glute Bridge", muscleGroup: "Glutes", splits: "LEGS" },
+  { name: "Smith Machine Sumo Squat", muscleGroup: "Glutes", splits: "LEGS" },
+  { name: "Smith Machine Calf Raise", muscleGroup: "Calves", splits: "LEGS" },
+
+  // Plate-loaded machines (legs)
+  { name: "Leg Press", muscleGroup: "Quads", splits: "LEGS" },
+  { name: "Single-Leg Leg Press", muscleGroup: "Quads", splits: "LEGS" },
+  { name: "Hack Squat Machine", muscleGroup: "Quads", splits: "LEGS" },
+  { name: "Reverse Hack Squat", muscleGroup: "Glutes", splits: "LEGS" },
+  { name: "Pendulum Squat", muscleGroup: "Quads", splits: "LEGS" },
+  { name: "Belt Squat", muscleGroup: "Quads", splits: "LEGS" },
+  { name: "V-Squat Machine", muscleGroup: "Quads", splits: "LEGS" },
+  { name: "Hip Thrust Machine", muscleGroup: "Glutes", splits: "LEGS" },
+  { name: "Plate-Loaded Glute Kickback", muscleGroup: "Glutes", splits: "LEGS" },
+  { name: "Plate-Loaded Abductor", muscleGroup: "Glutes", splits: "LEGS" },
+  { name: "Plate-Loaded Adductor", muscleGroup: "Quads", splits: "LEGS" },
+  { name: "Plate-Loaded Leg Extension", muscleGroup: "Quads", splits: "LEGS" },
+  { name: "Plate-Loaded Lying Leg Curl", muscleGroup: "Hamstrings", splits: "LEGS" },
+  { name: "Plate-Loaded Seated Leg Curl", muscleGroup: "Hamstrings", splits: "LEGS" },
+  { name: "Plate-Loaded Standing Calf Raise", muscleGroup: "Calves", splits: "LEGS" },
+  { name: "Plate-Loaded Seated Calf Raise", muscleGroup: "Calves", splits: "LEGS" },
+
+  // Plate-loaded machines (upper)
+  { name: "Plate-Loaded Chest Press", muscleGroup: "Chest", splits: "PUSH" },
+  { name: "Plate-Loaded Incline Chest Press", muscleGroup: "Chest", splits: "PUSH" },
+  { name: "Plate-Loaded Decline Chest Press", muscleGroup: "Chest", splits: "PUSH" },
+  { name: "Plate-Loaded Shoulder Press", muscleGroup: "Shoulders", splits: "PUSH" },
+  { name: "Plate-Loaded Iso-Lateral Row", muscleGroup: "Back", splits: "PULL" },
+  { name: "Plate-Loaded High Row", muscleGroup: "Back", splits: "PULL" },
+  { name: "Plate-Loaded Low Row", muscleGroup: "Back", splits: "PULL" },
+  { name: "Plate-Loaded Lat Pulldown", muscleGroup: "Back", splits: "PULL" },
+  { name: "Plate-Loaded Pullover", muscleGroup: "Back", splits: "PULL" },
+  { name: "Plate-Loaded Preacher Curl", muscleGroup: "Biceps", splits: "PULL" },
+  { name: "Plate-Loaded Triceps Extension", muscleGroup: "Triceps", splits: "PUSH" },
+  { name: "Plate-Loaded Shrug", muscleGroup: "Back", splits: "PULL" },
 ];
 
 export type WorkoutShape = "STRENGTH" | "DISTANCE" | "DURATION";
@@ -219,6 +276,51 @@ const LEGACY_STRENGTH_TYPES = [
   "ARMS",
   "CUSTOM",
 ];
+
+// Machine-style exercises we exclude from projections and top-lift PRs —
+// the "compound lift leaderboard" is more meaningful when it's limited to
+// free-weight / bodyweight movements. T-Bar Row stays in since athletes
+// treat it as a free-ish compound.
+const MACHINE_PATTERNS = [
+  /\bmachine\b/i,
+  /\bsmith\b/i,
+  /\bcable\b/i,
+  /\bpulldown\b/i,
+  /\bpec deck\b/i,
+  /\bleg press\b/i,
+  /\bleg extension\b/i,
+  /\bleg curl\b/i,
+  /\bhack squat\b/i,
+  /\bassisted\b/i,
+  /\bplate-loaded\b/i,
+  /\bpendulum squat\b/i,
+  /\bbelt squat\b/i,
+  /\bv-squat\b/i,
+];
+
+export function isMachineExercise(name: string): boolean {
+  return MACHINE_PATTERNS.some((re) => re.test(name));
+}
+
+// Plate-loaded apparatuses where athletes naturally count plates per side
+// rather than total weight on the rack.
+const PLATE_LOADED_PATTERNS = [
+  /\bsmith\b/i,
+  /\bplate-loaded\b/i,
+  /\bhack squat\b/i,
+  /\bleg press\b/i,
+  /\bhip thrust machine\b/i,
+  /\bpendulum squat\b/i,
+  /\bbelt squat\b/i,
+  /\bv-squat\b/i,
+  /\bt-bar row\b/i,
+];
+
+export const PLATE_WEIGHT_LB = 45;
+
+export function usesPlates(name: string): boolean {
+  return PLATE_LOADED_PATTERNS.some((re) => re.test(name));
+}
 
 export function shapeForType(type: string): WorkoutShape {
   if (LEGACY_STRENGTH_TYPES.includes(type)) return "STRENGTH";

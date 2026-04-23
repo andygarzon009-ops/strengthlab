@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { usesPlates, PLATE_WEIGHT_LB } from "@/lib/exercises";
 
 type SetData = {
   type: "WARMUP" | "WORKING";
@@ -168,7 +169,11 @@ export default function ExerciseLogger({
                         fontFamily: "var(--font-geist-mono)",
                       }}
                     >
-                      Last: {prev.lastWeight}lb × {prev.lastReps} · {prev.daysAgo}d ago
+                      Last:{" "}
+                      {usesPlates(ex.exerciseName)
+                        ? `${(prev.lastWeight ?? 0) / (PLATE_WEIGHT_LB * 2)} plates`
+                        : `${prev.lastWeight}lb`}{" "}
+                      × {prev.lastReps} · {prev.daysAgo}d ago
                     </p>
                   )}
                 </div>
@@ -216,6 +221,7 @@ export default function ExerciseLogger({
                       key={setIdx}
                       set={set}
                       setIdx={setIdx}
+                      exerciseName={ex.exerciseName}
                       onUpdate={(field, val) =>
                         updateSet(exIdx, actualIdx, field, val)
                       }
@@ -236,6 +242,7 @@ export default function ExerciseLogger({
                     key={setIdx}
                     set={set}
                     setIdx={setIdx}
+                    exerciseName={ex.exerciseName}
                     onUpdate={(field, val) =>
                       updateSet(exIdx, actualIdx, field, val)
                     }
@@ -458,17 +465,20 @@ export default function ExerciseLogger({
 function SetRow({
   set,
   setIdx,
+  exerciseName,
   onUpdate,
   onRemove,
   isWarmup,
 }: {
   set: SetData;
   setIdx: number;
+  exerciseName: string;
   onUpdate: (field: keyof SetData, val: string) => void;
   onRemove: () => void;
   isWarmup: boolean;
 }) {
   const repsRef = useRef<HTMLInputElement>(null);
+  const plateMode = usesPlates(exerciseName);
 
   // A working set with a weight but no reps is invalid — highlight it.
   const repsMissing =
@@ -488,6 +498,22 @@ function SetRow({
     }
   };
 
+  // Plate-loaded mode: user enters plates per side, we store total weight.
+  // Allow half-plate fractions (e.g. "2.5") since gyms have 25lb plates.
+  const weightNum = parseFloat(set.weight);
+  const platesValue = Number.isFinite(weightNum) && weightNum > 0
+    ? String(weightNum / (PLATE_WEIGHT_LB * 2))
+    : "";
+  const handlePlatesChange = (val: string) => {
+    if (val.trim() === "") {
+      onUpdate("weight", "");
+      return;
+    }
+    const plates = parseFloat(val);
+    if (!Number.isFinite(plates) || plates < 0) return;
+    onUpdate("weight", String(plates * PLATE_WEIGHT_LB * 2));
+  };
+
   return (
     <div className="flex items-center gap-2 mb-1.5">
       <span
@@ -499,22 +525,44 @@ function SetRow({
       >
         {setIdx + 1}
       </span>
-      <input
-        type="number"
-        inputMode="decimal"
-        value={set.weight}
-        onChange={(e) => onUpdate("weight", e.target.value)}
-        onBlur={handleWeightBlur}
-        placeholder="lb"
-        className="w-16 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
-        style={{
-          background: "var(--bg-elevated)",
-          border: "1px solid var(--border)",
-          color: "var(--fg)",
-          fontFamily: "var(--font-geist-mono)",
-        }}
-      />
-      <span style={{ color: "var(--fg-dim)", fontSize: "11px" }}>×</span>
+      {plateMode ? (
+        <input
+          type="number"
+          inputMode="decimal"
+          step="0.5"
+          value={platesValue}
+          onChange={(e) => handlePlatesChange(e.target.value)}
+          onBlur={handleWeightBlur}
+          placeholder="plates"
+          aria-label="Plates per side"
+          className="w-16 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
+          style={{
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            color: "var(--fg)",
+            fontFamily: "var(--font-geist-mono)",
+          }}
+        />
+      ) : (
+        <input
+          type="number"
+          inputMode="decimal"
+          value={set.weight}
+          onChange={(e) => onUpdate("weight", e.target.value)}
+          onBlur={handleWeightBlur}
+          placeholder="lb"
+          className="w-16 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
+          style={{
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            color: "var(--fg)",
+            fontFamily: "var(--font-geist-mono)",
+          }}
+        />
+      )}
+      <span style={{ color: "var(--fg-dim)", fontSize: "11px" }}>
+        {plateMode ? "plates ×" : "×"}
+      </span>
       <input
         ref={repsRef}
         type="number"
