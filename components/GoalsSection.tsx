@@ -170,7 +170,15 @@ function GoalCard({ goal }: { goal: GoalWithProgress }) {
             color: complete ? "var(--accent)" : "var(--fg)",
           }}
         >
-          {formatValue(goal.currentValue, goal.unit)}
+          {formatNumber(goal.currentValue)}
+          {unitSuffix(goal.unit) && (
+            <span
+              className="text-[12px] ml-0.5 font-normal"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              {unitSuffix(goal.unit)}
+            </span>
+          )}
           {goal.type === "STRENGTH" && (
             <span
               className="text-[13px] ml-1 font-normal"
@@ -183,7 +191,10 @@ function GoalCard({ goal }: { goal: GoalWithProgress }) {
             className="text-[12px] ml-1 font-normal"
             style={{ color: "var(--fg-dim)" }}
           >
-            / {formatValue(goal.targetValue, goal.unit)}
+            / {formatNumber(goal.targetValue)}
+            {unitSuffix(goal.unit) && (
+              <span className="ml-0.5">{unitSuffix(goal.unit)}</span>
+            )}
             {goal.type === "STRENGTH" && goal.targetReps != null && (
               <> × {goal.targetReps}</>
             )}
@@ -500,12 +511,14 @@ function goalTypeLabel(type: string): string {
   }
 }
 
-function formatValue(v: number, unit: string | null): string {
-  const rounded =
-    Number.isInteger(v) || Math.abs(v - Math.round(v)) < 0.05
-      ? Math.round(v).toString()
-      : v.toFixed(1);
-  if (!unit) return rounded;
-  if (unit === "sessions/week") return rounded;
-  return `${rounded}${unit.startsWith("/") ? unit : unit === "sec/km" ? unit : unit}`;
+function formatNumber(v: number): string {
+  return Number.isInteger(v) || Math.abs(v - Math.round(v)) < 0.05
+    ? Math.round(v).toString()
+    : v.toFixed(1);
+}
+
+function unitSuffix(unit: string | null): string {
+  if (!unit) return "";
+  if (unit === "sessions/week") return "";
+  return unit;
 }
