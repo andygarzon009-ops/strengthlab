@@ -1,17 +1,10 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
-import {
-  FEELING_OPTIONS,
-  labelForType,
-  shapeForType,
-  formatDuration,
-} from "@/lib/exercises";
-import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
-import ReactionButtons from "@/components/ReactionButtons";
-import CommentSection from "@/components/CommentSection";
 import WeeklyRecap from "@/components/WeeklyRecap";
 import GroupFeed from "@/components/GroupFeed";
+import ConsistencySparkline from "@/components/ConsistencySparkline";
+import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 
 export default async function FeedPage({
   searchParams,
@@ -142,7 +135,15 @@ export default async function FeedPage({
         />
       )}
 
-      {!activeGroup && <WeeklyRecap userId={userId} />}
+      {!activeGroup && (
+        <>
+          <WeeklyRecap userId={userId} />
+          <ConsistencySparkline
+            userId={userId}
+            trainingDaysGoal={currentUser?.trainingDays ?? null}
+          />
+        </>
+      )}
 
       {(!activeGroup || groupMode === "feed") && (workouts.length === 0 ? (
         <div className="text-center py-16 card px-6">
@@ -181,200 +182,13 @@ export default async function FeedPage({
         </div>
       ) : (
         <div className="space-y-3">
-          {workouts.map((workout) => {
-            const typeLabel = labelForType(workout.type);
-            const shape = shapeForType(workout.type);
-            const feeling = FEELING_OPTIONS.find((f) => f.value === workout.feeling);
-            const workingSets = workout.exercises.flatMap((e) =>
-              e.sets.filter((s) => s.type === "WORKING")
-            );
-            const topSetWeight = workingSets.reduce(
-              (max, s) => Math.max(max, s.weight ?? 0),
-              0
-            );
-            const isOwn = workout.userId === userId;
-
-            return (
-              <article
-                key={workout.id}
-                className="card overflow-hidden animate-slide-up"
-              >
-                <div className="p-4 pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-semibold shrink-0"
-                        style={{
-                          background: "var(--accent-dim)",
-                          color: "var(--accent)",
-                          border: "1px solid rgba(34,197,94,0.2)",
-                        }}
-                      >
-                        {workout.user.name[0].toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-[14px] truncate">
-                          {isOwn ? "You" : workout.user.name}
-                        </p>
-                        <p
-                          className="text-[11px] mt-0.5"
-                          style={{ color: "var(--fg-dim)" }}
-                        >
-                          {formatDistanceToNow(new Date(workout.date), {
-                            addSuffix: true,
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {feeling && (
-                        <span
-                          className="label text-[9px]"
-                          style={{ color: "var(--fg-dim)" }}
-                        >
-                          {feeling.label}
-                        </span>
-                      )}
-                      <span
-                        className="label text-[9px] px-2 py-1 rounded-md"
-                        style={{
-                          background: "var(--bg-elevated)",
-                          color: "var(--fg-muted)",
-                        }}
-                      >
-                        {typeLabel}
-                      </span>
-                    </div>
-                  </div>
-
-                  <Link href={`/workout/${workout.id}`}>
-                    <h3 className="font-bold text-[17px] mt-3 tracking-tight leading-tight hover:opacity-80 transition-opacity">
-                      {workout.title}
-                    </h3>
-                  </Link>
-
-                  {workout.notes && (
-                    <p
-                      className="text-[13px] mt-1.5 line-clamp-2 leading-relaxed"
-                      style={{ color: "var(--fg-muted)" }}
-                    >
-                      {workout.notes}
-                    </p>
-                  )}
-                </div>
-
-                <div
-                  className="px-4 py-3 grid grid-cols-3 gap-px"
-                  style={{ background: "var(--border)" }}
-                >
-                  {shape === "STRENGTH" ? (
-                    <>
-                      <Stat label="Exercises" value={workout.exercises.length} />
-                      <Stat label="Sets" value={workingSets.length} />
-                      <Stat
-                        label="Top set"
-                        value={topSetWeight > 0 ? topSetWeight : "—"}
-                        suffix={topSetWeight > 0 ? "lb" : undefined}
-                      />
-                    </>
-                  ) : shape === "DISTANCE" ? (
-                    <>
-                      <Stat
-                        label="Distance"
-                        value={workout.distance ?? "—"}
-                        suffix={workout.distance ? "km" : undefined}
-                      />
-                      <Stat
-                        label="Time"
-                        value={formatDuration(workout.duration)}
-                      />
-                      <Stat
-                        label="Pace"
-                        value={workout.pace ?? "—"}
-                        suffix={workout.pace ? "/km" : undefined}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <Stat
-                        label="Time"
-                        value={formatDuration(workout.duration)}
-                      />
-                      <Stat
-                        label="Rounds"
-                        value={workout.rounds ?? "—"}
-                      />
-                      <Stat
-                        label="RPE"
-                        value={workout.rpe ?? "—"}
-                        suffix={workout.rpe ? "/10" : undefined}
-                      />
-                    </>
-                  )}
-                </div>
-
-                {shape === "STRENGTH" && workout.exercises.length > 0 && (
-                  <div className="px-4 pt-3 pb-3">
-                    <div className="flex flex-wrap gap-1.5">
-                      {workout.exercises.slice(0, 4).map((ex) => (
-                        <span
-                          key={ex.id}
-                          className="text-[11px] px-2 py-1 rounded-md"
-                          style={{
-                            background: "var(--bg-elevated)",
-                            color: "var(--fg-muted)",
-                            border: "1px solid var(--border)",
-                          }}
-                        >
-                          {ex.exercise.name}
-                        </span>
-                      ))}
-                      {workout.exercises.length > 4 && (
-                        <span
-                          className="text-[11px] px-2 py-1 rounded-md"
-                          style={{
-                            color: "var(--fg-dim)",
-                          }}
-                        >
-                          +{workout.exercises.length - 4}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div
-                  className="px-4 py-3 flex items-center gap-2"
-                  style={{ borderTop: "1px solid var(--border)" }}
-                >
-                  <ReactionButtons
-                    workoutId={workout.id}
-                    reactions={workout.reactions}
-                    currentUserId={userId}
-                  />
-                  {!isOwn && (
-                    <Link
-                      href={`/log?clone=${workout.id}`}
-                      className="ml-auto text-[11px] label px-2.5 py-1.5 rounded-lg"
-                      style={{
-                        background: "var(--accent-dim)",
-                        color: "var(--accent)",
-                        border: "1px solid rgba(34,197,94,0.3)",
-                      }}
-                    >
-                      ⚡ Do this workout
-                    </Link>
-                  )}
-                </div>
-
-                <CommentSection
-                  workoutId={workout.id}
-                  comments={workout.comments}
-                  currentUserId={userId}
-                />
-              </article>
-            );
-          })}
+          {workouts.map((workout) => (
+            <FeedWorkoutCard
+              key={workout.id}
+              workout={workout}
+              currentUserId={userId}
+            />
+          ))}
         </div>
       ))}
     </div>
@@ -444,37 +258,3 @@ function FeedTab({
   );
 }
 
-function Stat({
-  label,
-  value,
-  suffix,
-}: {
-  label: string;
-  value: number | string;
-  suffix?: string;
-}) {
-  return (
-    <div
-      className="py-1.5"
-      style={{ background: "var(--bg-card)" }}
-    >
-      <p className="label text-[9px]" style={{ color: "var(--fg-dim)" }}>
-        {label}
-      </p>
-      <p
-        className="nums font-mono text-[15px] font-semibold leading-tight mt-0.5"
-        style={{ fontFamily: "var(--font-geist-mono)" }}
-      >
-        {value}
-        {suffix && (
-          <span
-            className="text-[10px] ml-0.5 font-normal"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            {suffix}
-          </span>
-        )}
-      </p>
-    </div>
-  );
-}
