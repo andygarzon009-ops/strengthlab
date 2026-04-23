@@ -562,27 +562,43 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
           });
           controller.enqueue(encoder.encode(`[LOGGED]${payload}\x1e`));
         }
-        try {
-          let result;
-          try {
-            result = await tryStream(PRIMARY_MODEL);
-          } catch (primaryErr) {
-            const msg =
-              primaryErr instanceof Error ? primaryErr.message : "";
-            // 503/overloaded/unavailable → one-shot fallback
-            if (/503|overload|unavailable|quota/i.test(msg)) {
-              console.warn("Primary trainer model failed, falling back:", msg);
-              result = await tryStream(FALLBACK_MODEL);
-            } else {
-              throw primaryErr;
-            }
-          }
-
+        const drainStream = async (
+          result: Awaited<ReturnType<typeof tryStream>>
+        ) => {
           for await (const chunk of result.stream) {
             const text = chunk.text();
             if (text) {
               fullResponse += text;
               controller.enqueue(encoder.encode(text));
+            }
+          }
+        };
+
+        try {
+          // Attempt 1: primary model. On connect error → fallback model.
+          // On mid-stream error with zero text so far → fallback model.
+          // On mid-stream error after partial text → give up (can't
+          // cleanly resume without duplicating the first half).
+          let result;
+          try {
+            result = await tryStream(PRIMARY_MODEL);
+          } catch (primaryErr) {
+            console.warn("Primary trainer model connect failed:", primaryErr);
+            result = await tryStream(FALLBACK_MODEL);
+          }
+
+          try {
+            await drainStream(result);
+          } catch (streamErr) {
+            if (fullResponse.length === 0) {
+              console.warn(
+                "Mid-stream failure with no text — retrying fallback:",
+                streamErr
+              );
+              const retry = await tryStream(FALLBACK_MODEL);
+              await drainStream(retry);
+            } else {
+              throw streamErr;
             }
           }
 
