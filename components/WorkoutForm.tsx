@@ -14,8 +14,10 @@ import {
   type WorkoutShape,
 } from "@/lib/exercises";
 import ExerciseLogger from "@/components/ExerciseLogger";
-import { useTransition, useState } from "react";
+import { useTransition, useState, useEffect, useRef } from "react";
 import Link from "next/link";
+
+const DRAFT_KEY = "sl:workoutDraft";
 
 type SetData = {
   type: "WARMUP" | "WORKING";
@@ -115,6 +117,102 @@ export default function WorkoutForm({
     initial?.elevation?.toString() ?? ""
   );
   const [rpe, setRpe] = useState(initial?.rpe?.toString() ?? "");
+
+  // Draft persistence (create mode only). Hydrates whatever the user had in
+  // progress so they don't lose work when navigating to the exercise library
+  // to add a custom exercise, etc. Cleared on successful save.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (mode !== "create" || hydratedRef.current) return;
+    hydratedRef.current = true;
+    // Skip rehydration if the form was seeded from an external source
+    // (e.g. voice-logged draft); we don't want to clobber that.
+    if (initial) return;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d.workoutType) {
+        setWorkoutType(d.workoutType);
+        setStep("log");
+      }
+      if (typeof d.split === "string") setSplit(d.split);
+      if (typeof d.title === "string") setTitle(d.title);
+      if (typeof d.notes === "string") setNotes(d.notes);
+      if (typeof d.feeling === "string") setFeeling(d.feeling);
+      if (typeof d.isDeload === "boolean") setIsDeload(d.isDeload);
+      if (typeof d.date === "string") setDate(d.date);
+      if (Array.isArray(d.exercises)) setExercises(d.exercises);
+      if (typeof d.durationMin === "string") setDurationMin(d.durationMin);
+      if (typeof d.durationSec === "string") setDurationSec(d.durationSec);
+      if (typeof d.distance === "string") setDistance(d.distance);
+      if (typeof d.pace === "string") setPace(d.pace);
+      if (typeof d.avgHR === "string") setAvgHR(d.avgHR);
+      if (typeof d.maxHR === "string") setMaxHR(d.maxHR);
+      if (typeof d.rounds === "string") setRounds(d.rounds);
+      if (typeof d.elevation === "string") setElevation(d.elevation);
+      if (typeof d.rpe === "string") setRpe(d.rpe);
+    } catch {
+      // ignore malformed draft
+    }
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== "create" || !hydratedRef.current) return;
+    const draft = {
+      workoutType,
+      split,
+      title,
+      notes,
+      feeling,
+      isDeload,
+      date,
+      exercises,
+      durationMin,
+      durationSec,
+      distance,
+      pace,
+      avgHR,
+      maxHR,
+      rounds,
+      elevation,
+      rpe,
+    };
+    const empty =
+      !workoutType &&
+      !split &&
+      !title &&
+      !notes &&
+      exercises.length === 0 &&
+      !durationMin &&
+      !durationSec &&
+      !distance;
+    try {
+      if (empty) localStorage.removeItem(DRAFT_KEY);
+      else localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      // storage may be unavailable (private mode, quota); ignore
+    }
+  }, [
+    mode,
+    workoutType,
+    split,
+    title,
+    notes,
+    feeling,
+    isDeload,
+    date,
+    exercises,
+    durationMin,
+    durationSec,
+    distance,
+    pace,
+    avgHR,
+    maxHR,
+    rounds,
+    elevation,
+    rpe,
+  ]);
 
   const shape: WorkoutShape = workoutType ? shapeForType(workoutType) : "STRENGTH";
 
@@ -216,6 +314,11 @@ export default function WorkoutForm({
       if (mode === "edit" && initial) {
         await updateWorkout(initial.id, payload);
       } else {
+        try {
+          localStorage.removeItem(DRAFT_KEY);
+        } catch {
+          // ignore
+        }
         await createWorkout(payload);
       }
     });

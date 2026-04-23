@@ -6,7 +6,7 @@ import {
   deleteCustomExercise,
 } from "@/lib/actions/exercises";
 import { STRENGTH_SPLITS } from "@/lib/exercises";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
 type Exercise = {
@@ -37,6 +37,7 @@ export default function ExerciseManager({
 }: {
   initial: Exercise[];
 }) {
+  const router = useRouter();
   const [filterSplit, setFilterSplit] = useState<string>("");
   const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
@@ -68,8 +69,10 @@ export default function ExerciseManager({
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
       <div className="flex items-center gap-2 mb-6">
-        <Link
-          href="/profile"
+        <button
+          type="button"
+          onClick={() => router.back()}
+          aria-label="Back"
           className="w-9 h-9 rounded-full flex items-center justify-center"
           style={{
             background: "var(--bg-card)",
@@ -89,7 +92,7 @@ export default function ExerciseManager({
           >
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
-        </Link>
+        </button>
         <div className="flex-1">
           <p className="label">Library</p>
           <h1 className="text-[22px] font-bold tracking-tight leading-none mt-0.5">
