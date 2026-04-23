@@ -48,6 +48,7 @@ export default function ExerciseLogger({
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [showVoice, setShowVoice] = useState(false);
   const [previousData, setPreviousData] = useState<
     Record<string, PreviousData>
   >({});
@@ -144,6 +145,11 @@ export default function ExerciseLogger({
     const updated = [...exercises];
     updated[exIdx].notes = notes;
     setExercises(updated);
+  };
+
+  const appendVoiceExercises = (parsed: ExerciseData[]) => {
+    if (parsed.length === 0) return;
+    setExercises([...exercises, ...parsed]);
   };
 
   return (
@@ -404,17 +410,44 @@ export default function ExerciseLogger({
         </div>
       ) : (
         <div className="space-y-2">
-          <button
-            onClick={() => setShowSearch(true)}
-            className="w-full py-4 rounded-2xl text-[13px] font-medium transition-all"
-            style={{
-              border: "1px dashed var(--border-strong)",
-              color: "var(--fg-muted)",
-              background: "transparent",
-            }}
-          >
-            + Add Exercise
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowSearch(true)}
+              className="flex-1 py-4 rounded-2xl text-[13px] font-medium transition-all"
+              style={{
+                border: "1px dashed var(--border-strong)",
+                color: "var(--fg-muted)",
+                background: "transparent",
+              }}
+            >
+              + Add Exercise
+            </button>
+            <button
+              onClick={() => setShowVoice(true)}
+              aria-label="Voice add exercises"
+              className="w-14 rounded-2xl flex items-center justify-center transition-all active:scale-95"
+              style={{
+                background: "var(--accent-dim)",
+                color: "var(--accent)",
+                border: "1px solid rgba(34,197,94,0.35)",
+              }}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M5 10a7 7 0 0 0 14 0" />
+                <path d="M12 17v5" />
+              </svg>
+            </button>
+          </div>
           <Link
             href="/exercises"
             className="card px-4 py-3 flex items-center justify-between transition-all active:scale-[0.98]"
@@ -458,9 +491,239 @@ export default function ExerciseLogger({
           </Link>
         </div>
       )}
+
+      {showVoice && (
+        <VoiceAddModal
+          onClose={() => setShowVoice(false)}
+          onParsed={(exs) => {
+            appendVoiceExercises(exs);
+            setShowVoice(false);
+          }}
+        />
+      )}
     </div>
   );
 }
+
+function VoiceAddModal({
+  onClose,
+  onParsed,
+}: {
+  onClose: () => void;
+  onParsed: (exercises: ExerciseData[]) => void;
+}) {
+  const [supported, setSupported] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [parsing, setParsing] = useState(false);
+  const [error, setError] = useState("");
+  const recRef = useRef<{ stop: () => void } | null>(null);
+
+  useEffect(() => {
+    const win = window as unknown as {
+      SpeechRecognition?: new () => SpeechRec;
+      webkitSpeechRecognition?: new () => SpeechRec;
+    };
+    const SRClass = win.SpeechRecognition ?? win.webkitSpeechRecognition;
+    if (SRClass) setSupported(true);
+  }, []);
+
+  const start = () => {
+    setError("");
+    const win = window as unknown as {
+      SpeechRecognition?: new () => SpeechRec;
+      webkitSpeechRecognition?: new () => SpeechRec;
+    };
+    const SRClass = win.SpeechRecognition ?? win.webkitSpeechRecognition;
+    if (!SRClass) {
+      setError("Mic not supported here — type instead.");
+      return;
+    }
+    const rec = new SRClass();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = "en-US";
+    let finalText = transcript ? transcript + " " : "";
+    rec.onresult = (e) => {
+      let interim = "";
+      for (let i = 0; i < e.results.length; i++) {
+        const chunk = e.results[i][0].transcript;
+        if ((e.results[i] as { isFinal?: boolean }).isFinal) {
+          finalText += chunk;
+        } else {
+          interim += chunk;
+        }
+      }
+      setTranscript((finalText + interim).trim());
+    };
+    rec.onerror = (e) => {
+      setError(e.error ?? "Mic error");
+      setListening(false);
+    };
+    rec.onend = () => setListening(false);
+    recRef.current = rec;
+    rec.start();
+    setListening(true);
+  };
+
+  const stop = () => {
+    recRef.current?.stop?.();
+    setListening(false);
+  };
+
+  const parse = async () => {
+    const text = transcript.trim();
+    if (!text) return;
+    setParsing(true);
+    setError("");
+    try {
+      const res = await fetch("/api/voice-parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: text }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Parse failed");
+      const exs: ExerciseData[] = body.draft?.exercises ?? [];
+      if (exs.length === 0) {
+        setError("Couldn't pick out any exercises. Try again.");
+        setParsing(false);
+        return;
+      }
+      onParsed(exs);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Parse failed");
+      setParsing(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.65)" }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="card w-full max-w-lg p-5"
+        style={{ background: "var(--bg-card)" }}
+      >
+        <div className="flex items-baseline justify-between mb-3">
+          <div>
+            <p className="label">Voice add</p>
+            <h3 className="text-[17px] font-bold tracking-tight mt-0.5">
+              Dictate exercises
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-[20px]"
+            style={{ color: "var(--fg-dim)" }}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="flex justify-center mb-3">
+          <button
+            onClick={listening ? stop : start}
+            disabled={!supported && !listening}
+            className="w-16 h-16 rounded-full flex items-center justify-center transition-transform active:scale-95"
+            style={{
+              background: listening ? "#ef4444" : "var(--accent)",
+              color: "#0a0a0a",
+              boxShadow: listening
+                ? "0 0 0 8px rgba(239,68,68,0.15)"
+                : "0 10px 24px -8px rgba(34,197,94,0.5)",
+            }}
+            aria-label={listening ? "Stop" : "Start"}
+          >
+            {listening ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="6" width="12" height="12" rx="2" />
+              </svg>
+            ) : (
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M5 10a7 7 0 0 0 14 0" />
+                <path d="M12 17v5" />
+              </svg>
+            )}
+          </button>
+        </div>
+
+        <p
+          className="label text-[10px] text-center mb-3"
+          style={{ color: listening ? "#f87171" : "var(--fg-dim)" }}
+        >
+          {listening
+            ? "Listening — tap to stop"
+            : supported
+              ? "Tap mic or type below"
+              : "Type your exercises below"}
+        </p>
+
+        <textarea
+          value={transcript}
+          onChange={(e) => setTranscript(e.target.value)}
+          placeholder='e.g. "Incline DB press 4 sets of 65 for 10, then lateral raises 3 of 25 for 15"'
+          rows={4}
+          className="w-full rounded-xl px-3 py-2.5 text-[13px] focus:outline-none resize-none mb-3"
+          style={{
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            color: "var(--fg)",
+          }}
+        />
+
+        {error && (
+          <p className="text-[12px] mb-3" style={{ color: "#f87171" }}>
+            {error}
+          </p>
+        )}
+
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="btn-ghost px-4 py-2.5 rounded-xl text-[13px]"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={parse}
+            disabled={!transcript.trim() || parsing}
+            className="btn-accent flex-1 py-2.5 rounded-xl text-[13px] font-semibold"
+          >
+            {parsing ? "Parsing…" : "Add to log"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type SpeechRec = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  onresult: (e: {
+    results: { [i: number]: { [i: number]: { transcript: string } }; length: number };
+  }) => void;
+  onerror: (e: { error?: string }) => void;
+  onend: () => void;
+};
 
 function SetRow({
   set,
