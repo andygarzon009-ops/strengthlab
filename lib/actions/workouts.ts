@@ -153,22 +153,13 @@ async function detectAndSavePRs(
     );
     const maxReps = highestRepSet.reps ?? 0;
 
-    const totalVolume = workingSets.reduce(
-      (sum: number, s: any) => sum + (s.weight ?? 0) * (s.reps ?? 0),
-      0
-    );
-
-    const [weightPR, repsPR, volumePR] = await Promise.all([
+    const [weightPR, repsPR] = await Promise.all([
       prisma.personalRecord.findFirst({
         where: { userId, exerciseId: { in: siblingIds }, type: "WEIGHT" },
         orderBy: { value: "desc" },
       }),
       prisma.personalRecord.findFirst({
         where: { userId, exerciseId: { in: siblingIds }, type: "REPS" },
-        orderBy: { value: "desc" },
-      }),
-      prisma.personalRecord.findFirst({
-        where: { userId, exerciseId: { in: siblingIds }, type: "VOLUME" },
         orderBy: { value: "desc" },
       }),
     ]);
@@ -195,16 +186,6 @@ async function detectAndSavePRs(
         workoutId,
       });
     }
-    if (totalVolume > 0 && (!volumePR || totalVolume > volumePR.value)) {
-      prCreates.push({
-        userId,
-        exerciseId: ex.exerciseId,
-        type: "VOLUME",
-        value: totalVolume,
-        workoutId,
-      });
-    }
-
     if (prCreates.length > 0) {
       await prisma.personalRecord.createMany({ data: prCreates });
     }

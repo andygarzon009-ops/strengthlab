@@ -501,12 +501,11 @@ function ChallengeModal({
       <div className="space-y-3">
         <div>
           <p className="label mb-1.5">Type</p>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
             {(
               [
                 { v: "LIFT", l: "Lift PR" },
                 { v: "SESSIONS_WEEK", l: "Sessions/wk" },
-                { v: "VOLUME_WEEK", l: "Volume/wk" },
               ] as { v: ChallengeType; l: string }[]
             ).map((o) => (
               <button
@@ -558,24 +557,14 @@ function ChallengeModal({
 
         <div>
           <p className="label mb-1.5">
-            {type === "LIFT"
-              ? "Target weight (lb)"
-              : type === "SESSIONS_WEEK"
-                ? "Target sessions"
-                : "Target volume (lb)"}
+            {type === "LIFT" ? "Target weight (lb)" : "Target sessions"}
           </p>
           <input
             type="number"
             inputMode="decimal"
             value={targetValue}
             onChange={(e) => setTargetValue(e.target.value)}
-            placeholder={
-              type === "LIFT"
-                ? "315"
-                : type === "SESSIONS_WEEK"
-                  ? "5"
-                  : "20000"
-            }
+            placeholder={type === "LIFT" ? "315" : "5"}
             className="w-full rounded-lg px-3 py-2.5 text-[13px] nums focus:outline-none"
             style={{
               background: "var(--bg-elevated)",
@@ -1090,17 +1079,11 @@ function ChallengeCard({
     (p) => p.userId === currentUserId
   );
   const typeLabel =
-    challenge.type === "LIFT"
-      ? "Lift PR"
-      : challenge.type === "SESSIONS_WEEK"
-        ? "Sessions this week"
-        : "Volume this week";
+    challenge.type === "LIFT" ? "Lift PR" : "Sessions this week";
   const targetStr =
     challenge.type === "LIFT"
       ? `${challenge.exercise?.name ?? "Lift"} — ${challenge.targetValue}lb${challenge.targetReps ? ` × ${challenge.targetReps}` : ""}`
-      : challenge.type === "SESSIONS_WEEK"
-        ? `${challenge.targetValue} sessions / week`
-        : `${challenge.targetValue.toLocaleString()}lb volume / week`;
+      : `${challenge.targetValue} sessions / week`;
   const maxCurrent = Math.max(
     challenge.targetValue,
     ...progress.map((p) => p.current)

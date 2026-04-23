@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { subDays } from "date-fns";
 import { similarExerciseIds } from "@/lib/exerciseIdentity";
 
-export type ChallengeType = "LIFT" | "SESSIONS_WEEK" | "VOLUME_WEEK";
+export type ChallengeType = "LIFT" | "SESSIONS_WEEK";
 
 async function assertMember(groupId: string, userId: string) {
   const m = await prisma.groupMember.findFirst({
@@ -158,10 +158,7 @@ export async function getChallengeProgress(challengeId: string) {
         hit: v >= challenge.targetValue,
       };
     });
-  } else if (
-    challenge.type === "SESSIONS_WEEK" ||
-    challenge.type === "VOLUME_WEEK"
-  ) {
+  } else if (challenge.type === "SESSIONS_WEEK") {
     const since =
       challenge.createdAt < subDays(new Date(), 7)
         ? subDays(new Date(), 7)
@@ -171,26 +168,14 @@ export async function getChallengeProgress(challengeId: string) {
         userId: { in: userIds },
         date: { gte: since },
       },
-      include: { exercises: { include: { sets: true } } },
+      select: { userId: true },
     });
-    const statsByUser = new Map<
-      string,
-      { sessions: number; volume: number }
-    >();
+    const sessionsByUser = new Map<string, number>();
     for (const w of workouts) {
-      const s = statsByUser.get(w.userId) ?? { sessions: 0, volume: 0 };
-      s.sessions += 1;
-      s.volume += w.exercises
-        .flatMap((e) => e.sets.filter((st) => st.type === "WORKING"))
-        .reduce((acc, st) => acc + (st.weight ?? 0) * (st.reps ?? 0), 0);
-      statsByUser.set(w.userId, s);
+      sessionsByUser.set(w.userId, (sessionsByUser.get(w.userId) ?? 0) + 1);
     }
     progress = challenge.participants.map((p) => {
-      const s = statsByUser.get(p.userId) ?? { sessions: 0, volume: 0 };
-      const v =
-        challenge.type === "SESSIONS_WEEK"
-          ? s.sessions
-          : Math.round(s.volume);
+      const v = sessionsByUser.get(p.userId) ?? 0;
       return {
         userId: p.userId,
         userName: p.user.name,

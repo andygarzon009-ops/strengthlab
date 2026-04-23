@@ -12,15 +12,11 @@ type Ring = {
 export default function ActivityRings({
   sessions,
   sessionsGoal,
-  volume,
-  volumeGoal,
   sets,
   setsGoal,
 }: {
   sessions: number;
   sessionsGoal: number;
-  volume: number;
-  volumeGoal: number;
   sets: number;
   setsGoal: number;
 }) {
@@ -34,18 +30,8 @@ export default function ActivityRings({
       color: "#22c55e",
     },
     {
-      key: "volume",
-      label: "Volume",
-      value: volume,
-      goal: Math.max(1, volumeGoal),
-      unit: "vs 4-wk avg",
-      color: "#60a5fa",
-      format: (v) =>
-        v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${Math.round(v)}`,
-    },
-    {
       key: "sets",
-      label: "Sets",
+      label: "Working sets",
       value: sets,
       goal: Math.max(1, setsGoal),
       unit: "vs 4-wk avg",

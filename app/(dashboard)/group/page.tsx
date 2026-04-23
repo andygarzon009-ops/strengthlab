@@ -22,7 +22,7 @@ type Group = {
     user: { name: string; id: string };
     role: string;
     weekSessions: number;
-    weekVolume: number;
+    weekSets: number;
   }[];
 };
 
@@ -405,12 +405,10 @@ function Leaderboard({ members }: { members: Group["members"] }) {
   const ranked = [...members].sort((a, b) => {
     if (b.weekSessions !== a.weekSessions)
       return b.weekSessions - a.weekSessions;
-    return b.weekVolume - a.weekVolume;
+    return b.weekSets - a.weekSets;
   });
 
   const anyActivity = ranked.some((m) => m.weekSessions > 0);
-  const fmtVol = (v: number) =>
-    v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${v}`;
 
   return (
     <div className="mb-3">
@@ -496,12 +494,12 @@ function Leaderboard({ members }: { members: Group["members"] }) {
                       {m.weekSessions === 1 ? "session" : "sessions"}
                     </span>
                   </p>
-                  {m.weekVolume > 0 && (
+                  {m.weekSets > 0 && (
                     <p
                       className="text-[10px] mt-0.5"
                       style={{ color: "var(--fg-dim)" }}
                     >
-                      {fmtVol(m.weekVolume)}lb
+                      {m.weekSets} sets
                     </p>
                   )}
                 </div>

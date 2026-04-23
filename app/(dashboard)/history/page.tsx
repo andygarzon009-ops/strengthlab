@@ -131,10 +131,6 @@ export default async function HistoryPage() {
             const workingSets = workout.exercises.flatMap((e) =>
               e.sets.filter((s) => s.type === "WORKING")
             );
-            const totalVolume = workingSets.reduce(
-              (sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0),
-              0
-            );
 
             return (
               <Link
@@ -202,17 +198,6 @@ export default async function HistoryPage() {
                         >
                           {workingSets.length} sets
                         </p>
-                        {totalVolume > 0 && (
-                          <p
-                            className="text-[11px]"
-                            style={{ color: "var(--fg-dim)" }}
-                          >
-                            {totalVolume >= 1000
-                              ? `${(totalVolume / 1000).toFixed(1)}k`
-                              : totalVolume}
-                            lb
-                          </p>
-                        )}
                       </>
                     ) : shape === "DISTANCE" ? (
                       <>

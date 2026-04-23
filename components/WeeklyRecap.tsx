@@ -24,15 +24,15 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
 
   const weekAgo = subDays(new Date(), 7);
 
-  const volumeFor = (list: typeof workouts) =>
+  const workingSetsFor = (list: typeof workouts) =>
     list
       .filter((w) => shapeForType(w.type) === "STRENGTH")
       .reduce(
         (sum, w) =>
           sum +
-          w.exercises
-            .flatMap((e) => e.sets.filter((s) => s.type === "WORKING"))
-            .reduce((s, set) => s + (set.weight ?? 0) * (set.reps ?? 0), 0),
+          w.exercises.flatMap((e) =>
+            e.sets.filter((s) => s.type === "WORKING")
+          ).length,
         0
       );
 
@@ -43,10 +43,10 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
   const lastSessions = lastWeek.length;
   const sessionDelta = thisSessions - lastSessions;
 
-  const thisVol = Math.round(volumeFor(thisWeek));
-  const lastVol = Math.round(volumeFor(lastWeek));
-  const volDeltaPct =
-    lastVol > 0 ? Math.round(((thisVol - lastVol) / lastVol) * 100) : null;
+  const thisSets = workingSetsFor(thisWeek);
+  const lastSets = workingSetsFor(lastWeek);
+  const setsDeltaPct =
+    lastSets > 0 ? Math.round(((thisSets - lastSets) / lastSets) * 100) : null;
 
   // Streak
   const dateSet = new Set(
@@ -77,9 +77,6 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
       }
     }
   }
-
-  const fmtVol = (v: number) =>
-    v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${v}`;
 
   return (
     <div
@@ -166,29 +163,28 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
             className="nums text-[22px] font-bold leading-none"
             style={{ fontFamily: "var(--font-geist-mono)" }}
           >
-            {fmtVol(thisVol)}
-            <span className="text-[11px] font-normal ml-0.5">lb</span>
+            {thisSets}
           </p>
           <p
             className="label text-[9px] mt-1.5"
             style={{ color: "var(--fg-dim)" }}
           >
-            Volume
+            Working sets
           </p>
-          {volDeltaPct !== null && (
+          {setsDeltaPct !== null && (
             <p
               className="text-[10px] mt-1 nums"
               style={{
                 fontFamily: "var(--font-geist-mono)",
                 color:
-                  volDeltaPct > 0
+                  setsDeltaPct > 0
                     ? "var(--accent)"
-                    : volDeltaPct < 0
+                    : setsDeltaPct < 0
                       ? "#f87171"
                       : "var(--fg-dim)",
               }}
             >
-              {volDeltaPct > 0 ? `+${volDeltaPct}` : volDeltaPct}% vs last
+              {setsDeltaPct > 0 ? `+${setsDeltaPct}` : setsDeltaPct}% vs last
             </p>
           )}
         </div>

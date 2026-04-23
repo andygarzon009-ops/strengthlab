@@ -188,8 +188,8 @@ export default async function FeedPage({
             const workingSets = workout.exercises.flatMap((e) =>
               e.sets.filter((s) => s.type === "WORKING")
             );
-            const totalVolume = workingSets.reduce(
-              (sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0),
+            const topSetWeight = workingSets.reduce(
+              (max, s) => Math.max(max, s.weight ?? 0),
               0
             );
             const isOwn = workout.userId === userId;
@@ -272,13 +272,9 @@ export default async function FeedPage({
                       <Stat label="Exercises" value={workout.exercises.length} />
                       <Stat label="Sets" value={workingSets.length} />
                       <Stat
-                        label="Volume"
-                        value={
-                          totalVolume >= 1000
-                            ? `${(totalVolume / 1000).toFixed(1)}k`
-                            : totalVolume
-                        }
-                        suffix={totalVolume > 0 ? "lb" : undefined}
+                        label="Top set"
+                        value={topSetWeight > 0 ? topSetWeight : "—"}
+                        suffix={topSetWeight > 0 ? "lb" : undefined}
                       />
                     </>
                   ) : shape === "DISTANCE" ? (

@@ -60,9 +60,9 @@ export default async function WorkoutDetailPage({
   const totalSets = workout.exercises.flatMap((e) =>
     e.sets.filter((s) => s.type === "WORKING")
   ).length;
-  const totalVolume = workout.exercises
+  const topSetWeight = workout.exercises
     .flatMap((e) => e.sets.filter((s) => s.type === "WORKING"))
-    .reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
+    .reduce((max, s) => Math.max(max, s.weight ?? 0), 0);
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
@@ -201,12 +201,9 @@ export default async function WorkoutDetailPage({
                 { label: "Exercises", value: workout.exercises.length },
                 { label: "Working Sets", value: totalSets },
                 {
-                  label: "Volume",
-                  value:
-                    totalVolume >= 1000
-                      ? `${(totalVolume / 1000).toFixed(1)}k`
-                      : totalVolume,
-                  suffix: totalVolume > 0 ? "lb" : undefined,
+                  label: "Top set",
+                  value: topSetWeight > 0 ? topSetWeight : "—",
+                  suffix: topSetWeight > 0 ? "lb" : undefined,
                 },
               ]
             : shape === "DISTANCE"

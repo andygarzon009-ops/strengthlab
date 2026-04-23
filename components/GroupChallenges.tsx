@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 type Member = {
   user: { id: string; name: string };
   weekSessions: number;
-  weekVolume: number;
+  weekSets: number;
 };
 
 type PR = {
@@ -32,7 +32,7 @@ export default function GroupChallenges({ members }: { members: Member[] }) {
   void setPRs;
 
   const topSessions = [...members]
-    .sort((a, b) => b.weekSessions - a.weekSessions || b.weekVolume - a.weekVolume)
+    .sort((a, b) => b.weekSessions - a.weekSessions || b.weekSets - a.weekSets)
     .slice(0, 3);
   const topSessionCount = topSessions[0]?.weekSessions ?? 0;
 

@@ -2,7 +2,6 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { WORKOUT_TYPES, shapeForType, formatDuration } from "@/lib/exercises";
 import { format, subDays, differenceInDays } from "date-fns";
-import VolumeChart from "@/components/VolumeChart";
 import PRList from "@/components/PRList";
 import ActivityRings from "@/components/ActivityRings";
 import GoalsSection, {
@@ -44,9 +43,6 @@ export default async function AnalyticsPage() {
     }),
   ]);
 
-  const last30 = workouts.filter(
-    (w) => new Date(w.date) >= subDays(new Date(), 30)
-  );
   const last7 = workouts.filter(
     (w) => new Date(w.date) >= subDays(new Date(), 7)
   );
@@ -55,19 +51,14 @@ export default async function AnalyticsPage() {
   );
 
   // ---------- Activity rings ----------
-  const workingSetsVolume = (list: typeof workouts) =>
+  const workingSetsIn = (list: typeof workouts) =>
     list
       .filter((w) => shapeForType(w.type) === "STRENGTH")
       .flatMap((w) => w.exercises.flatMap((e) => e.sets))
       .filter((s) => s.type === "WORKING");
 
   const thisWeekSessions = last7.length;
-  const thisWeekSetsList = workingSetsVolume(last7);
-  const thisWeekSets = thisWeekSetsList.length;
-  const thisWeekVolume = thisWeekSetsList.reduce(
-    (sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0),
-    0
-  );
+  const thisWeekSets = workingSetsIn(last7).length;
 
   // Average of previous 4 full weeks (8w → 4w ago), not the current week
   const prior4Start = subDays(new Date(), 35);
@@ -76,19 +67,9 @@ export default async function AnalyticsPage() {
     (w) =>
       new Date(w.date) >= prior4Start && new Date(w.date) < prior4End
   );
-  const prior4Sets = workingSetsVolume(prior4Workouts);
-  const avgWeeklyVolumePrior4 =
-    prior4Sets.reduce(
-      (sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0),
-      0
-    ) / 4;
-  const avgWeeklySetsPrior4 = prior4Sets.length / 4;
+  const avgWeeklySetsPrior4 = workingSetsIn(prior4Workouts).length / 4;
 
   const sessionsGoal = user?.trainingDays ?? 4;
-  // Use prior 4w averages as the goal, fall back to sensible defaults for
-  // users without history yet so rings aren't a division-by-zero puzzle.
-  const volumeGoal =
-    avgWeeklyVolumePrior4 > 0 ? avgWeeklyVolumePrior4 : thisWeekVolume || 5000;
   const setsGoal =
     avgWeeklySetsPrior4 > 0 ? avgWeeklySetsPrior4 : thisWeekSets || 20;
 
@@ -255,36 +236,28 @@ export default async function AnalyticsPage() {
     });
   }
 
-  // Volume drop (strength volume week-over-week)
-  const strengthVolumeThisWeek = last7
-    .filter((w) => shapeForType(w.type) === "STRENGTH")
-    .flatMap((w) => w.exercises.flatMap((e) => e.sets))
-    .filter((s) => s.type === "WORKING")
-    .reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
+  // Working-set drop week-over-week
+  const strengthSetsThisWeek = workingSetsIn(last7).length;
   const prevWeekStart = subDays(new Date(), 14);
   const prevWeekEnd = subDays(new Date(), 7);
-  const strengthVolumePrevWeek = workouts
-    .filter(
+  const strengthSetsPrevWeek = workingSetsIn(
+    workouts.filter(
       (w) =>
-        shapeForType(w.type) === "STRENGTH" &&
-        new Date(w.date) >= prevWeekStart &&
-        new Date(w.date) < prevWeekEnd
+        new Date(w.date) >= prevWeekStart && new Date(w.date) < prevWeekEnd
     )
-    .flatMap((w) => w.exercises.flatMap((e) => e.sets))
-    .filter((s) => s.type === "WORKING")
-    .reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
+  ).length;
   if (
-    strengthVolumePrevWeek > 500 &&
-    strengthVolumeThisWeek < strengthVolumePrevWeek * 0.75
+    strengthSetsPrevWeek >= 8 &&
+    strengthSetsThisWeek < strengthSetsPrevWeek * 0.75
   ) {
     const dropPct = Math.round(
-      (1 - strengthVolumeThisWeek / strengthVolumePrevWeek) * 100
+      (1 - strengthSetsThisWeek / strengthSetsPrevWeek) * 100
     );
     weakSpots.push({
-      id: "volume-drop",
+      id: "sets-drop",
       severity: dropPct >= 40 ? "high" : "medium",
-      title: `Strength volume dropped ${dropPct}%`,
-      detail: `${Math.round(strengthVolumeThisWeek).toLocaleString()}lb this week vs ${Math.round(strengthVolumePrevWeek).toLocaleString()}lb last week.`,
+      title: `Working sets dropped ${dropPct}%`,
+      detail: `${strengthSetsThisWeek} sets this week vs ${strengthSetsPrevWeek} last week.`,
     });
   }
 
@@ -322,18 +295,6 @@ export default async function AnalyticsPage() {
   }
 
   // ---------- Existing analytics ----------
-  const volumeData = last30
-    .filter((w) => shapeForType(w.type) === "STRENGTH")
-    .map((w) => ({
-      date: format(new Date(w.date), "MMM d"),
-      volume: w.exercises
-        .flatMap((e) => e.sets.filter((s) => s.type === "WORKING"))
-        .reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0),
-      sets: w.exercises.flatMap((e) =>
-        e.sets.filter((s) => s.type === "WORKING")
-      ).length,
-    }));
-
   const typeDistribution = WORKOUT_TYPES.map((t) => ({
     type: t.label,
     count: workouts.filter((w) => w.type === t.value).length,
@@ -471,28 +432,9 @@ export default async function AnalyticsPage() {
           <ActivityRings
             sessions={thisWeekSessions}
             sessionsGoal={sessionsGoal}
-            volume={thisWeekVolume}
-            volumeGoal={volumeGoal}
             sets={thisWeekSets}
             setsGoal={setsGoal}
           />
-
-          {volumeData.length > 0 && (
-            <div className="card p-5">
-              <div className="flex items-baseline justify-between mb-4">
-                <h2 className="font-semibold text-[14px] tracking-tight">
-                  Strength volume
-                </h2>
-                <p
-                  className="label text-[9px]"
-                  style={{ color: "var(--fg-dim)" }}
-                >
-                  30d
-                </p>
-              </div>
-              <VolumeChart data={volumeData} />
-            </div>
-          )}
 
           {topPRs.length > 0 && (
             <div className="card p-5">

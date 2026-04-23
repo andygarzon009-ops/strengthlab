@@ -32,15 +32,15 @@ export async function GET() {
 
   const statsByUser = new Map<
     string,
-    { sessions: number; volume: number }
+    { sessions: number; sets: number }
   >();
   for (const w of weeklyWorkouts) {
-    const stat = statsByUser.get(w.userId) ?? { sessions: 0, volume: 0 };
+    const stat = statsByUser.get(w.userId) ?? { sessions: 0, sets: 0 };
     stat.sessions += 1;
     if (shapeForType(w.type) === "STRENGTH") {
-      stat.volume += w.exercises
-        .flatMap((e) => e.sets.filter((s) => s.type === "WORKING"))
-        .reduce((s, set) => s + (set.weight ?? 0) * (set.reps ?? 0), 0);
+      stat.sets += w.exercises.flatMap((e) =>
+        e.sets.filter((s) => s.type === "WORKING")
+      ).length;
     }
     statsByUser.set(w.userId, stat);
   }
@@ -51,7 +51,7 @@ export async function GET() {
     members: m.group.members.map((gm) => ({
       ...gm,
       weekSessions: statsByUser.get(gm.userId)?.sessions ?? 0,
-      weekVolume: Math.round(statsByUser.get(gm.userId)?.volume ?? 0),
+      weekSets: statsByUser.get(gm.userId)?.sets ?? 0,
     })),
   }));
   return Response.json(groups);
