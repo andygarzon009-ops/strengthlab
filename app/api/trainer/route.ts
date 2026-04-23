@@ -492,7 +492,7 @@ ${user.coachPrompt.trim()}`
           return `${e.exerciseName}: ${sets}`;
         })
         .join("; ");
-      liveMessage = `${message}\n\n[System note: the app silently logged these sets from the message above: ${logged}. Acknowledge briefly and coach on what's next; do NOT restate the sets verbatim.]`;
+      liveMessage = `${message}\n\n[System note — LOG-AS-YOU-GO MODE: the app already logged these sets: ${logged}. Keep your reply VERY SHORT: max 2 short lines (40 words total). One small coaching tip on what they just did, plus one line on what to aim for on the next set. No headings, no emojis clusters, no recaps of the numbers. Do NOT restate the sets verbatim. Do NOT sign off.]`;
     }
 
     const tryStream = async (modelName: string) => {
