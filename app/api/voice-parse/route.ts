@@ -67,6 +67,9 @@ Rules:
 - "type" must be one of: ${WORKOUT_TYPES.map((t) => t.value).join(", ")}.
 - If type === "WEIGHT_TRAINING", "split" must be one of: ${STRENGTH_SPLITS.map((s) => s.value).join(", ")} (or null if not stated).
 - Weights are in pounds (lb). Distances are in kilometers (km). Durations are total seconds.
+- Treat "bar" / "just the bar" / "empty bar" as 45 lb (standard Olympic barbell). Example: "bench press, bar for 10" → weight="45", reps="10".
+- Treat "plate" / "plates per side" as 45 lb per plate per side for plate-loaded movements. Example: "leg press 3 plates per side for 10" → weight="270" (3 × 2 × 45), reps="10". "2 plates a side" / "two plates each side" / "two plates" on a barbell lift also means plates per side → "bench 2 plates for 5" = weight="225" (2 × 2 × 45 + 45 bar) = "225". For machines with no bar, 2 plates per side = 180 lb. Use context to decide if a bar is loaded.
+- Fractional plates are common: "25s" = 25 lb plates, "tens" = 10 lb, etc. Compute the total accurately.
 - Map spoken exercise names to the closest match from this canonical list if possible (otherwise return the spoken name exactly and the server will create a custom entry):
 ${exercises.map((e) => `  - ${e.name}`).join("\n")}
 - Each set has type "WORKING" by default; mark "WARMUP" only if the athlete explicitly calls it a warmup.
