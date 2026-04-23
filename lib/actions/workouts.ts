@@ -114,7 +114,7 @@ export async function createWorkout(data: CreateWorkoutInput) {
   redirect(`/workout/${workout.id}`);
 }
 
-async function detectAndSavePRs(
+export async function detectAndSavePRs(
   userId: string,
   workoutId: string,
   exercises: any[],

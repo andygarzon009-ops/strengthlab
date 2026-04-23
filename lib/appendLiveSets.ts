@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { subHours } from "date-fns";
 import type { LiveParsedExercise } from "@/lib/parseLiveLog";
+import { detectAndSavePRs } from "@/lib/actions/workouts";
 
 export type AppendedSetSummary = {
   exerciseName: string;
@@ -103,6 +104,25 @@ export async function appendLiveSets(
     }
 
     summary.push(addedSummary);
+  }
+
+  // Refresh exercises with their latest sets + exercise relation so PR
+  // detection can evaluate everything we just wrote.
+  const fresh = await prisma.workout.findUnique({
+    where: { id: workout.id },
+    include: {
+      exercises: {
+        include: { sets: true, exercise: true },
+      },
+    },
+  });
+  if (fresh) {
+    await detectAndSavePRs(
+      userId,
+      fresh.id,
+      fresh.exercises,
+      fresh.date
+    );
   }
 
   return { workoutId: workout.id, created, summary };
