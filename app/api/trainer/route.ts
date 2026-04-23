@@ -574,33 +574,51 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
           }
         };
 
-        try {
-          // Attempt 1: primary model. On connect error → fallback model.
-          // On mid-stream error with zero text so far → fallback model.
-          // On mid-stream error after partial text → give up (can't
-          // cleanly resume without duplicating the first half).
-          let result;
-          try {
-            result = await tryStream(PRIMARY_MODEL);
-          } catch (primaryErr) {
-            console.warn("Primary trainer model connect failed:", primaryErr);
-            result = await tryStream(FALLBACK_MODEL);
-          }
-
+        // Attempt to run an end-to-end stream with a given model. If it
+        // fails mid-reply after partial text has been streamed, emit a
+        // [RESET] marker so the client discards the half-reply, then
+        // throw so the outer loop can retry with another model.
+        const runAttempt = async (modelName: string) => {
+          const result = await tryStream(modelName);
           try {
             await drainStream(result);
           } catch (streamErr) {
-            if (fullResponse.length === 0) {
+            if (fullResponse.length > 0) {
+              controller.enqueue(encoder.encode("[RESET]\x1e"));
+              fullResponse = "";
+            }
+            throw streamErr;
+          }
+        };
+
+        // Try up to 3 models in sequence: primary → fallback → primary.
+        // Between attempts the [RESET] marker (emitted by runAttempt on
+        // partial-text failure) tells the client to wipe what it has
+        // streamed so the retry replaces the broken first attempt.
+        const ATTEMPTS: string[] = [PRIMARY_MODEL, FALLBACK_MODEL, PRIMARY_MODEL];
+        let lastErr: unknown = null;
+        let succeeded = false;
+        try {
+          for (let i = 0; i < ATTEMPTS.length; i++) {
+            try {
+              await runAttempt(ATTEMPTS[i]);
+              succeeded = true;
+              break;
+            } catch (attemptErr) {
+              lastErr = attemptErr;
               console.warn(
-                "Mid-stream failure with no text — retrying fallback:",
-                streamErr
+                `Trainer attempt ${i + 1}/${ATTEMPTS.length} (${ATTEMPTS[i]}) failed:`,
+                attemptErr
               );
-              const retry = await tryStream(FALLBACK_MODEL);
-              await drainStream(retry);
-            } else {
-              throw streamErr;
+              // small backoff between retries to let transient Gemini
+              // outages clear — 250ms, 500ms.
+              if (i < ATTEMPTS.length - 1) {
+                await new Promise((r) => setTimeout(r, 250 * (i + 1)));
+              }
             }
           }
+
+          if (!succeeded) throw lastErr ?? new Error("All trainer attempts failed");
 
           await prisma.trainerMessage.create({
             data: { userId, role: "assistant", content: fullResponse },

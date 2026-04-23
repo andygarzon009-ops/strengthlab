@@ -47,16 +47,32 @@ function splitLoggedMarker(raw: string): {
   logged: LoggedSummary | null;
   text: string;
 } {
-  if (!raw.startsWith("[LOGGED]")) return { logged: null, text: raw };
-  const endIdx = raw.indexOf("\x1e");
-  if (endIdx === -1) return { logged: null, text: raw };
-  const jsonPart = raw.slice("[LOGGED]".length, endIdx);
-  try {
-    const logged = JSON.parse(jsonPart) as LoggedSummary;
-    return { logged, text: raw.slice(endIdx + 1) };
-  } catch {
-    return { logged: null, text: raw };
+  let logged: LoggedSummary | null = null;
+  let text = raw;
+
+  if (text.startsWith("[LOGGED]")) {
+    const endIdx = text.indexOf("\x1e");
+    if (endIdx !== -1) {
+      const jsonPart = text.slice("[LOGGED]".length, endIdx);
+      try {
+        logged = JSON.parse(jsonPart) as LoggedSummary;
+        text = text.slice(endIdx + 1);
+      } catch {
+        // fall through — keep raw text
+      }
+    }
   }
+
+  // If the server reset the stream mid-reply (Gemini dropped mid-sentence
+  // and we restarted with the fallback model), keep only the text after
+  // the LAST reset marker so the user sees only the successful retry.
+  const resetMarker = "[RESET]\x1e";
+  const lastReset = text.lastIndexOf(resetMarker);
+  if (lastReset !== -1) {
+    text = text.slice(lastReset + resetMarker.length);
+  }
+
+  return { logged, text };
 }
 
 const MD_COMPONENTS: Components = {
