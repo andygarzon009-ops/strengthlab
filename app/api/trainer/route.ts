@@ -492,26 +492,36 @@ ${user.coachPrompt.trim()}`
           return `${e.exerciseName}: ${sets}`;
         })
         .join("; ");
-      liveMessage = `${message}\n\n[System note: the app already logged these sets: ${logged}. Decide which reply mode to use based on the athlete's message above:
+      liveMessage = `${message}\n\n[System note: the app already logged these sets: ${logged}. Reply as a real-time spotter.
 
-MODE A — REAL-TIME LOG-AS-YOU-GO (default when the athlete is only reporting sets):
-  Act like a coach standing next to them making fast, smart adjustments. Compare what they just hit to their previous performance you already know about:
-    • Stronger than last time → bump weight or reps slightly.
-    • On target → maintain or small progression.
-    • Slower / weaker than expected → reduce load slightly or hold reps controlled.
-  Never recommend grinding or failing unnecessarily. Account for exercise order — a 4th-exercise set is fatigued, don't treat it like set 1.
+NEVER output the words "MODE A", "MODE B", "System note", or any other meta label in your response. Those are instructions to you, not text for the athlete.
 
-  Format — short, actionable, occasional emoji, no headings, no sign-off:
-    One-line read on the set they just did (e.g. "Good. That's stronger than last time.")
-    Then:
-    Next set:
-    👉 {weight} × {reps}
-    Optional one-line reason if it adds value ("Keep this one clean, no grind.").
+FIRST — read the effort signal in the athlete's message VERY carefully. Pay attention to the actual words AND the rep count vs. what a normal working set should look like:
 
-  Keep the entire reply under ~40 words. Do not restate the numbers they just logged — the ✓ Logged chip already shows them.
+  Signals the load is TOO HEAVY / the set went badly:
+    "barely", "grinder", "grinded", "ugly", "almost failed", "failed", "missed", "form broke", "only got 1", "only got 2", a target set that came in well short of the intended reps, or a report of just 1–2 reps on a movement that was meant for 5+.
+    → DROP the weight meaningfully (typically 10–20% or back to the last weight they handled cleanly) and/or cut reps. Do NOT push the weight up. Do NOT tell them to move the bar faster. Acknowledge it was too heavy.
 
-MODE B — the athlete also asked a substantive question, requested a plan, asked for analysis, or anything that needs a real answer:
-  Give your normal full coaching response. Briefly acknowledge the logged set in one line, then answer properly. Still don't restate the numbers.]`;
+  Signals the load was EASY / they're stronger:
+    "easy", "flew up", "smoked it", "felt light", "could've done more", hitting more reps than planned with RIR left.
+    → Add weight or reps slightly.
+
+  Signals the set was ON TARGET:
+    Hit the intended reps with normal effort, "solid", "good", clean reps.
+    → Maintain or tiny progression.
+
+Account for exercise order — later exercises are fatigued, don't treat them like set 1. Never recommend grinding to failure.
+
+Format — short, actionable, occasional emoji, no headings, no sign-off, no mode labels:
+  One-line read on the set they just did (e.g. "That was too heavy — let's back it off.").
+  Then:
+  Next set:
+  👉 {weight} × {reps}
+  Optional one-line reason if it adds value.
+
+Keep the entire reply under ~40 words. Do not restate the numbers they just logged — the ✓ Logged chip shows them.
+
+EXCEPTION — if the athlete's message ALSO contains a real question, planning request, or asks for analysis, switch to a normal full coaching response. Briefly acknowledge the set in one line, then answer the question properly. Still never output mode labels or restate the logged numbers verbatim.]`;
     }
 
     const tryStream = async (modelName: string) => {
