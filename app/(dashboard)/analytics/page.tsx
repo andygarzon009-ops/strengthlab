@@ -4,6 +4,7 @@ import { WORKOUT_TYPES, shapeForType, formatDuration } from "@/lib/exercises";
 import { format, subDays, differenceInDays } from "date-fns";
 import VolumeChart from "@/components/VolumeChart";
 import PRList from "@/components/PRList";
+import ActivityRings from "@/components/ActivityRings";
 import GoalsSection, {
   type GoalWithProgress,
 } from "@/components/GoalsSection";
@@ -52,6 +53,44 @@ export default async function AnalyticsPage() {
   const last14 = workouts.filter(
     (w) => new Date(w.date) >= subDays(new Date(), 14)
   );
+
+  // ---------- Activity rings ----------
+  const workingSetsVolume = (list: typeof workouts) =>
+    list
+      .filter((w) => shapeForType(w.type) === "STRENGTH")
+      .flatMap((w) => w.exercises.flatMap((e) => e.sets))
+      .filter((s) => s.type === "WORKING");
+
+  const thisWeekSessions = last7.length;
+  const thisWeekSetsList = workingSetsVolume(last7);
+  const thisWeekSets = thisWeekSetsList.length;
+  const thisWeekVolume = thisWeekSetsList.reduce(
+    (sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0),
+    0
+  );
+
+  // Average of previous 4 full weeks (8w → 4w ago), not the current week
+  const prior4Start = subDays(new Date(), 35);
+  const prior4End = subDays(new Date(), 7);
+  const prior4Workouts = workouts.filter(
+    (w) =>
+      new Date(w.date) >= prior4Start && new Date(w.date) < prior4End
+  );
+  const prior4Sets = workingSetsVolume(prior4Workouts);
+  const avgWeeklyVolumePrior4 =
+    prior4Sets.reduce(
+      (sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0),
+      0
+    ) / 4;
+  const avgWeeklySetsPrior4 = prior4Sets.length / 4;
+
+  const sessionsGoal = user?.trainingDays ?? 4;
+  // Use prior 4w averages as the goal, fall back to sensible defaults for
+  // users without history yet so rings aren't a division-by-zero puzzle.
+  const volumeGoal =
+    avgWeeklyVolumePrior4 > 0 ? avgWeeklyVolumePrior4 : thisWeekVolume || 5000;
+  const setsGoal =
+    avgWeeklySetsPrior4 > 0 ? avgWeeklySetsPrior4 : thisWeekSets || 20;
 
   // ---------- Goal progress ----------
   const goalsWithProgress: GoalWithProgress[] = goals.map((g) => {
@@ -338,9 +377,6 @@ export default async function AnalyticsPage() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
 
-  const totalVolume30 = volumeData.reduce((s, d) => s + d.volume, 0);
-  const totalSets30 = volumeData.reduce((s, d) => s + d.sets, 0);
-
   // Training streak — consecutive days ending today or yesterday
   const streakDays = (() => {
     if (workouts.length === 0) return 0;
@@ -432,62 +468,14 @@ export default async function AnalyticsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {/* 30-day hero stats */}
-          <div>
-            <div className="flex items-baseline justify-between mb-3">
-              <div>
-                <p className="label">Last 30 days</p>
-                <h2 className="text-[18px] font-bold tracking-tight leading-none mt-1">
-                  Activity
-                </h2>
-              </div>
-            </div>
-
-            <div
-              className="grid grid-cols-3 gap-px card overflow-hidden"
-              style={{ background: "var(--border)", padding: 0 }}
-            >
-              {[
-                { label: "Sessions", value: last30.length },
-                {
-                  label: "Volume",
-                  value:
-                    totalVolume30 >= 1000
-                      ? `${(totalVolume30 / 1000).toFixed(1)}k`
-                      : totalVolume30,
-                  suffix: totalVolume30 > 0 ? "lb" : undefined,
-                },
-                { label: "Sets", value: totalSets30 },
-              ].map((s) => (
-                <div
-                  key={s.label}
-                  className="px-3 py-4 text-center"
-                  style={{ background: "var(--bg-card)" }}
-                >
-                  <p
-                    className="font-semibold text-[20px] leading-none tracking-tight nums"
-                    style={{ fontFamily: "var(--font-geist-mono)" }}
-                  >
-                    {s.value}
-                    {s.suffix && (
-                      <span
-                        className="text-[11px] ml-0.5 font-normal"
-                        style={{ color: "var(--fg-dim)" }}
-                      >
-                        {s.suffix}
-                      </span>
-                    )}
-                  </p>
-                  <p
-                    className="label text-[9px] mt-1.5"
-                    style={{ color: "var(--fg-dim)" }}
-                  >
-                    {s.label}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ActivityRings
+            sessions={thisWeekSessions}
+            sessionsGoal={sessionsGoal}
+            volume={thisWeekVolume}
+            volumeGoal={volumeGoal}
+            sets={thisWeekSets}
+            setsGoal={setsGoal}
+          />
 
           {volumeData.length > 0 && (
             <div className="card p-5">
