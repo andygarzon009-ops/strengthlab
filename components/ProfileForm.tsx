@@ -235,19 +235,26 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
 
           <div>
             <div className="flex items-baseline justify-between mb-1.5">
-              <label className="label">Coach notes</label>
+              <label className="label">
+                Coach AI notes
+              </label>
               <span
                 className="text-[10px]"
-                style={{ color: "var(--fg-dim)" }}
+                style={{ color: "var(--accent)" }}
               >
-                Optional extras
+                Feeds the AI prompt
               </span>
             </div>
             <textarea
               value={form.coachPrompt}
               onChange={(e) => set("coachPrompt")(e.target.value)}
-              placeholder="Anything else the coach should know — tone preferences, equipment limits, schedule constraints."
-              rows={3}
+              placeholder={`Anything the Coach AI should use when programming for you. Examples:
+• Priority body parts: "Chest and shoulders 3× / week, arms 2× / week"
+• Tone: "Be blunt, no fluff"
+• Equipment: "Only barbell + dumbbells up to 80lb"
+• Schedule: "No sessions Tuesdays or Sundays"
+• Technique notes: "Left shoulder prefers DB over BB overhead press"`}
+              rows={7}
               className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none leading-relaxed"
               style={{
                 background: "var(--bg-elevated)",
@@ -255,6 +262,14 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                 color: "var(--fg)",
               }}
             />
+            <p
+              className="text-[11px] mt-1.5 leading-snug"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              Everything you write here is injected into your Coach AI&apos;s
+              prompt on every message, so programming, workout suggestions,
+              and advice always respect it.
+            </p>
           </div>
 
           {/* Body measurements (collapsible) */}

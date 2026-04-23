@@ -428,7 +428,7 @@ ${
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 PERSONAL COACHING INSTRUCTIONS FROM THIS ATHLETE
-(These override the defaults above where they conflict. Follow them closely.)
+(These override the defaults above where they conflict. Follow them closely. They may include body-part frequency targets — e.g. "chest 3×/week", "arms 2×/week" — equipment limits, schedule constraints, tone, and technique preferences. Treat any weekly body-part frequency as a hard programming constraint and when suggesting a session, verify it moves the athlete toward those per-muscle weekly counts.)
 ━━━━━━━━━━━━━━━━━━━━━━━━
 ${user.coachPrompt.trim()}`
     : ""
