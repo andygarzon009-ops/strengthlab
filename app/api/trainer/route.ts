@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { format, subDays, differenceInDays } from "date-fns";
 import { NextRequest } from "next/server";
 import { shapeForType, labelForType, formatDuration } from "@/lib/exercises";
+import { normalizeExerciseName } from "@/lib/exerciseIdentity";
 
 export const maxDuration = 60;
 
@@ -145,7 +146,8 @@ export async function POST(req: NextRequest) {
           (best, s) => ((s.weight ?? 0) > (best.weight ?? 0) ? s : best),
           working[0]
         );
-        const key = e.exerciseId;
+        // Group by canonical name so duplicate rows collapse to one lift.
+        const key = normalizeExerciseName(e.exercise.name) || e.exerciseId;
         if (!exerciseHistory.has(key)) {
           exerciseHistory.set(key, { name: e.exercise.name, entries: [] });
         }
@@ -165,8 +167,11 @@ export async function POST(req: NextRequest) {
 
     const topPRs = Object.values(
       prs.reduce((acc, pr) => {
-        if (!acc[pr.exerciseId] || pr.value > acc[pr.exerciseId].value) {
-          acc[pr.exerciseId] = pr;
+        // Collapse duplicate exercise rows into a single canonical bucket.
+        const key =
+          normalizeExerciseName(pr.exercise.name) || pr.exerciseId;
+        if (!acc[key] || pr.value > acc[key].value) {
+          acc[key] = pr;
         }
         return acc;
       }, {} as Record<string, (typeof prs)[0]>)

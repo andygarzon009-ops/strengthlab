@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/session";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest } from "next/server";
 import { WORKOUT_TYPES, STRENGTH_SPLITS } from "@/lib/exercises";
+import { findExistingExerciseByName } from "@/lib/exerciseIdentity";
 
 export const maxDuration = 30;
 
@@ -126,19 +127,14 @@ Output ONLY the JSON object. No prose, no markdown, no code fences.`;
       parsed = JSON.parse(cleaned);
     }
 
-    // Resolve exercise names → ids (create custom entries for unknowns)
-    const nameById = new Map(exercises.map((e) => [e.name.toLowerCase(), e]));
+    // Resolve exercise names → ids (create custom entries only for
+    // genuinely new lifts; fuzzy-match so misspellings don't create
+    // parallel duplicates of the same lift).
     const resolvedExercises = await Promise.all(
       (parsed.exercises ?? []).map(async (ex) => {
         const name = ex.exerciseName?.trim();
         if (!name) return null;
-        let match = nameById.get(name.toLowerCase());
-        if (!match) {
-          // exact-insensitive lookup via DB to avoid racing duplicates
-          match = (await prisma.exercise.findFirst({
-            where: { name: { equals: name, mode: "insensitive" } },
-          })) ?? undefined;
-        }
+        let match = findExistingExerciseByName(name, exercises) ?? undefined;
         if (!match) {
           match = await prisma.exercise.create({
             data: { name, isCustom: true },

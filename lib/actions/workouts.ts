@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
+import { similarExerciseIds } from "@/lib/exerciseIdentity";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -118,9 +119,23 @@ async function detectAndSavePRs(
   workoutId: string,
   exercises: any[]
 ) {
+  // Pull the full exercise pool once so we can compare PRs across
+  // near-duplicate exercise rows (e.g. a user's typo of a canonical lift).
+  const allExercises = await prisma.exercise.findMany({
+    select: { id: true, name: true },
+  });
+
   for (const ex of exercises) {
     const workingSets = ex.sets.filter((s: any) => s.type === "WORKING");
     if (workingSets.length === 0) continue;
+
+    const siblingIds = Array.from(
+      similarExerciseIds(
+        ex.exerciseId,
+        ex.exercise?.name ?? null,
+        allExercises
+      )
+    );
 
     // Identify the set with the heaviest weight (and its reps)
     const heaviestSet = workingSets.reduce(
@@ -145,15 +160,15 @@ async function detectAndSavePRs(
 
     const [weightPR, repsPR, volumePR] = await Promise.all([
       prisma.personalRecord.findFirst({
-        where: { userId, exerciseId: ex.exerciseId, type: "WEIGHT" },
+        where: { userId, exerciseId: { in: siblingIds }, type: "WEIGHT" },
         orderBy: { value: "desc" },
       }),
       prisma.personalRecord.findFirst({
-        where: { userId, exerciseId: ex.exerciseId, type: "REPS" },
+        where: { userId, exerciseId: { in: siblingIds }, type: "REPS" },
         orderBy: { value: "desc" },
       }),
       prisma.personalRecord.findFirst({
-        where: { userId, exerciseId: ex.exerciseId, type: "VOLUME" },
+        where: { userId, exerciseId: { in: siblingIds }, type: "VOLUME" },
         orderBy: { value: "desc" },
       }),
     ]);

@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { DEFAULT_EXERCISES } from "@/lib/exercises";
+import { findExistingExerciseByName } from "@/lib/exerciseIdentity";
 import { revalidatePath } from "next/cache";
 
 export async function syncDefaultExercises() {
@@ -84,9 +85,27 @@ export async function createCustomExercise(data: {
   splits?: string;
 }) {
   await requireAuth();
+  const trimmed = data.name.trim();
+  if (!trimmed) throw new Error("Name required");
+
+  // Reuse an existing row if the name is the same lift (case, punctuation,
+  // or minor typo). This keeps progress, PRs, and targets consolidated.
+  const pool = await prisma.exercise.findMany({
+    select: { id: true, name: true },
+  });
+  const existing = findExistingExerciseByName(trimmed, pool);
+  if (existing) {
+    const full = await prisma.exercise.findUnique({
+      where: { id: existing.id },
+    });
+    revalidatePath("/exercises");
+    revalidatePath("/log");
+    return full!;
+  }
+
   const ex = await prisma.exercise.create({
     data: {
-      name: data.name,
+      name: trimmed,
       muscleGroup: data.muscleGroup ?? null,
       splits: data.splits ?? null,
       isCustom: true,

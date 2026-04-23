@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 import { subDays } from "date-fns";
+import { similarExerciseIds } from "@/lib/exerciseIdentity";
 
 export type ChallengeType = "LIFT" | "SESSIONS_WEEK" | "VOLUME_WEEK";
 
@@ -292,56 +293,3 @@ export async function createCompareCard(input: {
   return { success: true };
 }
 
-function similarExerciseIds(
-  targetId: string,
-  targetName: string | null,
-  allExercises: { id: string; name: string }[]
-): Set<string> {
-  const matches = new Set<string>([targetId]);
-  if (!targetName) return matches;
-  const norm = (s: string) =>
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "")
-      .replace(/s$/, "");
-  const target = norm(targetName);
-  if (!target) return matches;
-  for (const ex of allExercises) {
-    if (ex.id === targetId) continue;
-    const n = norm(ex.name);
-    if (!n) continue;
-    if (
-      n === target ||
-      n.includes(target) ||
-      target.includes(n) ||
-      editDistance(n, target) <= 2
-    ) {
-      matches.add(ex.id);
-    }
-  }
-  return matches;
-}
-
-function editDistance(a: string, b: string): number {
-  if (a === b) return 0;
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-  const prev = Array(b.length + 1)
-    .fill(0)
-    .map((_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    let curr = i;
-    let prevDiag = i - 1;
-    for (let j = 1; j <= b.length; j++) {
-      const temp = prev[j];
-      curr =
-        a[i - 1] === b[j - 1]
-          ? prevDiag
-          : 1 + Math.min(prev[j], prev[j - 1], prevDiag);
-      prevDiag = temp;
-      prev[j - 1] = curr;
-    }
-    prev[b.length] = curr;
-  }
-  return prev[b.length];
-}
