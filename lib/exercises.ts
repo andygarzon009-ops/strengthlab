@@ -205,11 +205,8 @@ export const STRENGTH_SPLITS = [
   { value: "PUSH", label: "Push" },
   { value: "PULL", label: "Pull" },
   { value: "LEGS", label: "Legs" },
-  { value: "UPPER", label: "Upper" },
-  { value: "LOWER", label: "Lower" },
-  { value: "ARMS", label: "Arms" },
   { value: "FULL_BODY", label: "Full body" },
-  { value: "CUSTOM", label: "Custom" },
+  { value: "CORE", label: "Core" },
 ];
 
 // Legacy strength types → always treated as WEIGHT_TRAINING

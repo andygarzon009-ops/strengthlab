@@ -129,7 +129,7 @@ export default function ExerciseManager({
             active={filterSplit === ""}
             onClick={() => setFilterSplit("")}
           />
-          {STRENGTH_SPLITS.filter((s) => s.value !== "CUSTOM").map((s) => (
+          {STRENGTH_SPLITS.map((s) => (
             <FilterChip
               key={s.value}
               label={s.label}
@@ -137,11 +137,6 @@ export default function ExerciseManager({
               onClick={() => setFilterSplit(s.value)}
             />
           ))}
-          <FilterChip
-            label="Core"
-            active={filterSplit === "CORE"}
-            onClick={() => setFilterSplit("CORE")}
-          />
         </div>
         <p
           className="label text-[9px] nums px-1"
@@ -219,26 +214,21 @@ function ExerciseRow({ exercise }: { exercise: Exercise }) {
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const [splits, setSplits] = useState<string[]>(
-    (exercise.splits ?? "").split(",").map((s) => s.trim()).filter(Boolean)
-  );
+  const validValues = STRENGTH_SPLITS.map((s) => s.value);
+  const firstValidSplit = (exercise.splits ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .find((s) => validValues.includes(s)) ?? "";
+  const [split, setSplit] = useState<string>(firstValidSplit);
   const [muscleGroup, setMuscleGroup] = useState(exercise.muscleGroup ?? "");
   const [name, setName] = useState(exercise.name);
-
-  const toggleSplit = (value: string) => {
-    setSplits((current) =>
-      current.includes(value)
-        ? current.filter((s) => s !== value)
-        : [...current, value]
-    );
-  };
 
   const save = () => {
     startTransition(async () => {
       await updateExercise(exercise.id, {
         name,
         muscleGroup: muscleGroup || undefined,
-        splits: splits.join(","),
+        splits: split,
       });
       setEditing(false);
     });
@@ -251,10 +241,8 @@ function ExerciseRow({ exercise }: { exercise: Exercise }) {
     });
   };
 
-  const currentSplits = (exercise.splits ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const displaySplit =
+    STRENGTH_SPLITS.find((s) => s.value === firstValidSplit)?.label ?? null;
 
   if (editing) {
     return (
@@ -292,15 +280,15 @@ function ExerciseRow({ exercise }: { exercise: Exercise }) {
           ))}
         </select>
 
-        <p className="label mb-1.5">Splits (select all that apply)</p>
+        <p className="label mb-1.5">Split</p>
         <div className="flex flex-wrap gap-1.5 mb-4">
-          {STRENGTH_SPLITS.filter((s) => s.value !== "CUSTOM").map((s) => {
-            const active = splits.includes(s.value);
+          {STRENGTH_SPLITS.map((s) => {
+            const active = split === s.value;
             return (
               <button
                 key={s.value}
                 type="button"
-                onClick={() => toggleSplit(s.value)}
+                onClick={() => setSplit(active ? "" : s.value)}
                 className="px-3 py-1.5 rounded-full text-[11px] font-semibold label transition-all"
                 style={
                   active
@@ -317,32 +305,6 @@ function ExerciseRow({ exercise }: { exercise: Exercise }) {
                 }
               >
                 {s.label}
-              </button>
-            );
-          })}
-          {["CORE"].map((extra) => {
-            const active = splits.includes(extra);
-            return (
-              <button
-                key={extra}
-                type="button"
-                onClick={() => toggleSplit(extra)}
-                className="px-3 py-1.5 rounded-full text-[11px] font-semibold label transition-all"
-                style={
-                  active
-                    ? {
-                        background: "var(--accent-dim)",
-                        color: "var(--accent)",
-                        border: "1px solid rgba(34,197,94,0.35)",
-                      }
-                    : {
-                        background: "var(--bg-elevated)",
-                        color: "var(--fg-muted)",
-                        border: "1px solid var(--border)",
-                      }
-                }
-              >
-                Core
               </button>
             );
           })}
@@ -399,24 +361,15 @@ function ExerciseRow({ exercise }: { exercise: Exercise }) {
           )}
         </div>
         <div className="flex gap-1 shrink-0">
-          {currentSplits.slice(0, 3).map((s) => (
+          {displaySplit && (
             <span
-              key={s}
               className="label text-[9px] px-1.5 py-0.5 rounded"
               style={{
                 background: "var(--bg-elevated)",
                 color: "var(--fg-muted)",
               }}
             >
-              {s}
-            </span>
-          ))}
-          {currentSplits.length > 3 && (
-            <span
-              className="label text-[9px]"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              +{currentSplits.length - 3}
+              {displaySplit}
             </span>
           )}
         </div>
@@ -428,16 +381,8 @@ function ExerciseRow({ exercise }: { exercise: Exercise }) {
 function AddExerciseForm({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
   const [muscleGroup, setMuscleGroup] = useState("");
-  const [splits, setSplits] = useState<string[]>([]);
+  const [split, setSplit] = useState<string>("");
   const [pending, startTransition] = useTransition();
-
-  const toggleSplit = (value: string) => {
-    setSplits((current) =>
-      current.includes(value)
-        ? current.filter((s) => s !== value)
-        : [...current, value]
-    );
-  };
 
   const save = () => {
     if (!name.trim()) return;
@@ -445,7 +390,7 @@ function AddExerciseForm({ onDone }: { onDone: () => void }) {
       await createCustomExercise({
         name: name.trim(),
         muscleGroup: muscleGroup || undefined,
-        splits: splits.join(",") || undefined,
+        splits: split || undefined,
       });
       onDone();
     });
@@ -488,18 +433,15 @@ function AddExerciseForm({ onDone }: { onDone: () => void }) {
           </option>
         ))}
       </select>
-      <p className="label mb-1.5">Splits</p>
+      <p className="label mb-1.5">Split</p>
       <div className="flex flex-wrap gap-1.5 mb-4">
-        {[
-          ...STRENGTH_SPLITS.filter((s) => s.value !== "CUSTOM"),
-          { value: "CORE", label: "Core" },
-        ].map((s) => {
-          const active = splits.includes(s.value);
+        {STRENGTH_SPLITS.map((s) => {
+          const active = split === s.value;
           return (
             <button
               key={s.value}
               type="button"
-              onClick={() => toggleSplit(s.value)}
+              onClick={() => setSplit(active ? "" : s.value)}
               className="px-3 py-1.5 rounded-full text-[11px] font-semibold label transition-all"
               style={
                 active
