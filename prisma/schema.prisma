@@ -24,6 +24,8 @@ model User {
   password       String
   image          String?
   bodyweight     Float?
+  birthDate      DateTime?
+  sex            String?
   goals          String?
   preferredSplit String?
   bio            String?

@@ -7,6 +7,8 @@ type UserProfile = {
   name: string;
   email: string;
   bodyweight: number | null;
+  birthDate: string | null;
+  sex: string | null;
   preferredSplit: string | null;
   bio: string | null;
   experienceLevel: string | null;
@@ -37,6 +39,8 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
 
   const [form, setForm] = useState({
     name: user.name,
+    birthDate: user.birthDate ? user.birthDate.slice(0, 10) : "",
+    sex: user.sex ?? "",
     bodyweight: user.bodyweight?.toString() ?? "",
     trainingDays: user.trainingDays?.toString() ?? "",
     experienceLevel: user.experienceLevel ?? "",
@@ -74,6 +78,8 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
     startTransition(async () => {
       await updateProfileAction({
         name: form.name,
+        birthDate: form.birthDate || null,
+        sex: form.sex || null,
         bodyweight: form.bodyweight ? parseFloat(form.bodyweight) : undefined,
         trainingDays: form.trainingDays
           ? parseInt(form.trainingDays)
@@ -123,6 +129,28 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
             value={form.name}
             onChange={set("name")}
           />
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <Field
+              label="Date of birth"
+              type="date"
+              value={form.birthDate}
+              onChange={set("birthDate")}
+            />
+            <div>
+              <label className="label block mb-1.5">Sex</label>
+              <Select
+                value={form.sex}
+                onChange={set("sex")}
+                options={[
+                  { value: "", label: "—" },
+                  { value: "MALE", label: "Male" },
+                  { value: "FEMALE", label: "Female" },
+                  { value: "OTHER", label: "Other / prefer not to say" },
+                ]}
+              />
+            </div>
+          </div>
 
           <div className="grid grid-cols-2 gap-2.5">
             <Field
@@ -494,6 +522,7 @@ function Field({
             color: "var(--fg)",
             paddingRight: suffix ? "2.5rem" : undefined,
             fontFamily: compact ? "var(--font-geist-mono)" : undefined,
+            colorScheme: type === "date" ? "dark" : undefined,
           }}
         />
         {suffix && (

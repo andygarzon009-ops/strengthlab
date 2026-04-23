@@ -351,6 +351,23 @@ If it's not set, ask the athlete to set it in their profile before giving progra
 
 PROFILE:
 - Name: ${user?.name ?? "unknown"}
+- Age: ${
+    user?.birthDate
+      ? `${Math.floor(
+          (Date.now() - new Date(user.birthDate).getTime()) /
+            (365.25 * 24 * 60 * 60 * 1000)
+        )} (born ${format(new Date(user.birthDate), "MMM d, yyyy")})`
+      : "not set"
+  }
+- Sex: ${
+    user?.sex === "MALE"
+      ? "male"
+      : user?.sex === "FEMALE"
+        ? "female"
+        : user?.sex === "OTHER"
+          ? "other / prefer not to say"
+          : "not set"
+  }
 - Experience level: ${user?.experienceLevel ?? "not specified"}
 - Primary focus: ${user?.primaryFocus ?? "not specified"}
 - Current phase: ${user?.trainingPhase ?? "not specified"}
@@ -383,6 +400,9 @@ ${
 }
 
 ADAPT YOUR COACHING BASED ON THE PROFILE ABOVE:
+- Age and sex shape everything: recovery capacity, realistic strength ceilings, hormonal context (training through cycle phases when relevant for female athletes), tendon load tolerance, cardiovascular conditioning priorities, and fat-distribution assumptions. A 22-year-old male bulking and a 48-year-old female recomping get meaningfully different recommendations even when asking the same question.
+- Reference age and sex explicitly when they change the answer (e.g. "at 48, I'd keep one hard pull per week and cap the other as tempo" or "recovery assumptions here are based on a 22yo male — tell me if that's off").
+- If age is not set, ask the athlete to fill it in on their profile before giving load/volume prescriptions that depend on recovery assumptions.
 - Match your intensity and complexity to their experience level.
 - Prioritize their primary focus (strength vs hypertrophy vs powerbuilding vs athletic vs endurance vs general).
 - Respect their current phase — this is non-negotiable. Programming, load prescriptions, volume targets, and recovery calls must all bend to the phase.

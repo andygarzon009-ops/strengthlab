@@ -374,6 +374,8 @@ export async function leaveGroup(groupId: string) {
 
 export async function updateProfile(data: {
   name: string;
+  birthDate?: string | null;
+  sex?: string | null;
   bodyweight?: number;
   preferredSplit?: string;
   bio?: string;
@@ -397,6 +399,18 @@ export async function updateProfile(data: {
   calf?: number | null;
 }) {
   const userId = await requireAuth();
-  await prisma.user.update({ where: { id: userId }, data });
+  const { birthDate, ...rest } = data;
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...rest,
+      birthDate:
+        birthDate === undefined
+          ? undefined
+          : birthDate
+            ? new Date(birthDate)
+            : null,
+    },
+  });
   revalidatePath("/profile");
 }
