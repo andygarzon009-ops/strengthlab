@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
+import { syncDefaultExercises } from "@/lib/actions/exercises";
 import {
   WORKOUT_TYPES,
   shapeForType,
@@ -21,6 +22,15 @@ import {
 
 export default async function AnalyticsPage() {
   const userId = await requireAuth();
+
+  // Make sure the default library is seeded before we render the goal
+  // picker — otherwise new athletes only see the handful of exercises
+  // they've personally logged.
+  try {
+    await syncDefaultExercises();
+  } catch {
+    // non-fatal: the page still works with whatever's already in the DB
+  }
 
   const [user, workouts, prs, goals, exercises] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),

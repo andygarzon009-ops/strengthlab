@@ -1,7 +1,7 @@
 "use client";
 
 import { createGoal, deleteGoal, type GoalType } from "@/lib/actions/goals";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 
 type Exercise = { id: string; name: string };
 
@@ -366,27 +366,11 @@ function AddGoalForm({
         {type === "STRENGTH" && (
           <div>
             <p className="label mb-1.5">Exercise</p>
-            <select
+            <ExercisePicker
+              exercises={exercises}
               value={exerciseId}
-              onChange={(e) => setExerciseId(e.target.value)}
-              className="w-full rounded-xl px-4 py-3 text-[14px] focus:outline-none appearance-none"
-              style={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
-                color: "var(--fg)",
-                backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2352525b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                backgroundRepeat: "no-repeat",
-                backgroundPosition: "right 0.75rem center",
-                paddingRight: "2rem",
-              }}
-            >
-              <option value="">— pick an exercise —</option>
-              {exercises.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
+              onChange={setExerciseId}
+            />
           </div>
         )}
 
@@ -521,4 +505,117 @@ function unitSuffix(unit: string | null): string {
   if (!unit) return "";
   if (unit === "sessions/week") return "";
   return unit;
+}
+
+function ExercisePicker({
+  exercises,
+  value,
+  onChange,
+}: {
+  exercises: Exercise[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const selected = useMemo(
+    () => exercises.find((e) => e.id === value),
+    [exercises, value]
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return exercises;
+    return exercises.filter((e) => e.name.toLowerCase().includes(q));
+  }, [exercises, query]);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="w-full rounded-xl px-4 py-3 text-[14px] text-left flex items-center justify-between"
+        style={{
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border)",
+          color: selected ? "var(--fg)" : "var(--fg-muted)",
+        }}
+      >
+        <span className="truncate">
+          {selected ? selected.name : "— pick an exercise —"}
+        </span>
+        <span style={{ color: "var(--fg-dim)" }}>▾</span>
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{
+        background: "var(--bg-elevated)",
+        border: "1px solid var(--border-strong)",
+      }}
+    >
+      <input
+        autoFocus
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search exercises…"
+        className="w-full px-4 py-3 text-[14px] focus:outline-none"
+        style={{
+          background: "transparent",
+          color: "var(--fg)",
+          borderBottom: "1px solid var(--border)",
+        }}
+      />
+      <div className="max-h-60 overflow-y-auto">
+        {filtered.length === 0 ? (
+          <p
+            className="px-4 py-3 text-[12px]"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            No match.
+          </p>
+        ) : (
+          filtered.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              onClick={() => {
+                onChange(e.id);
+                setQuery("");
+                setOpen(false);
+              }}
+              className="w-full text-left px-4 py-2.5 text-[13px]"
+              style={{
+                background:
+                  e.id === value ? "var(--accent-dim)" : "transparent",
+                color:
+                  e.id === value ? "var(--accent)" : "var(--fg-muted)",
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              {e.name}
+            </button>
+          ))
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(false);
+          setQuery("");
+        }}
+        className="w-full py-2 text-[11px] label"
+        style={{
+          color: "var(--fg-dim)",
+          background: "var(--bg-card)",
+        }}
+      >
+        Cancel
+      </button>
+    </div>
+  );
 }
