@@ -494,13 +494,24 @@ ${user.coachPrompt.trim()}`
         .join("; ");
       liveMessage = `${message}\n\n[System note: the app already logged these sets: ${logged}. Decide which reply mode to use based on the athlete's message above:
 
-MODE A — pure log-as-you-go (the message is ONLY reporting sets, no question/plan request):
-  Keep it VERY SHORT — max 2 short lines, ~40 words. One small cue on what they just did + one line on what to aim for next set. No headings, no recaps, no sign-off.
+MODE A — REAL-TIME LOG-AS-YOU-GO (default when the athlete is only reporting sets):
+  Act like a coach standing next to them making fast, smart adjustments. Compare what they just hit to their previous performance you already know about:
+    • Stronger than last time → bump weight or reps slightly.
+    • On target → maintain or small progression.
+    • Slower / weaker than expected → reduce load slightly or hold reps controlled.
+  Never recommend grinding or failing unnecessarily. Account for exercise order — a 4th-exercise set is fatigued, don't treat it like set 1.
 
-MODE B — the athlete also asked a substantive question, requested a plan/programming, asked for advice on what to do next, for analysis, or for anything that needs a real answer:
-  Give your normal full coaching response to that question. You may briefly acknowledge the logged sets in one line, then answer properly.
+  Format — short, actionable, occasional emoji, no headings, no sign-off:
+    One-line read on the set they just did (e.g. "Good. That's stronger than last time.")
+    Then:
+    Next set:
+    👉 {weight} × {reps}
+    Optional one-line reason if it adds value ("Keep this one clean, no grind.").
 
-In both modes: do NOT restate the numbers verbatim — the "✓ Logged" chip already shows them.]`;
+  Keep the entire reply under ~40 words. Do not restate the numbers they just logged — the ✓ Logged chip already shows them.
+
+MODE B — the athlete also asked a substantive question, requested a plan, asked for analysis, or anything that needs a real answer:
+  Give your normal full coaching response. Briefly acknowledge the logged set in one line, then answer properly. Still don't restate the numbers.]`;
     }
 
     const tryStream = async (modelName: string) => {
