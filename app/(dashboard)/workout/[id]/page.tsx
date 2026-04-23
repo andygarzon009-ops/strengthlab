@@ -10,6 +10,7 @@ import {
 import { format } from "date-fns";
 import Link from "next/link";
 import { deleteWorkout } from "@/lib/actions/workouts";
+import BackButton from "@/components/BackButton";
 import ReactionButtons from "@/components/ReactionButtons";
 import CommentSection from "@/components/CommentSection";
 
@@ -67,28 +68,7 @@ export default async function WorkoutDetailPage({
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
       <div className="flex items-center justify-between mb-8">
-        <Link
-          href="/"
-          className="w-9 h-9 rounded-full flex items-center justify-center"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            color: "var(--fg-muted)",
-          }}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-        </Link>
+        <BackButton fallbackHref="/" />
         {isOwn && (
           <div className="flex items-center gap-3">
             <Link
