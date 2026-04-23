@@ -599,14 +599,17 @@ function VoiceAddModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.65)" }}
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="card w-full max-w-lg p-5"
-        style={{ background: "var(--bg-card)" }}
+        className="card w-full max-w-lg p-5 overflow-y-auto"
+        style={{
+          background: "var(--bg-card)",
+          maxHeight: "calc(100dvh - 2rem)",
+        }}
       >
         <div className="flex items-baseline justify-between mb-3">
           <div>
