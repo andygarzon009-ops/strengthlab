@@ -17,24 +17,20 @@ export function editDistance(a: string, b: string): number {
   if (a === b) return 0;
   if (!a.length) return b.length;
   if (!b.length) return a.length;
-  const prev = Array(b.length + 1)
-    .fill(0)
-    .map((_, i) => i);
+  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
   for (let i = 1; i <= a.length; i++) {
-    let curr = i;
-    let prevDiag = i - 1;
+    let prevDiag = row[0];
+    row[0] = i;
     for (let j = 1; j <= b.length; j++) {
-      const temp = prev[j];
-      curr =
+      const temp = row[j];
+      row[j] =
         a[i - 1] === b[j - 1]
           ? prevDiag
-          : 1 + Math.min(prev[j], prev[j - 1], prevDiag);
+          : 1 + Math.min(row[j], row[j - 1], prevDiag);
       prevDiag = temp;
-      prev[j - 1] = curr;
     }
-    prev[b.length] = curr;
   }
-  return prev[b.length];
+  return row[b.length];
 }
 
 // Whether two raw exercise names probably refer to the same lift.
