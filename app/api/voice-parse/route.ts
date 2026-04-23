@@ -70,6 +70,9 @@ Rules:
 - Treat "bar" / "just the bar" / "empty bar" as 45 lb (standard Olympic barbell). Example: "bench press, bar for 10" → weight="45", reps="10".
 - Treat "plate" / "plates per side" as 45 lb per plate per side for plate-loaded movements. Example: "leg press 3 plates per side for 10" → weight="270" (3 × 2 × 45), reps="10". "2 plates a side" / "two plates each side" / "two plates" on a barbell lift also means plates per side → "bench 2 plates for 5" = weight="225" (2 × 2 × 45 + 45 bar) = "225". For machines with no bar, 2 plates per side = 180 lb. Use context to decide if a bar is loaded.
 - Fractional plates are common: "25s" = 25 lb plates, "tens" = 10 lb, etc. Compute the total accurately.
+- Calisthenics: if the athlete says things like "pull-ups", "push-ups", "dips", "muscle-ups", "pistol squats", "L-sit", "planche", "front lever", "handstand push-up", "ring" variants — set type to "CALISTHENICS" (unless they mixed it with barbell work, in which case WEIGHT_TRAINING is fine). Bodyweight sets have weight="" and reps filled in.
+- For time-based holds (planks, L-sit, front lever, handstand, human flag, etc. — often named "…Hold (sec)" in the library), put the HELD SECONDS in the "reps" field and leave weight="". Example: "L-sit hold 30 seconds, three sets" → three sets with reps="30", weight="".
+- Weighted calisthenics: "weighted pull-up 45 for 5" → weight="45", reps="5", exerciseName="Weighted Pull-Up".
 - Map spoken exercise names to the closest match from this canonical list if possible (otherwise return the spoken name exactly and the server will create a custom entry):
 ${exercises.map((e) => `  - ${e.name}`).join("\n")}
 - Each set has type "WORKING" by default; mark "WARMUP" only if the athlete explicitly calls it a warmup.

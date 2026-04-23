@@ -64,9 +64,10 @@ function toDateInput(iso: string) {
 }
 
 function titleFor(type: string, split?: string) {
-  if (type === "WEIGHT_TRAINING") {
+  if (type === "WEIGHT_TRAINING" || type === "CALISTHENICS") {
     const splitLabel = STRENGTH_SPLITS.find((s) => s.value === split)?.label;
-    return splitLabel ? `${splitLabel} Day` : "Weight Training";
+    const base = type === "CALISTHENICS" ? "Calisthenics" : "Weight Training";
+    return splitLabel ? `${splitLabel} Day` : base;
   }
   return labelForType(type);
 }
