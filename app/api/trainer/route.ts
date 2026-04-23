@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
           },
         },
         orderBy: { date: "desc" },
-        take: 60,
+        take: 30,
       }),
       prisma.personalRecord.findMany({
         where: { userId, type: "WEIGHT" },
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
       return [base, rir, note].filter(Boolean).join("");
     };
 
-    const recentWorkouts = workouts.slice(0, 30).map((w) => {
+    const recentWorkouts = workouts.slice(0, 15).map((w) => {
       const daysAgo = differenceInDays(new Date(), new Date(w.date));
       const when = daysAgo === 0 ? "today" : `${daysAgo}d ago`;
       const whenFmt = format(new Date(w.date), "EEE MMM d");
@@ -462,16 +462,37 @@ ${user.coachPrompt.trim()}`
     const encoder = new TextEncoder();
     let fullResponse = "";
 
+    // Stable, fast model. Fall back to regular flash if lite is overloaded
+    // or unavailable — avoids 503s from cascading to the user.
+    const PRIMARY_MODEL = "gemini-2.5-flash-lite";
+    const FALLBACK_MODEL = "gemini-2.5-flash";
+
+    const tryStream = async (modelName: string) => {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: systemPrompt,
+      });
+      const chat = model.startChat({ history: geminiHistory });
+      return chat.sendMessageStream(message);
+    };
+
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const model = genAI.getGenerativeModel({
-            model: "gemini-3.1-flash-lite-preview",
-            systemInstruction: systemPrompt,
-          });
-
-          const chat = model.startChat({ history: geminiHistory });
-          const result = await chat.sendMessageStream(message);
+          let result;
+          try {
+            result = await tryStream(PRIMARY_MODEL);
+          } catch (primaryErr) {
+            const msg =
+              primaryErr instanceof Error ? primaryErr.message : "";
+            // 503/overloaded/unavailable → one-shot fallback
+            if (/503|overload|unavailable|quota/i.test(msg)) {
+              console.warn("Primary trainer model failed, falling back:", msg);
+              result = await tryStream(FALLBACK_MODEL);
+            } else {
+              throw primaryErr;
+            }
+          }
 
           for await (const chunk of result.stream) {
             const text = chunk.text();
@@ -488,23 +509,10 @@ ${user.coachPrompt.trim()}`
           controller.close();
         } catch (err) {
           console.error("Trainer stream error:", err);
-          const errMsg = err instanceof Error ? err.message : "Unknown error";
-          let available = "";
-          try {
-            const res = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`
-            );
-            const data = await res.json();
-            const names = (data.models ?? [])
-              .filter((m: { supportedGenerationMethods?: string[] }) =>
-                m.supportedGenerationMethods?.includes("generateContent")
-              )
-              .map((m: { name: string }) => m.name)
-              .join("\n");
-            available = `\n\n---\nModels available to your key:\n${names}`;
-          } catch {}
           controller.enqueue(
-            encoder.encode(`Error: ${errMsg}${available}`)
+            encoder.encode(
+              "Coach is temporarily unavailable. Give it a moment and try again."
+            )
           );
           controller.close();
         }
