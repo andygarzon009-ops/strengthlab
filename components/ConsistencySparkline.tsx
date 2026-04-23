@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/db";
-import { startOfWeek, subWeeks, format } from "date-fns";
+import { startOfWeek, subWeeks, addDays, format } from "date-fns";
+import Link from "next/link";
 
 const WEEKS = 8;
+const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 export default async function ConsistencySparkline({
   userId,
@@ -15,34 +17,56 @@ export default async function ConsistencySparkline({
   });
   const workouts = await prisma.workout.findMany({
     where: { userId, date: { gte: since } },
-    select: { date: true },
+    select: { id: true, date: true },
+    orderBy: { date: "asc" },
   });
 
   if (workouts.length === 0) return null;
 
-  // Count unique training days per ISO week (Mon-Sun) for the last 8 weeks.
-  const weekStarts: Date[] = [];
-  for (let i = WEEKS - 1; i >= 0; i--) {
-    weekStarts.push(startOfWeek(subWeeks(new Date(), i), { weekStartsOn: 1 }));
+  // Build a map day → first workoutId (for click-through).
+  const workoutIdByDate = new Map<string, string>();
+  for (const w of workouts) {
+    const key = format(new Date(w.date), "yyyy-MM-dd");
+    if (!workoutIdByDate.has(key)) workoutIdByDate.set(key, w.id);
   }
 
-  const daysByWeek = weekStarts.map((wStart) => {
-    const wEnd = new Date(wStart);
-    wEnd.setDate(wStart.getDate() + 7);
-    const days = new Set<string>();
-    for (const w of workouts) {
-      const d = new Date(w.date);
-      if (d >= wStart && d < wEnd) {
-        days.add(format(d, "yyyy-MM-dd"));
-      }
-    }
-    return { start: wStart, days: days.size };
-  });
-
+  const today = new Date();
   const goal = Math.max(1, trainingDaysGoal ?? 4);
-  const maxDays = Math.max(goal, ...daysByWeek.map((w) => w.days), 1);
-  const avg =
-    daysByWeek.reduce((sum, w) => sum + w.days, 0) / daysByWeek.length;
+
+  // Build the grid: 8 weeks (columns), each with 7 days (Mon → Sun).
+  const weeks: {
+    start: Date;
+    days: { date: Date; key: string; hasWorkout: boolean; isFuture: boolean }[];
+    hitCount: number;
+  }[] = [];
+  let totalHit = 0;
+  for (let w = WEEKS - 1; w >= 0; w--) {
+    const start = startOfWeek(subWeeks(today, w), { weekStartsOn: 1 });
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const date = addDays(start, i);
+      const key = format(date, "yyyy-MM-dd");
+      return {
+        date,
+        key,
+        hasWorkout: workoutIdByDate.has(key),
+        isFuture: date > today,
+      };
+    });
+    const hitCount = days.filter((d) => d.hasWorkout).length;
+    totalHit += hitCount;
+    weeks.push({ start, days, hitCount });
+  }
+
+  const avg = totalHit / weeks.length;
+
+  // Month labels on the columns — only show the label on the first column
+  // that falls into a new month, to avoid repeats.
+  const monthLabels = weeks.map((w, i) => {
+    const month = format(w.start, "MMM");
+    if (i === 0) return month;
+    const prev = format(weeks[i - 1].start, "MMM");
+    return month === prev ? "" : month;
+  });
 
   return (
     <div className="card p-4 mb-4">
@@ -64,42 +88,115 @@ export default async function ConsistencySparkline({
         </p>
       </div>
 
-      <div className="flex items-end gap-1.5 h-16">
-        {daysByWeek.map((w, i) => {
-          const h = (w.days / maxDays) * 100;
-          const hit = w.days >= goal;
-          return (
-            <div
+      <div className="flex gap-2.5">
+        {/* Weekday labels */}
+        <div className="flex flex-col justify-between py-[2px]">
+          {WEEKDAYS.map((d, i) => (
+            <span
               key={i}
-              className="flex-1 flex flex-col items-center gap-1"
-              title={`Week of ${format(w.start, "MMM d")}: ${w.days}d`}
+              className="text-[9px] leading-none"
+              style={{
+                color: "var(--fg-dim)",
+                fontFamily: "var(--font-geist-mono)",
+              }}
             >
-              <div className="flex-1 w-full flex items-end">
-                <div
-                  className="w-full rounded-t"
-                  style={{
-                    height: `${Math.max(4, h)}%`,
-                    background: hit
-                      ? "var(--accent)"
-                      : w.days > 0
-                        ? "rgba(34,197,94,0.35)"
-                        : "var(--bg-elevated)",
-                  }}
-                />
-              </div>
+              {d}
+            </span>
+          ))}
+        </div>
+
+        {/* Grid */}
+        <div className="flex-1 min-w-0">
+          <div className="flex justify-between mb-1">
+            {monthLabels.map((m, i) => (
               <span
-                className="text-[9px] nums"
+                key={i}
+                className="text-[9px] leading-none flex-1 text-center"
                 style={{
                   color: "var(--fg-dim)",
                   fontFamily: "var(--font-geist-mono)",
                 }}
               >
-                {w.days}
+                {m}
               </span>
-            </div>
-          );
-        })}
+            ))}
+          </div>
+          <div
+            className="grid gap-[3px]"
+            style={{ gridTemplateColumns: `repeat(${WEEKS}, 1fr)` }}
+          >
+            {weeks.map((week, wi) => (
+              <div key={wi} className="flex flex-col gap-[3px]">
+                {week.days.map((day) => {
+                  const workoutId = workoutIdByDate.get(day.key);
+                  const base = {
+                    aspectRatio: "1 / 1",
+                    borderRadius: "3px",
+                  } as const;
+                  if (day.hasWorkout && workoutId) {
+                    return (
+                      <Link
+                        key={day.key}
+                        href={`/workout/${workoutId}`}
+                        title={`${format(day.date, "EEE MMM d")} — trained`}
+                        className="block transition-transform active:scale-90"
+                        style={{
+                          ...base,
+                          background: "var(--accent)",
+                        }}
+                      />
+                    );
+                  }
+                  return (
+                    <div
+                      key={day.key}
+                      title={
+                        day.isFuture
+                          ? format(day.date, "EEE MMM d")
+                          : `${format(day.date, "EEE MMM d")} — rest`
+                      }
+                      style={{
+                        ...base,
+                        background: day.isFuture
+                          ? "transparent"
+                          : "var(--bg-elevated)",
+                        border: day.isFuture
+                          ? "1px dashed var(--border)"
+                          : "none",
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
+
+      <div className="flex items-center gap-3 mt-3">
+        <LegendDot color="var(--accent)" label="Trained" />
+        <LegendDot color="var(--bg-elevated)" label="Rest" />
+      </div>
+    </div>
+  );
+}
+
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span
+        className="w-2 h-2 rounded-sm"
+        style={{ background: color }}
+      />
+      <span
+        className="text-[10px]"
+        style={{
+          color: "var(--fg-dim)",
+          fontFamily: "var(--font-geist-mono)",
+        }}
+      >
+        {label}
+      </span>
     </div>
   );
 }
