@@ -113,20 +113,32 @@ export async function getChallengeProgress(challengeId: string) {
   }> = [];
 
   if (challenge.type === "LIFT" && challenge.exerciseId) {
-    const prs = await prisma.personalRecord.findMany({
+    // Scan working sets directly — PR rows only track each user's all-time
+    // best weight, so a rep-count filter would hide sets that qualify
+    // for this challenge but weren't their top PR.
+    const sets = await prisma.set.findMany({
       where: {
-        userId: { in: userIds },
-        exerciseId: challenge.exerciseId,
-        type: "WEIGHT",
+        type: "WORKING",
+        workoutExercise: {
+          exerciseId: challenge.exerciseId,
+          workout: { userId: { in: userIds } },
+        },
         ...(challenge.targetReps
           ? { reps: { gte: challenge.targetReps } }
           : {}),
       },
-      orderBy: { value: "desc" },
+      select: {
+        weight: true,
+        workoutExercise: {
+          select: { workout: { select: { userId: true } } },
+        },
+      },
     });
     const byUser = new Map<string, number>();
-    for (const pr of prs) {
-      if (!byUser.has(pr.userId)) byUser.set(pr.userId, pr.value);
+    for (const s of sets) {
+      const uid = s.workoutExercise.workout.userId;
+      const w = s.weight ?? 0;
+      if (w > (byUser.get(uid) ?? 0)) byUser.set(uid, w);
     }
     progress = challenge.participants.map((p) => {
       const v = byUser.get(p.userId) ?? 0;

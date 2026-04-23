@@ -55,15 +55,27 @@ export default async function AnalyticsPage() {
     let currentReps: number | null = null;
 
     if (g.type === "STRENGTH" && g.exerciseId) {
-      const eligible = prs.filter(
-        (p) =>
-          p.type === "WEIGHT" &&
-          p.exerciseId === g.exerciseId &&
-          (g.targetReps == null || (p.reps ?? 1) >= g.targetReps)
-      );
-      const bestPR = eligible.sort((a, b) => b.value - a.value)[0];
-      currentValue = bestPR?.value ?? 0;
-      currentReps = bestPR?.reps ?? null;
+      // Scan every working set ever logged for this exercise,
+      // filter by required rep count, take the heaviest weight.
+      let bestWeight = 0;
+      let bestReps: number | null = null;
+      for (const w of workouts) {
+        for (const ex of w.exercises) {
+          if (ex.exerciseId !== g.exerciseId) continue;
+          for (const s of ex.sets) {
+            if (s.type !== "WORKING") continue;
+            const weight = s.weight ?? 0;
+            const reps = s.reps ?? 0;
+            if (g.targetReps != null && reps < g.targetReps) continue;
+            if (weight > bestWeight) {
+              bestWeight = weight;
+              bestReps = reps;
+            }
+          }
+        }
+      }
+      currentValue = bestWeight;
+      currentReps = bestReps;
     } else if (g.type === "FREQUENCY") {
       currentValue = last7.length;
     } else if (g.type === "BODYWEIGHT_GAIN" || g.type === "BODYWEIGHT_CUT") {
