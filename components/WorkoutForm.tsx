@@ -6,6 +6,11 @@ import {
   type CreateWorkoutInput,
 } from "@/lib/actions/workouts";
 import {
+  saveWorkoutDraft,
+  loadWorkoutDraft,
+  clearWorkoutDraft,
+} from "@/lib/actions/workoutDrafts";
+import {
   WORKOUT_TYPES,
   STRENGTH_SPLITS,
   FEELING_OPTIONS,
@@ -83,6 +88,9 @@ export default function WorkoutForm({
 }) {
   const [, startTransition] = useTransition();
   const [pending, setPending] = useState(false);
+  const [autosaveStatus, setAutosaveStatus] = useState<
+    "idle" | "saving" | "saved"
+  >("idle");
 
   const [step, setStep] = useState<"type" | "log">(
     mode === "edit" || initial ? "log" : "type"
@@ -123,41 +131,56 @@ export default function WorkoutForm({
   // progress so they don't lose work when navigating to the exercise library
   // to add a custom exercise, etc. Cleared on successful save.
   const hydratedRef = useRef(false);
+
+  const applyDraft = (d: Record<string, unknown>) => {
+    if (typeof d.workoutType === "string" && d.workoutType) {
+      setWorkoutType(d.workoutType);
+      setStep("log");
+    }
+    if (typeof d.split === "string") setSplit(d.split);
+    if (typeof d.title === "string") setTitle(d.title);
+    if (typeof d.notes === "string") setNotes(d.notes);
+    if (typeof d.feeling === "string") setFeeling(d.feeling);
+    if (typeof d.isDeload === "boolean") setIsDeload(d.isDeload);
+    if (typeof d.date === "string") setDate(d.date);
+    if (Array.isArray(d.exercises)) setExercises(d.exercises as ExerciseData[]);
+    if (typeof d.durationMin === "string") setDurationMin(d.durationMin);
+    if (typeof d.durationSec === "string") setDurationSec(d.durationSec);
+    if (typeof d.distance === "string") setDistance(d.distance);
+    if (typeof d.pace === "string") setPace(d.pace);
+    if (typeof d.avgHR === "string") setAvgHR(d.avgHR);
+    if (typeof d.maxHR === "string") setMaxHR(d.maxHR);
+    if (typeof d.rounds === "string") setRounds(d.rounds);
+    if (typeof d.elevation === "string") setElevation(d.elevation);
+    if (typeof d.rpe === "string") setRpe(d.rpe);
+  };
+
   useEffect(() => {
     if (mode !== "create" || hydratedRef.current) return;
     hydratedRef.current = true;
     // Skip rehydration if the form was seeded from an external source
     // (e.g. voice-logged draft); we don't want to clobber that.
     if (initial) return;
+
+    // Instant restore from localStorage — works offline, zero latency.
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const d = JSON.parse(raw);
-      if (d.workoutType) {
-        setWorkoutType(d.workoutType);
-        setStep("log");
-      }
-      if (typeof d.split === "string") setSplit(d.split);
-      if (typeof d.title === "string") setTitle(d.title);
-      if (typeof d.notes === "string") setNotes(d.notes);
-      if (typeof d.feeling === "string") setFeeling(d.feeling);
-      if (typeof d.isDeload === "boolean") setIsDeload(d.isDeload);
-      if (typeof d.date === "string") setDate(d.date);
-      if (Array.isArray(d.exercises)) setExercises(d.exercises);
-      if (typeof d.durationMin === "string") setDurationMin(d.durationMin);
-      if (typeof d.durationSec === "string") setDurationSec(d.durationSec);
-      if (typeof d.distance === "string") setDistance(d.distance);
-      if (typeof d.pace === "string") setPace(d.pace);
-      if (typeof d.avgHR === "string") setAvgHR(d.avgHR);
-      if (typeof d.maxHR === "string") setMaxHR(d.maxHR);
-      if (typeof d.rounds === "string") setRounds(d.rounds);
-      if (typeof d.elevation === "string") setElevation(d.elevation);
-      if (typeof d.rpe === "string") setRpe(d.rpe);
+      if (raw) applyDraft(JSON.parse(raw));
     } catch {
       // ignore malformed draft
     }
-  }, [mode]);
 
+    // Server draft — authoritative across devices/browsers. Overlay if present.
+    loadWorkoutDraft()
+      .then((d) => {
+        if (d) applyDraft(d as unknown as Record<string, unknown>);
+      })
+      .catch(() => {
+        // ignore — localStorage is the fallback
+      });
+  }, [mode, initial]);
+
+  const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (mode !== "create" || !hydratedRef.current) return;
     const draft = {
@@ -194,6 +217,20 @@ export default function WorkoutForm({
     } catch {
       // storage may be unavailable (private mode, quota); ignore
     }
+
+    // Debounced server autosave — survives storage eviction + device switch.
+    if (serverSaveTimer.current) clearTimeout(serverSaveTimer.current);
+    if (empty) {
+      setAutosaveStatus("idle");
+      clearWorkoutDraft().catch(() => {});
+      return;
+    }
+    setAutosaveStatus("saving");
+    serverSaveTimer.current = setTimeout(() => {
+      saveWorkoutDraft(draft)
+        .then(() => setAutosaveStatus("saved"))
+        .catch(() => setAutosaveStatus("idle"));
+    }, 800);
   }, [
     mode,
     workoutType,
@@ -320,6 +357,8 @@ export default function WorkoutForm({
         } catch {
           // ignore
         }
+        if (serverSaveTimer.current) clearTimeout(serverSaveTimer.current);
+        await clearWorkoutDraft().catch(() => {});
         await createWorkout(payload);
       }
     });
@@ -510,13 +549,28 @@ export default function WorkoutForm({
             {title || "Session"}
           </h1>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={!canSave || pending}
-          className="btn-accent px-4 py-2 rounded-xl text-[13px]"
-        >
-          {pending ? "Saving…" : "Save"}
-        </button>
+        <div className="flex items-center gap-2">
+          {mode === "create" && autosaveStatus !== "idle" && (
+            <span
+              className="text-[10px] label"
+              style={{
+                color:
+                  autosaveStatus === "saved"
+                    ? "var(--accent)"
+                    : "var(--fg-dim)",
+              }}
+            >
+              {autosaveStatus === "saving" ? "Saving…" : "Auto-saved"}
+            </span>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={!canSave || pending}
+            className="btn-accent px-4 py-2 rounded-xl text-[13px]"
+          >
+            {pending ? "Saving…" : "Save"}
+          </button>
+        </div>
       </div>
 
       {missingRepsCount > 0 && (
