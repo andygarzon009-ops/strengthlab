@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/session";
 import Link from "next/link";
 import WeeklyRecap from "@/components/WeeklyRecap";
 import GroupFeed from "@/components/GroupFeed";
-import ConsistencySparkline from "@/components/ConsistencySparkline";
+import ConsistencyCard from "@/components/ConsistencyCard";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 
 export default async function FeedPage({
@@ -138,7 +138,7 @@ export default async function FeedPage({
       {!activeGroup && (
         <>
           <WeeklyRecap userId={userId} />
-          <ConsistencySparkline
+          <ConsistencyCard
             userId={userId}
             trainingDaysGoal={currentUser?.trainingDays ?? null}
           />
