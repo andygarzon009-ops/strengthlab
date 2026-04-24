@@ -501,7 +501,7 @@ ${user.coachPrompt.trim()}`
     // flash if pro is overloaded/unavailable to avoid 503s to the user.
     // Preview models are flaky — always pair with a stable GA fallback so
     // a single overloaded endpoint can't take the whole chain down.
-    const PRIMARY_MODEL = "gemini-3.1-flash-live";
+    const PRIMARY_MODEL = "gemini-3.1-flash";
     const FALLBACK_MODEL = "gemini-2.5-pro";
 
     let liveMessage = message;
