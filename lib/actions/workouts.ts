@@ -212,6 +212,9 @@ export async function updateWorkout(
   await prisma.$transaction([
     prisma.personalRecord.deleteMany({ where: { workoutId, userId } }),
     prisma.workoutExercise.deleteMany({ where: { workoutId } }),
+    // Wipe coach chat history — prior replies reference the old sets
+    // verbatim and would otherwise leak back into future coaching.
+    prisma.trainerMessage.deleteMany({ where: { userId } }),
     prisma.workout.update({
       where: { id: workoutId },
       data: {
@@ -267,7 +270,10 @@ export async function updateWorkout(
 
 export async function deleteWorkout(workoutId: string) {
   const userId = await requireAuth();
-  await prisma.workout.deleteMany({ where: { id: workoutId, userId } });
+  await prisma.$transaction([
+    prisma.workout.deleteMany({ where: { id: workoutId, userId } }),
+    prisma.trainerMessage.deleteMany({ where: { userId } }),
+  ]);
   revalidatePath("/");
   revalidatePath("/history");
   redirect("/history");
