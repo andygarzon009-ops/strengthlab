@@ -424,25 +424,24 @@ export default function ExerciseLogger({
                 </button>
               )}
             </div>
-
-            <div
-              className="mt-3 pt-3 flex items-center justify-between"
-              style={{ borderTop: "1px solid var(--border)" }}
+          </div>
+          <div
+            className="px-4 py-3 flex items-center justify-between shrink-0"
+            style={{ borderTop: "1px solid var(--border)" }}
+          >
+            <p
+              className="label text-[10px]"
+              style={{ color: "var(--fg-dim)" }}
             >
-              <p
-                className="label text-[10px]"
-                style={{ color: "var(--fg-dim)" }}
-              >
-                Missing something?
-              </p>
-              <Link
-                href="/exercises"
-                className="label text-[10px]"
-                style={{ color: "var(--accent)" }}
-              >
-                Manage library →
-              </Link>
-            </div>
+              Missing something?
+            </p>
+            <Link
+              href="/exercises"
+              className="label text-[10px]"
+              style={{ color: "var(--accent)" }}
+            >
+              Manage library →
+            </Link>
           </div>
           </div>
         </>
