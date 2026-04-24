@@ -499,8 +499,10 @@ ${user.coachPrompt.trim()}`
     // Pro follows the "don't restate logged sets" and effort-reading
     // instructions much more reliably than flash-lite. Fall back to
     // flash if pro is overloaded/unavailable to avoid 503s to the user.
+    // Preview models are flaky — always pair with a stable GA fallback so
+    // a single overloaded endpoint can't take the whole chain down.
     const PRIMARY_MODEL = "gemini-3.1-pro-preview";
-    const FALLBACK_MODEL = "gemini-3.1-pro-preview";
+    const FALLBACK_MODEL = "gemini-2.5-pro";
 
     let liveMessage = message;
     if (logSummary && logSummary.summary.length > 0) {
@@ -661,14 +663,14 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
           }
         };
 
-        // Try Gemini primary → flash → primary → Claude Haiku.
-        // [RESET] marker (emitted on partial-text failure) tells the
-        // client to wipe what it has streamed so the retry replaces
-        // the broken first attempt.
+        // Try preview → stable Gemini → Claude Haiku. No same-model retry:
+        // if a preview endpoint fails once it usually fails again, and the
+        // extra attempt just eats the user's patience. [RESET] marker
+        // (emitted on partial-text failure) tells the client to wipe what
+        // has streamed so the next attempt replaces it.
         const ATTEMPTS: (() => Promise<void>)[] = [
           () => runGeminiAttempt(PRIMARY_MODEL),
           () => runGeminiAttempt(FALLBACK_MODEL),
-          () => runGeminiAttempt(PRIMARY_MODEL),
         ];
         if (anthropic) ATTEMPTS.push(runAnthropicAttempt);
 
