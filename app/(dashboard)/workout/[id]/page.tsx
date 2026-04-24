@@ -13,6 +13,7 @@ import { deleteWorkout } from "@/lib/actions/workouts";
 import BackButton from "@/components/BackButton";
 import ReactionButtons from "@/components/ReactionButtons";
 import CommentSection from "@/components/CommentSection";
+import DeleteWorkoutButton from "@/components/DeleteWorkoutButton";
 
 export default async function WorkoutDetailPage({
   params,
@@ -84,20 +85,13 @@ export default async function WorkoutDetailPage({
             >
               ·
             </span>
-            <form
+            <DeleteWorkoutButton
+              title={workout.title}
               action={async () => {
                 "use server";
                 await deleteWorkout(id);
               }}
-            >
-              <button
-                type="submit"
-                className="text-[12px] label"
-                style={{ color: "#f87171" }}
-              >
-                Delete
-              </button>
-            </form>
+            />
           </div>
         )}
       </div>
