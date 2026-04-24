@@ -73,21 +73,70 @@ export default async function AnalyticsPage() {
       .flatMap((w) => w.exercises.flatMap((e) => e.sets))
       .filter((s) => s.type === "WORKING");
 
-  const thisWeekSessions = last7.length;
-  const thisWeekSets = workingSetsIn(last7).length;
+  const volumeIn = (list: typeof workouts) =>
+    workingSetsIn(list).reduce(
+      (sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0),
+      0
+    );
 
-  // Average of previous 4 full weeks (8w → 4w ago), not the current week
+  // Map granular muscle groups → 6 broad categories used by the ring.
+  const BROAD_GROUPS = [
+    "Chest",
+    "Back",
+    "Shoulders",
+    "Arms",
+    "Legs",
+    "Core",
+  ] as const;
+  const broadGroupFor = (mg: string | null): string | null => {
+    if (!mg) return null;
+    if (mg === "Biceps" || mg === "Triceps" || mg === "Forearms") return "Arms";
+    if (
+      mg === "Quads" ||
+      mg === "Hamstrings" ||
+      mg === "Glutes" ||
+      mg === "Calves"
+    )
+      return "Legs";
+    if (mg === "Chest" || mg === "Back" || mg === "Shoulders" || mg === "Core")
+      return mg;
+    return null;
+  };
+  const muscleGroupsIn = (list: typeof workouts): number => {
+    const hit = new Set<string>();
+    for (const w of list) {
+      if (shapeForType(w.type) !== "STRENGTH") continue;
+      for (const we of w.exercises) {
+        const hasWorkingSet = we.sets.some((s) => s.type === "WORKING");
+        if (!hasWorkingSet) continue;
+        const g = broadGroupFor(we.exercise.muscleGroup);
+        if (g) hit.add(g);
+      }
+    }
+    return hit.size;
+  };
+
+  const thisWeekSessions = last7.length;
+  const thisWeekVolume = volumeIn(last7);
+  const thisWeekMuscleGroups = muscleGroupsIn(last7);
+
+  // Average of previous 4 full weeks (5w → 1w ago), not the current week
   const prior4Start = subDays(new Date(), 35);
   const prior4End = subDays(new Date(), 7);
   const prior4Workouts = workouts.filter(
     (w) =>
       new Date(w.date) >= prior4Start && new Date(w.date) < prior4End
   );
-  const avgWeeklySetsPrior4 = workingSetsIn(prior4Workouts).length / 4;
+  const avgWeeklyVolumePrior4 = volumeIn(prior4Workouts) / 4;
 
   const sessionsGoal = user?.trainingDays ?? 4;
-  const setsGoal =
-    avgWeeklySetsPrior4 > 0 ? avgWeeklySetsPrior4 : thisWeekSets || 20;
+  const volumeGoal =
+    avgWeeklyVolumePrior4 > 0 ? avgWeeklyVolumePrior4 : thisWeekVolume || 5000;
+  const muscleGroupsGoal = BROAD_GROUPS.length;
+
+  const prsThisWeek = prs.filter(
+    (p) => new Date(p.date) >= subDays(new Date(), 7)
+  ).length;
 
   // ---------- Goal progress ----------
   const goalsWithProgress: GoalWithProgress[] = goals.map((g) => {
@@ -489,8 +538,11 @@ export default async function AnalyticsPage() {
           <ActivityRings
             sessions={thisWeekSessions}
             sessionsGoal={sessionsGoal}
-            sets={thisWeekSets}
-            setsGoal={setsGoal}
+            volume={thisWeekVolume}
+            volumeGoal={volumeGoal}
+            muscleGroups={thisWeekMuscleGroups}
+            muscleGroupsGoal={muscleGroupsGoal}
+            prsThisWeek={prsThisWeek}
           />
 
           {topPRs.length > 0 && (

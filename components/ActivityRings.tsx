@@ -5,21 +5,31 @@ type Ring = {
   goal: number;
   unit?: string;
   color: string;
-  /** How to render the center number */
   format?: (v: number) => string;
 };
 
 export default function ActivityRings({
   sessions,
   sessionsGoal,
-  sets,
-  setsGoal,
+  volume,
+  volumeGoal,
+  muscleGroups,
+  muscleGroupsGoal,
+  prsThisWeek,
 }: {
   sessions: number;
   sessionsGoal: number;
-  sets: number;
-  setsGoal: number;
+  volume: number;
+  volumeGoal: number;
+  muscleGroups: number;
+  muscleGroupsGoal: number;
+  prsThisWeek: number;
 }) {
+  const fmtVolume = (v: number) => {
+    if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
+    return String(Math.round(v));
+  };
+
   const rings: Ring[] = [
     {
       key: "sessions",
@@ -30,12 +40,21 @@ export default function ActivityRings({
       color: "#22c55e",
     },
     {
-      key: "sets",
-      label: "Working sets",
-      value: sets,
-      goal: Math.max(1, setsGoal),
-      unit: "vs 4-wk avg",
+      key: "volume",
+      label: "Volume",
+      value: volume,
+      goal: Math.max(1, volumeGoal),
+      unit: "kg vs 4-wk avg",
       color: "#f97316",
+      format: fmtVolume,
+    },
+    {
+      key: "coverage",
+      label: "Muscle coverage",
+      value: muscleGroups,
+      goal: Math.max(1, muscleGroupsGoal),
+      unit: `of ${Math.max(1, muscleGroupsGoal)} groups`,
+      color: "#a855f7",
     },
   ];
 
@@ -48,12 +67,27 @@ export default function ActivityRings({
             Activity rings
           </h2>
         </div>
-        <p
-          className="label text-[9px]"
-          style={{ color: "var(--fg-dim)" }}
-        >
-          {dayOfWeekLabel()} of 7
-        </p>
+        <div className="flex items-center gap-2">
+          {prsThisWeek > 0 && (
+            <span
+              className="label text-[10px] px-2 py-1 rounded-full nums"
+              style={{
+                background: "rgba(234,179,8,0.12)",
+                border: "1px solid rgba(234,179,8,0.35)",
+                color: "#eab308",
+                fontFamily: "var(--font-geist-mono)",
+              }}
+            >
+              🏆 {prsThisWeek} PR{prsThisWeek === 1 ? "" : "s"}
+            </span>
+          )}
+          <p
+            className="label text-[9px]"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            {dayOfWeekLabel()} of 7
+          </p>
+        </div>
       </div>
 
       <div className="flex items-center justify-center gap-5">
@@ -121,8 +155,8 @@ function NestedRings({
   rings: Ring[];
   size: number;
 }) {
-  const stroke = 14;
-  const gap = 4;
+  const stroke = 12;
+  const gap = 3;
   const rMax = size / 2 - stroke / 2;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
@@ -161,7 +195,6 @@ function NestedRings({
 }
 
 function dayOfWeekLabel(): number {
-  // Monday = 1 ... Sunday = 7
   const d = new Date().getDay();
   return d === 0 ? 7 : d;
 }
