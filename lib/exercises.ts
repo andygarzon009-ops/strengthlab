@@ -489,9 +489,19 @@ const BODYWEIGHT_CAPABLE_PATTERNS = [
   /\bhanging knee raise\b/i,
   /\bab wheel\b/i,
   /\bdead bug\b/i,
+  /\bback extension\b/i,
+  /\bhyperextension\b/i,
+  /\breverse hyper\b/i,
+  /\bghd\b/i,
+  /\bghd sit-up\b/i,
 ];
 
 export function isBodyweightCapable(name: string): boolean {
+  // Pin-loaded / plate-loaded machine variants of the same movement
+  // (e.g. "Back Extension Machine (Pin)") take direct weight entry,
+  // not "+lb on top of bodyweight."
+  if (usesPlates(name)) return false;
+  if (/\bmachine\b|\(pin\)/i.test(name)) return false;
   return BODYWEIGHT_CAPABLE_PATTERNS.some((re) => re.test(name));
 }
 
