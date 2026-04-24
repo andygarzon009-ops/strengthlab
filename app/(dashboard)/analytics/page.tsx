@@ -229,31 +229,27 @@ export default async function AnalyticsPage() {
   // ---------- Weak spots ----------
   const weakSpots: WeakSpot[] = [];
 
-  // Muscle groups not hit in last 14 days
-  const trainedMuscleGroups = new Set<string>();
-  for (const w of last14) {
-    for (const ex of w.exercises) {
-      if (ex.exercise.muscleGroup) {
-        trainedMuscleGroups.add(ex.exercise.muscleGroup);
+  // Broad muscle groups (Chest/Back/Shoulders/Arms/Legs/Core) not hit this
+  // week — mirrors the Muscle coverage activity ring.
+  if (last14.length > 0) {
+    const hitThisWeek = new Set<string>();
+    for (const w of last7) {
+      if (shapeForType(w.type) !== "STRENGTH") continue;
+      for (const we of w.exercises) {
+        if (!we.sets.some((s) => s.type === "WORKING")) continue;
+        const g = broadGroupFor(we.exercise.muscleGroup);
+        if (g) hitThisWeek.add(g);
       }
     }
-  }
-  const allMuscleGroups = new Set<string>();
-  for (const w of workouts) {
-    for (const ex of w.exercises) {
-      if (ex.exercise.muscleGroup) allMuscleGroups.add(ex.exercise.muscleGroup);
+    const missed = BROAD_GROUPS.filter((g) => !hitThisWeek.has(g));
+    if (missed.length > 0) {
+      weakSpots.push({
+        id: "missed-mg-week",
+        severity: missed.length >= 3 ? "high" : "medium",
+        title: `${missed.length} muscle group${missed.length === 1 ? "" : "s"} missed this week`,
+        detail: `No working sets for: ${missed.join(", ")}.`,
+      });
     }
-  }
-  const untrained = [...allMuscleGroups].filter(
-    (mg) => !trainedMuscleGroups.has(mg)
-  );
-  if (untrained.length > 0) {
-    weakSpots.push({
-      id: "untrained-mg",
-      severity: untrained.length >= 3 ? "high" : "medium",
-      title: `${untrained.length} muscle group${untrained.length === 1 ? "" : "s"} not hit in 14 days`,
-      detail: untrained.join(", "),
-    });
   }
 
   // Plateaued lifts — last 3 sessions of a given exercise show no weight increase
@@ -301,28 +297,19 @@ export default async function AnalyticsPage() {
     });
   }
 
-  // Working-set drop week-over-week
-  const strengthSetsThisWeek = workingSetsIn(last7).length;
-  const prevWeekStart = subDays(new Date(), 14);
-  const prevWeekEnd = subDays(new Date(), 7);
-  const strengthSetsPrevWeek = workingSetsIn(
-    workouts.filter(
-      (w) =>
-        new Date(w.date) >= prevWeekStart && new Date(w.date) < prevWeekEnd
-    )
-  ).length;
-  if (
-    strengthSetsPrevWeek >= 8 &&
-    strengthSetsThisWeek < strengthSetsPrevWeek * 0.75
-  ) {
+  // Volume drop — compares this week's total tonnage (kg × reps) vs the
+  // 4-wk average, matching the Volume activity ring.
+  const fmtVol = (v: number) =>
+    v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v));
+  if (avgWeeklyVolumePrior4 >= 1000 && thisWeekVolume < avgWeeklyVolumePrior4 * 0.75) {
     const dropPct = Math.round(
-      (1 - strengthSetsThisWeek / strengthSetsPrevWeek) * 100
+      (1 - thisWeekVolume / avgWeeklyVolumePrior4) * 100
     );
     weakSpots.push({
-      id: "sets-drop",
+      id: "volume-drop",
       severity: dropPct >= 40 ? "high" : "medium",
-      title: `Working sets dropped ${dropPct}%`,
-      detail: `${strengthSetsThisWeek} sets this week vs ${strengthSetsPrevWeek} last week.`,
+      title: `Volume down ${dropPct}% vs 4-wk avg`,
+      detail: `${fmtVol(thisWeekVolume)} kg this week vs ${fmtVol(avgWeeklyVolumePrior4)} kg average. Add a set or push the weight up next session.`,
     });
   }
 
