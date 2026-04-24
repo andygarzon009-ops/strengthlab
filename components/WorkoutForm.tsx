@@ -186,6 +186,42 @@ export default function WorkoutForm({
   }, [mode, initial]);
 
   const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const discardDraft = () => {
+    if (
+      !confirm(
+        "Clear this workout? Your logged sets will be erased and you'll go back to the start."
+      )
+    )
+      return;
+    if (serverSaveTimer.current) clearTimeout(serverSaveTimer.current);
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      // ignore
+    }
+    clearWorkoutDraft().catch(() => {});
+    setAutosaveStatus("idle");
+    setWorkoutType("");
+    setSplit("");
+    setTitle("");
+    setNotes("");
+    setFeeling("");
+    setIsDeload(false);
+    setExercises([]);
+    setDurationMin("");
+    setDurationSec("");
+    setDistance("");
+    setPace("");
+    setAvgHR("");
+    setMaxHR("");
+    setRounds("");
+    setElevation("");
+    setRpe("");
+    setStep("type");
+    baselineRef.current = null;
+  };
+
   // Snapshot of the state at the moment the form first settled (whether
   // from a clone template, voice draft, or restored server draft). We
   // only autosave once the user has actually *changed* something — this
@@ -572,56 +608,17 @@ export default function WorkoutForm({
         </div>
         <div className="flex items-center gap-2">
           {mode === "create" && autosaveStatus !== "idle" && (
-            <button
-              type="button"
-              onClick={() => {
-                if (
-                  !confirm(
-                    "Discard this draft? You'll start from a blank log."
-                  )
-                )
-                  return;
-                if (serverSaveTimer.current)
-                  clearTimeout(serverSaveTimer.current);
-                try {
-                  localStorage.removeItem(DRAFT_KEY);
-                } catch {
-                  // ignore
-                }
-                clearWorkoutDraft().catch(() => {});
-                setAutosaveStatus("idle");
-                setWorkoutType("");
-                setSplit("");
-                setTitle("");
-                setNotes("");
-                setFeeling("");
-                setIsDeload(false);
-                setExercises([]);
-                setDurationMin("");
-                setDurationSec("");
-                setDistance("");
-                setPace("");
-                setAvgHR("");
-                setMaxHR("");
-                setRounds("");
-                setElevation("");
-                setRpe("");
-                setStep("type");
-                baselineRef.current = null;
-              }}
+            <span
               className="text-[10px] label"
               style={{
                 color:
                   autosaveStatus === "saved"
                     ? "var(--accent)"
                     : "var(--fg-dim)",
-                textDecoration: "underline",
-                textDecorationStyle: "dotted",
-                textUnderlineOffset: "3px",
               }}
             >
-              {autosaveStatus === "saving" ? "Saving…" : "Auto-saved · Discard"}
-            </button>
+              {autosaveStatus === "saving" ? "Saving…" : "Auto-saved"}
+            </span>
           )}
           <button
             onClick={handleSave}
@@ -842,6 +839,30 @@ export default function WorkoutForm({
           currentSplit={split || undefined}
         />
       )}
+
+      <div className="mt-6 flex items-center gap-2.5">
+        <button
+          onClick={handleSave}
+          disabled={!canSave || pending}
+          className="btn-accent flex-1 py-3.5 rounded-xl text-[15px] font-semibold tracking-tight"
+        >
+          {pending ? "Saving…" : mode === "edit" ? "Save changes" : "Log workout"}
+        </button>
+        {mode === "create" && (
+          <button
+            type="button"
+            onClick={discardDraft}
+            className="py-3.5 px-5 rounded-xl text-[13px] font-medium"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              color: "var(--fg-muted)",
+            }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
     </div>
   );
 }
