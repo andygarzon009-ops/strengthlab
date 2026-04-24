@@ -1,31 +1,67 @@
 import { prisma } from "@/lib/db";
-import { subDays, differenceInCalendarDays, format } from "date-fns";
-import { shapeForType } from "@/lib/exercises";
+import Link from "next/link";
+import { subDays, format } from "date-fns";
+import {
+  shapeForType,
+  isTimedExercise,
+  specificMuscleFor,
+  broadGroupForSpecific,
+} from "@/lib/exercises";
 
 export default async function WeeklyRecap({ userId }: { userId: string }) {
-  const since = subDays(new Date(), 14);
+  const since = subDays(new Date(), 35);
   const weekAgo = subDays(new Date(), 7);
+  const twoWeeksAgo = subDays(new Date(), 14);
 
   const workouts = await prisma.workout.findMany({
     where: { userId, date: { gte: since } },
     include: {
-      exercises: { include: { sets: true } },
+      exercises: {
+        include: { exercise: true, sets: true },
+        orderBy: { order: "asc" },
+      },
     },
     orderBy: { date: "desc" },
   });
 
   if (workouts.length === 0) return null;
 
-  // Only consider PRs whose underlying workout was in the last 7 days.
-  // The PR row's own `date` is unreliable for legacy rows (older records
-  // defaulted to now() at save time instead of the workout date).
-  const thisWeekWorkoutIds = workouts
-    .filter((w) => new Date(w.date) >= weekAgo)
-    .map((w) => w.id);
-  const recentPR =
+  const thisWeek = workouts.filter((w) => new Date(w.date) >= weekAgo);
+  const lastWeek = workouts.filter(
+    (w) => new Date(w.date) >= twoWeeksAgo && new Date(w.date) < weekAgo
+  );
+  const prior4Weeks = workouts.filter(
+    (w) => new Date(w.date) >= subDays(new Date(), 35) && new Date(w.date) < weekAgo
+  );
+
+  // --- Volume (strength, excluding timed holds) ---
+  const volumeOf = (list: typeof workouts) =>
+    list
+      .filter((w) => shapeForType(w.type) === "STRENGTH")
+      .flatMap((w) =>
+        w.exercises
+          .filter((e) => !isTimedExercise(e.exercise.name))
+          .flatMap((e) => e.sets)
+      )
+      .filter((s) => s.type === "WORKING")
+      .reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
+
+  const thisVolume = volumeOf(thisWeek);
+  const avg4wkVolume = prior4Weeks.length > 0 ? volumeOf(prior4Weeks) / 4 : 0;
+  const volumeDeltaPct =
+    avg4wkVolume > 0
+      ? Math.round(((thisVolume - avg4wkVolume) / avg4wkVolume) * 100)
+      : null;
+
+  // --- Sessions delta ---
+  const sessionDelta = thisWeek.length - lastWeek.length;
+
+  // --- PRs set in the last 7 days ---
+  const thisWeekWorkoutIds = thisWeek.map((w) => w.id);
+  const prsThisWeek =
     thisWeekWorkoutIds.length === 0
-      ? null
-      : await prisma.personalRecord.findFirst({
+      ? []
+      : await prisma.personalRecord.findMany({
           where: {
             userId,
             type: "WEIGHT",
@@ -35,63 +71,78 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
           orderBy: { value: "desc" },
         });
 
-  const workingSetsFor = (list: typeof workouts) =>
-    list
-      .filter((w) => shapeForType(w.type) === "STRENGTH")
-      .reduce(
-        (sum, w) =>
-          sum +
-          w.exercises.flatMap((e) =>
-            e.sets.filter((s) => s.type === "WORKING")
-          ).length,
-        0
-      );
+  // --- Top muscle (broad) this week, by working set count ---
+  const setsPerBroad: Record<string, number> = {};
+  for (const w of thisWeek) {
+    if (shapeForType(w.type) !== "STRENGTH") continue;
+    for (const we of w.exercises) {
+      const workingCount = we.sets.filter((s) => s.type === "WORKING").length;
+      if (workingCount === 0) continue;
+      const broad = broadGroupForSpecific(specificMuscleFor(we.exercise.name));
+      if (!broad) continue;
+      setsPerBroad[broad] = (setsPerBroad[broad] ?? 0) + workingCount;
+    }
+  }
+  const topMuscle = Object.entries(setsPerBroad).sort(
+    (a, b) => b[1] - a[1]
+  )[0] as [string, number] | undefined;
 
-  const thisWeek = workouts.filter((w) => new Date(w.date) >= weekAgo);
-  const lastWeek = workouts.filter((w) => new Date(w.date) < weekAgo);
-
-  const thisSessions = thisWeek.length;
-  const lastSessions = lastWeek.length;
-  const sessionDelta = thisSessions - lastSessions;
-
-  const thisSets = workingSetsFor(thisWeek);
-  const lastSets = workingSetsFor(lastWeek);
-  const setsDeltaPct =
-    lastSets > 0 ? Math.round(((thisSets - lastSets) / lastSets) * 100) : null;
-
-  // Streak
-  const dateSet = new Set(
-    (
-      await prisma.workout.findMany({
-        where: { userId },
-        select: { date: true },
-        orderBy: { date: "desc" },
-        take: 365,
-      })
-    ).map((w) => format(new Date(w.date), "yyyy-MM-dd"))
-  );
-  const dates = [...dateSet].sort();
-  let streak = 0;
-  if (dates.length > 0) {
-    const today = format(new Date(), "yyyy-MM-dd");
-    const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
-    const last = dates[dates.length - 1];
-    if (last === today || last === yesterday) {
-      streak = 1;
-      for (let i = dates.length - 2; i >= 0; i--) {
-        const diff = differenceInCalendarDays(
-          new Date(dates[i + 1]),
-          new Date(dates[i])
-        );
-        if (diff === 1) streak++;
-        else break;
+  // --- Biggest lift: top PR from this week, or heaviest working set ---
+  const biggestPR = prsThisWeek[0] ?? null;
+  let biggestLift: {
+    name: string;
+    value: number;
+    reps: number | null;
+    workoutId: string;
+    isPR: boolean;
+  } | null = null;
+  if (biggestPR) {
+    biggestLift = {
+      name: biggestPR.exercise.name,
+      value: biggestPR.value,
+      reps: biggestPR.reps,
+      workoutId: biggestPR.workoutId ?? "",
+      isPR: true,
+    };
+  } else {
+    let best: { w: number; reps: number | null; name: string; wid: string } | null = null;
+    for (const w of thisWeek) {
+      if (shapeForType(w.type) !== "STRENGTH") continue;
+      for (const we of w.exercises) {
+        if (isTimedExercise(we.exercise.name)) continue;
+        for (const s of we.sets) {
+          if (s.type !== "WORKING" || !s.weight) continue;
+          if (!best || s.weight > best.w) {
+            best = {
+              w: s.weight,
+              reps: s.reps,
+              name: we.exercise.name,
+              wid: w.id,
+            };
+          }
+        }
       }
+    }
+    if (best) {
+      biggestLift = {
+        name: best.name,
+        value: best.w,
+        reps: best.reps,
+        workoutId: best.wid,
+        isPR: false,
+      };
     }
   }
 
+  const weekStart = format(weekAgo, "MMM d");
+  const weekEnd = format(new Date(), "MMM d");
+
+  const fmtVolume = (v: number) =>
+    v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v));
+
   return (
     <div
-      className="card p-5 mb-6"
+      className="card p-5 mb-4"
       style={{
         background:
           "linear-gradient(135deg, rgba(34,197,94,0.06) 0%, var(--bg-card) 70%)",
@@ -101,137 +152,183 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
       <div className="flex items-baseline justify-between mb-4">
         <div>
           <p className="label text-[10px]" style={{ color: "var(--accent)" }}>
-            Last 7 days
+            This week
           </p>
           <h2 className="text-[17px] font-bold tracking-tight mt-0.5">
-            Your week in review
+            Your recap
           </h2>
         </div>
-        {streak > 0 && (
-          <div className="text-right">
-            <p
-              className="nums text-[22px] font-bold leading-none"
-              style={{
-                fontFamily: "var(--font-geist-mono)",
-                color: "var(--accent)",
-              }}
-            >
-              {streak}
-              <span className="text-[11px] font-normal ml-0.5">d</span>
-            </p>
-            <p
-              className="label text-[9px] mt-0.5"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              Streak
-            </p>
-          </div>
-        )}
+        <p
+          className="label text-[9px] nums"
+          style={{
+            color: "var(--fg-dim)",
+            fontFamily: "var(--font-geist-mono)",
+          }}
+        >
+          {weekStart} – {weekEnd}
+        </p>
       </div>
 
       <div
         className="grid grid-cols-2 gap-px rounded-xl overflow-hidden mb-3"
         style={{ background: "var(--border)" }}
       >
-        <div
-          className="p-3"
-          style={{ background: "var(--bg-elevated)" }}
-        >
-          <p
-            className="nums text-[22px] font-bold leading-none"
-            style={{ fontFamily: "var(--font-geist-mono)" }}
-          >
-            {thisSessions}
-          </p>
-          <p
-            className="label text-[9px] mt-1.5"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            Sessions
-          </p>
-          {lastSessions > 0 && (
-            <p
-              className="text-[10px] mt-1 nums"
-              style={{
-                fontFamily: "var(--font-geist-mono)",
-                color:
-                  sessionDelta > 0
-                    ? "var(--accent)"
-                    : sessionDelta < 0
-                      ? "#f87171"
-                      : "var(--fg-dim)",
-              }}
-            >
-              {sessionDelta > 0 ? `+${sessionDelta}` : sessionDelta} vs last
-            </p>
-          )}
-        </div>
-        <div
-          className="p-3"
-          style={{ background: "var(--bg-elevated)" }}
-        >
-          <p
-            className="nums text-[22px] font-bold leading-none"
-            style={{ fontFamily: "var(--font-geist-mono)" }}
-          >
-            {thisSets}
-          </p>
-          <p
-            className="label text-[9px] mt-1.5"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            Working sets
-          </p>
-          {setsDeltaPct !== null && (
-            <p
-              className="text-[10px] mt-1 nums"
-              style={{
-                fontFamily: "var(--font-geist-mono)",
-                color:
-                  setsDeltaPct > 0
-                    ? "var(--accent)"
-                    : setsDeltaPct < 0
-                      ? "#f87171"
-                      : "var(--fg-dim)",
-              }}
-            >
-              {setsDeltaPct > 0 ? `+${setsDeltaPct}` : setsDeltaPct}% vs last
-            </p>
-          )}
-        </div>
+        <Tile
+          value={String(thisWeek.length)}
+          label="Sessions"
+          hint={
+            lastWeek.length > 0
+              ? sessionDelta === 0
+                ? "same as last wk"
+                : `${sessionDelta > 0 ? "+" : ""}${sessionDelta} vs last wk`
+              : undefined
+          }
+          hintColor={
+            sessionDelta > 0
+              ? "accent"
+              : sessionDelta < 0
+                ? "negative"
+                : "dim"
+          }
+        />
+        <Tile
+          value={fmtVolume(thisVolume)}
+          suffix="kg"
+          label="Volume"
+          hint={
+            volumeDeltaPct !== null
+              ? `${volumeDeltaPct > 0 ? "+" : ""}${volumeDeltaPct}% vs 4-wk avg`
+              : undefined
+          }
+          hintColor={
+            volumeDeltaPct !== null && volumeDeltaPct > 0
+              ? "accent"
+              : volumeDeltaPct !== null && volumeDeltaPct < 0
+                ? "negative"
+                : "dim"
+          }
+        />
+        <Tile
+          value={String(prsThisWeek.length)}
+          label="PRs set"
+          hint={prsThisWeek.length > 0 ? "🏆 new records" : "push next session"}
+          hintColor={prsThisWeek.length > 0 ? "accent" : "dim"}
+          href={prsThisWeek.length > 0 ? "/analytics" : undefined}
+        />
+        <Tile
+          value={topMuscle?.[0] ?? "—"}
+          label="Top muscle"
+          hint={
+            topMuscle ? `${topMuscle[1]} working sets` : "log a session"
+          }
+          hintColor="dim"
+          small
+        />
       </div>
 
-      {recentPR && (
-        <div
-          className="flex items-center gap-3 p-3 rounded-xl"
+      {biggestLift && biggestLift.workoutId && (
+        <Link
+          href={`/workout/${biggestLift.workoutId}`}
+          className="flex items-center gap-3 p-3 rounded-xl transition-colors"
           style={{ background: "var(--bg-elevated)" }}
         >
-          <div className="text-[22px]">🏋️</div>
+          <div className="text-[22px]">{biggestLift.isPR ? "🏆" : "🏋️"}</div>
           <div className="flex-1 min-w-0">
             <p
               className="label text-[9px]"
               style={{ color: "var(--accent)" }}
             >
-              PR this week
+              {biggestLift.isPR ? "Biggest PR" : "Biggest lift"}
             </p>
             <p className="text-[13px] font-semibold truncate">
-              {recentPR.exercise.name}
+              {biggestLift.name}
             </p>
           </div>
           <p
-            className="nums text-[15px] font-bold shrink-0"
+            className="nums text-[15px] font-bold shrink-0 flex items-baseline"
             style={{
               fontFamily: "var(--font-geist-mono)",
               color: "var(--accent)",
             }}
           >
-            {recentPR.value}
+            {biggestLift.value}
             <span className="text-[10px] font-normal opacity-70 ml-0.5">
-              lb × {recentPR.reps ?? 1}
+              lb × {biggestLift.reps ?? 1}
             </span>
           </p>
-        </div>
+          <span
+            className="text-[14px] ml-1"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            ›
+          </span>
+        </Link>
       )}
     </div>
   );
+}
+
+function Tile({
+  value,
+  suffix,
+  label,
+  hint,
+  hintColor,
+  href,
+  small,
+}: {
+  value: string;
+  suffix?: string;
+  label: string;
+  hint?: string;
+  hintColor: "accent" | "negative" | "dim";
+  href?: string;
+  small?: boolean;
+}) {
+  const hintC =
+    hintColor === "accent"
+      ? "var(--accent)"
+      : hintColor === "negative"
+        ? "#f87171"
+        : "var(--fg-dim)";
+  const inner = (
+    <div className="p-3 h-full" style={{ background: "var(--bg-elevated)" }}>
+      <p
+        className={`nums ${small ? "text-[15px]" : "text-[22px]"} font-bold leading-none tracking-tight`}
+        style={{ fontFamily: "var(--font-geist-mono)" }}
+      >
+        {value}
+        {suffix && (
+          <span className="text-[10px] font-normal opacity-70 ml-0.5">
+            {suffix}
+          </span>
+        )}
+      </p>
+      <p
+        className="label text-[9px] mt-1.5"
+        style={{ color: "var(--fg-dim)" }}
+      >
+        {label}
+      </p>
+      {hint && (
+        <p
+          className="text-[10px] mt-1 nums"
+          style={{
+            fontFamily: "var(--font-geist-mono)",
+            color: hintC,
+          }}
+        >
+          {hint}
+        </p>
+      )}
+    </div>
+  );
+  if (href) {
+    return (
+      <Link href={href} className="block">
+        {inner}
+      </Link>
+    );
+  }
+  return inner;
 }
