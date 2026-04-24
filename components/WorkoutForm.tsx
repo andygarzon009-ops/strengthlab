@@ -173,7 +173,12 @@ export default function WorkoutForm({
     // Server draft — authoritative across devices/browsers. Overlay if present.
     loadWorkoutDraft()
       .then((d) => {
-        if (d) applyDraft(d as unknown as Record<string, unknown>);
+        if (d) {
+          applyDraft(d as unknown as Record<string, unknown>);
+          // Reset baseline after the async overlay so an unedited restored
+          // draft doesn't immediately trigger a redundant re-save.
+          baselineRef.current = null;
+        }
       })
       .catch(() => {
         // ignore — localStorage is the fallback
@@ -181,6 +186,12 @@ export default function WorkoutForm({
   }, [mode, initial]);
 
   const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Snapshot of the state at the moment the form first settled (whether
+  // from a clone template, voice draft, or restored server draft). We
+  // only autosave once the user has actually *changed* something — this
+  // stops a cloned "Do this workout" from persisting as the user's draft
+  // forever just because they opened the page.
+  const baselineRef = useRef<string | null>(null);
   useEffect(() => {
     if (mode !== "create" || !hydratedRef.current) return;
     const draft = {
@@ -202,6 +213,16 @@ export default function WorkoutForm({
       elevation,
       rpe,
     };
+    const serialized = JSON.stringify(draft);
+
+    // First pass after hydration: capture baseline, save nothing yet.
+    if (baselineRef.current === null) {
+      baselineRef.current = serialized;
+      return;
+    }
+    // No real change since baseline — user is just browsing the template.
+    if (serialized === baselineRef.current) return;
+
     const empty =
       !workoutType &&
       !split &&
@@ -551,17 +572,56 @@ export default function WorkoutForm({
         </div>
         <div className="flex items-center gap-2">
           {mode === "create" && autosaveStatus !== "idle" && (
-            <span
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  !confirm(
+                    "Discard this draft? You'll start from a blank log."
+                  )
+                )
+                  return;
+                if (serverSaveTimer.current)
+                  clearTimeout(serverSaveTimer.current);
+                try {
+                  localStorage.removeItem(DRAFT_KEY);
+                } catch {
+                  // ignore
+                }
+                clearWorkoutDraft().catch(() => {});
+                setAutosaveStatus("idle");
+                setWorkoutType("");
+                setSplit("");
+                setTitle("");
+                setNotes("");
+                setFeeling("");
+                setIsDeload(false);
+                setExercises([]);
+                setDurationMin("");
+                setDurationSec("");
+                setDistance("");
+                setPace("");
+                setAvgHR("");
+                setMaxHR("");
+                setRounds("");
+                setElevation("");
+                setRpe("");
+                setStep("type");
+                baselineRef.current = null;
+              }}
               className="text-[10px] label"
               style={{
                 color:
                   autosaveStatus === "saved"
                     ? "var(--accent)"
                     : "var(--fg-dim)",
+                textDecoration: "underline",
+                textDecorationStyle: "dotted",
+                textUnderlineOffset: "3px",
               }}
             >
-              {autosaveStatus === "saving" ? "Saving…" : "Auto-saved"}
-            </span>
+              {autosaveStatus === "saving" ? "Saving…" : "Auto-saved · Discard"}
+            </button>
           )}
           <button
             onClick={handleSave}
