@@ -373,7 +373,23 @@ export default async function AnalyticsPage() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
-  const weightPRs = prs
+  // Drop PRs whose workout has been deleted — their dates point at sessions
+  // that no longer exist. Clean them up in the background so the list stays
+  // honest over time.
+  const workoutIds = new Set(workouts.map((w) => w.id));
+  const orphanPrIds = prs
+    .filter((pr) => pr.workoutId && !workoutIds.has(pr.workoutId))
+    .map((pr) => pr.id);
+  if (orphanPrIds.length > 0) {
+    prisma.personalRecord
+      .deleteMany({ where: { id: { in: orphanPrIds }, userId } })
+      .catch(() => {});
+  }
+  const livePrs = prs.filter(
+    (pr) => !pr.workoutId || workoutIds.has(pr.workoutId)
+  );
+
+  const weightPRs = livePrs
     .filter((pr) => pr.type === "WEIGHT" && !isMachineExercise(pr.exercise.name))
     .reduce(
       (acc, pr) => {

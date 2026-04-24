@@ -271,6 +271,9 @@ export async function updateWorkout(
 export async function deleteWorkout(workoutId: string) {
   const userId = await requireAuth();
   await prisma.$transaction([
+    // Drop any PR rows that were set during this workout — otherwise their
+    // dates keep pointing at a session that no longer exists.
+    prisma.personalRecord.deleteMany({ where: { workoutId, userId } }),
     prisma.workout.deleteMany({ where: { id: workoutId, userId } }),
     prisma.trainerMessage.deleteMany({ where: { userId } }),
   ]);
