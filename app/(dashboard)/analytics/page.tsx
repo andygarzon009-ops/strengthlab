@@ -6,6 +6,7 @@ import {
   shapeForType,
   formatDuration,
   isMachineExercise,
+  isTimedExercise,
 } from "@/lib/exercises";
 import { format, subDays, differenceInDays } from "date-fns";
 import PRList from "@/components/PRList";
@@ -73,11 +74,19 @@ export default async function AnalyticsPage() {
       .flatMap((w) => w.exercises.flatMap((e) => e.sets))
       .filter((s) => s.type === "WORKING");
 
+  // Volume = Σ (weight × reps) for STRENGTH working sets. Timed/isometric
+  // movements (planks, holds) are excluded — their "reps" field is seconds,
+  // so including them would distort tonnage.
   const volumeIn = (list: typeof workouts) =>
-    workingSetsIn(list).reduce(
-      (sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0),
-      0
-    );
+    list
+      .filter((w) => shapeForType(w.type) === "STRENGTH")
+      .flatMap((w) =>
+        w.exercises
+          .filter((e) => !isTimedExercise(e.exercise.name))
+          .flatMap((e) => e.sets)
+      )
+      .filter((s) => s.type === "WORKING")
+      .reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
 
   // Map granular muscle groups → 6 broad categories used by the ring.
   const BROAD_GROUPS = [

@@ -6,6 +6,7 @@ import {
   usesPlates,
   PLATE_WEIGHT_LB,
   isBodyweightCapable,
+  isTimedExercise,
 } from "@/lib/exercises";
 
 type SetData = {
@@ -754,11 +755,15 @@ function SetRow({
 }) {
   const repsRef = useRef<HTMLInputElement>(null);
   const plateMode = usesPlates(exerciseName);
-  const bodyweightMode = !plateMode && isBodyweightCapable(exerciseName);
+  const timedMode = isTimedExercise(exerciseName);
+  const bodyweightMode =
+    !plateMode && !timedMode && isBodyweightCapable(exerciseName);
 
   // A working set with a weight but no reps is invalid — highlight it.
+  // Timed holds are valid with just seconds (bodyweight is the default).
   const repsMissing =
     !isWarmup &&
+    !timedMode &&
     set.weight.trim() !== "" &&
     parseFloat(set.weight) > 0 &&
     set.reps.trim() === "";
@@ -789,6 +794,73 @@ function SetRow({
     if (!Number.isFinite(plates) || plates < 0) return;
     onUpdate("weight", String(plates * PLATE_WEIGHT_LB * 2));
   };
+
+  if (timedMode) {
+    return (
+      <div className="flex items-center gap-2 mb-1.5">
+        <span
+          className="nums text-[11px] w-5 text-center shrink-0 font-semibold"
+          style={{
+            color: isWarmup ? "var(--fg-dim)" : "var(--accent)",
+            fontFamily: "var(--font-geist-mono)",
+          }}
+        >
+          {setIdx + 1}
+        </span>
+        <input
+          type="number"
+          inputMode="numeric"
+          value={set.reps}
+          onChange={(e) => onUpdate("reps", e.target.value)}
+          placeholder="sec"
+          className="w-20 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
+          style={{
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            color: "var(--fg)",
+            fontFamily: "var(--font-geist-mono)",
+          }}
+        />
+        <span style={{ color: "var(--fg-dim)", fontSize: "11px" }}>sec</span>
+        <input
+          type="number"
+          inputMode="decimal"
+          value={set.weight}
+          onChange={(e) => onUpdate("weight", e.target.value)}
+          placeholder="+lb"
+          className="w-14 text-center text-[12px] rounded-lg py-2 focus:outline-none nums"
+          style={{
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            color: "var(--fg-muted)",
+            fontFamily: "var(--font-geist-mono)",
+          }}
+        />
+        <span style={{ color: "var(--fg-dim)", fontSize: "11px" }}>
+          {!set.weight || parseFloat(set.weight) === 0 ? "BW" : "load"}
+        </span>
+        <button
+          onClick={onRemove}
+          className="ml-auto w-7 h-7 flex items-center justify-center"
+          style={{ color: "var(--fg-dim)" }}
+          aria-label="Remove set"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-2 mb-1.5">

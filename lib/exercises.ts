@@ -221,6 +221,36 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Plate-Loaded Standing Calf Raise", muscleGroup: "Calves", splits: "LEGS" },
   { name: "Plate-Loaded Seated Calf Raise", muscleGroup: "Calves", splits: "LEGS" },
 
+  // Pin-loaded machines (selectorized — stack with a pin)
+  { name: "Chest Press Machine (Pin)", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Incline Chest Press Machine (Pin)", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Decline Chest Press Machine (Pin)", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Shoulder Press Machine (Pin)", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Seated Row Machine (Pin)", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "High Row Machine (Pin)", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Low Row Machine (Pin)", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Converging Chest Press (Pin)", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Pec Deck Rear Delt", muscleGroup: "Shoulders", splits: "PULL,UPPER" },
+  { name: "Preacher Curl Machine (Pin)", muscleGroup: "Biceps", splits: "PULL,UPPER,ARMS" },
+  { name: "Bicep Curl Machine (Pin)", muscleGroup: "Biceps", splits: "PULL,UPPER,ARMS" },
+  { name: "Tricep Extension Machine (Pin)", muscleGroup: "Triceps", splits: "PUSH,UPPER,ARMS" },
+  { name: "Dip Machine (Pin)", muscleGroup: "Triceps", splits: "PUSH,UPPER,ARMS" },
+  { name: "Assisted Pull-Up Machine", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Assisted Dip Machine", muscleGroup: "Triceps", splits: "PUSH,UPPER,ARMS" },
+  { name: "Leg Extension Machine (Pin)", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Seated Leg Curl Machine (Pin)", muscleGroup: "Hamstrings", splits: "LEGS,LOWER" },
+  { name: "Lying Leg Curl Machine (Pin)", muscleGroup: "Hamstrings", splits: "LEGS,LOWER" },
+  { name: "Standing Leg Curl Machine (Pin)", muscleGroup: "Hamstrings", splits: "LEGS,LOWER" },
+  { name: "Abductor Machine (Pin)", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
+  { name: "Adductor Machine (Pin)", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Glute Kickback Machine (Pin)", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
+  { name: "Hip Abduction Machine (Pin)", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
+  { name: "Seated Calf Raise Machine (Pin)", muscleGroup: "Calves", splits: "LEGS,LOWER" },
+  { name: "Standing Calf Raise Machine (Pin)", muscleGroup: "Calves", splits: "LEGS,LOWER" },
+  { name: "Back Extension Machine (Pin)", muscleGroup: "Back", splits: "PULL,LOWER" },
+  { name: "Abdominal Crunch Machine (Pin)", muscleGroup: "Core", splits: "CORE" },
+  { name: "Rotary Torso Machine (Pin)", muscleGroup: "Core", splits: "CORE" },
+
   // Plate-loaded machines (upper)
   { name: "Plate-Loaded Chest Press", muscleGroup: "Chest", splits: "PUSH" },
   { name: "Plate-Loaded Incline Chest Press", muscleGroup: "Chest", splits: "PUSH" },
@@ -461,6 +491,53 @@ const BODYWEIGHT_CAPABLE_PATTERNS = [
 
 export function isBodyweightCapable(name: string): boolean {
   return BODYWEIGHT_CAPABLE_PATTERNS.some((re) => re.test(name));
+}
+
+// Isometric / timed movements. The "reps" field stores SECONDS for these.
+const TIMED_PATTERNS = [
+  /\(sec\)/i,
+  /\bplank\b/i,
+  /\bside plank\b/i,
+  /\bhollow hold\b/i,
+  /\bhollow body hold\b/i,
+  /\barch hold\b/i,
+  /\bwall sit\b/i,
+  /\bdead hang\b/i,
+  /\bflexed-arm hang\b/i,
+  /\bl-sit hold\b/i,
+  /\bv-sit hold\b/i,
+  /\btuck l-sit\b/i,
+  /\bfront lever hold\b/i,
+  /\btuck front lever\b/i,
+  /\bback lever hold\b/i,
+  /\bhandstand hold\b/i,
+  /\bplanche hold\b/i,
+  /\btuck planche\b/i,
+  /\bhuman flag hold\b/i,
+  /\bfarmer carry\b/i,
+  /\bplate pinch\b/i,
+  /\bsprint \(sec\)\b/i,
+];
+
+export function isTimedExercise(name: string): boolean {
+  return TIMED_PATTERNS.some((re) => re.test(name));
+}
+
+// Pin-loaded (selectorized) machines — stack with a pin, weight is entered
+// directly (not plates per side). Used for UI hints and analytics filtering.
+const PIN_LOADED_PATTERNS = [
+  /\(pin\)/i,
+  /\bcable\b/i,
+  /\bpulldown\b/i,
+  /\bpec deck\b/i,
+  /\bpushdown\b/i,
+  /\bassisted (pull-up|dip)\b/i,
+  /\bface pull\b/i,
+];
+
+export function isPinLoaded(name: string): boolean {
+  if (usesPlates(name)) return false; // Smith / plate-loaded take priority
+  return PIN_LOADED_PATTERNS.some((re) => re.test(name));
 }
 
 export function shapeForType(type: string): WorkoutShape {
