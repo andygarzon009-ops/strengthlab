@@ -300,43 +300,54 @@ export default function ExerciseLogger({
       })}
 
       {showSearch ? (
-        <div className="card overflow-hidden">
-          <div className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <input
-                autoFocus
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search exercises…"
-                className="flex-1 rounded-xl px-4 py-2.5 text-[14px] focus:outline-none"
-                style={{
-                  background: "var(--bg-elevated)",
-                  border: "1px solid var(--border)",
-                  color: "var(--fg)",
-                }}
-              />
-              <button
-                onClick={() => {
-                  setShowSearch(false);
-                  setShowAll(false);
-                }}
-                className="w-8 h-8 flex items-center justify-center rounded-full"
-                style={{ color: "var(--fg-muted)" }}
+        <div
+          className="fixed inset-0 z-[60] flex flex-col"
+          style={{ background: "var(--bg)" }}
+        >
+          <div
+            className="px-4 pt-5 pb-3 flex items-center gap-2"
+            style={{ borderBottom: "1px solid var(--border)" }}
+          >
+            <button
+              onClick={() => {
+                setShowSearch(false);
+                setShowAll(false);
+                setSearch("");
+              }}
+              className="w-9 h-9 flex items-center justify-center rounded-full shrink-0"
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                color: "var(--fg-muted)",
+              }}
+              aria-label="Close exercise picker"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search exercises…"
+              className="flex-1 rounded-xl px-4 py-2.5 text-[14px] focus:outline-none"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
+              }}
+            />
+          </div>
+          <div className="flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-6">
             {currentSplit && (
               <div className="flex items-center justify-between mb-3 px-1">
                 <p
@@ -356,8 +367,8 @@ export default function ExerciseLogger({
                 </button>
               </div>
             )}
-            <div className="space-y-0.5 max-h-72 overflow-y-auto">
-              {filtered.slice(0, 30).map((ex) => (
+            <div className="space-y-0.5">
+              {filtered.slice(0, 100).map((ex) => (
                 <button
                   key={ex.id}
                   onClick={() => addExercise(ex)}
