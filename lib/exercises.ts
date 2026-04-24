@@ -252,6 +252,95 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Back Extension Machine (Pin)", muscleGroup: "Back", splits: "PULL,LOWER" },
   { name: "Abdominal Crunch Machine (Pin)", muscleGroup: "Core", splits: "CORE" },
   { name: "Rotary Torso Machine (Pin)", muscleGroup: "Core", splits: "CORE" },
+  { name: "Glute Drive Machine", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
+  { name: "Pendulum Squat Machine", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Chest-Supported Row Machine (Pin)", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Nautilus Pullover Machine", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Smith Machine Incline Row", muscleGroup: "Back", splits: "PULL,UPPER" },
+
+  // Hammer Strength iso-lateral (plate-loaded, named variants)
+  { name: "Hammer Strength Iso-Lateral Chest Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Hammer Strength Iso-Lateral Incline Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Hammer Strength Iso-Lateral Decline Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Hammer Strength Iso-Lateral Shoulder Press", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Hammer Strength Iso-Lateral Row", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Hammer Strength Iso-Lateral High Row", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Hammer Strength Iso-Lateral Low Row", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Hammer Strength Iso-Lateral D.Y. Row", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Hammer Strength Iso-Lateral Pulldown", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Hammer Strength Iso-Lateral Front Pulldown", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Hammer Strength Iso-Lateral Leg Press", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Hammer Strength Iso-Lateral Kneeling Leg Curl", muscleGroup: "Hamstrings", splits: "LEGS,LOWER" },
+  { name: "Hammer Strength Iso-Lateral Seated Leg Curl", muscleGroup: "Hamstrings", splits: "LEGS,LOWER" },
+
+  // Accessory / grip variants
+  { name: "Reverse-Grip Lat Pulldown", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Reverse-Grip Bent-Over Row", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Chest-Supported Dumbbell Row", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Chest-Supported T-Bar Row", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Single-Arm Dumbbell Row", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Kroc Row", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Dumbbell Pullover", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Cable Y-Raise", muscleGroup: "Shoulders", splits: "PULL,UPPER" },
+  { name: "Cable Front Raise", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Cable Upright Row", muscleGroup: "Shoulders", splits: "PULL,UPPER" },
+  { name: "Z Press", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Half-Kneeling Single-Arm Press", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Drag Curl", muscleGroup: "Biceps", splits: "PULL,UPPER,ARMS" },
+  { name: "Bayesian Cable Curl", muscleGroup: "Biceps", splits: "PULL,UPPER,ARMS" },
+  { name: "French Press", muscleGroup: "Triceps", splits: "PUSH,UPPER,ARMS" },
+  { name: "Overhead Rope Tricep Extension", muscleGroup: "Triceps", splits: "PUSH,UPPER,ARMS" },
+
+  // Lower body additions
+  { name: "Glute Ham Raise", muscleGroup: "Hamstrings", splits: "LEGS,LOWER,PULL" },
+  { name: "Reverse Nordic Curl", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Copenhagen Plank", muscleGroup: "Core", splits: "CORE,LEGS" },
+  { name: "Copenhagen Adduction", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Cossack Squat", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Curtsy Lunge", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
+  { name: "Walking Lunge (Dumbbell)", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Reverse Lunge (Barbell)", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Reverse Lunge (Dumbbell)", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Step-Up (Dumbbell)", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Bulgarian Split Squat (Dumbbell)", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Safety Squat Bar Squat", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Front Squat (Dumbbell)", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Deficit Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
+  { name: "Sumo Deadlift", muscleGroup: "Glutes", splits: "PULL,LOWER" },
+  { name: "Single-Leg Romanian Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
+  { name: "B-Stance Romanian Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
+  { name: "Romanian Deadlift (Dumbbell)", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
+  { name: "Reverse Hyper", muscleGroup: "Glutes", splits: "LEGS,LOWER,PULL" },
+  { name: "45-Degree Hyperextension", muscleGroup: "Lower Back", splits: "PULL,LOWER" },
+
+  // Landmine family
+  { name: "Landmine Row", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Landmine Meadows Row", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Landmine Squat", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Landmine RDL", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
+  { name: "Landmine Rotation", muscleGroup: "Core", splits: "CORE" },
+
+  // Kettlebell family
+  { name: "Kettlebell Clean", muscleGroup: "Back", splits: "PULL,FULL_BODY" },
+  { name: "Kettlebell Snatch", muscleGroup: "Shoulders", splits: "PULL,FULL_BODY" },
+  { name: "Kettlebell Shoulder Press", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Turkish Get-Up", muscleGroup: "Core", splits: "FULL_BODY" },
+
+  // Carries + conditioning
+  { name: "Suitcase Carry", muscleGroup: "Core", splits: "CORE" },
+  { name: "Overhead Carry", muscleGroup: "Shoulders", splits: "PUSH,CORE" },
+  { name: "Yoke Carry", muscleGroup: "Back", splits: "FULL_BODY" },
+  { name: "Sled Push", muscleGroup: "Quads", splits: "LEGS,FULL_BODY" },
+  { name: "Sled Pull", muscleGroup: "Back", splits: "PULL,FULL_BODY" },
+  { name: "Prowler Push", muscleGroup: "Quads", splits: "LEGS,FULL_BODY" },
+  { name: "Sandbag Squat", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Sandbag Carry", muscleGroup: "Core", splits: "FULL_BODY" },
+
+  // Core
+  { name: "GHD Sit-Up", muscleGroup: "Core", splits: "CORE" },
+  { name: "Jefferson Curl", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
+  { name: "Ab Crunch Machine", muscleGroup: "Core", splits: "CORE" },
+  { name: "Hanging Windshield Wiper", muscleGroup: "Core", splits: "CORE" },
 
   // Plate-loaded machines (upper)
   { name: "Plate-Loaded Chest Press", muscleGroup: "Chest", splits: "PUSH" },
@@ -555,7 +644,7 @@ export function specificMuscleFor(name: string): string {
 
   // --- Arms
   if (
-    /\btricep\b|\bskullcrusher\b|\bjm press\b|\bclose-?grip\b|\bpushdown\b|\bdiamond push\b|\btate press\b|\boverhead extension\b|\bkickback \(tricep\)\b/.test(
+    /\btricep\b|\bskullcrusher\b|\bjm press\b|\bclose-?grip\b|\bpushdown\b|\bdiamond push\b|\btate press\b|\boverhead extension\b|\boverhead (rope )?tricep\b|\bfrench press\b|\bkickback \(tricep\)\b/.test(
       n
     )
   )
@@ -582,7 +671,7 @@ export function specificMuscleFor(name: string): string {
   // --- Legs (order: calves/tib → adductor/abductor → glutes → hams → quads)
   if (/\btibialis\b/.test(n)) return "Tibialis";
   if (/\bcalf\b|\bcalves\b/.test(n)) return "Calves";
-  if (/\badductor\b|\badduction\b/.test(n)) return "Adductors";
+  if (/\badductor\b|\badduction\b|\bcopenhagen\b/.test(n)) return "Adductors";
   if (/\babductor\b|\babduction\b/.test(n)) return "Abductors";
   if (
     /\bhip thrust\b|\bglute bridge\b|\bkickback\b|\bhip extension\b|\bpull-through\b|\bsumo deadlift\b|\bglute\b|\bb-stance hip\b/.test(
@@ -590,8 +679,9 @@ export function specificMuscleFor(name: string): string {
     )
   )
     return "Glutes";
+  if (/\breverse nordic\b/.test(n)) return "Quads";
   if (
-    /\brdl\b|\bromanian deadlift\b|\bstiff-?leg deadlift\b|\bleg curl\b|\bnordic\b/.test(
+    /\brdl\b|\bromanian deadlift\b|\bstiff-?leg deadlift\b|\bleg curl\b|\bnordic\b|\bghr\b|\bglute[- ]?ham\b|\bjefferson curl\b/.test(
       n
     )
   )
