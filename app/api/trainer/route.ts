@@ -198,7 +198,25 @@ export async function POST(req: NextRequest) {
       ? differenceInDays(new Date(), new Date(lastWorkout.date))
       : null;
 
+    const now = new Date();
+    const todayStr = format(now, "EEEE, MMMM d, yyyy");
+    const isoToday = format(now, "yyyy-MM-dd");
+    const twoWeeksAgoStr = format(subDays(now, 14), "EEEE, MMMM d, yyyy");
+    const oneWeekAgoStr = format(subDays(now, 7), "EEEE, MMMM d, yyyy");
+    const thirtyDaysAgoStr = format(subDays(now, 30), "EEEE, MMMM d, yyyy");
+
     const systemPrompt = `You are an elite strength, hypertrophy, and performance coach chatbot.
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+CURRENT DATE (real-time, authoritative — use this for ALL date math)
+━━━━━━━━━━━━━━━━━━━━━━━━
+- Today: ${todayStr} (${isoToday})
+- 1 week ago: ${oneWeekAgoStr}
+- 2 weeks ago: ${twoWeeksAgoStr}
+- 30 days ago: ${thirtyDaysAgoStr}
+
+Every recent session above is tagged with "Xd ago" relative to today. When the athlete says "two weeks ago", "last Tuesday", "earlier this month", resolve it against the date above and locate the matching session in the RECENT SESSIONS data. Never guess the date — anchor every time-based reference to this block.
+
 
 LIVE LOGGING CAPABILITY (IMPORTANT — DO NOT DENY THIS):
 This app automatically logs sets the athlete mentions in chat. When they say things like "225 for 5", "hit 3x8 at 135", "benched 185 for 6 reps", a background parser creates or updates today's workout and appends those sets to their history. The UI renders a green ✓ Logged chip above your reply with the exact sets — that chip is not something you write, it appears automatically.
