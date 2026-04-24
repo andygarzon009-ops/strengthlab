@@ -496,13 +496,11 @@ ${user.coachPrompt.trim()}`
     const encoder = new TextEncoder();
     let fullResponse = "";
 
-    // Pro follows the "don't restate logged sets" and effort-reading
-    // instructions much more reliably than flash-lite. Fall back to
-    // flash if pro is overloaded/unavailable to avoid 503s to the user.
-    // Preview models are flaky — always pair with a stable GA fallback so
-    // a single overloaded endpoint can't take the whole chain down.
-    const PRIMARY_MODEL = "gemini-3.1-flash";
-    const FALLBACK_MODEL = "gemini-2.5-pro";
+    // Stick to GA model ids supported by @google/generative-ai v0.24.
+    // 2.5-pro has the best instruction-following; 2.5-flash is the fast
+    // fallback if pro is overloaded.
+    const PRIMARY_MODEL = "gemini-2.5-pro";
+    const FALLBACK_MODEL = "gemini-2.5-flash";
 
     let liveMessage = message;
     if (logSummary && logSummary.summary.length > 0) {
