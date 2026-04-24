@@ -146,6 +146,8 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Glute Bridge", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
   { name: "Cable Kickback", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
   { name: "Cable Pull-Through", muscleGroup: "Glutes", splits: "LEGS,LOWER,PULL" },
+  { name: "Glute-Focused Back Extension", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
+  { name: "45-Degree Back Extension (Glute Focus)", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
 
   // Calves
   { name: "Standing Calf Raise", muscleGroup: "Calves", splits: "LEGS,LOWER" },
@@ -526,6 +528,8 @@ export function specificMuscleFor(name: string): string {
   if (/\bshrug\b/.test(n)) return "Traps";
   if (/\brhomboid\b/.test(n)) return "Rhomboids";
   if (/\bteres\b/.test(n)) return "Teres";
+  // Glute-focused back extensions land on Glutes, not Lower Back.
+  if (/\bglute[- ]?focus\b/.test(n)) return "Glutes";
   if (
     /\bback extension\b|\bhyperextension\b|\bgood morning\b|\breverse hyper\b/.test(
       n
