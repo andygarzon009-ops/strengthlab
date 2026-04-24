@@ -373,21 +373,47 @@ export default async function AnalyticsPage() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
-  // Drop PRs whose workout has been deleted — their dates point at sessions
-  // that no longer exist. Clean them up in the background so the list stays
-  // honest over time.
-  const workoutIds = new Set(workouts.map((w) => w.id));
-  const orphanPrIds = prs
-    .filter((pr) => pr.workoutId && !workoutIds.has(pr.workoutId))
-    .map((pr) => pr.id);
+  // Heal PR rows:
+  //  1. Drop PRs whose workout has been deleted — their dates point at
+  //     sessions that no longer exist.
+  //  2. Realign PR.date to match the source workout's current date, in case
+  //     the workout was edited/backdated after the PR was first recorded.
+  const workoutById = new Map(workouts.map((w) => [w.id, w]));
+  const orphanPrIds: string[] = [];
+  const dateFixes: { id: string; date: Date }[] = [];
+  const livePrsRaw: typeof prs = [];
+  for (const pr of prs) {
+    if (pr.workoutId) {
+      const w = workoutById.get(pr.workoutId);
+      if (!w) {
+        orphanPrIds.push(pr.id);
+        continue;
+      }
+      const wTime = new Date(w.date).getTime();
+      if (new Date(pr.date).getTime() !== wTime) {
+        dateFixes.push({ id: pr.id, date: w.date });
+        livePrsRaw.push({ ...pr, date: w.date });
+        continue;
+      }
+    }
+    livePrsRaw.push(pr);
+  }
   if (orphanPrIds.length > 0) {
     prisma.personalRecord
       .deleteMany({ where: { id: { in: orphanPrIds }, userId } })
       .catch(() => {});
   }
-  const livePrs = prs.filter(
-    (pr) => !pr.workoutId || workoutIds.has(pr.workoutId)
-  );
+  if (dateFixes.length > 0) {
+    Promise.all(
+      dateFixes.map((f) =>
+        prisma.personalRecord.update({
+          where: { id: f.id },
+          data: { date: f.date },
+        })
+      )
+    ).catch(() => {});
+  }
+  const livePrs = livePrsRaw;
 
   const weightPRs = livePrs
     .filter((pr) => pr.type === "WEIGHT" && !isMachineExercise(pr.exercise.name))
