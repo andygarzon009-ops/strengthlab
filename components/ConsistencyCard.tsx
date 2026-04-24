@@ -7,7 +7,11 @@ import {
   format,
   differenceInCalendarDays,
 } from "date-fns";
-import { shapeForType, specificMuscleFor } from "@/lib/exercises";
+import {
+  shapeForType,
+  specificMuscleFor,
+  broadGroupForSpecific,
+} from "@/lib/exercises";
 import MuscleMap, { type MuscleRecency } from "@/components/MuscleMap";
 
 const WEEKDAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -67,20 +71,56 @@ export default async function ConsistencyCard({
   });
   const daysHit = daysThisWeek.filter((d) => d.hasWorkout).length;
 
-  // ----- Muscle recency: days since last working set per specific muscle.
-  const recency: MuscleRecency = {};
+  // ----- Muscle recency at the broad-group level (Chest/Back/Shoulders/
+  // Arms/Legs/Core) so the body map matches the 6-group activity ring.
+  // All specific muscles inside a group take on the group's recency,
+  // giving each broad region a single, consistent color.
+  const broadRecency: Record<string, number> = {};
   for (const w of workouts) {
     if (shapeForType(w.type) !== "STRENGTH") continue;
     const days = differenceInCalendarDays(today, new Date(w.date));
     for (const we of w.exercises) {
       const hit = we.sets.some((s) => s.type === "WORKING");
       if (!hit) continue;
-      const muscle = specificMuscleFor(we.exercise.name);
-      if (muscle === "Other") continue;
-      if (recency[muscle] === undefined || days < recency[muscle]!) {
-        recency[muscle] = days;
+      const broad = broadGroupForSpecific(specificMuscleFor(we.exercise.name));
+      if (!broad) continue;
+      if (broadRecency[broad] === undefined || days < broadRecency[broad]) {
+        broadRecency[broad] = days;
       }
     }
+  }
+
+  // Every specific-muscle region in MuscleMap gets its group's recency.
+  const SPECIFIC_TO_BROAD: Record<string, string> = {
+    "Pec Major": "Chest",
+    "Pec Minor": "Chest",
+    Serratus: "Chest",
+    Lats: "Back",
+    Traps: "Back",
+    Rhomboids: "Back",
+    "Lower Back": "Back",
+    Teres: "Back",
+    "Front Delts": "Shoulders",
+    "Side Delts": "Shoulders",
+    "Rear Delts": "Shoulders",
+    Biceps: "Arms",
+    Brachialis: "Arms",
+    Triceps: "Arms",
+    Forearms: "Arms",
+    Quads: "Legs",
+    Hamstrings: "Legs",
+    Glutes: "Legs",
+    Adductors: "Legs",
+    Abductors: "Legs",
+    Calves: "Legs",
+    Tibialis: "Legs",
+    Abs: "Core",
+    Obliques: "Core",
+  };
+  const recency: MuscleRecency = {};
+  for (const [specific, broad] of Object.entries(SPECIFIC_TO_BROAD)) {
+    const d = broadRecency[broad];
+    if (d !== undefined) recency[specific] = d;
   }
 
   return (
