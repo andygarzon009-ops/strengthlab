@@ -499,8 +499,8 @@ ${user.coachPrompt.trim()}`
     // Pro follows the "don't restate logged sets" and effort-reading
     // instructions much more reliably than flash-lite. Fall back to
     // flash if pro is overloaded/unavailable to avoid 503s to the user.
-    const PRIMARY_MODEL = "gemini-2.5-pro";
-    const FALLBACK_MODEL = "gemini-2.5-flash";
+    const PRIMARY_MODEL = "gemini-3.1-pro";
+    const FALLBACK_MODEL = "gemini-3.1-pro";
 
     let liveMessage = message;
     if (logSummary && logSummary.summary.length > 0) {
