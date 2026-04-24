@@ -7,6 +7,8 @@ import {
   formatDuration,
   isMachineExercise,
   isTimedExercise,
+  specificMuscleFor,
+  broadGroupForSpecific,
 } from "@/lib/exercises";
 import { format, subDays, differenceInDays } from "date-fns";
 import PRList from "@/components/PRList";
@@ -88,7 +90,8 @@ export default async function AnalyticsPage() {
       .filter((s) => s.type === "WORKING")
       .reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
 
-  // Map granular muscle groups → 6 broad categories used by the ring.
+  // 6 broad categories used by the ring. Specific muscle is derived from
+  // the exercise name (rear-delt rows get Shoulders, not Back).
   const BROAD_GROUPS = [
     "Chest",
     "Back",
@@ -97,20 +100,8 @@ export default async function AnalyticsPage() {
     "Legs",
     "Core",
   ] as const;
-  const broadGroupFor = (mg: string | null): string | null => {
-    if (!mg) return null;
-    if (mg === "Biceps" || mg === "Triceps" || mg === "Forearms") return "Arms";
-    if (
-      mg === "Quads" ||
-      mg === "Hamstrings" ||
-      mg === "Glutes" ||
-      mg === "Calves"
-    )
-      return "Legs";
-    if (mg === "Chest" || mg === "Back" || mg === "Shoulders" || mg === "Core")
-      return mg;
-    return null;
-  };
+  const broadGroupFor = (name: string): string | null =>
+    broadGroupForSpecific(specificMuscleFor(name));
   const muscleGroupsIn = (list: typeof workouts): number => {
     const hit = new Set<string>();
     for (const w of list) {
@@ -118,7 +109,7 @@ export default async function AnalyticsPage() {
       for (const we of w.exercises) {
         const hasWorkingSet = we.sets.some((s) => s.type === "WORKING");
         if (!hasWorkingSet) continue;
-        const g = broadGroupFor(we.exercise.muscleGroup);
+        const g = broadGroupFor(we.exercise.name);
         if (g) hit.add(g);
       }
     }
@@ -246,7 +237,7 @@ export default async function AnalyticsPage() {
       if (shapeForType(w.type) !== "STRENGTH") continue;
       for (const we of w.exercises) {
         if (!we.sets.some((s) => s.type === "WORKING")) continue;
-        const g = broadGroupFor(we.exercise.muscleGroup);
+        const g = broadGroupFor(we.exercise.name);
         if (g) hitThisWeek.add(g);
       }
     }

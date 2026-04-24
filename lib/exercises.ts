@@ -493,6 +493,142 @@ export function isBodyweightCapable(name: string): boolean {
   return BODYWEIGHT_CAPABLE_PATTERNS.some((re) => re.test(name));
 }
 
+// Specific muscle inference from exercise name. Order matters — more
+// specific patterns must come before broader ones (e.g. rear delt before
+// "fly", shrug before "shoulder").
+export function specificMuscleFor(name: string): string {
+  const n = name.toLowerCase();
+
+  // --- Shoulders (granular) — check first so we catch moves often
+  // bucketed under Back or Chest in the old taxonomy.
+  if (/\brear[- ]?delt\b|\bface pull\b|\breverse fly\b/.test(n))
+    return "Rear Delts";
+  if (/\blateral raise\b|\bside raise\b|\blaterals?\b|\bupright row\b/.test(n))
+    return "Side Delts";
+  if (/\bfront raise\b/.test(n)) return "Front Delts";
+  if (
+    /\bshoulder press\b|\boverhead press\b|\bohp\b|\barnold press\b|\bmilitary press\b|\bpush press\b|\bhandstand push\b|\bpike push\b|\bz press\b|\blandmine press\b/.test(
+      n
+    )
+  )
+    return "Front Delts";
+
+  // --- Chest
+  if (/\bserratus\b/.test(n)) return "Serratus";
+  if (
+    /\bbench press\b|\bchest press\b|\bpush-up\b|\bpushup\b|\bfly\b|\bcrossover\b|\bpec deck\b|\bfloor press\b|\bsvend press\b|\bdip\b|\bcable press\b/.test(
+      n
+    )
+  )
+    return "Pec Major";
+
+  // --- Back
+  if (/\bshrug\b/.test(n)) return "Traps";
+  if (/\brhomboid\b/.test(n)) return "Rhomboids";
+  if (/\bteres\b/.test(n)) return "Teres";
+  if (
+    /\bback extension\b|\bhyperextension\b|\bgood morning\b|\breverse hyper\b/.test(
+      n
+    )
+  )
+    return "Lower Back";
+  if (
+    /\bpull-?up\b|\bchin-?up\b|\bpulldown\b|\brow\b|\bpullover\b|\bmuscle-?up\b|\blever\b|\bskin the cat\b|\bscapular\b|\bstraight-arm\b/.test(
+      n
+    )
+  )
+    return "Lats";
+
+  // --- Arms
+  if (
+    /\btricep\b|\bskullcrusher\b|\bjm press\b|\bclose-?grip\b|\bpushdown\b|\bdiamond push\b|\btate press\b|\boverhead extension\b|\bkickback \(tricep\)\b/.test(
+      n
+    )
+  )
+    return "Triceps";
+  if (/\bhammer curl\b|\breverse curl\b|\bzottman\b/.test(n))
+    return "Brachialis";
+  if (/\bcurl\b/.test(n)) return "Biceps";
+  if (/\bwrist\b|\bfarmer carry\b|\bplate pinch\b/.test(n)) return "Forearms";
+
+  // --- Core
+  if (
+    /\boblique\b|\bside plank\b|\bwoodchop\b|\bpallof\b|\blandmine twist\b|\brussian twist\b|\brotary torso\b|\brotation\b|\bwindshield\b/.test(
+      n
+    )
+  )
+    return "Obliques";
+  if (
+    /\bplank\b|\bhollow\b|\bcrunch\b|\bsit-?up\b|\bleg raise\b|\bknee raise\b|\bab wheel\b|\bdead bug\b|\bv-up\b|\bv-sit\b|\btoes-to-bar\b|\bl-sit\b|\bdragon flag\b|\bmountain climber\b|\barch hold\b/.test(
+      n
+    )
+  )
+    return "Abs";
+
+  // --- Legs (order: calves/tib → adductor/abductor → glutes → hams → quads)
+  if (/\btibialis\b/.test(n)) return "Tibialis";
+  if (/\bcalf\b|\bcalves\b/.test(n)) return "Calves";
+  if (/\badductor\b|\badduction\b/.test(n)) return "Adductors";
+  if (/\babductor\b|\babduction\b/.test(n)) return "Abductors";
+  if (
+    /\bhip thrust\b|\bglute bridge\b|\bkickback\b|\bhip extension\b|\bpull-through\b|\bsumo deadlift\b|\bglute\b|\bb-stance hip\b/.test(
+      n
+    )
+  )
+    return "Glutes";
+  if (
+    /\brdl\b|\bromanian deadlift\b|\bstiff-?leg deadlift\b|\bleg curl\b|\bnordic\b/.test(
+      n
+    )
+  )
+    return "Hamstrings";
+  if (/\bdeadlift\b/.test(n)) return "Hamstrings"; // conventional/trap-bar primary
+  if (
+    /\bsquat\b|\blunge\b|\bstep-?up\b|\bleg press\b|\bhack squat\b|\bpendulum\b|\bbelt squat\b|\bv-squat\b|\bbulgarian\b|\bsissy\b|\bleg extension\b/.test(
+      n
+    )
+  )
+    return "Quads";
+
+  return "Other";
+}
+
+// Map specific muscle → one of the 6 broad categories used by the
+// Muscle Coverage activity ring and weak-spot check.
+const BROAD_OF_SPECIFIC: Record<string, string> = {
+  "Pec Major": "Chest",
+  "Pec Minor": "Chest",
+  Serratus: "Chest",
+  Lats: "Back",
+  Traps: "Back",
+  Rhomboids: "Back",
+  "Lower Back": "Back",
+  Teres: "Back",
+  "Front Delts": "Shoulders",
+  "Side Delts": "Shoulders",
+  "Rear Delts": "Shoulders",
+  Biceps: "Arms",
+  Brachialis: "Arms",
+  Triceps: "Arms",
+  Forearms: "Arms",
+  Quads: "Legs",
+  Hamstrings: "Legs",
+  Glutes: "Legs",
+  Adductors: "Legs",
+  Abductors: "Legs",
+  Calves: "Legs",
+  Tibialis: "Legs",
+  Abs: "Core",
+  Obliques: "Core",
+};
+
+export function broadGroupForSpecific(
+  specific: string | null | undefined
+): string | null {
+  if (!specific) return null;
+  return BROAD_OF_SPECIFIC[specific] ?? null;
+}
+
 // Isometric / timed movements. The "reps" field stores SECONDS for these.
 const TIMED_PATTERNS = [
   /\(sec\)/i,

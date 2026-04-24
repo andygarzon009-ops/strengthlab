@@ -7,6 +7,7 @@ import {
   PLATE_WEIGHT_LB,
   isBodyweightCapable,
   isTimedExercise,
+  specificMuscleFor,
 } from "@/lib/exercises";
 
 type SetData = {
@@ -393,14 +394,19 @@ export default function ExerciseLogger({
                   style={{ color: "var(--fg)" }}
                 >
                   <span className="text-[14px] font-medium">{ex.name}</span>
-                  {ex.muscleGroup && (
-                    <span
-                      className="label text-[9px]"
-                      style={{ color: "var(--fg-dim)" }}
-                    >
-                      {ex.muscleGroup}
-                    </span>
-                  )}
+                  <span
+                    className="label text-[9px]"
+                    style={{ color: "var(--fg-dim)" }}
+                  >
+                    {(() => {
+                      const s = specificMuscleFor(ex.name);
+                      // For custom exercises whose name doesn't match any
+                      // pattern, fall back to whatever's in the DB.
+                      return s === "Other" && ex.muscleGroup
+                        ? ex.muscleGroup
+                        : s;
+                    })()}
+                  </span>
                 </button>
               ))}
               {search && filtered.length === 0 && (

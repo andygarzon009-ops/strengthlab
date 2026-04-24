@@ -5,7 +5,7 @@ import {
   updateExercise,
   deleteCustomExercise,
 } from "@/lib/actions/exercises";
-import { STRENGTH_SPLITS } from "@/lib/exercises";
+import { STRENGTH_SPLITS, specificMuscleFor } from "@/lib/exercises";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
@@ -17,20 +17,41 @@ type Exercise = {
   isCustom: boolean;
 };
 
+// Specific muscles — used for grouping + the edit/create picker.
 const MUSCLE_GROUPS = [
-  "Chest",
-  "Back",
-  "Shoulders",
+  "Pec Major",
+  "Serratus",
+  "Lats",
+  "Traps",
+  "Rhomboids",
+  "Lower Back",
+  "Teres",
+  "Front Delts",
+  "Side Delts",
+  "Rear Delts",
   "Biceps",
+  "Brachialis",
   "Triceps",
   "Forearms",
   "Quads",
   "Hamstrings",
   "Glutes",
+  "Adductors",
+  "Abductors",
   "Calves",
-  "Core",
+  "Tibialis",
+  "Abs",
+  "Obliques",
   "Other",
 ];
+
+// Display the specific muscle for a library row, falling back to the
+// DB-stored muscleGroup for custom exercises whose name isn't pattern-matched.
+const resolveMuscle = (name: string, stored: string | null): string => {
+  const s = specificMuscleFor(name);
+  if (s !== "Other") return s;
+  return stored && stored.trim() !== "" ? stored : "Other";
+};
 
 export default function ExerciseManager({
   initial,
@@ -54,7 +75,7 @@ export default function ExerciseManager({
     });
     const byGroup: Record<string, Exercise[]> = {};
     for (const e of filtered) {
-      const mg = e.muscleGroup ?? "Other";
+      const mg = resolveMuscle(e.name, e.muscleGroup);
       if (!byGroup[mg]) byGroup[mg] = [];
       byGroup[mg].push(e);
     }
