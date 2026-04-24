@@ -300,12 +300,29 @@ export default function ExerciseLogger({
       })}
 
       {showSearch ? (
-        <div
-          className="fixed inset-0 z-[60] flex flex-col"
-          style={{ background: "var(--bg)" }}
-        >
+        <>
           <div
-            className="px-4 pt-5 pb-3 flex items-center gap-2"
+            className="fixed inset-0 z-[59]"
+            style={{ background: "rgba(0,0,0,0.6)" }}
+            onClick={() => {
+              setShowSearch(false);
+              setShowAll(false);
+              setSearch("");
+            }}
+          />
+          <div
+            className="fixed z-[60] flex flex-col rounded-2xl overflow-hidden shadow-2xl"
+            style={{
+              background: "var(--bg)",
+              border: "1px solid var(--border)",
+              top: "calc(env(safe-area-inset-top) + 16px)",
+              bottom: "calc(env(safe-area-inset-bottom) + 16px)",
+              left: 12,
+              right: 12,
+            }}
+          >
+          <div
+            className="px-4 py-3 flex items-center gap-2"
             style={{ borderBottom: "1px solid var(--border)" }}
           >
             <button
@@ -427,7 +444,8 @@ export default function ExerciseLogger({
               </Link>
             </div>
           </div>
-        </div>
+          </div>
+        </>
       ) : (
         <div className="space-y-2">
           <div className="flex gap-2">
