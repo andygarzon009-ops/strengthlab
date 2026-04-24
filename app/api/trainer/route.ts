@@ -496,9 +496,10 @@ ${user.coachPrompt.trim()}`
     const encoder = new TextEncoder();
     let fullResponse = "";
 
-    // Stable, fast model. Fall back to regular flash if lite is overloaded
-    // or unavailable — avoids 503s from cascading to the user.
-    const PRIMARY_MODEL = "gemini-2.5-flash-lite";
+    // Pro follows the "don't restate logged sets" and effort-reading
+    // instructions much more reliably than flash-lite. Fall back to
+    // flash if pro is overloaded/unavailable to avoid 503s to the user.
+    const PRIMARY_MODEL = "gemini-2.5-pro";
     const FALLBACK_MODEL = "gemini-2.5-flash";
 
     let liveMessage = message;
