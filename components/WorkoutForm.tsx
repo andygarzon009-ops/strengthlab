@@ -323,23 +323,14 @@ export default function WorkoutForm({
 
   // Auto-detect split from the exercises the user added — runs in both
   // create and edit so swapping or removing an exercise re-derives the
-  // session split (and title) on the fly. The title is only rewritten when
-  // it still matches the previous auto-generated value, so a custom title
-  // like "Leg day with Sarah" is preserved.
+  // session split (and the title) on the fly.
   useEffect(() => {
     if (shape !== "STRENGTH") return;
     const detected = detectSplit(exercises.map((e) => e.exerciseName));
     if (!detected || detected === split) return;
     setSplit(detected);
-    if (!splitDrivesTitle) return;
-    const isAutoTitle =
-      title.trim() === "" ||
-      title === labelForType(workoutType) ||
-      title === titleFor(workoutType, split);
-    if (isAutoTitle) {
-      setTitle(titleFor(workoutType, detected));
-    }
-  }, [exercises, shape, workoutType, split, splitDrivesTitle, title]);
+    if (splitDrivesTitle) setTitle(titleFor(workoutType, detected));
+  }, [exercises, shape, workoutType, split, splitDrivesTitle]);
 
   // Strength sets with weight but missing reps block save
   const missingRepsCount =
@@ -682,18 +673,6 @@ export default function WorkoutForm({
       <DateSelector date={date} setDate={setDate} />
 
       <div className="space-y-2.5 mb-6">
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Session title"
-          className="w-full rounded-xl px-4 py-3 text-[15px] focus:outline-none font-semibold tracking-tight"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            color: "var(--fg)",
-          }}
-        />
-
         {shape === "STRENGTH" && split && (
           <div className="flex items-center gap-2">
             <span
