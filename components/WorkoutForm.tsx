@@ -813,7 +813,6 @@ export default function WorkoutForm({
         <ExerciseLogger
           exercises={exercises}
           setExercises={setExercises}
-          currentSplit={split || undefined}
         />
       )}
 

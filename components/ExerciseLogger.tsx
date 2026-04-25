@@ -42,18 +42,15 @@ type PreviousData = {
 type Props = {
   exercises: ExerciseData[];
   setExercises: (exercises: ExerciseData[]) => void;
-  currentSplit?: string;
 };
 
 export default function ExerciseLogger({
   exercises,
   setExercises,
-  currentSplit,
 }: Props) {
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
-  const [showAll, setShowAll] = useState(false);
   const [showVoice, setShowVoice] = useState(false);
   const [previousData, setPreviousData] = useState<
     Record<string, PreviousData>
@@ -65,18 +62,26 @@ export default function ExerciseLogger({
       .then(setAllExercises);
   }, []);
 
-  const matchesSplit = (ex: Exercise) => {
-    if (!currentSplit) return true;
-    if (showAll) return true;
-    const splits = (ex.splits ?? "").split(",").map((s) => s.trim());
-    return splits.includes(currentSplit);
-  };
+  const filtered = allExercises
+    .filter((e) => e.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      const ag = a.muscleGroup ?? "Other";
+      const bg = b.muscleGroup ?? "Other";
+      if (ag !== bg) return ag.localeCompare(bg);
+      return a.name.localeCompare(b.name);
+    });
 
-  const filtered = allExercises.filter(
-    (e) =>
-      matchesSplit(e) &&
-      e.name.toLowerCase().includes(search.toLowerCase())
-  );
+  // Group by muscle when not actively searching, so the dropdown is
+  // scannable as "Back ▸ ...", "Biceps ▸ ...", etc.
+  const grouped = search
+    ? null
+    : filtered.reduce<{ group: string; items: Exercise[] }[]>((acc, ex) => {
+        const group = ex.muscleGroup ?? "Other";
+        const last = acc[acc.length - 1];
+        if (last && last.group === group) last.items.push(ex);
+        else acc.push({ group, items: [ex] });
+        return acc;
+      }, []);
 
   const addExercise = async (ex: Exercise) => {
     const res = await fetch(`/api/exercises/${ex.id}/previous`);
@@ -307,7 +312,7 @@ export default function ExerciseLogger({
             style={{ background: "rgba(0,0,0,0.6)" }}
             onClick={() => {
               setShowSearch(false);
-              setShowAll(false);
+
               setSearch("");
             }}
           />
@@ -329,7 +334,7 @@ export default function ExerciseLogger({
             <button
               onClick={() => {
                 setShowSearch(false);
-                setShowAll(false);
+  
                 setSearch("");
               }}
               className="w-9 h-9 flex items-center justify-center rounded-full shrink-0"
@@ -366,70 +371,62 @@ export default function ExerciseLogger({
             />
           </div>
           <div className="flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-6">
-            {currentSplit && (
-              <div className="flex items-center justify-between mb-3 px-1">
-                <p
-                  className="label text-[10px]"
-                  style={{ color: "var(--fg-dim)" }}
-                >
-                  {showAll
-                    ? "Showing all exercises"
-                    : `Filtered to ${currentSplit.toLowerCase()} · ${filtered.length}`}
-                </p>
-                <button
-                  onClick={() => setShowAll(!showAll)}
-                  className="label text-[10px]"
-                  style={{ color: "var(--accent)" }}
-                >
-                  {showAll ? "Filter by split" : "Show all"}
-                </button>
+            {grouped ? (
+              <div className="space-y-3">
+                {grouped.map(({ group, items }) => (
+                  <div key={group}>
+                    <p
+                      className="label text-[10px] mb-1 px-1 sticky top-0 py-1"
+                      style={{
+                        color: "var(--fg-dim)",
+                        background: "var(--bg)",
+                      }}
+                    >
+                      {group}
+                    </p>
+                    <div className="space-y-0.5">
+                      {items.map((ex) => (
+                        <ExerciseRow
+                          key={ex.id}
+                          ex={ex}
+                          onClick={() => addExercise(ex)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-0.5">
+                {filtered.map((ex) => (
+                  <ExerciseRow
+                    key={ex.id}
+                    ex={ex}
+                    onClick={() => addExercise(ex)}
+                  />
+                ))}
+                {search && filtered.length === 0 && (
+                  <button
+                    onClick={() => {
+                      fetch("/api/exercises", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: search }),
+                      })
+                        .then((r) => r.json())
+                        .then((ex) => {
+                          setAllExercises((prev) => [...prev, ex]);
+                          addExercise(ex);
+                        });
+                    }}
+                    className="w-full text-left px-3 py-2.5 rounded-lg text-[14px] transition-colors"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    + Create &quot;{search}&quot;
+                  </button>
+                )}
               </div>
             )}
-            <div className="space-y-0.5">
-              {filtered.slice(0, 100).map((ex) => (
-                <button
-                  key={ex.id}
-                  onClick={() => addExercise(ex)}
-                  className="w-full text-left px-3 py-2.5 rounded-lg transition-colors flex items-center justify-between"
-                  style={{ color: "var(--fg)" }}
-                >
-                  <span className="text-[14px] font-medium">{ex.name}</span>
-                  <span
-                    className="label text-[9px]"
-                    style={{ color: "var(--fg-dim)" }}
-                  >
-                    {(() => {
-                      const s = specificMuscleFor(ex.name);
-                      // For custom exercises whose name doesn't match any
-                      // pattern, fall back to whatever's in the DB.
-                      return s === "Other" && ex.muscleGroup
-                        ? ex.muscleGroup
-                        : s;
-                    })()}
-                  </span>
-                </button>
-              ))}
-              {search && filtered.length === 0 && (
-                <button
-                  onClick={() => {
-                    fetch("/api/exercises", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ name: search }),
-                    })
-                      .then((r) => r.json())
-                      .then((ex) => {
-                        setAllExercises((prev) => [...prev, ex]);
-                        addExercise(ex);
-                      });
-                  }}
-                  className="w-full text-left px-3 py-2.5 rounded-lg text-[14px] transition-colors"
-                  style={{ color: "var(--accent)" }}
-                >
-                  + Create &quot;{search}&quot;
-                </button>
-              )}
-            </div>
           </div>
           <div
             className="px-4 py-3 flex items-center justify-between shrink-0"
@@ -1001,5 +998,33 @@ function SetRow({
         </svg>
       </button>
     </div>
+  );
+}
+
+function ExerciseRow({
+  ex,
+  onClick,
+}: {
+  ex: Exercise;
+  onClick: () => void;
+}) {
+  const detail = (() => {
+    const s = specificMuscleFor(ex.name);
+    return s === "Other" && ex.muscleGroup ? ex.muscleGroup : s;
+  })();
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left px-3 py-2.5 rounded-lg transition-colors flex items-center justify-between"
+      style={{ color: "var(--fg)" }}
+    >
+      <span className="text-[14px] font-medium">{ex.name}</span>
+      <span
+        className="label text-[9px]"
+        style={{ color: "var(--fg-dim)" }}
+      >
+        {detail}
+      </span>
+    </button>
   );
 }
