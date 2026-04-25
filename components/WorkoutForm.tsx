@@ -321,19 +321,25 @@ export default function WorkoutForm({
   const splitDrivesTitle =
     workoutType === "WEIGHT_TRAINING" || workoutType === "CALISTHENICS";
 
-  // Auto-detect split from the exercises the user added. Edit mode keeps
-  // the stored split untouched unless exercises actually change here.
+  // Auto-detect split from the exercises the user added — runs in both
+  // create and edit so swapping or removing an exercise re-derives the
+  // session split (and title) on the fly. The title is only rewritten when
+  // it still matches the previous auto-generated value, so a custom title
+  // like "Leg day with Sarah" is preserved.
   useEffect(() => {
-    if (mode !== "create") return;
     if (shape !== "STRENGTH") return;
     const detected = detectSplit(exercises.map((e) => e.exerciseName));
-    if (detected && detected !== split) {
-      setSplit(detected);
-      if (splitDrivesTitle) {
-        setTitle(titleFor(workoutType, detected));
-      }
+    if (!detected || detected === split) return;
+    setSplit(detected);
+    if (!splitDrivesTitle) return;
+    const isAutoTitle =
+      title.trim() === "" ||
+      title === labelForType(workoutType) ||
+      title === titleFor(workoutType, split);
+    if (isAutoTitle) {
+      setTitle(titleFor(workoutType, detected));
     }
-  }, [mode, exercises, shape, workoutType, split, splitDrivesTitle]);
+  }, [exercises, shape, workoutType, split, splitDrivesTitle, title]);
 
   // Strength sets with weight but missing reps block save
   const missingRepsCount =
