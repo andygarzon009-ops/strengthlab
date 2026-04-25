@@ -138,10 +138,7 @@ export default function WorkoutForm({
       setWorkoutType(d.workoutType);
       setStep("log");
     }
-    if (typeof d.split === "string") {
-      setSplit(d.split);
-      if (d.split) splitTouchedRef.current = true;
-    }
+    if (typeof d.split === "string") setSplit(d.split);
     if (typeof d.title === "string") setTitle(d.title);
     if (typeof d.notes === "string") setNotes(d.notes);
     if (typeof d.feeling === "string") setFeeling(d.feeling);
@@ -321,27 +318,13 @@ export default function WorkoutForm({
     setStep("log");
   };
 
-  // Once the user picks a split themselves, we stop auto-detecting from the
-  // exercise list. Picking "—" clears the override so detection resumes.
-  const splitTouchedRef = useRef<boolean>(
-    mode === "edit" || Boolean(initial?.split)
-  );
-
   const splitDrivesTitle =
     workoutType === "WEIGHT_TRAINING" || workoutType === "CALISTHENICS";
 
-  const handleSplitSelect = (s: string) => {
-    splitTouchedRef.current = s !== "";
-    setSplit(s);
-    if (splitDrivesTitle) {
-      setTitle(titleFor(workoutType, s));
-    }
-  };
-
-  // Auto-detect split from the exercises the user has added, until they
-  // override it manually via the dropdown.
+  // Auto-detect split from the exercises the user added. Edit mode keeps
+  // the stored split untouched unless exercises actually change here.
   useEffect(() => {
-    if (splitTouchedRef.current) return;
+    if (mode !== "create") return;
     if (shape !== "STRENGTH") return;
     const detected = detectSplit(exercises.map((e) => e.exerciseName));
     if (detected && detected !== split) {
@@ -350,7 +333,7 @@ export default function WorkoutForm({
         setTitle(titleFor(workoutType, detected));
       }
     }
-  }, [exercises, shape, workoutType, split, splitDrivesTitle]);
+  }, [mode, exercises, shape, workoutType, split, splitDrivesTitle]);
 
   // Strength sets with weight but missing reps block save
   const missingRepsCount =
@@ -705,43 +688,20 @@ export default function WorkoutForm({
           }}
         />
 
-        {/* Type + (split, if strength) */}
-        <div
-          className={
-            shape === "STRENGTH" ? "grid grid-cols-2 gap-2.5" : undefined
-          }
-        >
-          <div>
-            <p className="label mb-1.5">Type</p>
-            <Select
-              value={workoutType}
-              onChange={(v) => {
-                setWorkoutType(v);
-                if (title.trim() === "" || title === labelForType(workoutType))
-                  setTitle(titleFor(v, split));
-              }}
-              options={WORKOUT_TYPES.map((t) => ({
-                value: t.value,
-                label: t.label,
-              }))}
-            />
-          </div>
-          {shape === "STRENGTH" && (
-            <div>
-              <p className="label mb-1.5">Split</p>
-              <Select
-                value={split}
-                onChange={handleSplitSelect}
-                options={[
-                  { value: "", label: "—" },
-                  ...STRENGTH_SPLITS.map((s) => ({
-                    value: s.value,
-                    label: s.label,
-                  })),
-                ]}
-              />
-            </div>
-          )}
+        <div>
+          <p className="label mb-1.5">Type</p>
+          <Select
+            value={workoutType}
+            onChange={(v) => {
+              setWorkoutType(v);
+              if (title.trim() === "" || title === labelForType(workoutType))
+                setTitle(titleFor(v, split));
+            }}
+            options={WORKOUT_TYPES.map((t) => ({
+              value: t.value,
+              label: t.label,
+            }))}
+          />
         </div>
 
         {/* Shape-specific metrics */}
