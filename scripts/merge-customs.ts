@@ -26,17 +26,30 @@ async function main() {
     select: { id: true, name: true, isCustom: true },
   });
 
-  const missingTargets = MERGES.filter(
-    (m) => !targets.find((t) => t.name === m.to && !t.isCustom)
-  );
-  if (missingTargets.length) {
-    console.error("Missing built-in targets:", missingTargets);
-    process.exit(1);
+  // For any merge whose target isn't yet a built-in, promote the source
+  // custom into the canonical built-in by renaming + clearing isCustom.
+  // This skips the re-pointing/delete loop entirely for that pair.
+  const promotions: Array<{ from: string; to: string }> = [];
+  const merges: Array<{ from: string; to: string }> = [];
+  for (const m of MERGES) {
+    const tgt = targets.find((t) => t.name === m.to && !t.isCustom);
+    if (tgt) merges.push(m);
+    else promotions.push(m);
+  }
+
+  for (const p of promotions) {
+    const src = sources.find((s) => s.name === p.from);
+    if (!src) continue;
+    await prisma.exercise.update({
+      where: { id: src.id },
+      data: { name: p.to, isCustom: false },
+    });
+    console.log(`promoted "${p.from}" → built-in "${p.to}"`);
   }
 
   let merged = 0;
   let skipped = 0;
-  for (const m of MERGES) {
+  for (const m of merges) {
     const src = sources.find((s) => s.name === m.from);
     if (!src) {
       skipped++;

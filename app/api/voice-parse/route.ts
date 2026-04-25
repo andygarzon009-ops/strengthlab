@@ -42,7 +42,7 @@ type ParsedWorkout = {
 };
 
 export async function POST(req: NextRequest) {
-  await requireAuth();
+  const userId = await requireAuth();
 
   if (!process.env.GEMINI_API_KEY) {
     return Response.json(
@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
   }
 
   const exercises = await prisma.exercise.findMany({
+    where: { OR: [{ ownerId: null }, { ownerId: userId }] },
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });
@@ -157,7 +158,7 @@ Output ONLY the JSON object. No prose, no markdown, no code fences.`;
         let match = findExistingExerciseByName(name, exercises) ?? undefined;
         if (!match) {
           match = await prisma.exercise.create({
-            data: { name, isCustom: true },
+            data: { name, isCustom: true, ownerId: userId },
           });
         }
         return {

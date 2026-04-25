@@ -72,6 +72,7 @@ model User {
   challenges      Challenge[]           @relation("ChallengeCreator")
   challengeJoins  ChallengeParticipant[]
   workoutDraft    WorkoutDraft?
+  customExercises Exercise[]            @relation("ExerciseOwner")
 }
 
 model Goal {
@@ -123,11 +124,13 @@ model Workout {
 
 model Exercise {
   id          String  @id @default(cuid())
-  name        String  @unique
+  name        String
   muscleGroup String?
   splits      String?
   isCustom    Boolean @default(false)
+  ownerId     String?
 
+  owner            User?              @relation("ExerciseOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   workoutExercises WorkoutExercise[]
   prs              PersonalRecord[]
   goals            Goal[]

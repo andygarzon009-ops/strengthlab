@@ -8,7 +8,10 @@ import { revalidatePath } from "next/cache";
 
 export async function syncDefaultExercises() {
   await requireAuth();
+  // Only compare against built-ins; a user custom that happens to share a
+  // name with a new default shouldn't block the default from being seeded.
   const existing = await prisma.exercise.findMany({
+    where: { ownerId: null },
     select: { id: true, name: true, splits: true, muscleGroup: true },
   });
   const byName = new Map(existing.map((e) => [e.name.toLowerCase(), e]));
@@ -71,9 +74,11 @@ export async function updateExercise(
 }
 
 export async function deleteCustomExercise(id: string) {
-  await requireAuth();
+  const userId = await requireAuth();
   const ex = await prisma.exercise.findUnique({ where: { id } });
-  if (!ex || !ex.isCustom) throw new Error("Only custom exercises can be deleted");
+  if (!ex || ex.ownerId !== userId) {
+    throw new Error("Only your own custom exercises can be deleted");
+  }
   await prisma.exercise.delete({ where: { id } });
   revalidatePath("/exercises");
   revalidatePath("/log");
@@ -84,13 +89,14 @@ export async function createCustomExercise(data: {
   muscleGroup?: string;
   splits?: string;
 }) {
-  await requireAuth();
+  const userId = await requireAuth();
   const trimmed = data.name.trim();
   if (!trimmed) throw new Error("Name required");
 
-  // Reuse an existing row if the name is the same lift (case, punctuation,
-  // or minor typo). This keeps progress, PRs, and targets consolidated.
+  // Dedupe within built-ins + this user's customs only — keeps progress,
+  // PRs, and targets consolidated without exposing other users' customs.
   const pool = await prisma.exercise.findMany({
+    where: { OR: [{ ownerId: null }, { ownerId: userId }] },
     select: { id: true, name: true },
   });
   const existing = findExistingExerciseByName(trimmed, pool);
@@ -109,6 +115,7 @@ export async function createCustomExercise(data: {
       muscleGroup: data.muscleGroup ?? null,
       splits: data.splits ?? null,
       isCustom: true,
+      ownerId: userId,
     },
   });
   revalidatePath("/exercises");

@@ -62,6 +62,7 @@ Output ONLY minified JSON of the form:
 If no sets reported, return: {"exercises":[]}`;
 
 export async function parseLiveLog(
+  userId: string,
   message: string,
   context?: { role: string; content: string }[]
 ): Promise<LiveParsedExercise[]> {
@@ -73,6 +74,7 @@ export async function parseLiveLog(
   if (!/\d/.test(message)) return [];
 
   const exercises = await prisma.exercise.findMany({
+    where: { OR: [{ ownerId: null }, { ownerId: userId }] },
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });
@@ -157,7 +159,7 @@ Output ONLY the JSON object. No prose, no code fences.`;
     let match = findExistingExerciseByName(name, exercises) ?? undefined;
     if (!match) {
       match = await prisma.exercise.create({
-        data: { name, isCustom: true },
+        data: { name, isCustom: true, ownerId: userId },
       });
     }
     resolved.push({

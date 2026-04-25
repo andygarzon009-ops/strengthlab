@@ -496,6 +496,7 @@ ${user.coachPrompt.trim()}`
     let logSummary: Awaited<ReturnType<typeof appendLiveSets>> | null = null;
     try {
       const parsed = await parseLiveLog(
+        userId,
         message,
         history.map((m) => ({ role: m.role, content: m.content }))
       );
