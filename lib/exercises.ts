@@ -790,6 +790,36 @@ export function labelForType(type: string): string {
   return WORKOUT_TYPES.find((t) => t.value === type)?.label ?? type;
 }
 
+// Infer the most likely strength split (PUSH/PULL/LEGS/FULL_BODY/CORE) from
+// the exercises the user has added. Returns null when there's no signal —
+// e.g. only custom exercises that aren't in the library, or an empty list.
+// If the user mixes two or more of PUSH/PULL/LEGS, we call it FULL_BODY.
+export function detectSplit(exerciseNames: string[]): string | null {
+  const valid = new Set(["PUSH", "PULL", "LEGS", "CORE", "FULL_BODY"]);
+  const tally: Record<string, number> = {};
+  for (const name of exerciseNames) {
+    const ex = DEFAULT_EXERCISES.find((e) => e.name === name);
+    if (!ex) continue;
+    const primary = ex.splits.split(",").find((t) => valid.has(t));
+    if (!primary) continue;
+    tally[primary] = (tally[primary] ?? 0) + 1;
+  }
+  if (Object.keys(tally).length === 0) return null;
+
+  const pplHits = ["PUSH", "PULL", "LEGS"].filter((s) => (tally[s] ?? 0) > 0);
+  if (pplHits.length >= 2) return "FULL_BODY";
+
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [k, v] of Object.entries(tally)) {
+    if (v > bestCount) {
+      best = k;
+      bestCount = v;
+    }
+  }
+  return best;
+}
+
 export function formatDuration(seconds: number | null | undefined): string {
   if (!seconds) return "—";
   const h = Math.floor(seconds / 3600);

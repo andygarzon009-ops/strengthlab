@@ -16,6 +16,7 @@ import {
   FEELING_OPTIONS,
   shapeForType,
   labelForType,
+  detectSplit,
   type WorkoutShape,
 } from "@/lib/exercises";
 import ExerciseLogger from "@/components/ExerciseLogger";
@@ -317,12 +318,33 @@ export default function WorkoutForm({
     setStep("log");
   };
 
+  // Once the user picks a split themselves, we stop auto-detecting from the
+  // exercise list. Picking "—" clears the override so detection resumes.
+  const splitTouchedRef = useRef<boolean>(
+    mode === "edit" || Boolean(initial?.split)
+  );
+
   const handleSplitSelect = (s: string) => {
+    splitTouchedRef.current = s !== "";
     setSplit(s);
     if (workoutType === "WEIGHT_TRAINING") {
       setTitle(titleFor(workoutType, s));
     }
   };
+
+  // Auto-detect split from the exercises the user has added, until they
+  // override it manually via the dropdown.
+  useEffect(() => {
+    if (splitTouchedRef.current) return;
+    if (shape !== "STRENGTH") return;
+    const detected = detectSplit(exercises.map((e) => e.exerciseName));
+    if (detected && detected !== split) {
+      setSplit(detected);
+      if (workoutType === "WEIGHT_TRAINING") {
+        setTitle(titleFor(workoutType, detected));
+      }
+    }
+  }, [exercises, shape, workoutType, split]);
 
   // Strength sets with weight but missing reps block save
   const missingRepsCount =
