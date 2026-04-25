@@ -553,69 +553,103 @@ function VoiceAddModal({
   onParsed: (exercises: ExerciseData[]) => void;
 }) {
   const [supported, setSupported] = useState(false);
-  const [listening, setListening] = useState(false);
+  const [stage, setStage] = useState<
+    "idle" | "recording" | "transcribing" | "parsing"
+  >("idle");
   const [transcript, setTranscript] = useState("");
-  const [parsing, setParsing] = useState(false);
   const [error, setError] = useState("");
-  const recRef = useRef<{ stop: () => void } | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
-    const win = window as unknown as {
-      SpeechRecognition?: new () => SpeechRec;
-      webkitSpeechRecognition?: new () => SpeechRec;
-    };
-    const SRClass = win.SpeechRecognition ?? win.webkitSpeechRecognition;
-    if (SRClass) setSupported(true);
+    const ok =
+      typeof navigator !== "undefined" &&
+      typeof navigator.mediaDevices?.getUserMedia === "function" &&
+      typeof window.MediaRecorder !== "undefined";
+    setSupported(ok);
   }, []);
 
-  const start = () => {
-    setError("");
-    const win = window as unknown as {
-      SpeechRecognition?: new () => SpeechRec;
-      webkitSpeechRecognition?: new () => SpeechRec;
-    };
-    const SRClass = win.SpeechRecognition ?? win.webkitSpeechRecognition;
-    if (!SRClass) {
-      setError("Mic not supported here — type instead.");
-      return;
+  const pickMimeType = () => {
+    const candidates = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/mp4",
+    ];
+    for (const c of candidates) {
+      if (MediaRecorder.isTypeSupported(c)) return c;
     }
-    const rec = new SRClass();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = "en-US";
-    let finalText = transcript ? transcript + " " : "";
-    rec.onresult = (e) => {
-      let interim = "";
-      for (let i = 0; i < e.results.length; i++) {
-        const chunk = e.results[i][0].transcript;
-        if ((e.results[i] as { isFinal?: boolean }).isFinal) {
-          finalText += chunk;
-        } else {
-          interim += chunk;
-        }
-      }
-      setTranscript((finalText + interim).trim());
-    };
-    rec.onerror = (e) => {
-      setError(e.error ?? "Mic error");
-      setListening(false);
-    };
-    rec.onend = () => setListening(false);
-    recRef.current = rec;
-    rec.start();
-    setListening(true);
+    return "";
+  };
+
+  const transcribe = async (blob: Blob) => {
+    try {
+      const form = new FormData();
+      form.append("audio", blob, "voice.webm");
+      const res = await fetch("/api/transcribe", {
+        method: "POST",
+        body: form,
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Transcription failed");
+      // Append to whatever the user already had — supports multiple
+      // recordings stacked together before parsing.
+      const next = (body.transcript ?? "").trim();
+      setTranscript((t) => (t ? `${t} ${next}` : next));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Transcription failed");
+    } finally {
+      setStage("idle");
+    }
+  };
+
+  const start = async () => {
+    setError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mimeType = pickMimeType();
+      const rec = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType } : undefined
+      );
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      rec.onstop = async () => {
+        const type = rec.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        await transcribe(blob);
+      };
+      rec.start();
+      recorderRef.current = rec;
+      setStage("recording");
+    } catch (e) {
+      setError(
+        e instanceof Error && e.name === "NotAllowedError"
+          ? "Mic permission denied — enable it in your browser settings."
+          : "Couldn't start the mic."
+      );
+      setStage("idle");
+    }
   };
 
   const stop = () => {
-    recRef.current?.stop?.();
-    setListening(false);
+    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+      recorderRef.current.stop();
+    }
+    setStage("transcribing");
   };
 
   const parse = async () => {
-    if (listening) stop();
+    if (stage === "recording") stop();
     const text = transcript.trim();
     if (!text) return;
-    setParsing(true);
+    setStage("parsing");
     setError("");
     try {
       const res = await fetch("/api/voice-parse", {
@@ -628,15 +662,20 @@ function VoiceAddModal({
       const exs: ExerciseData[] = body.draft?.exercises ?? [];
       if (exs.length === 0) {
         setError("Couldn't pick out any exercises. Try again.");
-        setParsing(false);
+        setStage("idle");
         return;
       }
       onParsed(exs);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Parse failed");
-      setParsing(false);
+      setStage("idle");
     }
   };
+
+  const recording = stage === "recording";
+  const transcribing = stage === "transcribing";
+  const parsing = stage === "parsing";
+  const busy = transcribing || parsing;
 
   return (
     <div
@@ -671,19 +710,20 @@ function VoiceAddModal({
 
         <div className="flex justify-center mb-3">
           <button
-            onClick={listening ? stop : start}
-            disabled={!supported && !listening}
+            onClick={recording ? stop : start}
+            disabled={(!supported && !recording) || busy}
             className="w-16 h-16 rounded-full flex items-center justify-center transition-transform active:scale-95"
             style={{
-              background: listening ? "#ef4444" : "var(--accent)",
+              background: recording ? "#ef4444" : "var(--accent)",
               color: "#0a0a0a",
-              boxShadow: listening
+              boxShadow: recording
                 ? "0 0 0 8px rgba(239,68,68,0.15)"
                 : "0 10px 24px -8px rgba(34,197,94,0.5)",
+              opacity: busy ? 0.5 : 1,
             }}
-            aria-label={listening ? "Stop" : "Start"}
+            aria-label={recording ? "Stop" : "Start"}
           >
-            {listening ? (
+            {recording ? (
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="6" y="6" width="12" height="12" rx="2" />
               </svg>
@@ -708,13 +748,21 @@ function VoiceAddModal({
 
         <p
           className="label text-[10px] text-center mb-3"
-          style={{ color: listening ? "#f87171" : "var(--fg-dim)" }}
+          style={{
+            color: recording
+              ? "#f87171"
+              : transcribing
+              ? "var(--accent)"
+              : "var(--fg-dim)",
+          }}
         >
-          {listening
+          {recording
             ? "Listening — tap to stop"
+            : transcribing
+            ? "Transcribing…"
             : supported
-              ? "Tap mic or type below"
-              : "Type your exercises below"}
+            ? "Tap mic or type below"
+            : "Type your exercises below"}
         </p>
 
         <textarea
@@ -745,7 +793,7 @@ function VoiceAddModal({
           </button>
           <button
             onClick={parse}
-            disabled={!transcript.trim() || parsing}
+            disabled={!transcript.trim() || busy}
             className="btn-accent flex-1 py-2.5 rounded-xl text-[13px] font-semibold"
           >
             {parsing ? "Parsing…" : "Add to log"}
@@ -755,19 +803,6 @@ function VoiceAddModal({
     </div>
   );
 }
-
-type SpeechRec = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start: () => void;
-  stop: () => void;
-  onresult: (e: {
-    results: { [i: number]: { [i: number]: { transcript: string } }; length: number };
-  }) => void;
-  onerror: (e: { error?: string }) => void;
-  onend: () => void;
-};
 
 function SetRow({
   set,
