@@ -688,6 +688,33 @@ export default function WorkoutForm({
           }}
         />
 
+        {shape === "STRENGTH" && split && (
+          <div className="flex items-center gap-2">
+            <span
+              className="label"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              Split
+            </span>
+            <span
+              className="px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide uppercase"
+              style={{
+                background: "var(--accent-dim)",
+                border: "1px solid rgba(34,197,94,0.35)",
+                color: "var(--accent)",
+              }}
+            >
+              {STRENGTH_SPLITS.find((s) => s.value === split)?.label ?? split}
+            </span>
+            <span
+              className="text-[10px]"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              auto
+            </span>
+          </div>
+        )}
+
         <div>
           <p className="label mb-1.5">Type</p>
           <Select
@@ -744,50 +771,6 @@ export default function WorkoutForm({
           />
         )}
 
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Session notes…"
-          rows={2}
-          className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            color: "var(--fg)",
-          }}
-        />
-
-        <div>
-          <p className="label mb-2">Feeling</p>
-          <div className="flex gap-2">
-            {FEELING_OPTIONS.map((f) => {
-              const selected = feeling === f.value;
-              return (
-                <button
-                  key={f.value}
-                  onClick={() => setFeeling(selected ? "" : f.value)}
-                  className="flex-1 py-2.5 rounded-xl text-[12px] font-medium transition-all"
-                  style={
-                    selected
-                      ? {
-                          background: "var(--accent-dim)",
-                          border: "1px solid rgba(34,197,94,0.4)",
-                          color: "var(--accent)",
-                        }
-                      : {
-                          background: "var(--bg-card)",
-                          border: "1px solid var(--border)",
-                          color: "var(--fg-muted)",
-                        }
-                  }
-                >
-                  {f.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         {shape === "STRENGTH" && (
           <label className="flex items-center justify-between cursor-pointer py-1">
             <span
@@ -827,6 +810,52 @@ export default function WorkoutForm({
           currentSplit={split || undefined}
         />
       )}
+
+      <div className="mt-6 space-y-2.5">
+        <div>
+          <p className="label mb-2">Feeling</p>
+          <div className="flex gap-2">
+            {FEELING_OPTIONS.map((f) => {
+              const selected = feeling === f.value;
+              return (
+                <button
+                  key={f.value}
+                  onClick={() => setFeeling(selected ? "" : f.value)}
+                  className="flex-1 py-2.5 rounded-xl text-[12px] font-medium transition-all"
+                  style={
+                    selected
+                      ? {
+                          background: "var(--accent-dim)",
+                          border: "1px solid rgba(34,197,94,0.4)",
+                          color: "var(--accent)",
+                        }
+                      : {
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border)",
+                          color: "var(--fg-muted)",
+                        }
+                  }
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Session notes…"
+          rows={2}
+          className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            color: "var(--fg)",
+          }}
+        />
+      </div>
 
       <div className="mt-6 flex items-center gap-2.5">
         <button
