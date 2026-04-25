@@ -5,27 +5,6 @@ import { usePathname, useSearchParams } from "next/navigation";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-type SR = {
-  new (): {
-    continuous: boolean;
-    interimResults: boolean;
-    lang: string;
-    start: () => void;
-    stop: () => void;
-    onresult: (e: {
-      results: {
-        [i: number]: {
-          [i: number]: { transcript: string };
-          isFinal?: boolean;
-        };
-        length: number;
-      };
-    }) => void;
-    onerror: (e: { error?: string }) => void;
-    onend: () => void;
-  };
-};
-
 type LoggedSummary = {
   workoutId: string;
   created: boolean;
@@ -189,52 +168,84 @@ export default function AITrainer() {
   const lastUserIdRef = useRef<string | null>(null);
 
   const [listening, setListening] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
-  const recRef = useRef<InstanceType<SR> | null>(null);
-  const baseInputRef = useRef("");
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
-    const win = window as unknown as {
-      SpeechRecognition?: SR;
-      webkitSpeechRecognition?: SR;
-    };
-    if (win.SpeechRecognition ?? win.webkitSpeechRecognition) {
-      setVoiceSupported(true);
-    }
+    const ok =
+      typeof navigator !== "undefined" &&
+      typeof navigator.mediaDevices?.getUserMedia === "function" &&
+      typeof window.MediaRecorder !== "undefined";
+    setVoiceSupported(ok);
   }, []);
 
+  const pickVoiceMime = () => {
+    const candidates = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/mp4",
+    ];
+    for (const c of candidates) {
+      if (MediaRecorder.isTypeSupported(c)) return c;
+    }
+    return "";
+  };
+
+  const transcribeBlob = async (blob: Blob) => {
+    setTranscribing(true);
+    try {
+      const form = new FormData();
+      form.append("audio", blob, "voice.webm");
+      const res = await fetch("/api/transcribe", {
+        method: "POST",
+        body: form,
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Transcription failed");
+      const next = (body.transcript ?? "").trim();
+      if (next) {
+        setInput((cur) => (cur.trim() ? `${cur.trimEnd()} ${next}` : next));
+      }
+    } catch {
+      // Stay quiet — the input box is still usable for typing.
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
   const stopVoice = () => {
-    recRef.current?.stop?.();
+    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+      recorderRef.current.stop();
+    }
     setListening(false);
   };
 
-  const startVoice = () => {
-    const win = window as unknown as {
-      SpeechRecognition?: SR;
-      webkitSpeechRecognition?: SR;
-    };
-    const SRClass = win.SpeechRecognition ?? win.webkitSpeechRecognition;
-    if (!SRClass) return;
-    const rec = new SRClass();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = "en-US";
-    baseInputRef.current = input ? input.trimEnd() + " " : "";
-    let finalText = "";
-    rec.onresult = (e) => {
-      let interim = "";
-      for (let i = 0; i < e.results.length; i++) {
-        const chunk = e.results[i][0].transcript;
-        if (e.results[i].isFinal) finalText += chunk;
-        else interim += chunk;
-      }
-      setInput(baseInputRef.current + finalText + interim);
-    };
-    rec.onerror = () => setListening(false);
-    rec.onend = () => setListening(false);
-    recRef.current = rec;
+  const startVoice = async () => {
     try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mimeType = pickVoiceMime();
+      const rec = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType } : undefined
+      );
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      rec.onstop = async () => {
+        const type = rec.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        await transcribeBlob(blob);
+      };
       rec.start();
+      recorderRef.current = rec;
       setListening(true);
     } catch {
       setListening(false);
@@ -716,7 +727,7 @@ export default function AITrainer() {
               {voiceSupported && (
                 <button
                   onClick={listening ? stopVoice : startVoice}
-                  disabled={loading}
+                  disabled={loading || transcribing}
                   className="my-1 mr-1 w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30"
                   style={{
                     background: listening ? "#ef4444" : "var(--bg-card)",
@@ -725,8 +736,15 @@ export default function AITrainer() {
                     boxShadow: listening
                       ? "0 0 0 4px rgba(239,68,68,0.2)"
                       : "none",
+                    opacity: transcribing ? 0.5 : 1,
                   }}
-                  aria-label={listening ? "Stop voice input" : "Start voice input"}
+                  aria-label={
+                    listening
+                      ? "Stop voice input"
+                      : transcribing
+                      ? "Transcribing"
+                      : "Start voice input"
+                  }
                 >
                   <svg
                     width="16"
