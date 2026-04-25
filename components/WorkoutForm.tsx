@@ -138,7 +138,10 @@ export default function WorkoutForm({
       setWorkoutType(d.workoutType);
       setStep("log");
     }
-    if (typeof d.split === "string") setSplit(d.split);
+    if (typeof d.split === "string") {
+      setSplit(d.split);
+      if (d.split) splitTouchedRef.current = true;
+    }
     if (typeof d.title === "string") setTitle(d.title);
     if (typeof d.notes === "string") setNotes(d.notes);
     if (typeof d.feeling === "string") setFeeling(d.feeling);
