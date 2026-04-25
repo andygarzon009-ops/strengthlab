@@ -324,10 +324,13 @@ export default function WorkoutForm({
     mode === "edit" || Boolean(initial?.split)
   );
 
+  const splitDrivesTitle =
+    workoutType === "WEIGHT_TRAINING" || workoutType === "CALISTHENICS";
+
   const handleSplitSelect = (s: string) => {
     splitTouchedRef.current = s !== "";
     setSplit(s);
-    if (workoutType === "WEIGHT_TRAINING") {
+    if (splitDrivesTitle) {
       setTitle(titleFor(workoutType, s));
     }
   };
@@ -340,11 +343,11 @@ export default function WorkoutForm({
     const detected = detectSplit(exercises.map((e) => e.exerciseName));
     if (detected && detected !== split) {
       setSplit(detected);
-      if (workoutType === "WEIGHT_TRAINING") {
+      if (splitDrivesTitle) {
         setTitle(titleFor(workoutType, detected));
       }
     }
-  }, [exercises, shape, workoutType, split]);
+  }, [exercises, shape, workoutType, split, splitDrivesTitle]);
 
   // Strength sets with weight but missing reps block save
   const missingRepsCount =

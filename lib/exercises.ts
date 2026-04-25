@@ -467,6 +467,9 @@ export const STRENGTH_SPLITS = [
   { value: "PUSH", label: "Push" },
   { value: "PULL", label: "Pull" },
   { value: "LEGS", label: "Legs" },
+  { value: "UPPER", label: "Upper" },
+  { value: "LOWER", label: "Lower" },
+  { value: "ARMS", label: "Arms" },
   { value: "FULL_BODY", label: "Full body" },
   { value: "CORE", label: "Core" },
 ];
@@ -790,34 +793,73 @@ export function labelForType(type: string): string {
   return WORKOUT_TYPES.find((t) => t.value === type)?.label ?? type;
 }
 
-// Infer the most likely strength split (PUSH/PULL/LEGS/FULL_BODY/CORE) from
-// the exercises the user has added. Returns null when there's no signal —
-// e.g. only custom exercises that aren't in the library, or an empty list.
-// If the user mixes two or more of PUSH/PULL/LEGS, we call it FULL_BODY.
+// Infer the most likely strength split from the exercises the user added.
+// Uses muscleGroup as the primary signal (so curls bucket as Arms, not Pull)
+// and consults the splits tags to disambiguate Lower vs. Full body.
+const MUSCLE_BUCKET: Record<string, string> = {
+  Chest: "PUSH",
+  Shoulders: "PUSH",
+  Back: "PULL",
+  "Lower Back": "PULL",
+  Biceps: "ARMS",
+  Triceps: "ARMS",
+  Forearms: "ARMS",
+  Quads: "LEGS",
+  Hamstrings: "LEGS",
+  Glutes: "LEGS",
+  Calves: "LEGS",
+  Core: "CORE",
+};
+
 export function detectSplit(exerciseNames: string[]): string | null {
-  const valid = new Set(["PUSH", "PULL", "LEGS", "CORE", "FULL_BODY"]);
   const tally: Record<string, number> = {};
+  let posteriorChainCount = 0; // pulls that are also Lower (deadlifts)
+  let lowerTaggedCount = 0;
+  let nonCoreCount = 0;
+
   for (const name of exerciseNames) {
     const ex = DEFAULT_EXERCISES.find((e) => e.name === name);
     if (!ex) continue;
-    const primary = ex.splits.split(",").find((t) => valid.has(t));
-    if (!primary) continue;
-    tally[primary] = (tally[primary] ?? 0) + 1;
+    const bucket = MUSCLE_BUCKET[ex.muscleGroup];
+    if (!bucket) continue;
+    tally[bucket] = (tally[bucket] ?? 0) + 1;
+    if (bucket !== "CORE") nonCoreCount++;
+    const tags = ex.splits.split(",");
+    if (tags.includes("LOWER")) lowerTaggedCount++;
+    if (bucket === "PULL" && tags.includes("LOWER")) posteriorChainCount++;
   }
   if (Object.keys(tally).length === 0) return null;
 
-  const pplHits = ["PUSH", "PULL", "LEGS"].filter((s) => (tally[s] ?? 0) > 0);
-  if (pplHits.length >= 2) return "FULL_BODY";
+  const push = tally.PUSH ?? 0;
+  const pull = tally.PULL ?? 0;
+  const legs = tally.LEGS ?? 0;
+  const arms = tally.ARMS ?? 0;
+  const core = tally.CORE ?? 0;
+  const pplCount = [push, pull, legs].filter((v) => v > 0).length;
 
-  let best: string | null = null;
-  let bestCount = 0;
-  for (const [k, v] of Object.entries(tally)) {
-    if (v > bestCount) {
-      best = k;
-      bestCount = v;
+  // Lower day: LEGS plus only posterior-chain pulls (e.g. deadlifts), no
+  // upper-body presses or rows.
+  if (legs > 0 && push === 0 && arms === 0) {
+    if (pull === 0) return "LEGS";
+    if (pull === posteriorChainCount && lowerTaggedCount === nonCoreCount) {
+      return "LOWER";
     }
   }
-  return best;
+
+  // Anything spanning legs + upper body is full-body.
+  if (pplCount === 3) return "FULL_BODY";
+  if (legs > 0 && (push > 0 || pull > 0 || arms > 0)) return "FULL_BODY";
+
+  // Upper-body-only days: classify as Arms when arm work dominates, else
+  // Push / Pull / Upper based on which compound buckets are present.
+  if (push > 0 && pull > 0) {
+    return arms > push + pull ? "ARMS" : "UPPER";
+  }
+  if (push > 0) return arms > push ? "ARMS" : "PUSH";
+  if (pull > 0) return arms > pull ? "ARMS" : "PULL";
+  if (arms > 0) return "ARMS";
+  if (core > 0) return "CORE";
+  return null;
 }
 
 export function formatDuration(seconds: number | null | undefined): string {
