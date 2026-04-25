@@ -3,99 +3,113 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type SR = {
-  new (): {
-    continuous: boolean;
-    interimResults: boolean;
-    lang: string;
-    start: () => void;
-    stop: () => void;
-    onresult: (e: { results: { [i: number]: { [i: number]: { transcript: string } }; length: number } }) => void;
-    onerror: (e: { error?: string }) => void;
-    onend: () => void;
-  };
-};
-
 const EXAMPLES = [
   "Push day. Bench press 3 sets of 225 for 5. Incline dumbbell press 4 sets of 65 for 10. Lateral raises 3 sets of 25 for 15.",
   "Ran 8 kilometers in 42 minutes.",
   "Pull day. Weighted pull-ups 4 sets of 70 for 6. Chest supported rows 3 sets of 80 for 10.",
 ];
 
+type Stage = "idle" | "recording" | "transcribing" | "parsing";
+
 export default function VoiceLogger() {
   const router = useRouter();
   const [supported, setSupported] = useState(false);
-  const [listening, setListening] = useState(false);
+  const [stage, setStage] = useState<Stage>("idle");
   const [transcript, setTranscript] = useState("");
   const [error, setError] = useState("");
-  const [parsing, setParsing] = useState(false);
-  const recRef = useRef<ReturnType<InstanceType<SR>["start"]> extends void ? InstanceType<SR> : never>(
-    null as unknown as InstanceType<SR>
-  );
+
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
-    const win = window as unknown as {
-      SpeechRecognition?: SR;
-      webkitSpeechRecognition?: SR;
-    };
-    const SRClass = win.SpeechRecognition ?? win.webkitSpeechRecognition;
-    if (SRClass) setSupported(true);
+    const ok =
+      typeof navigator !== "undefined" &&
+      typeof navigator.mediaDevices?.getUserMedia === "function" &&
+      typeof window.MediaRecorder !== "undefined";
+    setSupported(ok);
   }, []);
 
-  const start = () => {
+  // Pick the highest-quality container the browser actually supports.
+  // Chrome/Firefox prefer webm/opus, iOS Safari falls back to mp4/aac.
+  const pickMimeType = () => {
+    const candidates = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/mp4",
+    ];
+    for (const c of candidates) {
+      if (MediaRecorder.isTypeSupported(c)) return c;
+    }
+    return "";
+  };
+
+  const start = async () => {
     setError("");
     setTranscript("");
-    const win = window as unknown as {
-      SpeechRecognition?: SR;
-      webkitSpeechRecognition?: SR;
-    };
-    const SRClass = win.SpeechRecognition ?? win.webkitSpeechRecognition;
-    if (!SRClass) {
-      setError("Your browser doesn't support voice. Type instead.");
-      return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mimeType = pickMimeType();
+      const rec = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType } : undefined
+      );
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      rec.onstop = async () => {
+        const type = rec.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        await transcribe(blob);
+      };
+      rec.start();
+      recorderRef.current = rec;
+      setStage("recording");
+    } catch (e) {
+      setError(
+        e instanceof Error && e.name === "NotAllowedError"
+          ? "Mic permission denied — enable it in your browser settings."
+          : "Couldn't start the mic."
+      );
+      setStage("idle");
     }
-    const rec = new SRClass();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = "en-US";
-    let finalText = "";
-    rec.onresult = (e) => {
-      let interim = "";
-      for (let i = 0; i < e.results.length; i++) {
-        const chunk = e.results[i][0].transcript;
-        if (
-          (e.results[i] as unknown as { isFinal?: boolean }).isFinal
-        ) {
-          finalText += chunk;
-        } else {
-          interim += chunk;
-        }
-      }
-      setTranscript(finalText + interim);
-    };
-    rec.onerror = (e) => {
-      setError(e.error ?? "Mic error");
-      setListening(false);
-    };
-    rec.onend = () => setListening(false);
-    recRef.current = rec;
-    rec.start();
-    setListening(true);
   };
 
   const stop = () => {
-    recRef.current?.stop?.();
-    setListening(false);
+    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+      recorderRef.current.stop();
+    }
+    setStage("transcribing");
+  };
+
+  const transcribe = async (blob: Blob) => {
+    try {
+      const form = new FormData();
+      form.append("audio", blob, "voice.webm");
+      const res = await fetch("/api/transcribe", {
+        method: "POST",
+        body: form,
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Transcription failed");
+      setTranscript((body.transcript ?? "").trim());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Transcription failed");
+    } finally {
+      setStage("idle");
+    }
   };
 
   const parseAndGo = async () => {
-    // Make sure the mic is released before we fire off the parse —
-    // otherwise the in-flight recognizer keeps appending and the UI
-    // glitches while the request is pending.
-    if (listening) stop();
+    if (stage === "recording") stop();
     const text = transcript.trim();
     if (!text) return;
-    setParsing(true);
+    setStage("parsing");
     setError("");
     try {
       const res = await fetch("/api/voice-parse", {
@@ -109,10 +123,19 @@ export default function VoiceLogger() {
       router.push("/log?voice=1");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Parse failed");
-    } finally {
-      setParsing(false);
+      setStage("idle");
     }
   };
+
+  const recording = stage === "recording";
+  const transcribing = stage === "transcribing";
+  const parsing = stage === "parsing";
+  const busy = transcribing || parsing;
+
+  let micLabel = "Tap to start";
+  if (recording) micLabel = "Listening — tap to stop";
+  else if (transcribing) micLabel = "Transcribing…";
+  else if (!supported) micLabel = "Voice not supported — type below";
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
@@ -139,25 +162,21 @@ export default function VoiceLogger() {
         }}
       >
         <button
-          onClick={listening ? stop : start}
-          disabled={!supported && !listening}
+          onClick={recording ? stop : start}
+          disabled={(!supported && !recording) || busy}
           className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-3 transition-transform active:scale-95"
           style={{
-            background: listening ? "#ef4444" : "var(--accent)",
+            background: recording ? "#ef4444" : "var(--accent)",
             color: "#0a0a0a",
-            boxShadow: listening
+            boxShadow: recording
               ? "0 0 0 10px rgba(239,68,68,0.15)"
               : "0 12px 32px -8px rgba(34,197,94,0.6)",
+            opacity: busy ? 0.5 : 1,
           }}
-          aria-label={listening ? "Stop listening" : "Start listening"}
+          aria-label={recording ? "Stop listening" : "Start listening"}
         >
-          {listening ? (
-            <svg
-              width="28"
-              height="28"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
+          {recording ? (
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
               <rect x="6" y="6" width="12" height="12" rx="2" />
             </svg>
           ) : (
@@ -179,9 +198,15 @@ export default function VoiceLogger() {
         </button>
         <p
           className="text-[12px] label"
-          style={{ color: listening ? "#f87171" : "var(--fg-dim)" }}
+          style={{
+            color: recording
+              ? "#f87171"
+              : transcribing
+              ? "var(--accent)"
+              : "var(--fg-dim)",
+          }}
         >
-          {listening ? "Listening — tap to stop" : supported ? "Tap to start" : "Voice not supported — type below"}
+          {micLabel}
         </p>
       </div>
 
@@ -206,16 +231,13 @@ export default function VoiceLogger() {
 
       <button
         onClick={parseAndGo}
-        disabled={!transcript.trim() || parsing}
+        disabled={!transcript.trim() || busy}
         className="btn-accent w-full py-3.5 rounded-xl text-[14px] font-semibold mb-5"
       >
         {parsing ? "Parsing your workout…" : "Parse & review"}
       </button>
 
-      <div
-        className="card p-4"
-        style={{ background: "var(--bg-elevated)" }}
-      >
+      <div className="card p-4" style={{ background: "var(--bg-elevated)" }}>
         <p
           className="label text-[10px] mb-2"
           style={{ color: "var(--fg-dim)" }}
