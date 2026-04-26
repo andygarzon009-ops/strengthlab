@@ -1,7 +1,7 @@
 import BottomNav from "@/components/BottomNav";
 import AITrainer from "@/components/AITrainer";
 import Celebrations from "@/components/Celebrations";
-import IntervalTimer from "@/components/IntervalTimer";
+import Timer from "@/components/Timer";
 import TutorialAutoOpen from "@/components/TutorialAutoOpen";
 import { Suspense } from "react";
 
@@ -21,7 +21,7 @@ export default function DashboardLayout({
         <AITrainer />
       </Suspense>
       <Celebrations />
-      <IntervalTimer />
+      <Timer />
       <TutorialAutoOpen />
     </div>
   );
