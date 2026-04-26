@@ -117,6 +117,16 @@ function readJSON<T>(key: string, fallback: T): T {
 export default function Timer() {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("INTERVAL");
+  const [coachOpen, setCoachOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ open: boolean }>;
+      setCoachOpen(!!ce.detail?.open);
+    };
+    window.addEventListener("strengthlab:coach-toggle", handler);
+    return () => window.removeEventListener("strengthlab:coach-toggle", handler);
+  }, []);
 
   // Shared tick.
   const [now, setNow] = useState(() => Date.now());
@@ -498,9 +508,9 @@ export default function Timer() {
 
   return (
     <>
+      {!coachOpen && (
       <button
         onClick={() => setOpen(true)}
-        data-tour="timer-fab"
         aria-label="Open timer"
         className="fixed z-[70] rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-95"
         style={{
@@ -538,6 +548,7 @@ export default function Timer() {
           </svg>
         )}
       </button>
+      )}
 
       {open && (
         <div
