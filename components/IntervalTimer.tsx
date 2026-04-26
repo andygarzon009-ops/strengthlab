@@ -338,10 +338,10 @@ export default function IntervalTimer() {
         aria-label="Open interval timer"
         className="fixed z-[70] rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-95"
         style={{
-          right: 16,
-          bottom: "calc(env(safe-area-inset-bottom) + 88px)",
-          width: 52,
-          height: 52,
+          right: 76,
+          bottom: 96,
+          width: 48,
+          height: 48,
           background: running ? phaseColor : "var(--bg-card)",
           color: running ? "#0a0a0a" : "var(--fg)",
           border: "1px solid var(--border)",

@@ -2,6 +2,7 @@ import BottomNav from "@/components/BottomNav";
 import AITrainer from "@/components/AITrainer";
 import Celebrations from "@/components/Celebrations";
 import IntervalTimer from "@/components/IntervalTimer";
+import TutorialAutoOpen from "@/components/TutorialAutoOpen";
 import { Suspense } from "react";
 
 export default function DashboardLayout({
@@ -21,6 +22,7 @@ export default function DashboardLayout({
       </Suspense>
       <Celebrations />
       <IntervalTimer />
+      <TutorialAutoOpen />
     </div>
   );
 }

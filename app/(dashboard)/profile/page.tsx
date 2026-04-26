@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/session";
 import { logout } from "@/lib/actions/auth";
 import Link from "next/link";
 import ProfileForm from "@/components/ProfileForm";
+import TutorialLauncher from "@/components/TutorialLauncher";
 
 export default async function ProfilePage() {
   const userId = await requireAuth();
@@ -67,6 +68,8 @@ export default async function ProfilePage() {
       />
 
       <div className="space-y-2">
+        <TutorialLauncher />
+
         <Link
           href="/exercises"
           className="card flex items-center justify-between px-4 py-4 transition-colors"
