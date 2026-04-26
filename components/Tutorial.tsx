@@ -66,23 +66,6 @@ const SLIDES: Slide[] = [
     ),
   },
   {
-    badge: "Rest timer",
-    title: "Tap ✓ between sets",
-    body: "Every set row has a green checkmark. Tap it when you finish a set and a countdown starts automatically.",
-    bullets: [
-      "Defaults to 2:00 — change it from the timer bar",
-      "+15 / -15 / Pause / Skip controls",
-      "Beeps and vibrates when rest is over",
-    ],
-    icon: I(
-      <>
-        <circle cx="12" cy="13" r="8" />
-        <path d="M12 9v4l2 2" />
-        <path d="M9 2h6" />
-      </>
-    ),
-  },
-  {
     badge: "Interval timer",
     title: "HIIT, Tabata, and EMOMs",
     body: "Tap the floating stopwatch in the bottom-right to launch a full-screen interval timer. Works on top of any page.",

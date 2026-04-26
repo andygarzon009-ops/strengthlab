@@ -9,8 +9,6 @@ import {
   isTimedExercise,
   specificMuscleFor,
 } from "@/lib/exercises";
-import { RestTimerProvider, useRestTimer } from "@/lib/useRestTimer";
-import RestTimerBar from "@/components/RestTimerBar";
 
 type SetData = {
   type: "WARMUP" | "WORKING";
@@ -46,16 +44,7 @@ type Props = {
   setExercises: (exercises: ExerciseData[]) => void;
 };
 
-export default function ExerciseLogger(props: Props) {
-  return (
-    <RestTimerProvider>
-      <ExerciseLoggerInner {...props} />
-      <RestTimerBar />
-    </RestTimerProvider>
-  );
-}
-
-function ExerciseLoggerInner({
+export default function ExerciseLogger({
   exercises,
   setExercises,
 }: Props) {
@@ -835,41 +824,6 @@ function SetRow({
   const timedMode = isTimedExercise(exerciseName);
   const bodyweightMode =
     !plateMode && !timedMode && isBodyweightCapable(exerciseName);
-  const { start } = useRestTimer();
-  const [completed, setCompleted] = useState(false);
-  const handleComplete = () => {
-    setCompleted((c) => {
-      const next = !c;
-      if (next) start();
-      return next;
-    });
-  };
-  const completeBtn = (
-    <button
-      onClick={handleComplete}
-      className="ml-auto w-7 h-7 rounded-md flex items-center justify-center transition-colors active:scale-90"
-      style={{
-        background: completed ? "var(--accent)" : "var(--bg-elevated)",
-        color: completed ? "#0a0a0a" : "var(--fg-dim)",
-        border: completed ? "none" : "1px solid var(--border)",
-      }}
-      aria-label={completed ? "Mark set incomplete" : "Complete set, start rest"}
-      title="Complete set & start rest"
-    >
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-    </button>
-  );
 
   // A working set with a weight but no reps is invalid — highlight it.
   // Timed holds are valid with just seconds (bodyweight is the default).
@@ -951,10 +905,9 @@ function SetRow({
         <span style={{ color: "var(--fg-dim)", fontSize: "11px" }}>
           {!set.weight || parseFloat(set.weight) === 0 ? "BW" : "load"}
         </span>
-        {completeBtn}
         <button
           onClick={onRemove}
-          className="w-7 h-7 flex items-center justify-center"
+          className="ml-auto w-7 h-7 flex items-center justify-center"
           style={{ color: "var(--fg-dim)" }}
           aria-label="Remove set"
         >
