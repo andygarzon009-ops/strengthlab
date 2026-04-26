@@ -1304,12 +1304,16 @@ function BigClock({
   color: string;
   tabular?: boolean;
 }) {
+  // Scale viewport-width so the longer "M:SS.cc" stopwatch text fits on
+  // narrow screens without clipping at the edges.
+  const vw = text.length >= 7 ? 16 : text.length >= 6 ? 19 : 24;
+  const cap = text.length >= 7 ? 110 : text.length >= 6 ? 130 : 160;
   return (
     <p
-      className="nums font-bold leading-none"
+      className="nums font-bold leading-none text-center w-full px-4"
       style={{
         color,
-        fontSize: "min(28vw, 160px)",
+        fontSize: `min(${vw}vw, ${cap}px)`,
         fontFamily: "var(--font-geist-mono)",
         fontVariantNumeric: tabular ? "tabular-nums" : undefined,
       }}
