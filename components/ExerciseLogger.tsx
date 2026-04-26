@@ -456,6 +456,7 @@ export default function ExerciseLogger({
           <div className="flex gap-2">
             <button
               onClick={() => setShowSearch(true)}
+              data-tour="add-exercise"
               className="flex-1 py-4 rounded-2xl text-[13px] font-medium transition-all"
               style={{
                 border: "1px dashed var(--border-strong)",

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Tutorial, { hasSeenTutorial } from "./Tutorial";
+import SpotlightTour from "./SpotlightTour";
+import { hasSeenTutorial } from "./Tutorial";
 
 export default function TutorialAutoOpen() {
   const [open, setOpen] = useState(false);
@@ -13,5 +14,5 @@ export default function TutorialAutoOpen() {
     }
   }, []);
 
-  return <Tutorial open={open} onClose={() => setOpen(false)} />;
+  return <SpotlightTour open={open} onClose={() => setOpen(false)} />;
 }

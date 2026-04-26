@@ -405,6 +405,7 @@ export default function AITrainer() {
       {!hideForChat && (
       <button
         onClick={() => setOpen(true)}
+        data-tour="coach-fab"
         className="fixed bottom-24 right-4 z-40 w-12 h-12 rounded-full flex items-center justify-center active:scale-95 transition-transform"
         style={{
           background: "var(--bg-elevated)",

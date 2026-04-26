@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Tutorial from "./Tutorial";
+import SpotlightTour from "./SpotlightTour";
 
 export default function TutorialLauncher() {
   const [open, setOpen] = useState(false);
@@ -45,7 +45,7 @@ export default function TutorialLauncher() {
           →
         </span>
       </button>
-      <Tutorial open={open} onClose={() => setOpen(false)} />
+      <SpotlightTour open={open} onClose={() => setOpen(false)} />
     </>
   );
 }

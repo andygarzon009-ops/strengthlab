@@ -500,6 +500,7 @@ export default function Timer() {
     <>
       <button
         onClick={() => setOpen(true)}
+        data-tour="timer-fab"
         aria-label="Open timer"
         className="fixed z-[70] rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-95"
         style={{
