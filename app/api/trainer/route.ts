@@ -720,12 +720,22 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
           controller.close();
         } catch (err) {
           console.error("Trainer stream error:", err);
-          // If we were mid-sentence, break to a new line before the fallback
-          // so the error doesn't get jammed onto the end of the coach's text.
+          const rawMsg = err instanceof Error ? err.message : String(err);
+          let hint = "Give it a moment and try again.";
+          const lower = rawMsg.toLowerCase();
+          if (lower.includes("api key") || lower.includes("api_key") || lower.includes("unauthorized") || lower.includes("401") || lower.includes("permission")) {
+            hint = "API key looks invalid or missing — check GEMINI_API_KEY / ANTHROPIC_API_KEY in your deploy env.";
+          } else if (lower.includes("quota") || lower.includes("rate") || lower.includes("429") || lower.includes("resource_exhausted")) {
+            hint = "Hit an API quota or rate limit — wait a minute, or check your Gemini/Anthropic billing.";
+          } else if (lower.includes("timeout") || lower.includes("timed out") || lower.includes("deadline")) {
+            hint = "All providers timed out. Try a shorter message, or retry in a moment.";
+          } else if (lower.includes("overloaded") || lower.includes("503") || lower.includes("unavailable")) {
+            hint = "All providers are overloaded right now. Try again in a minute.";
+          }
           const prefix = fullResponse.length > 0 ? "\n\n" : "";
           const errText =
             prefix +
-            "⚠️ Coach connection dropped mid-reply. Give it a moment and try again.";
+            `⚠️ Coach connection dropped. ${hint}\n\n_Detail: ${rawMsg.slice(0, 200)}_`;
           controller.enqueue(encoder.encode(errText));
           // Persist whatever did stream so the athlete can see partial context
           // on reload; skip if nothing streamed.
