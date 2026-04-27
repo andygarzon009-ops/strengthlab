@@ -170,7 +170,6 @@ export default function AITrainer() {
   const [listening, setListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
-  const [inputFocused, setInputFocused] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -513,64 +512,60 @@ export default function AITrainer() {
             className="flex-1 overflow-y-auto px-4 py-6 space-y-4"
           >
             {isEmpty && (
-              <div className="max-w-sm mx-auto">
-                {!inputFocused && (
-                  <div className="text-center pt-4">
-                    <div
-                      className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                      style={{
-                        background: "var(--accent-dim)",
-                        border: "1px solid rgba(34,197,94,0.25)",
-                      }}
-                    >
-                      <svg
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="var(--accent)"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
-                      </svg>
-                    </div>
-                    <h3 className="text-lg font-semibold tracking-tight mb-1.5">
-                      Your personalized coach
-                    </h3>
-                    <p
-                      className="text-sm leading-relaxed mb-4"
-                      style={{ color: "var(--fg-muted)" }}
-                    >
-                      {messages.length > 0
-                        ? "Fresh chat. Your training history, PRs, and targets are still in my memory — ask anything."
-                        : "I know every session you've logged, your PRs, and your goals. Ask me anything."}
-                    </p>
-                    <div
-                      className="rounded-xl px-3 py-2.5 text-[12px] leading-snug mb-4 text-left"
-                      style={{
-                        background: "var(--accent-dim)",
-                        border: "1px solid rgba(34,197,94,0.3)",
-                        color: "var(--fg)",
-                      }}
-                    >
-                      <p className="font-semibold" style={{ color: "var(--accent)" }}>
-                        💡 Log as you go
-                      </p>
-                      <p
-                        className="mt-0.5"
-                        style={{ color: "var(--fg-muted)" }}
-                      >
-                        Just tell me what you hit — e.g.{" "}
-                        <em className="not-italic" style={{ color: "var(--fg)" }}>
-                          &ldquo;bench 225 for 5, then 225 for 4&rdquo;
-                        </em>{" "}
-                        — and I&rsquo;ll save it to your workout automatically.
-                      </p>
-                    </div>
-                  </div>
-                )}
+              <div className="text-center pt-8 max-w-sm mx-auto">
+                <div
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5"
+                  style={{
+                    background: "var(--accent-dim)",
+                    border: "1px solid rgba(34,197,94,0.25)",
+                  }}
+                >
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--accent)"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold tracking-tight mb-1.5">
+                  Your personalized coach
+                </h3>
+                <p
+                  className="text-sm leading-relaxed mb-3"
+                  style={{ color: "var(--fg-muted)" }}
+                >
+                  {messages.length > 0
+                    ? "Fresh chat. Your training history, PRs, and targets are still in my memory — ask anything."
+                    : "I know every session you've logged, your PRs, and your goals. Ask me anything."}
+                </p>
+                <div
+                  className="rounded-xl px-3 py-2.5 text-[12px] leading-snug mb-5 text-left"
+                  style={{
+                    background: "var(--accent-dim)",
+                    border: "1px solid rgba(34,197,94,0.3)",
+                    color: "var(--fg)",
+                  }}
+                >
+                  <p className="font-semibold" style={{ color: "var(--accent)" }}>
+                    💡 Log as you go
+                  </p>
+                  <p
+                    className="mt-0.5"
+                    style={{ color: "var(--fg-muted)" }}
+                  >
+                    Just tell me what you hit — e.g.{" "}
+                    <em className="not-italic" style={{ color: "var(--fg)" }}>
+                      &ldquo;bench 225 for 5, then 225 for 4&rdquo;
+                    </em>{" "}
+                    — and I&rsquo;ll save it to your workout automatically.
+                  </p>
+                </div>
                 <div className="space-y-2">
                   {QUICK_PROMPTS.map((p) => (
                     <button
@@ -728,8 +723,6 @@ export default function AITrainer() {
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onFocus={() => setInputFocused(true)}
-                onBlur={() => setInputFocused(false)}
                 onKeyDown={(e) =>
                   e.key === "Enter" && !e.shiftKey && send(input)
                 }
