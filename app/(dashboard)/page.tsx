@@ -9,15 +9,23 @@ import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 export default async function FeedPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; mode?: string }>;
+  searchParams: Promise<{ view?: string; mode?: string; user?: string }>;
 }) {
   const userId = await requireAuth();
-  const { view, mode } = await searchParams;
+  const { view, mode, user: filterUserParam } = await searchParams;
   const groupMode = mode === "chat" ? "chat" : "feed";
 
   const memberships = await prisma.groupMember.findMany({
     where: { userId },
-    include: { group: { include: { members: { select: { userId: true } } } } },
+    include: {
+      group: {
+        include: {
+          members: {
+            include: { user: { select: { id: true, name: true } } },
+          },
+        },
+      },
+    },
   });
 
   const activeView = view ?? "mine";
@@ -25,9 +33,17 @@ export default async function FeedPage({
     activeView.startsWith("group-") &&
     memberships.find((m) => `group-${m.groupId}` === activeView);
 
+  const allMemberIds = activeGroup
+    ? activeGroup.group.members.map((gm) => gm.userId)
+    : [];
+  const filterUserId =
+    activeGroup && filterUserParam && allMemberIds.includes(filterUserParam)
+      ? filterUserParam
+      : null;
+
   let scopedUserIds: string[];
   if (activeGroup) {
-    scopedUserIds = activeGroup.group.members.map((gm) => gm.userId);
+    scopedUserIds = filterUserId ? [filterUserId] : allMemberIds;
   } else {
     scopedUserIds = [userId];
   }
@@ -125,6 +141,27 @@ export default async function FeedPage({
             label="Chat"
             active={groupMode === "chat"}
           />
+        </div>
+      )}
+
+      {activeGroup && groupMode === "feed" && activeGroup.group.members.length > 1 && (
+        <div
+          className="flex gap-1.5 mb-4 overflow-x-auto -mx-4 px-4 pb-1"
+          style={{ scrollbarWidth: "none" }}
+        >
+          <FeedTab
+            href={`/?view=group-${activeGroup.groupId}`}
+            label="All"
+            active={!filterUserId}
+          />
+          {activeGroup.group.members.map((gm) => (
+            <FeedTab
+              key={gm.userId}
+              href={`/?view=group-${activeGroup.groupId}&user=${gm.userId}`}
+              label={gm.userId === userId ? "You" : gm.user.name.split(" ")[0]}
+              active={filterUserId === gm.userId}
+            />
+          ))}
         </div>
       )}
 
