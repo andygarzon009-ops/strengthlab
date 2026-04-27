@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import {
   startOfWeek,
+  endOfWeek,
   subWeeks,
   addDays,
   format,
@@ -39,13 +40,27 @@ export default async function ConsistencyCard({
   const today = new Date();
   const goal = Math.max(1, trainingDaysGoal ?? 4);
 
-  // ----- PRs in the last 30 days. PRs are the real signal of progress,
-  // so the headline badge tracks recent personal records rather than mere
-  // attendance.
-  const thirtyDaysAgo = addDays(today, -30);
-  const recentPRs = await prisma.personalRecord.count({
-    where: { userId, date: { gte: thirtyDaysAgo } },
-  });
+  // ----- Goal-hit week streak: consecutive weeks where the user trained
+  // on at least `goal` distinct days. The current week doesn't break the
+  // streak until it actually ends — if it hasn't met the goal yet, we
+  // count from the prior week.
+  const distinctDaysInWeek = (weekIdx: number) => {
+    const start = startOfWeek(subWeeks(today, weekIdx), { weekStartsOn: 1 });
+    const end = endOfWeek(start, { weekStartsOn: 1 });
+    const days = new Set<string>();
+    for (const w of workouts) {
+      const d = new Date(w.date);
+      if (d >= start && d <= end) days.add(format(d, "yyyy-MM-dd"));
+    }
+    return days.size;
+  };
+  const weekMetGoal = (weekIdx: number) => distinctDaysInWeek(weekIdx) >= goal;
+  let streak = 0;
+  const startIdx = weekMetGoal(0) ? 0 : 1;
+  for (let i = startIdx; i < 26; i++) {
+    if (weekMetGoal(i)) streak++;
+    else break;
+  }
 
   // ----- This-week day dots
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
@@ -120,7 +135,7 @@ export default async function ConsistencyCard({
             Your rhythm
           </h2>
         </div>
-        {recentPRs > 0 && (
+        {streak > 0 && (
           <span
             className="label text-[10px] px-2 py-1 rounded-full nums"
             style={{
@@ -129,9 +144,9 @@ export default async function ConsistencyCard({
               color: "#fb923c",
               fontFamily: "var(--font-geist-mono)",
             }}
-            title="Personal records set in the last 30 days"
+            title={`Consecutive weeks meeting your ${goal}-day training goal`}
           >
-            🔥 {recentPRs} PR{recentPRs === 1 ? "" : "s"} · 30d
+            🔥 {streak}-wk streak
           </span>
         )}
       </div>
