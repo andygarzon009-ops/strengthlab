@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/db";
 import {
   startOfWeek,
-  endOfWeek,
   subWeeks,
   addDays,
   format,
@@ -40,24 +39,13 @@ export default async function ConsistencyCard({
   const today = new Date();
   const goal = Math.max(1, trainingDaysGoal ?? 4);
 
-  // ----- Week streak: consecutive weeks (including current) with ≥1 workout.
-  // If the current week hasn't logged yet, we don't break the streak until
-  // it actually ends — the prior streak still counts.
-  const weekHasWorkout = (weekIdx: number) => {
-    const start = startOfWeek(subWeeks(today, weekIdx), { weekStartsOn: 1 });
-    const end = endOfWeek(start, { weekStartsOn: 1 });
-    return workouts.some((w) => {
-      const d = new Date(w.date);
-      return d >= start && d <= end;
-    });
-  };
-  let streak = 0;
-  const currentHas = weekHasWorkout(0);
-  if (currentHas) streak = 1;
-  for (let i = 1; i < 26; i++) {
-    if (weekHasWorkout(i)) streak++;
-    else break;
-  }
+  // ----- PRs in the last 30 days. PRs are the real signal of progress,
+  // so the headline badge tracks recent personal records rather than mere
+  // attendance.
+  const thirtyDaysAgo = addDays(today, -30);
+  const recentPRs = await prisma.personalRecord.count({
+    where: { userId, date: { gte: thirtyDaysAgo } },
+  });
 
   // ----- This-week day dots
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
@@ -132,7 +120,7 @@ export default async function ConsistencyCard({
             Your rhythm
           </h2>
         </div>
-        {streak > 0 && (
+        {recentPRs > 0 && (
           <span
             className="label text-[10px] px-2 py-1 rounded-full nums"
             style={{
@@ -141,8 +129,9 @@ export default async function ConsistencyCard({
               color: "#fb923c",
               fontFamily: "var(--font-geist-mono)",
             }}
+            title="Personal records set in the last 30 days"
           >
-            🔥 {streak}-wk streak
+            🔥 {recentPRs} PR{recentPRs === 1 ? "" : "s"} · 30d
           </span>
         )}
       </div>
