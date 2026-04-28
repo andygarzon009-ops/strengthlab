@@ -79,31 +79,10 @@ const cueWork = () => {
   setTimeout(() => tone(1175, 280), 180);
 };
 const cueRest = () => tone(440, 280, 0.2);
-// Sleek rest-end cue — a single soft sine "ding" at A5 with a quiet
-// octave overtone for body, fade-in on a few milliseconds, then a long
-// natural exponential decay. No arpeggio, no alarm pattern; meant to
-// read as a notification, not a buzzer.
-const cueDone = () => {
-  const bag = ensureAudio();
-  if (!bag) return;
-  const { ctx } = bag;
-  const ring = (freq: number, peak: number, decayMs: number) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-    const start = ctx.currentTime;
-    const dur = decayMs / 1000;
-    gain.gain.setValueAtTime(0, start);
-    gain.gain.linearRampToValueAtTime(peak, start + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(start);
-    osc.stop(start + dur + 0.05);
-  };
-  ring(880, 0.18, 1100); // fundamental — A5
-  ring(1760, 0.05, 900); // soft octave overtone for warmth
-};
+// Same sine pulse as the 3-2-1 countdown beeps, just dropped a fifth
+// (660 Hz → 440 Hz) and held a bit longer so it reads as the resolved
+// "end" tone of the same sequence.
+const cueDone = () => tone(440, 260, 0.2);
 const cueTick = () => tone(800, 60, 0.15);
 const cueRound = () => tone(1320, 100, 0.18);
 
@@ -442,9 +421,14 @@ export default function Timer() {
     }
   }, [cdRemaining, cdRunning]);
 
-  // Pre-end beeps intentionally removed — the soft bell at zero is the
-  // only cue the rest timer produces. Three rising beeps before the
-  // chime read as "arcade game", not "notification."
+  useEffect(() => {
+    if (!cdRunning) return;
+    const sec = Math.ceil(cdRemaining);
+    if (sec > 0 && sec <= 3 && cdBeepRef.current !== sec) {
+      cdBeepRef.current = sec;
+      cueCountdown();
+    }
+  }, [cdRemaining, cdRunning]);
 
   const startCd = () => {
     if (cdConfigSeconds <= 0) return;
