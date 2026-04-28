@@ -442,14 +442,9 @@ export default function Timer() {
     }
   }, [cdRemaining, cdRunning]);
 
-  useEffect(() => {
-    if (!cdRunning) return;
-    const sec = Math.ceil(cdRemaining);
-    if (sec > 0 && sec <= 3 && cdBeepRef.current !== sec) {
-      cdBeepRef.current = sec;
-      cueCountdown();
-    }
-  }, [cdRemaining, cdRunning]);
+  // Pre-end beeps intentionally removed — the soft bell at zero is the
+  // only cue the rest timer produces. Three rising beeps before the
+  // chime read as "arcade game", not "notification."
 
   const startCd = () => {
     if (cdConfigSeconds <= 0) return;
