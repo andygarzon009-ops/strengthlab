@@ -1004,15 +1004,15 @@ function SetRow({
     }
   };
 
-  // ± stepper for the weight input. In plate mode we step by 0.5 plates
-  // per side (≈ 45 lb total — one plate added/removed per side); otherwise
-  // ±5 lb total, which matches how lifters call out increments at the rack.
+  // ± stepper for the weight input — always 5 lb total, plate mode or
+  // not. Lifters micro-load with 2.5 lb plates per side (= 5 lb total)
+  // and call jumps in 5 lb increments at the rack; bumping a full
+  // 45 lb plate per tap was way too coarse.
   const stepWeight = (direction: 1 | -1) => {
     if (timedMode) return;
     const cur = parseFloat(set.weight);
     const base = Number.isFinite(cur) ? cur : 0;
-    const delta = plateMode ? PLATE_WEIGHT_LB * direction : 5 * direction;
-    const next = Math.max(0, Math.round((base + delta) * 100) / 100);
+    const next = Math.max(0, Math.round((base + 5 * direction) * 100) / 100);
     onUpdate("weight", next === 0 ? "" : String(next));
   };
 
