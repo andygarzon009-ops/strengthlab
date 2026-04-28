@@ -11,6 +11,55 @@ import {
   specificMuscleFor,
 } from "@/lib/exercises";
 
+// Common gym shorthand → canonical phrases that appear in the exercise
+// names. Lets a user type "db bench" and find "Flat Dumbbell Bench
+// Press", or "ohp" for "Overhead Press". Each token can match either
+// itself or any of its expansions.
+const SEARCH_ALIASES: Record<string, string[]> = {
+  db: ["dumbbell"],
+  dbs: ["dumbbell"],
+  bb: ["barbell"],
+  bbs: ["barbell"],
+  kb: ["kettlebell"],
+  ohp: ["overhead press"],
+  rdl: ["romanian deadlift"],
+  sldl: ["stiff-leg deadlift"],
+  bss: ["bulgarian split squat"],
+  ssb: ["safety squat bar"],
+  ghr: ["glute-ham raise", "glute ham raise"],
+  bw: ["bodyweight"],
+  ez: ["ez-bar"],
+  hs: ["hammer strength"],
+  pl: ["plate-loaded"],
+  hip: ["hip thrust"],
+  pull: ["pull-up", "pulldown", "pull down"],
+  chin: ["chin-up"],
+  cgbp: ["close-grip bench press"],
+  ig: ["incline"],
+  dl: ["deadlift"],
+  squats: ["squat"],
+  rows: ["row"],
+  curls: ["curl"],
+  press: ["press"],
+};
+
+const tokenize = (q: string) =>
+  q
+    .toLowerCase()
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+const matchesSearch = (name: string, query: string): boolean => {
+  const lowerName = name.toLowerCase();
+  const tokens = tokenize(query);
+  if (tokens.length === 0) return true;
+  return tokens.every((token) => {
+    const variants = [token, ...(SEARCH_ALIASES[token] ?? [])];
+    return variants.some((v) => lowerName.includes(v));
+  });
+};
+
 // Default rest between working sets, in seconds. The floating Timer FAB
 // counts down and beeps/vibrates at zero. Each exercise can override
 // this via the rest pill on its card; choices are stored in localStorage
@@ -132,7 +181,7 @@ export default function ExerciseLogger({
   }, []);
 
   const filtered = allExercises
-    .filter((e) => e.name.toLowerCase().includes(search.toLowerCase()))
+    .filter((e) => matchesSearch(e.name, search))
     .sort((a, b) => {
       const ag = a.muscleGroup ?? "Other";
       const bg = b.muscleGroup ?? "Other";

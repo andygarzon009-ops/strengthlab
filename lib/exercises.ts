@@ -170,6 +170,7 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
 
   // Glutes
   { name: "Barbell Hip Thrust", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
+  { name: "Plate-Loaded Hip Thrust", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
   { name: "Machine Hip Thrust", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
   { name: "Single-Leg Hip Thrust", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
   { name: "Smith Machine Hip Thrust", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
