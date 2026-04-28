@@ -55,6 +55,10 @@ export default function ExerciseLogger({
   const [previousData, setPreviousData] = useState<
     Record<string, PreviousData>
   >({});
+  // When set, the next exercise picked from the search modal replaces the
+  // exercise at this index instead of appending — preserves sets/notes so
+  // users can correct an exercise mid-log without re-entering everything.
+  const [swapTargetIdx, setSwapTargetIdx] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/exercises")
@@ -87,6 +91,26 @@ export default function ExerciseLogger({
     const res = await fetch(`/api/exercises/${ex.id}/previous`);
     const prev: PreviousData = await res.json();
 
+    if (prev?.lastWeight) {
+      setPreviousData((p) => ({ ...p, [ex.id]: prev }));
+    }
+
+    // Swap mode: replace the targeted exercise's id/name and keep its
+    // existing sets + notes. Users picked the wrong exercise originally
+    // and just want to fix the label without re-logging the work.
+    if (swapTargetIdx !== null) {
+      const updated = exercises.map((e, i) =>
+        i === swapTargetIdx
+          ? { ...e, exerciseId: ex.id, exerciseName: ex.name }
+          : e
+      );
+      setExercises(updated);
+      setSwapTargetIdx(null);
+      setSearch("");
+      setShowSearch(false);
+      return;
+    }
+
     const newEx: ExerciseData = {
       exerciseId: ex.id,
       exerciseName: ex.name,
@@ -103,13 +127,14 @@ export default function ExerciseLogger({
       ],
     };
 
-    if (prev?.lastWeight) {
-      setPreviousData((p) => ({ ...p, [ex.id]: prev }));
-    }
-
     setExercises([...exercises, newEx]);
     setSearch("");
     setShowSearch(false);
+  };
+
+  const startSwap = (idx: number) => {
+    setSwapTargetIdx(idx);
+    setShowSearch(true);
   };
 
   const removeExercise = (idx: number) => {
@@ -198,25 +223,50 @@ export default function ExerciseLogger({
                     </p>
                   )}
                 </div>
-                <button
-                  onClick={() => removeExercise(exIdx)}
-                  className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
-                  style={{ color: "var(--fg-dim)" }}
-                  aria-label="Remove exercise"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => startSwap(exIdx)}
+                    className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+                    style={{ color: "var(--fg-dim)" }}
+                    aria-label="Change exercise"
+                    title="Change exercise (keep sets)"
                   >
-                    <path d="M18 6 6 18M6 6l12 12" />
-                  </svg>
-                </button>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M7 4 3 8l4 4" />
+                      <path d="M3 8h13a4 4 0 0 1 4 4" />
+                      <path d="m17 20 4-4-4-4" />
+                      <path d="M21 16H8a4 4 0 0 1-4-4" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => removeExercise(exIdx)}
+                    className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+                    style={{ color: "var(--fg-dim)" }}
+                    aria-label="Remove exercise"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
             </div>
@@ -315,8 +365,8 @@ export default function ExerciseLogger({
             style={{ background: "rgba(0,0,0,0.6)" }}
             onClick={() => {
               setShowSearch(false);
-
               setSearch("");
+              setSwapTargetIdx(null);
             }}
           />
           <div
@@ -337,8 +387,8 @@ export default function ExerciseLogger({
             <button
               onClick={() => {
                 setShowSearch(false);
-  
                 setSearch("");
+                setSwapTargetIdx(null);
               }}
               className="w-9 h-9 flex items-center justify-center rounded-full shrink-0"
               style={{
@@ -364,11 +414,18 @@ export default function ExerciseLogger({
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search exercises…"
+              placeholder={
+                swapTargetIdx !== null
+                  ? `Replace "${exercises[swapTargetIdx]?.exerciseName ?? ""}"…`
+                  : "Search exercises…"
+              }
               className="flex-1 rounded-xl px-4 py-2.5 text-[14px] focus:outline-none"
               style={{
                 background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
+                border:
+                  swapTargetIdx !== null
+                    ? "1px solid rgba(34,197,94,0.45)"
+                    : "1px solid var(--border)",
                 color: "var(--fg)",
               }}
             />
