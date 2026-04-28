@@ -5,27 +5,48 @@ export type DefaultExercise = {
 };
 
 export const DEFAULT_EXERCISES: DefaultExercise[] = [
-  // Chest
-  { name: "Barbell Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  // Chest — barbell
+  { name: "Flat Barbell Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Incline Barbell Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Decline Barbell Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Close-Grip Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER,ARMS" },
-  { name: "Dumbbell Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Reverse-Grip Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Pin Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Spoto Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Larsen Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Floor Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Paused Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Board Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+
+  // Chest — dumbbell
+  { name: "Flat Dumbbell Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Incline Dumbbell Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Decline Dumbbell Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
-  { name: "Dumbbell Fly", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Neutral-Grip Dumbbell Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Flat Dumbbell Fly", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Incline Dumbbell Fly", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Decline Dumbbell Fly", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+
+  // Chest — cable / machine
   { name: "Cable Crossover", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Low-to-High Cable Fly", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Mid Cable Fly", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "High-to-Low Cable Fly", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Single-Arm Cable Fly", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Pec Deck", muscleGroup: "Chest", splits: "PUSH,UPPER" },
-  { name: "Push-Up", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+
+  // Chest — bodyweight / landmine
+  { name: "Standard Push-Up", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Deficit Push-Up", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Diamond Push-Up", muscleGroup: "Chest", splits: "PUSH,UPPER,ARMS" },
   { name: "Chest Dip", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Landmine Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
-  { name: "Floor Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
-  { name: "Smith Machine Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Single-Arm Landmine Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+
+  // Chest — Smith machine
+  { name: "Smith Machine Flat Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Smith Machine Incline Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Smith Machine Decline Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
 
   // Back
   { name: "Pull-Up", muscleGroup: "Back", splits: "PULL,UPPER" },
@@ -74,7 +95,14 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Lateral Raise (Dumbbell)", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
   { name: "Lateral Raise (Cable)", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
   { name: "Lateral Raise (Machine)", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
-  { name: "Front Raise", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Front Raise (Dumbbell)", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Front Raise (Plate)", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Front Raise (Barbell)", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Behind-the-Neck Press", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Seated Barbell Overhead Press", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Standing Dumbbell Shoulder Press", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Bradford Press", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Cuban Press", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
   { name: "Rear Delt Fly (Dumbbell)", muscleGroup: "Shoulders", splits: "PULL,UPPER" },
   { name: "Rear Delt Fly (Cable)", muscleGroup: "Shoulders", splits: "PULL,UPPER" },
   { name: "Rear Delt Fly (Machine)", muscleGroup: "Shoulders", splits: "PULL,UPPER" },
@@ -113,6 +141,9 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   // Quads
   { name: "Back Squat (High Bar)", muscleGroup: "Quads", splits: "LEGS,LOWER" },
   { name: "Back Squat (Low Bar)", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Paused Back Squat", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Pin Squat", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+  { name: "Tempo Back Squat", muscleGroup: "Quads", splits: "LEGS,LOWER" },
   { name: "Front Squat", muscleGroup: "Quads", splits: "LEGS,LOWER" },
   { name: "Goblet Squat", muscleGroup: "Quads", splits: "LEGS,LOWER" },
   { name: "Hack Squat", muscleGroup: "Quads", splits: "LEGS,LOWER" },
@@ -147,7 +178,6 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Cable Kickback", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
   { name: "Cable Pull-Through", muscleGroup: "Glutes", splits: "LEGS,LOWER,PULL" },
   { name: "Glute-Focused Back Extension", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
-  { name: "45-Degree Back Extension (Glute Focus)", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
 
   // Calves
   { name: "Standing Calf Raise", muscleGroup: "Calves", splits: "LEGS,LOWER" },
@@ -180,9 +210,7 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Farmer Carry", muscleGroup: "Forearms", splits: "FULL_BODY" },
   { name: "Plate Pinch Hold", muscleGroup: "Forearms", splits: "ARMS" },
 
-  // Smith machine (push)
-  { name: "Smith Machine Incline Bench Press", muscleGroup: "Chest", splits: "PUSH" },
-  { name: "Smith Machine Decline Bench Press", muscleGroup: "Chest", splits: "PUSH" },
+  // Smith machine (push) — Flat/Incline/Decline live in the chest section above.
   { name: "Smith Machine Close-Grip Bench Press", muscleGroup: "Triceps", splits: "PUSH" },
   { name: "Smith Machine Overhead Press", muscleGroup: "Shoulders", splits: "PUSH" },
   { name: "Smith Machine Shoulder Press", muscleGroup: "Shoulders", splits: "PUSH" },
@@ -193,24 +221,19 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Smith Machine Inverted Row", muscleGroup: "Back", splits: "PULL" },
   { name: "Smith Machine Shrug", muscleGroup: "Back", splits: "PULL" },
 
-  // Smith machine (legs)
-  { name: "Smith Machine Squat", muscleGroup: "Quads", splits: "LEGS" },
+  // Smith machine (legs) — Smith Machine Squat lives in the Quads section above.
   { name: "Smith Machine Front Squat", muscleGroup: "Quads", splits: "LEGS" },
   { name: "Smith Machine Bulgarian Split Squat", muscleGroup: "Quads", splits: "LEGS" },
   { name: "Smith Machine Reverse Lunge", muscleGroup: "Quads", splits: "LEGS" },
   { name: "Smith Machine Romanian Deadlift", muscleGroup: "Hamstrings", splits: "LEGS" },
   { name: "Smith Machine Good Morning", muscleGroup: "Hamstrings", splits: "LEGS" },
-  { name: "Smith Machine Hip Thrust", muscleGroup: "Glutes", splits: "LEGS" },
   { name: "Smith Machine Glute Bridge", muscleGroup: "Glutes", splits: "LEGS" },
   { name: "Smith Machine Sumo Squat", muscleGroup: "Glutes", splits: "LEGS" },
   { name: "Smith Machine Calf Raise", muscleGroup: "Calves", splits: "LEGS" },
 
-  // Plate-loaded machines (legs)
-  { name: "Leg Press", muscleGroup: "Quads", splits: "LEGS" },
-  { name: "Single-Leg Leg Press", muscleGroup: "Quads", splits: "LEGS" },
-  { name: "Hack Squat Machine", muscleGroup: "Quads", splits: "LEGS" },
+  // Plate-loaded machines (legs) — Leg Press / Single-Leg Press / Hack Squat / Pendulum Squat
+  // live in the Quads section above.
   { name: "Reverse Hack Squat", muscleGroup: "Glutes", splits: "LEGS" },
-  { name: "Pendulum Squat", muscleGroup: "Quads", splits: "LEGS" },
   { name: "Belt Squat", muscleGroup: "Quads", splits: "LEGS" },
   { name: "V-Squat Machine", muscleGroup: "Quads", splits: "LEGS" },
   { name: "Hip Thrust Machine", muscleGroup: "Glutes", splits: "LEGS" },
@@ -253,7 +276,6 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Abdominal Crunch Machine (Pin)", muscleGroup: "Core", splits: "CORE" },
   { name: "Rotary Torso Machine (Pin)", muscleGroup: "Core", splits: "CORE" },
   { name: "Glute Drive Machine", muscleGroup: "Glutes", splits: "LEGS,LOWER" },
-  { name: "Pendulum Squat Machine", muscleGroup: "Quads", splits: "LEGS,LOWER" },
   { name: "Chest-Supported Row Machine (Pin)", muscleGroup: "Back", splits: "PULL,UPPER" },
   { name: "Nautilus Pullover Machine", muscleGroup: "Back", splits: "PULL,UPPER" },
   { name: "Smith Machine Incline Row", muscleGroup: "Back", splits: "PULL,UPPER" },
@@ -278,7 +300,6 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Reverse-Grip Bent-Over Row", muscleGroup: "Back", splits: "PULL,UPPER" },
   { name: "Chest-Supported Dumbbell Row", muscleGroup: "Back", splits: "PULL,UPPER" },
   { name: "Chest-Supported T-Bar Row", muscleGroup: "Back", splits: "PULL,UPPER" },
-  { name: "Single-Arm Dumbbell Row", muscleGroup: "Back", splits: "PULL,UPPER" },
   { name: "Kroc Row", muscleGroup: "Back", splits: "PULL,UPPER" },
   { name: "Dumbbell Pullover", muscleGroup: "Back", splits: "PULL,UPPER" },
   { name: "Cable Y-Raise", muscleGroup: "Shoulders", splits: "PULL,UPPER" },
@@ -292,7 +313,6 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Overhead Rope Tricep Extension", muscleGroup: "Triceps", splits: "PUSH,UPPER,ARMS" },
 
   // Lower body additions
-  { name: "Glute Ham Raise", muscleGroup: "Hamstrings", splits: "LEGS,LOWER,PULL" },
   { name: "Reverse Nordic Curl", muscleGroup: "Quads", splits: "LEGS,LOWER" },
   { name: "Copenhagen Plank", muscleGroup: "Core", splits: "CORE,LEGS" },
   { name: "Copenhagen Adduction", muscleGroup: "Quads", splits: "LEGS,LOWER" },
@@ -306,10 +326,11 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Safety Squat Bar Squat", muscleGroup: "Quads", splits: "LEGS,LOWER" },
   { name: "Front Squat (Dumbbell)", muscleGroup: "Quads", splits: "LEGS,LOWER" },
   { name: "Deficit Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
-  { name: "Sumo Deadlift", muscleGroup: "Glutes", splits: "PULL,LOWER" },
+  { name: "Block Pull Deadlift", muscleGroup: "Back", splits: "PULL,LOWER" },
+  { name: "Pause Deadlift", muscleGroup: "Back", splits: "PULL,LOWER" },
   { name: "Single-Leg Romanian Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
   { name: "B-Stance Romanian Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
-  { name: "Romanian Deadlift (Dumbbell)", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
+  { name: "Deficit Romanian Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
   { name: "Reverse Hyper", muscleGroup: "Glutes", splits: "LEGS,LOWER,PULL" },
   { name: "45-Degree Hyperextension", muscleGroup: "Lower Back", splits: "PULL,LOWER" },
 
@@ -369,7 +390,6 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Clapping Push-Up", muscleGroup: "Chest", splits: "PUSH" },
   { name: "Ring Push-Up", muscleGroup: "Chest", splits: "PUSH" },
   { name: "Ring Dip", muscleGroup: "Chest", splits: "PUSH" },
-  { name: "Parallel Bar Dip", muscleGroup: "Chest", splits: "PUSH" },
   { name: "Bench Dip", muscleGroup: "Triceps", splits: "PUSH" },
   { name: "Pike Push-Up", muscleGroup: "Shoulders", splits: "PUSH" },
   { name: "Deficit Pike Push-Up", muscleGroup: "Shoulders", splits: "PUSH" },
@@ -407,13 +427,10 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Jump Squat", muscleGroup: "Quads", splits: "LEGS" },
   { name: "Split Squat (Bodyweight)", muscleGroup: "Quads", splits: "LEGS" },
   { name: "Bulgarian Split Squat (Bodyweight)", muscleGroup: "Quads", splits: "LEGS" },
-  { name: "Pistol Squat", muscleGroup: "Quads", splits: "LEGS" },
   { name: "Shrimp Squat", muscleGroup: "Quads", splits: "LEGS" },
   { name: "Skater Squat", muscleGroup: "Quads", splits: "LEGS" },
-  { name: "Nordic Curl", muscleGroup: "Hamstrings", splits: "LEGS" },
   { name: "Nordic Curl Negative", muscleGroup: "Hamstrings", splits: "LEGS" },
   { name: "Single-Leg Glute Bridge", muscleGroup: "Glutes", splits: "LEGS" },
-  { name: "Single-Leg Hip Thrust", muscleGroup: "Glutes", splits: "LEGS" },
   { name: "Step-Up (Bodyweight)", muscleGroup: "Quads", splits: "LEGS" },
   { name: "Walking Lunge (Bodyweight)", muscleGroup: "Quads", splits: "LEGS" },
   { name: "Broad Jump", muscleGroup: "Quads", splits: "LEGS" },
