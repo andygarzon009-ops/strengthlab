@@ -5,10 +5,23 @@ import { useEffect, useRef, useState } from "react";
 import {
   usesPlates,
   PLATE_WEIGHT_LB,
+  platesPerSideBreakdown,
   isBodyweightCapable,
   isTimedExercise,
   specificMuscleFor,
 } from "@/lib/exercises";
+
+// Default rest between working sets, in seconds. The floating Timer FAB
+// counts down and beeps/vibrates at zero. We only fire once per set —
+// editing a previously-logged set won't re-trigger.
+const REST_SECONDS_DEFAULT = 90;
+
+const fireRestTimer = (seconds: number) => {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("strengthlab:rest-start", { detail: { seconds } })
+  );
+};
 
 type SetData = {
   type: "WARMUP" | "WORKING";
@@ -885,6 +898,11 @@ function SetRow({
   const bodyweightMode =
     !plateMode && !timedMode && isBodyweightCapable(exerciseName);
 
+  // Tracks the reps value at focus-time so we only fire the auto rest
+  // timer when the user actually edits and commits a new value. Editing
+  // a previously-logged set without changing reps won't re-trigger.
+  const repsOnFocusRef = useRef<string>(set.reps);
+
   // A working set with a weight but no reps is invalid — highlight it.
   // Timed holds are valid with just seconds (bodyweight is the default).
   const repsMissing =
@@ -904,6 +922,34 @@ function SetRow({
       setTimeout(() => repsRef.current?.focus(), 0);
     }
   };
+
+  const handleRepsFocus = () => {
+    repsOnFocusRef.current = set.reps;
+  };
+  const handleRepsBlur = () => {
+    if (isWarmup) return;
+    if (set.reps === repsOnFocusRef.current) return;
+    const n = parseInt(set.reps.trim(), 10);
+    if (!Number.isFinite(n) || n <= 0) return;
+    fireRestTimer(REST_SECONDS_DEFAULT);
+  };
+
+  // ± stepper for the weight input. In plate mode we step by 0.5 plates
+  // per side (≈ 45 lb total — one plate added/removed per side); otherwise
+  // ±5 lb total, which matches how lifters call out increments at the rack.
+  const stepWeight = (direction: 1 | -1) => {
+    if (timedMode) return;
+    const cur = parseFloat(set.weight);
+    const base = Number.isFinite(cur) ? cur : 0;
+    const delta = plateMode ? PLATE_WEIGHT_LB * direction : 5 * direction;
+    const next = Math.max(0, Math.round((base + delta) * 100) / 100);
+    onUpdate("weight", next === 0 ? "" : String(next));
+  };
+
+  const plateLb = parseFloat(set.weight);
+  const plateBreakdown = plateMode && Number.isFinite(plateLb) && plateLb > 0
+    ? platesPerSideBreakdown(plateLb / 2)
+    : "";
 
   // Plate-loaded mode: user enters plates per side, we store total weight.
   // Allow half-plate fractions (e.g. "2.5") since gyms have 25lb plates.
@@ -988,8 +1034,15 @@ function SetRow({
     );
   }
 
+  const stepperBtnStyle = {
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border)",
+    color: "var(--fg-muted)",
+  } as const;
+
   return (
-    <div className="flex items-center gap-2 mb-1.5">
+    <div className="flex flex-col mb-1.5">
+    <div className="flex items-center gap-1.5">
       <span
         className="nums text-[11px] w-5 text-center shrink-0 font-semibold"
         style={{
@@ -999,6 +1052,15 @@ function SetRow({
       >
         {setIdx + 1}
       </span>
+      <button
+        type="button"
+        onClick={() => stepWeight(-1)}
+        aria-label="Decrease weight"
+        className="w-7 h-9 rounded-lg shrink-0 text-[14px] font-semibold leading-none active:scale-95 transition-transform"
+        style={stepperBtnStyle}
+      >
+        −
+      </button>
       {plateMode ? (
         <input
           type="number"
@@ -1009,7 +1071,7 @@ function SetRow({
           onBlur={handleWeightBlur}
           placeholder="plates"
           aria-label="Plates per side"
-          className="w-16 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
+          className="w-14 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
           style={{
             background: "var(--bg-elevated)",
             border: "1px solid var(--border)",
@@ -1025,7 +1087,7 @@ function SetRow({
           onChange={(e) => onUpdate("weight", e.target.value)}
           onBlur={handleWeightBlur}
           placeholder={bodyweightMode ? "+lb" : "lb"}
-          className="w-16 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
+          className="w-14 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
           style={{
             background: "var(--bg-elevated)",
             border: "1px solid var(--border)",
@@ -1034,9 +1096,18 @@ function SetRow({
           }}
         />
       )}
+      <button
+        type="button"
+        onClick={() => stepWeight(1)}
+        aria-label="Increase weight"
+        className="w-7 h-9 rounded-lg shrink-0 text-[14px] font-semibold leading-none active:scale-95 transition-transform"
+        style={stepperBtnStyle}
+      >
+        +
+      </button>
       <span style={{ color: "var(--fg-dim)", fontSize: "11px" }}>
         {plateMode
-          ? "plates ×"
+          ? "× "
           : bodyweightMode && (!set.weight || parseFloat(set.weight) === 0)
             ? "BW ×"
             : "×"}
@@ -1047,6 +1118,8 @@ function SetRow({
         inputMode="numeric"
         value={set.reps}
         onChange={(e) => onUpdate("reps", e.target.value)}
+        onFocus={handleRepsFocus}
+        onBlur={handleRepsBlur}
         placeholder="reps"
         className="w-14 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
         style={{
@@ -1092,6 +1165,19 @@ function SetRow({
           <path d="M18 6 6 18M6 6l12 12" />
         </svg>
       </button>
+    </div>
+    {plateMode && plateBreakdown && (
+      <p
+        className="nums text-[10px] mt-1 ml-7"
+        style={{
+          color: "var(--fg-dim)",
+          fontFamily: "var(--font-geist-mono)",
+          letterSpacing: "0.04em",
+        }}
+      >
+        per side: {plateBreakdown}
+      </p>
+    )}
     </div>
   );
 }

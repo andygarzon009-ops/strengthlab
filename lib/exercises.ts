@@ -547,6 +547,26 @@ export function usesPlates(name: string): boolean {
   return PLATE_LOADED_PATTERNS.some((re) => re.test(name));
 }
 
+// Standard commercial-gym plate denominations, heaviest first.
+const PLATE_DENOMS_LB = [45, 35, 25, 10, 5, 2.5];
+
+// Greedy breakdown of the per-side load into plate counts. Returns a
+// short string like "45 + 25 + 5" or "" if the load isn't representable
+// as standard plates (we just show the raw number in that case).
+export function platesPerSideBreakdown(perSideLb: number): string {
+  if (!Number.isFinite(perSideLb) || perSideLb <= 0) return "";
+  let remaining = perSideLb;
+  const parts: number[] = [];
+  for (const p of PLATE_DENOMS_LB) {
+    while (remaining + 1e-6 >= p) {
+      parts.push(p);
+      remaining -= p;
+    }
+  }
+  if (remaining > 1e-3) return "";
+  return parts.map((p) => (Number.isInteger(p) ? p : p.toFixed(1))).join(" + ");
+}
+
 // Movements that default to bodyweight but can optionally be loaded with a
 // dip belt, vest, etc. For these, the "weight" field represents ADDED load
 // on top of bodyweight — leaving it blank means a clean bodyweight set.

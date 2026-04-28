@@ -128,6 +128,25 @@ export default function Timer() {
     return () => window.removeEventListener("strengthlab:coach-toggle", handler);
   }, []);
 
+  // External "rest-start" trigger — fired by ExerciseLogger when the user
+  // logs a working set. Switches to countdown mode and starts the timer
+  // so the floating FAB immediately shows the remaining rest seconds.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ seconds?: number }>;
+      const secs = Math.max(5, Math.round(ce.detail?.seconds ?? 90));
+      ensureAudio();
+      setMode("COUNTDOWN");
+      setCdConfigSeconds(secs);
+      cdBeepRef.current = null;
+      cdFiredRef.current = false;
+      setCdPaused(null);
+      setCdEndsAt(Date.now() + secs * 1000);
+    };
+    window.addEventListener("strengthlab:rest-start", handler);
+    return () => window.removeEventListener("strengthlab:rest-start", handler);
+  }, []);
+
   // Shared tick.
   const [now, setNow] = useState(() => Date.now());
 
