@@ -21,9 +21,21 @@ import {
 } from "@/lib/exercises";
 import ExerciseLogger from "@/components/ExerciseLogger";
 import { useTransition, useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 const DRAFT_KEY = "sl:workoutDraft";
+// Holds the most recent submit payload while we're offline or while the
+// network call is failing. On reconnect we replay it automatically and,
+// on success, clear the draft + this key together.
+const PENDING_SUBMIT_KEY = "sl:pendingSubmit.v1";
+
+type PendingSubmit = {
+  mode: "create" | "edit";
+  workoutId?: string;
+  payload: CreateWorkoutInput;
+  savedAt: number;
+};
 
 type SetData = {
   type: "WARMUP" | "WORKING";
@@ -87,11 +99,30 @@ export default function WorkoutForm({
   initial?: WorkoutFormInitial;
   backHref?: string;
 }) {
+  const router = useRouter();
   const [, startTransition] = useTransition();
   const [pending, setPending] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<
     "idle" | "saving" | "saved"
   >("idle");
+  // Reflects navigator.onLine. The autosave loop and submit handler both
+  // adapt: offline saves stay local, submit queues the payload until the
+  // browser reports it can reach the network again.
+  const [online, setOnline] = useState(true);
+  // Set when a submit failed (or was queued offline) so the form can
+  // surface a "we'll retry" banner without losing the user's data.
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
 
   const [step, setStep] = useState<"type" | "log">(
     mode === "edit" || initial ? "log" : "type"
@@ -283,6 +314,13 @@ export default function WorkoutForm({
       clearWorkoutDraft().catch(() => {});
       return;
     }
+    if (!navigator.onLine) {
+      // Local mirror is enough while offline — flag as saved so the user
+      // doesn't see a permanent "Saving…" spinner. Once we're back online
+      // the next change triggers a real server save.
+      setAutosaveStatus("saved");
+      return;
+    }
     setAutosaveStatus("saving");
     serverSaveTimer.current = setTimeout(() => {
       saveWorkoutDraft(draft)
@@ -413,21 +451,105 @@ export default function WorkoutForm({
           : [],
     };
 
+    submitPayload(payload);
+  };
+
+  // Persist the in-flight submit so we can replay it on reconnect, then
+  // call the server action. On success we clear all drafts and route the
+  // user to the new/updated workout. On failure we leave drafts intact
+  // and surface a banner — no data loss when wifi drops mid-set.
+  const submitPayload = (payload: CreateWorkoutInput) => {
+    setSubmitError(null);
+    setPending(true);
+
+    const pending: PendingSubmit = {
+      mode,
+      workoutId: mode === "edit" ? initial?.id : undefined,
+      payload,
+      savedAt: Date.now(),
+    };
+    try {
+      localStorage.setItem(PENDING_SUBMIT_KEY, JSON.stringify(pending));
+    } catch {
+      // ignore quota errors — best effort
+    }
+
+    if (!navigator.onLine) {
+      setPending(false);
+      setSubmitError("offline");
+      setAutosaveStatus("saved");
+      return;
+    }
+
     startTransition(async () => {
-      if (mode === "edit" && initial) {
-        await updateWorkout(initial.id, payload);
-      } else {
+      try {
+        const result =
+          mode === "edit" && initial
+            ? await updateWorkout(initial.id, payload)
+            : await createWorkout(payload);
+
+        // Server confirmed the write — safe to clear every draft surface.
         try {
           localStorage.removeItem(DRAFT_KEY);
+          localStorage.removeItem(PENDING_SUBMIT_KEY);
         } catch {
           // ignore
         }
         if (serverSaveTimer.current) clearTimeout(serverSaveTimer.current);
-        await clearWorkoutDraft().catch(() => {});
-        await createWorkout(payload);
+        if (mode === "create") {
+          await clearWorkoutDraft().catch(() => {});
+        }
+
+        const id = result?.workoutId ?? (mode === "edit" ? initial?.id : null);
+        if (id) router.push(`/workout/${id}`);
+      } catch (err) {
+        // Drafts stay intact — the user can edit and re-submit, or we'll
+        // auto-replay when navigator goes back online.
+        setSubmitError(
+          err instanceof Error && err.message
+            ? err.message
+            : "Couldn't reach the server"
+        );
+      } finally {
+        setPending(false);
       }
     });
   };
+
+  // Auto-replay a queued submit as soon as we go back online. The
+  // PENDING_SUBMIT_KEY is written before each network attempt, so this
+  // also recovers from a crashed/closed tab — opening the form on any
+  // device with the same logged-in user picks the queued submit back up.
+  useEffect(() => {
+    if (!online) return;
+    let raw: string | null = null;
+    try {
+      raw = localStorage.getItem(PENDING_SUBMIT_KEY);
+    } catch {
+      return;
+    }
+    if (!raw) return;
+    let parsed: PendingSubmit | null = null;
+    try {
+      parsed = JSON.parse(raw) as PendingSubmit;
+    } catch {
+      try {
+        localStorage.removeItem(PENDING_SUBMIT_KEY);
+      } catch {
+        // ignore
+      }
+      return;
+    }
+    // Only replay submits that originated in this same form instance —
+    // a queued create from another tab shouldn't fire on an edit page.
+    if (parsed.mode !== mode) return;
+    if (mode === "edit" && parsed.workoutId !== initial?.id) return;
+    if (pending) return;
+    submitPayload(parsed.payload);
+    // We intentionally don't depend on submitPayload to avoid resubmit
+    // loops when its identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online]);
 
   // STEP 1: Pick type
   if (step === "type" && mode === "create") {
@@ -637,6 +759,38 @@ export default function WorkoutForm({
           </button>
         </div>
       </div>
+
+      {(submitError || !online) && (
+        <div
+          className="mb-3 px-4 py-2.5 rounded-xl flex items-center gap-2.5"
+          style={{
+            background: "rgba(234,179,8,0.08)",
+            border: "1px solid rgba(234,179,8,0.25)",
+          }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#facc15"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="shrink-0"
+          >
+            <path d="M2 8.5A11 11 0 0 1 22 8.5" />
+            <path d="M5 12.5A7 7 0 0 1 19 12.5" />
+            <path d="M8.5 16.5a3 3 0 0 1 7 0" />
+            <path d="m4 4 16 16" />
+          </svg>
+          <p className="text-[12px]" style={{ color: "#facc15" }}>
+            {!online
+              ? "Offline — your sets are saved locally and will sync as soon as you're back online."
+              : `Save didn't go through (${submitError}). We'll retry automatically.`}
+          </p>
+        </div>
+      )}
 
       {missingRepsCount > 0 && (
         <div

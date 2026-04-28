@@ -108,10 +108,20 @@ export async function createWorkout(data: CreateWorkoutInput) {
     });
   }
 
+  // Clear the server-side draft now that the workout is committed.
+  // Failures here are non-fatal — the draft will get overwritten next
+  // time the user opens the form.
+  await prisma.workoutDraft
+    .delete({ where: { userId } })
+    .catch(() => undefined);
+
   revalidatePath("/");
   revalidatePath("/history");
   revalidatePath("/group");
-  redirect(`/workout/${workout.id}`);
+  // Return the new workoutId so the client can navigate. We avoid the
+  // server-side redirect() so a transient failure surfaces as a normal
+  // catchable error and the client keeps the draft for retry.
+  return { workoutId: workout.id };
 }
 
 export async function detectAndSavePRs(
@@ -265,7 +275,7 @@ export async function updateWorkout(
   revalidatePath("/");
   revalidatePath("/history");
   revalidatePath(`/workout/${workoutId}`);
-  redirect(`/workout/${workoutId}`);
+  return { workoutId };
 }
 
 export async function deleteWorkout(workoutId: string) {
