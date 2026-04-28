@@ -1021,20 +1021,39 @@ function SetRow({
     ? platesPerSideBreakdown(plateLb / 2)
     : "";
 
-  // Plate-loaded mode: user enters plates per side, we store total weight.
-  // Allow half-plate fractions (e.g. "2.5") since gyms have 25lb plates.
-  const weightNum = parseFloat(set.weight);
-  const platesValue = Number.isFinite(weightNum) && weightNum > 0
-    ? String(weightNum / (PLATE_WEIGHT_LB * 2))
-    : "";
+  // Plate-loaded mode: gym-culture splits load into "plates per side"
+  // (whole 45-lb plates) and "extras per side" (the small plates a
+  // lifter calls out separately — "2 plates and a 25"). The text input
+  // edits the plate count; the ± stepper walks extras in 5 lb-per-side
+  // increments and rolls into another full plate at +45.
+  const totalLb = Number.isFinite(plateLb) && plateLb > 0 ? plateLb : 0;
+  const totalPerSide = totalLb / 2;
+  const fullPlatesPerSide = Math.floor(totalPerSide / PLATE_WEIGHT_LB);
+  const extrasPerSide = +(totalPerSide - fullPlatesPerSide * PLATE_WEIGHT_LB).toFixed(2);
+
+  const platesValue = fullPlatesPerSide > 0 ? String(fullPlatesPerSide) : "";
   const handlePlatesChange = (val: string) => {
     if (val.trim() === "") {
       onUpdate("weight", "");
       return;
     }
-    const plates = parseFloat(val);
+    const plates = parseInt(val, 10);
     if (!Number.isFinite(plates) || plates < 0) return;
-    onUpdate("weight", String(plates * PLATE_WEIGHT_LB * 2));
+    // Preserve the existing per-side extras when the lifter retypes
+    // the plate count — e.g. "2 plates and a 25" → 3 plates and a 25
+    // instead of resetting to a clean 3 plates.
+    const newPerSide = plates * PLATE_WEIGHT_LB + extrasPerSide;
+    onUpdate("weight", newPerSide > 0 ? String(newPerSide * 2) : "");
+  };
+
+  const stepExtras = (direction: 1 | -1) => {
+    const stepLb = 5; // per-side
+    const nextPerSide = totalPerSide + stepLb * direction;
+    if (nextPerSide <= 0) {
+      onUpdate("weight", "");
+      return;
+    }
+    onUpdate("weight", String(+(nextPerSide * 2).toFixed(2)));
   };
 
   // Common visual treatment when a working set has been ticked done.
@@ -1165,8 +1184,8 @@ function SetRow({
       </span>
       <button
         type="button"
-        onClick={() => stepWeight(-1)}
-        aria-label="Decrease weight"
+        onClick={() => (plateMode ? stepExtras(-1) : stepWeight(-1))}
+        aria-label={plateMode ? "Decrease extras" : "Decrease weight"}
         className="w-7 h-9 rounded-lg shrink-0 text-[14px] font-semibold leading-none active:scale-95 transition-transform"
         style={stepperBtnStyle}
       >
@@ -1175,8 +1194,8 @@ function SetRow({
       {plateMode ? (
         <input
           type="number"
-          inputMode="decimal"
-          step="0.5"
+          inputMode="numeric"
+          step="1"
           value={platesValue}
           onChange={(e) => handlePlatesChange(e.target.value)}
           onBlur={handleWeightBlur}
@@ -1209,13 +1228,27 @@ function SetRow({
       )}
       <button
         type="button"
-        onClick={() => stepWeight(1)}
-        aria-label="Increase weight"
+        onClick={() => (plateMode ? stepExtras(1) : stepWeight(1))}
+        aria-label={plateMode ? "Increase extras" : "Increase weight"}
         className="w-7 h-9 rounded-lg shrink-0 text-[14px] font-semibold leading-none active:scale-95 transition-transform"
         style={stepperBtnStyle}
       >
         +
       </button>
+      {plateMode && extrasPerSide > 0 && (
+        <span
+          className="nums text-[11px] font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap"
+          style={{
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            color: "var(--fg-muted)",
+            fontFamily: "var(--font-geist-mono)",
+          }}
+          title={`Extras: ${extrasPerSide} lb per side`}
+        >
+          +{Number.isInteger(extrasPerSide) ? extrasPerSide : extrasPerSide.toFixed(1)}
+        </span>
+      )}
       <span style={{ color: "var(--fg-dim)", fontSize: "11px" }}>
         {plateMode
           ? "× "
