@@ -12,15 +12,37 @@ import {
 } from "@/lib/exercises";
 
 // Default rest between working sets, in seconds. The floating Timer FAB
-// counts down and beeps/vibrates at zero. We only fire once per set —
-// editing a previously-logged set won't re-trigger.
+// counts down and beeps/vibrates at zero. Each exercise can override
+// this via the rest pill on its card; choices are stored in localStorage
+// so they persist across sessions per-exercise.
 const REST_SECONDS_DEFAULT = 90;
+const REST_OPTIONS = [60, 90, 120, 180, 240];
+const REST_PREF_KEY = "strengthlab.rest.byExercise.v1";
 
 const fireRestTimer = (seconds: number) => {
   if (typeof window === "undefined") return;
   window.dispatchEvent(
     new CustomEvent("strengthlab:rest-start", { detail: { seconds } })
   );
+};
+
+const loadRestPrefs = (): Record<string, number> => {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(REST_PREF_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveRestPrefs = (prefs: Record<string, number>) => {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(REST_PREF_KEY, JSON.stringify(prefs));
+  } catch {
+    // ignore quota errors — pref is non-critical
+  }
 };
 
 type SetData = {
@@ -72,6 +94,27 @@ export default function ExerciseLogger({
   // exercise at this index instead of appending — preserves sets/notes so
   // users can correct an exercise mid-log without re-entering everything.
   const [swapTargetIdx, setSwapTargetIdx] = useState<number | null>(null);
+  // Per-exercise rest duration override, keyed by exerciseId. Falls back
+  // to REST_SECONDS_DEFAULT when an exercise has no saved preference.
+  const [restPrefs, setRestPrefs] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    setRestPrefs(loadRestPrefs());
+  }, []);
+
+  const restFor = (exerciseId: string): number =>
+    restPrefs[exerciseId] ?? REST_SECONDS_DEFAULT;
+
+  const cycleRest = (exerciseId: string) => {
+    setRestPrefs((prev) => {
+      const cur = prev[exerciseId] ?? REST_SECONDS_DEFAULT;
+      const idx = REST_OPTIONS.indexOf(cur);
+      const next = REST_OPTIONS[(idx + 1) % REST_OPTIONS.length];
+      const updated = { ...prev, [exerciseId]: next };
+      saveRestPrefs(updated);
+      return updated;
+    });
+  };
 
   useEffect(() => {
     fetch("/api/exercises")
@@ -238,6 +281,20 @@ export default function ExerciseLogger({
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button
+                    onClick={() => cycleRest(ex.exerciseId)}
+                    className="px-2 h-7 rounded-full text-[11px] font-semibold tracking-tight nums transition-colors active:scale-95"
+                    style={{
+                      background: "var(--bg-elevated)",
+                      border: "1px solid var(--border)",
+                      color: "var(--fg-muted)",
+                      fontFamily: "var(--font-geist-mono)",
+                    }}
+                    aria-label="Cycle rest duration"
+                    title="Tap to change rest duration"
+                  >
+                    {restFor(ex.exerciseId)}s
+                  </button>
+                  <button
                     onClick={() => startSwap(exIdx)}
                     className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
                     style={{ color: "var(--fg-dim)" }}
@@ -295,6 +352,7 @@ export default function ExerciseLogger({
                       set={set}
                       setIdx={setIdx}
                       exerciseName={ex.exerciseName}
+                      restSeconds={restFor(ex.exerciseId)}
                       onUpdate={(field, val) =>
                         updateSet(exIdx, actualIdx, field, val)
                       }
@@ -316,6 +374,7 @@ export default function ExerciseLogger({
                     set={set}
                     setIdx={setIdx}
                     exerciseName={ex.exerciseName}
+                    restSeconds={restFor(ex.exerciseId)}
                     onUpdate={(field, val) =>
                       updateSet(exIdx, actualIdx, field, val)
                     }
@@ -881,6 +940,7 @@ function SetRow({
   set,
   setIdx,
   exerciseName,
+  restSeconds,
   onUpdate,
   onRemove,
   isWarmup,
@@ -888,20 +948,32 @@ function SetRow({
   set: SetData;
   setIdx: number;
   exerciseName: string;
+  restSeconds: number;
   onUpdate: (field: keyof SetData, val: string) => void;
   onRemove: () => void;
   isWarmup: boolean;
 }) {
+  // Local "completed" state for working sets — ephemeral UI flag that
+  // also gates the auto rest timer. Toggling on fires the timer once.
+  // Editing a previously-saved log won't show set rows in done state
+  // because state is per-mount.
+  const [done, setDone] = useState(false);
+  const toggleDone = () => {
+    if (isWarmup) return;
+    const next = !done;
+    setDone(next);
+    if (next) {
+      const n = parseInt(set.reps.trim(), 10);
+      if (Number.isFinite(n) && n > 0) {
+        fireRestTimer(restSeconds);
+      }
+    }
+  };
   const repsRef = useRef<HTMLInputElement>(null);
   const plateMode = usesPlates(exerciseName);
   const timedMode = isTimedExercise(exerciseName);
   const bodyweightMode =
     !plateMode && !timedMode && isBodyweightCapable(exerciseName);
-
-  // Tracks the reps value at focus-time so we only fire the auto rest
-  // timer when the user actually edits and commits a new value. Editing
-  // a previously-logged set without changing reps won't re-trigger.
-  const repsOnFocusRef = useRef<string>(set.reps);
 
   // A working set with a weight but no reps is invalid — highlight it.
   // Timed holds are valid with just seconds (bodyweight is the default).
@@ -921,17 +993,6 @@ function SetRow({
     ) {
       setTimeout(() => repsRef.current?.focus(), 0);
     }
-  };
-
-  const handleRepsFocus = () => {
-    repsOnFocusRef.current = set.reps;
-  };
-  const handleRepsBlur = () => {
-    if (isWarmup) return;
-    if (set.reps === repsOnFocusRef.current) return;
-    const n = parseInt(set.reps.trim(), 10);
-    if (!Number.isFinite(n) || n <= 0) return;
-    fireRestTimer(REST_SECONDS_DEFAULT);
   };
 
   // ± stepper for the weight input. In plate mode we step by 0.5 plates
@@ -967,9 +1028,19 @@ function SetRow({
     onUpdate("weight", String(plates * PLATE_WEIGHT_LB * 2));
   };
 
+  // Common visual treatment when a working set has been ticked done.
+  const doneRowStyle = done
+    ? {
+        background: "rgba(34,197,94,0.07)",
+        borderRadius: 12,
+        padding: "4px 6px",
+        margin: "-4px -6px 6px -6px",
+      }
+    : {};
+
   if (timedMode) {
     return (
-      <div className="flex items-center gap-2 mb-1.5">
+      <div className="flex items-center gap-2 mb-1.5" style={doneRowStyle}>
         <span
           className="nums text-[11px] w-5 text-center shrink-0 font-semibold"
           style={{
@@ -1011,9 +1082,40 @@ function SetRow({
         <span style={{ color: "var(--fg-dim)", fontSize: "11px" }}>
           {!set.weight || parseFloat(set.weight) === 0 ? "BW" : "load"}
         </span>
+        {!isWarmup && (
+          <button
+            type="button"
+            onClick={toggleDone}
+            className="ml-auto w-8 h-8 rounded-lg flex items-center justify-center transition-transform active:scale-90"
+            style={{
+              background: done ? "var(--accent)" : "var(--bg-elevated)",
+              border: `1px solid ${done ? "var(--accent)" : "var(--border)"}`,
+              color: done ? "#0a0a0a" : "var(--fg-muted)",
+            }}
+            aria-label={done ? "Mark set incomplete" : "Mark set complete"}
+            title={
+              done
+                ? "Tap to undo"
+                : `Mark set done — starts ${restSeconds}s rest`
+            }
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12l5 5 9-11" />
+            </svg>
+          </button>
+        )}
         <button
           onClick={onRemove}
-          className="ml-auto w-7 h-7 flex items-center justify-center"
+          className={`${isWarmup ? "ml-auto" : ""} w-7 h-7 flex items-center justify-center`}
           style={{ color: "var(--fg-dim)" }}
           aria-label="Remove set"
         >
@@ -1041,7 +1143,7 @@ function SetRow({
   } as const;
 
   return (
-    <div className="flex flex-col mb-1.5">
+    <div className="flex flex-col mb-1.5" style={doneRowStyle}>
     <div className="flex items-center gap-1.5">
       <span
         className="nums text-[11px] w-5 text-center shrink-0 font-semibold"
@@ -1118,8 +1220,6 @@ function SetRow({
         inputMode="numeric"
         value={set.reps}
         onChange={(e) => onUpdate("reps", e.target.value)}
-        onFocus={handleRepsFocus}
-        onBlur={handleRepsBlur}
         placeholder="reps"
         className="w-14 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
         style={{
@@ -1146,9 +1246,40 @@ function SetRow({
           color: "var(--fg-muted)",
         }}
       />
+      {!isWarmup && (
+        <button
+          type="button"
+          onClick={toggleDone}
+          className="ml-auto w-8 h-8 rounded-lg flex items-center justify-center transition-transform active:scale-90"
+          style={{
+            background: done ? "var(--accent)" : "var(--bg-elevated)",
+            border: `1px solid ${done ? "var(--accent)" : "var(--border)"}`,
+            color: done ? "#0a0a0a" : "var(--fg-muted)",
+          }}
+          aria-label={done ? "Mark set incomplete" : "Mark set complete"}
+          title={
+            done
+              ? "Tap to undo"
+              : `Mark set done — starts ${restSeconds}s rest`
+          }
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M5 12l5 5 9-11" />
+          </svg>
+        </button>
+      )}
       <button
         onClick={onRemove}
-        className="ml-auto w-7 h-7 flex items-center justify-center"
+        className={`${isWarmup ? "ml-auto" : ""} w-7 h-7 flex items-center justify-center`}
         style={{ color: "var(--fg-dim)" }}
         aria-label="Remove set"
       >
