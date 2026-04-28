@@ -7,6 +7,11 @@ const PRESETS_KEY = "strengthlab.timer.intervalPresets.v1";
 const COUNTDOWN_KEY = "strengthlab.timer.countdown.v1";
 const AMRAP_KEY = "strengthlab.timer.amrap.v1";
 const MODE_KEY = "strengthlab.timer.mode.v1";
+// Live running-state keys. iOS Safari aggressively evicts background tabs
+// when the screen locks, so React state alone gets wiped — the FAB looks
+// "reset" on unlock. Persisting wall-clock anchors (cdEndsAt etc.) means
+// we can rehydrate the actual remaining time on the next mount.
+const CD_RUN_KEY = "strengthlab.timer.cdRun.v1";
 
 type Mode = "INTERVAL" | "STOPWATCH" | "COUNTDOWN" | "AMRAP";
 type Phase = "IDLE" | "PREP" | "WORK" | "REST" | "DONE";
@@ -191,7 +196,53 @@ export default function Timer() {
     setCdConfigSeconds(readJSON(COUNTDOWN_KEY, 300));
     setAmrapConfigSeconds(readJSON(AMRAP_KEY, 600));
     setMode(readJSON<Mode>(MODE_KEY, "INTERVAL"));
+
+    // Restore an in-progress countdown if the page was reloaded while it
+    // was running (most commonly: iOS evicted the tab during a screen
+    // lock). If endsAt is already in the past we silently skip — the
+    // user already missed the bell, no point in re-firing it.
+    const cdRun = readJSON<{ endsAt: number | null; paused: number | null }>(
+      CD_RUN_KEY,
+      { endsAt: null, paused: null }
+    );
+    if (cdRun.paused !== null && cdRun.paused > 0) {
+      setCdPaused(cdRun.paused);
+      setMode("COUNTDOWN");
+    } else if (cdRun.endsAt && cdRun.endsAt > Date.now()) {
+      setCdEndsAt(cdRun.endsAt);
+      setMode("COUNTDOWN");
+    } else {
+      // Stale entry — clear so we don't re-hydrate an already-finished run.
+      try {
+        localStorage.removeItem(CD_RUN_KEY);
+      } catch {
+        // ignore
+      }
+    }
   }, []);
+
+  // Persist countdown running state on every change so the next mount
+  // (after a screen lock or refresh) can pick up the same wall-clock
+  // anchor instead of falling back to the default duration.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (cdEndsAt === null && cdPaused === null) {
+      try {
+        localStorage.removeItem(CD_RUN_KEY);
+      } catch {
+        // ignore
+      }
+      return;
+    }
+    try {
+      localStorage.setItem(
+        CD_RUN_KEY,
+        JSON.stringify({ endsAt: cdEndsAt, paused: cdPaused })
+      );
+    } catch {
+      // ignore
+    }
+  }, [cdEndsAt, cdPaused]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
