@@ -17,6 +17,15 @@ import {
 // so they persist across sessions per-exercise.
 const REST_SECONDS_DEFAULT = 90;
 const REST_OPTIONS = [60, 90, 120, 180, 240];
+
+// Format rest seconds as a short pill label — under-2-minutes shows
+// seconds, longer shows whole minutes so "4m" reads instantly without
+// a second glance.
+const formatRestLabel = (seconds: number): string => {
+  if (seconds < 120) return `${seconds}s`;
+  const m = seconds / 60;
+  return Number.isInteger(m) ? `${m}m` : `${m.toFixed(1)}m`;
+};
 const REST_PREF_KEY = "strengthlab.rest.byExercise.v1";
 
 const fireRestTimer = (seconds: number) => {
@@ -292,7 +301,7 @@ export default function ExerciseLogger({
                     aria-label="Cycle rest duration"
                     title="Tap to change rest duration"
                   >
-                    {restFor(ex.exerciseId)}s
+                    {formatRestLabel(restFor(ex.exerciseId))}
                   </button>
                   <button
                     onClick={() => startSwap(exIdx)}
@@ -1260,7 +1269,7 @@ function SetRow({
           title={
             done
               ? "Tap to undo"
-              : `Mark set done — starts ${restSeconds}s rest`
+              : `Mark set done — starts ${formatRestLabel(restSeconds)} rest`
           }
         >
           <svg
