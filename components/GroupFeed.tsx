@@ -45,13 +45,23 @@ type PartySnapshot = {
   lastTopSets: { date: string; weight: number; reps: number }[];
 };
 
+type PRCardData = {
+  prs: {
+    exerciseId: string;
+    exerciseName: string;
+    type: "WEIGHT" | "REPS";
+    value: number;
+    reps: number | null;
+  }[];
+};
+
 type Post = {
   id: string;
   text: string;
   imageUrl: string | null;
   workoutId: string | null;
   cardType: string | null;
-  cardData: CompareData | null;
+  cardData: CompareData | PRCardData | null;
   challengeId: string | null;
   createdAt: string;
   user: { id: string; name: string };
@@ -842,7 +852,12 @@ function Message({
             onChanged={onChanged}
           />
         ) : post.cardType === "COMPARE" && post.cardData ? (
-          <CompareCard data={post.cardData} />
+          <CompareCard data={post.cardData as CompareData} />
+        ) : post.cardType === "WORKOUT_PR" && post.cardData ? (
+          <WorkoutPRCard
+            data={post.cardData as PRCardData}
+            workout={post.workout}
+          />
         ) : isAuto && post.workout ? (
           <a
             href={`/workout/${post.workout.id}`}
@@ -1212,6 +1227,60 @@ function ChallengeCard({
         </p>
       )}
     </div>
+  );
+}
+
+function WorkoutPRCard({
+  data,
+  workout,
+}: {
+  data: PRCardData;
+  workout: { id: string; title: string } | null;
+}) {
+  const prs = data.prs ?? [];
+  if (prs.length === 0) return null;
+  return (
+    <a
+      href={workout ? `/workout/${workout.id}` : "#"}
+      className="block rounded-xl p-3 transition-transform active:scale-[0.99]"
+      style={{
+        background:
+          "linear-gradient(135deg, rgba(234,179,8,0.10), rgba(34,197,94,0.10))",
+        border: "1px solid rgba(234,179,8,0.35)",
+      }}
+    >
+      <p
+        className="label text-[9px] mb-1.5"
+        style={{ color: "#facc15", letterSpacing: "0.12em" }}
+      >
+        🏆 {prs.length === 1 ? "New PR" : `${prs.length} new PRs`}
+        {workout?.title ? ` · ${workout.title}` : ""}
+      </p>
+      <div className="space-y-0.5">
+        {prs.slice(0, 4).map((pr, i) => (
+          <p
+            key={i}
+            className="text-[12px] nums"
+            style={{ fontFamily: "var(--font-geist-mono)", color: "var(--fg)" }}
+          >
+            <span className="font-semibold">{pr.exerciseName}</span>{" "}
+            <span style={{ color: "var(--fg-muted)" }}>
+              {pr.type === "WEIGHT"
+                ? `${pr.value} lb${pr.reps ? ` × ${pr.reps}` : ""}`
+                : `${pr.value} reps`}
+            </span>
+          </p>
+        ))}
+        {prs.length > 4 && (
+          <p
+            className="text-[10px]"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            + {prs.length - 4} more
+          </p>
+        )}
+      </div>
+    </a>
   );
 }
 

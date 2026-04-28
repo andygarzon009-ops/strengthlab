@@ -90,20 +90,32 @@ export async function createWorkout(data: CreateWorkoutInput) {
     },
   });
 
-  await detectAndSavePRs(userId, workout.id, workout.exercises, workout.date);
+  const prs = await detectAndSavePRs(
+    userId,
+    workout.id,
+    workout.exercises,
+    workout.date
+  );
 
-  // Auto-broadcast to every group the athlete is in as a chat message
+  // Auto-broadcast to every group the athlete is in as a chat message.
+  // When the session produced one or more PRs, attach them to the post
+  // so the crew sees a celebratory "🏆 PR" card instead of the plain
+  // "just logged" line — turns logging into a social event.
   const memberships = await prisma.groupMember.findMany({
     where: { userId },
     select: { groupId: true },
   });
   if (memberships.length > 0) {
+    const cardType = prs.length > 0 ? "WORKOUT_PR" : null;
+    const cardData = prs.length > 0 ? { prs } : undefined;
     await prisma.groupPost.createMany({
       data: memberships.map((m) => ({
         groupId: m.groupId,
         userId,
         text: "",
         workoutId: workout.id,
+        cardType,
+        cardData,
       })),
     });
   }
@@ -124,12 +136,21 @@ export async function createWorkout(data: CreateWorkoutInput) {
   return { workoutId: workout.id };
 }
 
+export type DetectedPR = {
+  exerciseId: string;
+  exerciseName: string;
+  type: "WEIGHT" | "REPS";
+  value: number;
+  reps: number | null;
+};
+
 export async function detectAndSavePRs(
   userId: string,
   workoutId: string,
   exercises: any[],
   workoutDate: Date
-) {
+): Promise<DetectedPR[]> {
+  const created: DetectedPR[] = [];
   // Pull the full exercise pool once so we can compare PRs across
   // near-duplicate exercise rows (e.g. a user's typo of a canonical lift).
   const allExercises = await prisma.exercise.findMany({
@@ -177,6 +198,8 @@ export async function detectAndSavePRs(
 
     const prCreates: any[] = [];
 
+    const exName = ex.exercise?.name ?? "";
+
     if (maxWeight > 0 && (!weightPR || maxWeight > weightPR.value)) {
       prCreates.push({
         userId,
@@ -186,6 +209,13 @@ export async function detectAndSavePRs(
         reps: weightAtMaxReps,
         workoutId,
         date: workoutDate,
+      });
+      created.push({
+        exerciseId: ex.exerciseId,
+        exerciseName: exName,
+        type: "WEIGHT",
+        value: maxWeight,
+        reps: weightAtMaxReps,
       });
     }
     if (maxReps > 0 && (!repsPR || maxReps > repsPR.value)) {
@@ -198,11 +228,19 @@ export async function detectAndSavePRs(
         workoutId,
         date: workoutDate,
       });
+      created.push({
+        exerciseId: ex.exerciseId,
+        exerciseName: exName,
+        type: "REPS",
+        value: maxReps,
+        reps: maxReps,
+      });
     }
     if (prCreates.length > 0) {
       await prisma.personalRecord.createMany({ data: prCreates });
     }
   }
+  return created;
 }
 
 export async function updateWorkout(
