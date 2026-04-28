@@ -73,44 +73,36 @@ function tone(freq: number, durationMs: number, gainPeak = 0.25) {
   osc.stop(now + dur + 0.05);
 }
 
-// Soft bell: triangle wave with a longer release tail. Stacks well in
-// arpeggios without the synth-y bite of a flat sine cue.
-function bellNote(freq: number, durationMs: number, gainPeak = 0.22) {
-  const bag = ensureAudio();
-  if (!bag) return;
-  const { ctx } = bag;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = "triangle";
-  osc.frequency.value = freq;
-  const start = ctx.currentTime;
-  const dur = durationMs / 1000;
-  gain.gain.setValueAtTime(0, start);
-  gain.gain.linearRampToValueAtTime(gainPeak, start + 0.015);
-  gain.gain.exponentialRampToValueAtTime(
-    Math.max(gainPeak * 0.001, 0.0001),
-    start + dur
-  );
-  osc.connect(gain).connect(ctx.destination);
-  osc.start(start);
-  osc.stop(start + dur + 0.05);
-}
-
 const cueCountdown = () => tone(660, 120, 0.18);
 const cueWork = () => {
   tone(880, 180);
   setTimeout(() => tone(1175, 280), 180);
 };
 const cueRest = () => tone(440, 280, 0.2);
-// Pleasant rest-end chime — ascending C5–E5–G5–C6 arpeggio on a
-// triangle bell with overlapping release tails. Reads as "ding!" rather
-// than "alarm!", and the C6 sustains long enough to register even if
-// the phone is in a pocket.
+// Sleek rest-end cue — a single soft sine "ding" at A5 with a quiet
+// octave overtone for body, fade-in on a few milliseconds, then a long
+// natural exponential decay. No arpeggio, no alarm pattern; meant to
+// read as a notification, not a buzzer.
 const cueDone = () => {
-  bellNote(523.25, 320, 0.22); // C5
-  setTimeout(() => bellNote(659.25, 320, 0.22), 110); // E5
-  setTimeout(() => bellNote(783.99, 360, 0.22), 220); // G5
-  setTimeout(() => bellNote(1046.5, 700, 0.26), 360); // C6
+  const bag = ensureAudio();
+  if (!bag) return;
+  const { ctx } = bag;
+  const ring = (freq: number, peak: number, decayMs: number) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    const start = ctx.currentTime;
+    const dur = decayMs / 1000;
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(peak, start + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + dur + 0.05);
+  };
+  ring(880, 0.18, 1100); // fundamental — A5
+  ring(1760, 0.05, 900); // soft octave overtone for warmth
 };
 const cueTick = () => tone(800, 60, 0.15);
 const cueRound = () => tone(1320, 100, 0.18);
@@ -443,9 +435,9 @@ export default function Timer() {
     if (cdRemaining === 0 && !cdFiredRef.current) {
       cdFiredRef.current = true;
       cueDone();
-      // Soft tap-tap-buzz that mirrors the chime's ascending feel
-      // without the harsher long buzz of an alarm pattern.
-      vibrate([90, 80, 90, 80, 260]);
+      // Single soft tap to match the minimal sine-bell cue — feels
+      // like a notification, not an alarm.
+      vibrate(60);
       setCdEndsAt(null);
     }
   }, [cdRemaining, cdRunning]);
