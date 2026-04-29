@@ -4,6 +4,7 @@ import Celebrations from "@/components/Celebrations";
 import Timer from "@/components/Timer";
 import TutorialAutoOpen from "@/components/TutorialAutoOpen";
 import TimezoneSync from "@/components/TimezoneSync";
+import RestNotifications from "@/components/RestNotifications";
 import { Suspense } from "react";
 
 export default function DashboardLayout({
@@ -25,6 +26,7 @@ export default function DashboardLayout({
       <Timer />
       <TutorialAutoOpen />
       <TimezoneSync />
+      <RestNotifications />
     </div>
   );
 }
