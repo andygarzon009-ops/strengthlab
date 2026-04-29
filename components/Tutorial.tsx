@@ -44,7 +44,7 @@ const SLIDES: Slide[] = [
   {
     badge: "Log it yourself",
     title: "Capture every set, fast",
-    body: "Hit Log, pick a split, and add exercises. Each set takes weight × reps and an optional RIR.",
+    body: "Hit Log, pick a session type, and add exercises. Each set takes weight × reps and an optional RIR.",
     bullets: [
       "Plate-loaded and Smith machine sets count plates per side — tap the +5 pill to wipe micro-loading",
       "Tap the rest pill on any exercise to fire a 60s–4m countdown when you check a set off",
