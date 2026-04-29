@@ -873,6 +873,56 @@ export default function AITrainer() {
   );
 }
 
+// Deterministic estimate of how long a coach plan will actually take to
+// complete. Computed client-side from the structured plan so it never
+// drifts from the prescription — the model never does math on duration.
+//
+// Rough per-set work times come from looking at real session pacing:
+// warm-ups are fast (light load, quick reset), working sets average
+// ~45s including unrack, the set itself, and re-rack. Rest is the
+// prescribed restSeconds between every set after the first. A 60s
+// transition between exercises covers walking to the next station,
+// setting up, and the first warm-up of the new lift.
+const WORK_SECS_WARMUP = 30;
+const WORK_SECS_WORKING = 45;
+const TRANSITION_SECS = 60;
+
+function estimatePlanDurationSeconds(plan: WorkoutPlan): number {
+  let total = 0;
+  plan.exercises.forEach((ex, i) => {
+    const sets = ex.sets ?? [];
+    if (sets.length === 0) return;
+    const work = sets.reduce(
+      (n, s) =>
+        n + (s.type === "WARMUP" ? WORK_SECS_WARMUP : WORK_SECS_WORKING),
+      0
+    );
+    const rest =
+      Math.max(0, sets.length - 1) *
+      (typeof ex.restSeconds === "number" && ex.restSeconds > 0
+        ? ex.restSeconds
+        : 90);
+    total += work + rest;
+    if (i < plan.exercises.length - 1) total += TRANSITION_SECS;
+  });
+  return total;
+}
+
+function formatDurationLabel(seconds: number): string {
+  // Round to the nearest 5 minutes for sets <60min — feels more like a
+  // human estimate than "37 min" precision. For longer sessions show
+  // "1h 5m" so the unit is unambiguous.
+  if (seconds < 60) return `~1 min`;
+  const minsRaw = seconds / 60;
+  if (minsRaw < 60) {
+    const rounded = Math.max(5, Math.round(minsRaw / 5) * 5);
+    return `~${rounded} min`;
+  }
+  const h = Math.floor(minsRaw / 60);
+  const m = Math.round((minsRaw - h * 60) / 5) * 5;
+  return m > 0 ? `~${h}h ${m}m` : `~${h}h`;
+}
+
 function LogPlanButton({
   plan,
   onNavigate,
@@ -888,6 +938,7 @@ function LogPlanButton({
     0
   );
   const exerciseCount = plan.exercises.length;
+  const durationLabel = formatDurationLabel(estimatePlanDurationSeconds(plan));
 
   const onClick = async () => {
     if (pending) return;
@@ -962,9 +1013,10 @@ function LogPlanButton({
           </svg>
           {pending ? "Loading…" : "Do this workout"}
         </span>
-        <span className="text-[11px] opacity-80">
-          {exerciseCount} exercise{exerciseCount === 1 ? "" : "s"} ·{" "}
-          {totalSets} set{totalSets === 1 ? "" : "s"}
+        <span className="text-[11px] opacity-80 text-right leading-tight">
+          {durationLabel}
+          <br />
+          {exerciseCount} ex · {totalSets} set{totalSets === 1 ? "" : "s"}
         </span>
       </button>
       {error && (
