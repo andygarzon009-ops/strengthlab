@@ -1121,6 +1121,16 @@ function SetRow({
     onUpdate("weight", String(+(nextPerSide * 2).toFixed(2)));
   };
 
+  // Snap the bar back to a clean whole-plate count. The ± stepper only
+  // touches extras (5 lb per side); once the lifter has accumulated a
+  // few taps' worth they need a one-tap escape back to "just plates"
+  // instead of mashing minus or retyping the number.
+  const clearExtras = () => {
+    if (!plateMode || extrasPerSide <= 0) return;
+    const cleanPerSide = fullPlatesPerSide * PLATE_WEIGHT_LB;
+    onUpdate("weight", cleanPerSide > 0 ? String(cleanPerSide * 2) : "");
+  };
+
   // Common visual treatment when a working set has been ticked done.
   const doneRowStyle = done
     ? {
@@ -1303,18 +1313,33 @@ function SetRow({
         +
       </button>
       {plateMode && extrasPerSide > 0 && (
-        <span
-          className="nums text-[11px] font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap"
+        <button
+          type="button"
+          onClick={clearExtras}
+          className="nums text-[11px] font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap inline-flex items-center gap-1 active:scale-95 transition-transform"
           style={{
             background: "var(--bg-elevated)",
             border: "1px solid var(--border)",
             color: "var(--fg-muted)",
             fontFamily: "var(--font-geist-mono)",
           }}
-          title={`Extras: ${extrasPerSide} lb per side`}
+          title={`Tap to clear ${extrasPerSide} lb extras per side`}
+          aria-label="Clear extras and snap back to whole plates"
         >
           +{Number.isInteger(extrasPerSide) ? extrasPerSide : extrasPerSide.toFixed(1)}
-        </span>
+          <svg
+            width="9"
+            height="9"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
       )}
       <span style={{ color: "var(--fg-dim)", fontSize: "11px" }}>
         {plateMode
