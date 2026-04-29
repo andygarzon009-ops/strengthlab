@@ -141,25 +141,10 @@ export async function POST(req: NextRequest) {
           Math.abs(v - rawRest) < Math.abs(best - rawRest) ? v : best
         );
       } else {
-        // Fallback when the coach forgot restSeconds entirely: infer
-        // from the working-set rep range. Strength/low-rep work needs
-        // longer rests; pump/high-rep work needs less. This matches
-        // the buckets the prompt prescribes so the auto-default and
-        // the explicit value land on the same number for any given
-        // rep target.
-        const workingReps = sets
-          .filter((s) => s.type !== "WARMUP")
-          .map((s) => parseInt(String(s.reps ?? ""), 10))
-          .filter((n) => Number.isFinite(n) && n > 0);
-        if (workingReps.length > 0) {
-          const avg =
-            workingReps.reduce((a, b) => a + b, 0) / workingReps.length;
-          restValue =
-            avg <= 3 ? 240 : avg <= 6 ? 180 : avg <= 8 ? 120 : avg <= 12 ? 90 : 60;
-        } else {
-          // No reps to reason about — default to a sensible middle.
-          restValue = 90;
-        }
+        // Coach forgot restSeconds — fall through to a flat 2-minute
+        // default. Predictable, the right ballpark for most working
+        // sets, and the athlete can always cycle it on the card.
+        restValue = 120;
       }
       if (restValue !== null) {
         restPrefs[match.id] = restValue;
