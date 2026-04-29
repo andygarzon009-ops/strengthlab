@@ -124,14 +124,45 @@ export async function POST(req: NextRequest) {
         })),
       });
 
-      const rest =
+      const rawRest =
         typeof ex.restSeconds === "number"
           ? ex.restSeconds
           : ex.restSeconds
             ? parseInt(String(ex.restSeconds), 10)
             : NaN;
-      if (Number.isFinite(rest) && REST_VALUES.has(rest)) {
-        restPrefs[match.id] = rest;
+
+      let restValue: number | null = null;
+      if (Number.isFinite(rawRest) && REST_VALUES.has(rawRest)) {
+        restValue = rawRest;
+      } else if (Number.isFinite(rawRest) && rawRest > 0) {
+        // Snap to the nearest valid pill value so a model emitting 75
+        // or 150 still enables the timer instead of dropping silently.
+        restValue = [60, 90, 120, 180, 240].reduce((best, v) =>
+          Math.abs(v - rawRest) < Math.abs(best - rawRest) ? v : best
+        );
+      } else {
+        // Fallback when the coach forgot restSeconds entirely: infer
+        // from the working-set rep range. Strength/low-rep work needs
+        // longer rests; pump/high-rep work needs less. This matches
+        // the buckets the prompt prescribes so the auto-default and
+        // the explicit value land on the same number for any given
+        // rep target.
+        const workingReps = sets
+          .filter((s) => s.type !== "WARMUP")
+          .map((s) => parseInt(String(s.reps ?? ""), 10))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        if (workingReps.length > 0) {
+          const avg =
+            workingReps.reduce((a, b) => a + b, 0) / workingReps.length;
+          restValue =
+            avg <= 3 ? 240 : avg <= 6 ? 180 : avg <= 8 ? 120 : avg <= 12 ? 90 : 60;
+        } else {
+          // No reps to reason about — default to a sensible middle.
+          restValue = 90;
+        }
+      }
+      if (restValue !== null) {
+        restPrefs[match.id] = restValue;
       }
     }
 

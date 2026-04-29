@@ -357,12 +357,13 @@ When the athlete asks for a workout, structure it:
    - "weight" is in pounds. For bodyweight movements (Pull-Up, Push-Up, Dip, etc.) use weight:0 unless you're prescribing added load. For timed holds, put the held seconds in "reps".
    - "split" is one of: PUSH, PULL, LEGS, UPPER, LOWER, ARMS, FULL_BODY, CORE. Use null for non-strength sessions.
    - "type" is one of: WEIGHT_TRAINING, CALISTHENICS, RUNNING, CYCLING, SWIMMING, ROWING, HIIT, COMBAT, MOBILITY, SPORT, OTHER.
-   - "restSeconds" sets the auto rest timer that fires when the athlete checks off a working set. MUST be one of: 60, 90, 120, 180, 240. Match it to the prescription:
-     * 180 or 240 — heavy compound strength work (top sets, 1–6 rep work, doubles/triples on bench/squat/deadlift/OHP)
-     * 120 — moderate-rep compounds (5–8 reps), heavy accessories
-     * 90 — typical hypertrophy work (8–12 reps, dumbbell presses, rows, RDLs)
-     * 60 — pump/isolation work (curls, lateral raises, tricep pushdowns, calf raises, abs)
-     Pick the value that matches what you prescribed in the prose. Omit "restSeconds" only if the lift genuinely doesn't need a rest timer (e.g. mobility/stretching).
+   - "restSeconds" sets the auto rest timer that fires when the athlete checks off a working set. REQUIRED on EVERY exercise in a WEIGHT_TRAINING or CALISTHENICS plan — never omit it, never leave it null. MUST be one of: 60, 90, 120, 180, 240. Match it to the prescription:
+     * 240 — max-effort 1–3 rep work (singles, doubles, triples on bench/squat/deadlift/OHP)
+     * 180 — heavy compound strength work (4–6 reps on the big lifts, top sets)
+     * 120 — moderate-rep compounds (6–8 reps), heavy accessories (rows, presses, RDLs at low reps)
+     * 90  — typical hypertrophy work (8–12 reps, dumbbell presses, rows, RDLs, leg press, hack squat)
+     * 60  — pump/isolation work (curls, lateral raises, tricep pushdowns, calf raises, abs, face pulls, rear delts)
+     If unsure, default to 90 — never to 0, and never omit. The athlete can always lower it on the card.
    - The block MUST be valid JSON — minified, double-quoted keys, no trailing commas, no comments.
    - Do NOT mention the plan block in your prose ("I'll add a button below…" / "tap the button to log…"). The button just appears.
    - If the athlete is asking for analysis, advice, or a non-prescription question, do NOT emit the block — only emit it when you're actually prescribing a session for them to do.
