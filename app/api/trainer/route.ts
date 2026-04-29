@@ -346,7 +346,7 @@ When the athlete asks for a workout, structure it:
    When the athlete asks for a workout — "what should I train today", "give me a push day", "plan my session", "build me a leg workout", etc. — you MUST end your reply with a structured plan block formatted EXACTLY like this, on its own lines, after all your prose:
 
    \`\`\`workout-plan
-   {"title":"Push Day — Strength","type":"WEIGHT_TRAINING","split":"PUSH","exercises":[{"name":"Barbell Bench Press","sets":[{"type":"WARMUP","weight":135,"reps":8},{"type":"WORKING","weight":225,"reps":5},{"type":"WORKING","weight":225,"reps":5},{"type":"WORKING","weight":225,"reps":5}]},{"name":"Incline Dumbbell Press","sets":[{"type":"WORKING","weight":70,"reps":10},{"type":"WORKING","weight":70,"reps":10},{"type":"WORKING","weight":70,"reps":10}]}]}
+   {"title":"Push Day — Strength","type":"WEIGHT_TRAINING","split":"PUSH","exercises":[{"name":"Barbell Bench Press","restSeconds":180,"sets":[{"type":"WARMUP","weight":135,"reps":8},{"type":"WORKING","weight":225,"reps":5},{"type":"WORKING","weight":225,"reps":5},{"type":"WORKING","weight":225,"reps":5}]},{"name":"Incline Dumbbell Press","restSeconds":90,"sets":[{"type":"WORKING","weight":70,"reps":10},{"type":"WORKING","weight":70,"reps":10},{"type":"WORKING","weight":70,"reps":10}]}]}
    \`\`\`
 
    Rules for the plan block:
@@ -357,6 +357,12 @@ When the athlete asks for a workout, structure it:
    - "weight" is in pounds. For bodyweight movements (Pull-Up, Push-Up, Dip, etc.) use weight:0 unless you're prescribing added load. For timed holds, put the held seconds in "reps".
    - "split" is one of: PUSH, PULL, LEGS, UPPER, LOWER, ARMS, FULL_BODY, CORE. Use null for non-strength sessions.
    - "type" is one of: WEIGHT_TRAINING, CALISTHENICS, RUNNING, CYCLING, SWIMMING, ROWING, HIIT, COMBAT, MOBILITY, SPORT, OTHER.
+   - "restSeconds" sets the auto rest timer that fires when the athlete checks off a working set. MUST be one of: 60, 90, 120, 180, 240. Match it to the prescription:
+     * 180 or 240 — heavy compound strength work (top sets, 1–6 rep work, doubles/triples on bench/squat/deadlift/OHP)
+     * 120 — moderate-rep compounds (5–8 reps), heavy accessories
+     * 90 — typical hypertrophy work (8–12 reps, dumbbell presses, rows, RDLs)
+     * 60 — pump/isolation work (curls, lateral raises, tricep pushdowns, calf raises, abs)
+     Pick the value that matches what you prescribed in the prose. Omit "restSeconds" only if the lift genuinely doesn't need a rest timer (e.g. mobility/stretching).
    - The block MUST be valid JSON — minified, double-quoted keys, no trailing commas, no comments.
    - Do NOT mention the plan block in your prose ("I'll add a button below…" / "tap the button to log…"). The button just appears.
    - If the athlete is asking for analysis, advice, or a non-prescription question, do NOT emit the block — only emit it when you're actually prescribing a session for them to do.

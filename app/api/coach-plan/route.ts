@@ -17,6 +17,7 @@ type PlanSet = {
 
 type PlanExercise = {
   name: string;
+  restSeconds?: number;
   sets: PlanSet[];
 };
 
@@ -88,6 +89,11 @@ export async function POST(req: NextRequest) {
         notes: string;
       }[];
     }[] = [];
+    // restPrefs map mirrors the localStorage shape the rest pill reads
+    // from (strengthlab.rest.byExercise.v1) — keyed by exerciseId so the
+    // client can merge it in before the athlete opens the form.
+    const restPrefs: Record<string, number> = {};
+    const REST_VALUES = new Set([60, 90, 120, 180, 240]);
 
     for (const ex of plan.exercises) {
       const name = ex.name?.trim();
@@ -117,6 +123,16 @@ export async function POST(req: NextRequest) {
           notes: "",
         })),
       });
+
+      const rest =
+        typeof ex.restSeconds === "number"
+          ? ex.restSeconds
+          : ex.restSeconds
+            ? parseInt(String(ex.restSeconds), 10)
+            : NaN;
+      if (Number.isFinite(rest) && REST_VALUES.has(rest)) {
+        restPrefs[match.id] = rest;
+      }
     }
 
     if (resolvedExercises.length === 0) {
@@ -132,6 +148,7 @@ export async function POST(req: NextRequest) {
       plan.split && VALID_SPLITS.has(plan.split) ? plan.split : null;
 
     return Response.json({
+      restPrefs,
       initial: {
         id: "",
         title: plan.title?.trim() || "Coach plan",

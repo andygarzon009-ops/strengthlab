@@ -25,7 +25,11 @@ type WorkoutPlan = {
   title?: string;
   type?: string;
   split?: string | null;
-  exercises: { name: string; sets: WorkoutPlanSet[] }[];
+  exercises: {
+    name: string;
+    restSeconds?: number;
+    sets: WorkoutPlanSet[];
+  }[];
 };
 
 type Message = {
@@ -903,6 +907,27 @@ function LogPlanButton({
       // hydrates WorkoutForm from sessionStorage["sl:voiceDraft"]. One
       // hop, one storage key, no new wiring on the form side.
       sessionStorage.setItem("sl:voiceDraft", JSON.stringify(body.initial));
+
+      // Merge the coach's per-exercise rest prescriptions into the same
+      // localStorage key the rest pill reads from. Existing prefs for
+      // other exercises are preserved; only the lifts in today's plan
+      // get overwritten so the timer fires at the right interval the
+      // moment the athlete checks off a set.
+      const REST_KEY = "strengthlab.rest.byExercise.v1";
+      const restPrefs = (body.restPrefs ?? {}) as Record<string, number>;
+      if (Object.keys(restPrefs).length > 0) {
+        try {
+          const raw = localStorage.getItem(REST_KEY);
+          const cur = raw ? (JSON.parse(raw) as Record<string, number>) : {};
+          localStorage.setItem(
+            REST_KEY,
+            JSON.stringify({ ...cur, ...restPrefs })
+          );
+        } catch {
+          // ignore storage errors — rest pill just stays at its current value
+        }
+      }
+
       onNavigate();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
