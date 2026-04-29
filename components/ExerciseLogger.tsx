@@ -64,8 +64,12 @@ const matchesSearch = (name: string, query: string): boolean => {
 // counts down and beeps/vibrates at zero. Each exercise can override
 // this via the rest pill on its card; choices are stored in localStorage
 // so they persist across sessions per-exercise.
-const REST_SECONDS_DEFAULT = 90;
-const REST_OPTIONS = [60, 90, 120, 180, 240];
+// 0 = off (the "Rest timer" idle pill — no auto countdown fires when a
+// working set is logged). Tapping cycles off → 60 → 90 → 120 → 180 →
+// 240 → off so users can enable, dial in a duration, or switch off
+// entirely without leaving the card.
+const REST_SECONDS_DEFAULT = 0;
+const REST_OPTIONS = [0, 60, 90, 120, 180, 240];
 
 // Format rest seconds as a short pill label — under-2-minutes shows
 // seconds, longer shows whole minutes so "4m" reads instantly without
@@ -338,20 +342,32 @@ export default function ExerciseLogger({
                   )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => cycleRest(ex.exerciseId)}
-                    className="px-2 h-7 rounded-full text-[11px] font-semibold tracking-tight nums transition-colors active:scale-95"
-                    style={{
-                      background: "var(--bg-elevated)",
-                      border: "1px solid var(--border)",
-                      color: "var(--fg-muted)",
-                      fontFamily: "var(--font-geist-mono)",
-                    }}
-                    aria-label="Cycle rest duration"
-                    title="Tap to change rest duration"
-                  >
-                    {formatRestLabel(restFor(ex.exerciseId))}
-                  </button>
+                  {(() => {
+                    const secs = restFor(ex.exerciseId);
+                    const enabled = secs > 0;
+                    return (
+                      <button
+                        onClick={() => cycleRest(ex.exerciseId)}
+                        className="px-2.5 h-7 rounded-full text-[11px] font-semibold tracking-tight transition-colors active:scale-95"
+                        style={{
+                          background: enabled
+                            ? "var(--accent-dim)"
+                            : "var(--bg-elevated)",
+                          border: enabled
+                            ? "1px solid var(--accent)"
+                            : "1px solid var(--border)",
+                          color: enabled ? "var(--accent)" : "var(--fg-muted)",
+                          fontFamily: enabled
+                            ? "var(--font-geist-mono)"
+                            : undefined,
+                        }}
+                        aria-label="Cycle rest duration"
+                        title="Tap to change rest duration"
+                      >
+                        {enabled ? formatRestLabel(secs) : "Rest timer"}
+                      </button>
+                    );
+                  })()}
                   <button
                     onClick={() => startSwap(exIdx)}
                     className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
@@ -1020,7 +1036,7 @@ function SetRow({
     if (isWarmup) return;
     const next = !done;
     setDone(next);
-    if (next) {
+    if (next && restSeconds > 0) {
       const n = parseInt(set.reps.trim(), 10);
       if (Number.isFinite(n) && n > 0) {
         fireRestTimer(restSeconds);
@@ -1173,7 +1189,9 @@ function SetRow({
             title={
               done
                 ? "Tap to undo"
-                : `Mark set done — starts ${restSeconds}s rest`
+                : restSeconds > 0
+                  ? `Mark set done — starts ${restSeconds}s rest`
+                  : "Mark set done"
             }
           >
             <svg
@@ -1351,7 +1369,9 @@ function SetRow({
           title={
             done
               ? "Tap to undo"
-              : `Mark set done — starts ${formatRestLabel(restSeconds)} rest`
+              : restSeconds > 0
+                ? `Mark set done — starts ${formatRestLabel(restSeconds)} rest`
+                : "Mark set done"
           }
         >
           <svg
