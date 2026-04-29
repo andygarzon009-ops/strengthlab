@@ -3,6 +3,7 @@ import AITrainer from "@/components/AITrainer";
 import Celebrations from "@/components/Celebrations";
 import Timer from "@/components/Timer";
 import TutorialAutoOpen from "@/components/TutorialAutoOpen";
+import TimezoneSync from "@/components/TimezoneSync";
 import { Suspense } from "react";
 
 export default function DashboardLayout({
@@ -23,6 +24,7 @@ export default function DashboardLayout({
       <Celebrations />
       <Timer />
       <TutorialAutoOpen />
+      <TimezoneSync />
     </div>
   );
 }

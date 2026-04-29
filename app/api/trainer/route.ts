@@ -198,12 +198,34 @@ export async function POST(req: NextRequest) {
       ? differenceInDays(new Date(), new Date(lastWorkout.date))
       : null;
 
+    // Anchor "today" to the athlete's local timezone, not the server's
+    // (Vercel runs in UTC). Falls back to UTC if we haven't captured
+    // the user's tz yet — the TimezoneSync component on the dashboard
+    // posts it silently on the first page load.
+    const tz = user?.timezone || "UTC";
     const now = new Date();
-    const todayStr = format(now, "EEEE, MMMM d, yyyy");
-    const isoToday = format(now, "yyyy-MM-dd");
-    const twoWeeksAgoStr = format(subDays(now, 14), "EEEE, MMMM d, yyyy");
-    const oneWeekAgoStr = format(subDays(now, 7), "EEEE, MMMM d, yyyy");
-    const thirtyDaysAgoStr = format(subDays(now, 30), "EEEE, MMMM d, yyyy");
+    const fmtLong = (d: Date) =>
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      }).format(d);
+    // en-CA gives ISO YYYY-MM-DD when given timeZone — handy for isoToday
+    const fmtIso = (d: Date) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(d);
+
+    const todayStr = fmtLong(now);
+    const isoToday = fmtIso(now);
+    const twoWeeksAgoStr = fmtLong(subDays(now, 14));
+    const oneWeekAgoStr = fmtLong(subDays(now, 7));
+    const thirtyDaysAgoStr = fmtLong(subDays(now, 30));
 
     const systemPrompt = `You are an elite strength, hypertrophy, and performance coach chatbot.
 

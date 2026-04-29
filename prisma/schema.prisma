@@ -37,6 +37,7 @@ model User {
   sex            String?
   goals          String?
   preferredSplit String?
+  timezone       String?
   bio            String?
   experienceLevel String?
   primaryFocus   String?
