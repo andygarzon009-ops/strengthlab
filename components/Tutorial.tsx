@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-const SEEN_KEY = "strengthlab.tutorialSeen.v1";
+// Bumped from v1 → v2 when the tour was rewritten around the coach +
+// autolog + rest-pill features. Old users see the new tour once.
+const SEEN_KEY = "strengthlab.tutorialSeen.v2";
 
 export const markTutorialSeen = () => {
   if (typeof window !== "undefined") {
@@ -40,23 +42,13 @@ const I = (path: React.ReactNode) => (
 
 const SLIDES: Slide[] = [
   {
-    badge: "Welcome",
-    title: "Train smarter with StrengthLab",
-    body: "Your gym companion for logging lifts, tracking PRs, running interval workouts, and training with friends. Here's a 60-second tour.",
-    icon: I(
-      <>
-        <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
-      </>
-    ),
-  },
-  {
-    badge: "Log workouts",
-    title: "Capture every set",
-    body: "Tap Log, choose your split, and add exercises. Each set takes weight, reps, and an optional RIR (reps in reserve).",
+    badge: "Log it yourself",
+    title: "Capture every set, fast",
+    body: "Hit Log, pick a split, and add exercises. Each set takes weight × reps and an optional RIR.",
     bullets: [
-      "Search the library or create custom exercises",
-      "Plate-loaded lifts auto-convert plates ↔ pounds",
-      "Hit the mic to dictate sets hands-free",
+      "Plate-loaded and Smith machine sets count plates per side — tap the +5 pill to wipe micro-loading",
+      "Tap the rest pill on any exercise to fire a 60s–4m countdown when you check a set off",
+      "Search the full exercise library, dictate sets with the mic, or add custom lifts",
     ],
     icon: I(
       <>
@@ -66,45 +58,45 @@ const SLIDES: Slide[] = [
     ),
   },
   {
-    badge: "Interval timer",
-    title: "HIIT, Tabata, and EMOMs",
-    body: "Tap the floating stopwatch in the bottom-right to launch a full-screen interval timer. Works on top of any page.",
+    badge: "Coach plans, you lift",
+    title: "One tap to a programmed session",
+    body: 'Ask the coach for a workout — "give me a push day", "what should I train today" — and tap "Do this workout" on the reply.',
     bullets: [
-      "Built-in presets: Tabata, HIIT 40/20, EMOM 1m & 2m",
-      "Custom work / rest / rounds and save your own",
-      "Audio + vibration cues at every transition",
+      "The logger opens pre-loaded with target weight × reps for every set",
+      "The rest timer is auto-set to match the prescription on each lift",
+      "As you train, just hit ✓ on each set — the timer fires automatically",
     ],
     icon: I(
       <>
-        <circle cx="12" cy="12" r="10" />
-        <polyline points="12 6 12 12 16 14" />
+        <polyline points="20 6 9 17 4 12" />
+        <path d="M3 12h4M17 12h4" />
       </>
     ),
   },
   {
-    badge: "Track progress",
-    title: "See every rep stack up",
-    body: "History gives you a calendar view of every workout. Analytics breaks down volume, top lifts, muscle frequency, and PRs.",
+    badge: "Coach as a training partner",
+    title: "Talk to it while you lift",
+    body: 'Drop set reports into chat ("bench 225 for 5", "smoked it") and they\'re logged in the background — a green ✓ chip shows what was saved.',
     bullets: [
-      "Auto PR detection (weight, reps, volume)",
-      "Last-session hints when adding exercises",
-      "Volume charts and split breakdowns",
+      "Real-time spotter calls — get the next set's load based on how the last one felt",
+      "Form cues, progression reads, weekly planning, deload calls",
+      "Voice or text — the coach sees every PR and recent session",
     ],
     icon: I(
       <>
-        <path d="M3 3v18h18" />
-        <path d="M7 14l4-4 4 4 5-5" />
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        <path d="M8 11h.01M12 11h.01M16 11h.01" />
       </>
     ),
   },
   {
-    badge: "Train together",
-    title: "Groups & social feed",
-    body: "Create a group with a 6-character invite code. Share workouts, react with 🔥💪🏆, comment, and start challenges.",
+    badge: "Progress + your crew",
+    title: "Stack up reps, train together",
+    body: "Every session is yours forever. Calendar view, volume charts, top lifts, muscle-group frequency, and auto-detected PRs.",
     bullets: [
-      "Live feed of your group's workouts",
-      "Challenges with deadlines and winners",
-      "Reactions and comments on every session",
+      "Create a group with a 6-character invite code to share workouts",
+      "React 🔥💪🏆 and comment on your crew's sessions",
+      "Run challenges with deadlines and winners",
     ],
     icon: I(
       <>
@@ -112,31 +104,6 @@ const SLIDES: Slide[] = [
         <circle cx="9" cy="7" r="4" />
         <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </>
-    ),
-  },
-  {
-    badge: "AI Coach",
-    title: "Ask your trainer anything",
-    body: "Tap the coach icon to chat with an AI trainer that knows your history, PRs, and goals. Voice or text.",
-    bullets: [
-      "Programs and form cues tailored to you",
-      "Set goals from the profile page",
-      "Customize the coach prompt to your style",
-    ],
-    icon: I(
-      <>
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-      </>
-    ),
-  },
-  {
-    badge: "You're set",
-    title: "Time to lift",
-    body: "You can re-open this tour anytime from your Profile page. Now go log your first workout.",
-    icon: I(
-      <>
-        <polyline points="20 6 9 17 4 12" />
       </>
     ),
   },
