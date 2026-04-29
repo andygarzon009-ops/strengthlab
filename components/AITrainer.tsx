@@ -935,7 +935,7 @@ function LogPlanButton({
           >
             <path d="M12 5v14M5 12h14" />
           </svg>
-          {pending ? "Loading…" : "Log this workout"}
+          {pending ? "Loading…" : "Do this workout"}
         </span>
         <span className="text-[11px] opacity-80">
           {exerciseCount} exercise{exerciseCount === 1 ? "" : "s"} ·{" "}

@@ -350,7 +350,7 @@ When the athlete asks for a workout, structure it:
    \`\`\`
 
    Rules for the plan block:
-   - The fenced language tag MUST be exactly \`workout-plan\` (with a hyphen). The client hides this block and renders a "Log this workout" button in its place — without it, the athlete loses the one-tap-log feature.
+   - The fenced language tag MUST be exactly \`workout-plan\` (with a hyphen). The client hides this block and renders a "Do this workout" button in its place — without it, the athlete loses the one-tap-log feature.
    - Use exact exercise names that appear in this athlete's RECENT SESSIONS / PER-EXERCISE PROGRESSION blocks above when the lift exists in their history. Otherwise use canonical names ("Barbell Bench Press", "Incline Dumbbell Press", "Romanian Deadlift", "Pull-Up", etc.). Names without any matching exercise will be created as a custom exercise — that's fine, but prefer existing names so PRs and progression tracking line up.
    - Emit one entry per WORKING set, even when the prescription is "3×5 at 225" — the athlete needs to check off each set individually. So 3×5 at 225 = 3 entries with the same weight/reps. Drop sets, top sets + back-offs, and AMRAPs each get their own explicit entry with the weight/reps you're prescribing.
    - Include warm-up sets (type:"WARMUP") only when you actually prescribed warm-ups in the prose — otherwise leave them out and the athlete will warm up off-app.
