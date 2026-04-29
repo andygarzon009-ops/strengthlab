@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -14,13 +14,58 @@ type LoggedSummary = {
   }[];
 };
 
+type WorkoutPlanSet = {
+  type?: "WARMUP" | "WORKING";
+  weight?: number | string | null;
+  reps?: number | string | null;
+  rir?: number | string | null;
+};
+
+type WorkoutPlan = {
+  title?: string;
+  type?: string;
+  split?: string | null;
+  exercises: { name: string; sets: WorkoutPlanSet[] }[];
+};
+
 type Message = {
   id: string;
   role: string;
   content: string;
   createdAt: string;
   logged?: LoggedSummary;
+  plan?: WorkoutPlan;
 };
+
+// Strip the fenced ```workout-plan ...``` block from displayed coach text
+// and return the parsed plan if present. We tolerate streaming partials —
+// while the closing fence hasn't streamed in yet, we still hide whatever
+// has appeared so the JSON never flashes onscreen.
+function extractPlan(raw: string): { text: string; plan: WorkoutPlan | null } {
+  const fenceOpen = raw.indexOf("```workout-plan");
+  if (fenceOpen === -1) return { text: raw, plan: null };
+  // Find the closing fence after the opening one.
+  const afterOpen = fenceOpen + "```workout-plan".length;
+  const fenceClose = raw.indexOf("```", afterOpen);
+  if (fenceClose === -1) {
+    // Still streaming — hide everything from the opening fence onward.
+    return { text: raw.slice(0, fenceOpen).trimEnd(), plan: null };
+  }
+  const jsonPart = raw.slice(afterOpen, fenceClose).trim();
+  let plan: WorkoutPlan | null = null;
+  try {
+    const parsed = JSON.parse(jsonPart) as WorkoutPlan;
+    if (parsed && Array.isArray(parsed.exercises) && parsed.exercises.length > 0) {
+      plan = parsed;
+    }
+  } catch {
+    // bad JSON — drop the block from the visible text but offer no button
+  }
+  const before = raw.slice(0, fenceOpen).trimEnd();
+  const after = raw.slice(fenceClose + 3).trimStart();
+  const text = [before, after].filter(Boolean).join("\n\n");
+  return { text, plan };
+}
 
 function splitLoggedMarker(raw: string): {
   logged: LoggedSummary | null;
@@ -149,6 +194,7 @@ const QUICK_PROMPTS = [
 
 export default function AITrainer() {
   const pathname = usePathname();
+  const router = useRouter();
   const search = useSearchParams();
   const hideForChat =
     pathname === "/" &&
@@ -321,7 +367,17 @@ export default function AITrainer() {
       fetch("/api/trainer")
         .then((r) => r.json())
         .then((data) => {
-          if (Array.isArray(data)) setMessages(data);
+          if (!Array.isArray(data)) return;
+          // Past assistant messages were persisted with the raw plan
+          // fence baked into content — strip it and surface the parsed
+          // plan so the "Log this workout" button still works on
+          // reload, not just for the streaming reply.
+          const hydrated: Message[] = data.map((m: Message) => {
+            if (m.role !== "assistant") return m;
+            const { text, plan } = extractPlan(m.content ?? "");
+            return { ...m, content: text, plan: plan ?? undefined };
+          });
+          setMessages(hydrated);
         });
     }
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
@@ -382,19 +438,23 @@ export default function AITrainer() {
         if (done) break;
         const chunk = decoder.decode(value);
         full += chunk;
-        // Strip the [LOGGED]…\x1e marker from the streaming preview so
-        // users never see the raw marker.
+        // Strip the [LOGGED]…\x1e marker AND the ```workout-plan```
+        // fence from the streaming preview so the user never sees raw
+        // markers or JSON flash onscreen.
         const { text } = splitLoggedMarker(full);
-        setStreaming(text);
+        const { text: visible } = extractPlan(text);
+        setStreaming(visible);
       }
 
-      const { logged, text: finalText } = splitLoggedMarker(full);
+      const { logged, text: postLogged } = splitLoggedMarker(full);
+      const { text: finalText, plan } = extractPlan(postLogged);
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content: finalText,
         createdAt: new Date().toISOString(),
         logged: logged ?? undefined,
+        plan: plan ?? undefined,
       };
       setMessages((prev) => [...prev, assistantMsg]);
       setStreaming("");
@@ -628,6 +688,15 @@ export default function AITrainer() {
                         {m.content}
                       </ReactMarkdown>
                     </div>
+                    {m.plan && (
+                      <LogPlanButton
+                        plan={m.plan}
+                        onNavigate={() => {
+                          setOpen(false);
+                          router.push("/log?voice=1");
+                        }}
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -797,6 +866,88 @@ export default function AITrainer() {
         </div>
       )}
     </>
+  );
+}
+
+function LogPlanButton({
+  plan,
+  onNavigate,
+}: {
+  plan: WorkoutPlan;
+  onNavigate: () => void;
+}) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const totalSets = plan.exercises.reduce(
+    (n, e) => n + (e.sets?.length ?? 0),
+    0
+  );
+  const exerciseCount = plan.exercises.length;
+
+  const onClick = async () => {
+    if (pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/coach-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body?.initial) {
+        throw new Error(body?.error || "Couldn't build the workout");
+      }
+      // Reuse the existing voice-draft handoff: the /log?voice=1 page
+      // hydrates WorkoutForm from sessionStorage["sl:voiceDraft"]. One
+      // hop, one storage key, no new wiring on the form side.
+      sessionStorage.setItem("sl:voiceDraft", JSON.stringify(body.initial));
+      onNavigate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+      setPending(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1">
+      <button
+        onClick={onClick}
+        disabled={pending}
+        className="w-full rounded-xl px-4 py-3 text-[14px] font-semibold flex items-center justify-between gap-3 active:scale-[0.99] transition-transform disabled:opacity-60"
+        style={{
+          background: "var(--accent)",
+          color: "#0a0a0a",
+          border: "1px solid var(--accent)",
+        }}
+      >
+        <span className="flex items-center gap-2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          {pending ? "Loading…" : "Log this workout"}
+        </span>
+        <span className="text-[11px] opacity-80">
+          {exerciseCount} exercise{exerciseCount === 1 ? "" : "s"} ·{" "}
+          {totalSets} set{totalSets === 1 ? "" : "s"}
+        </span>
+      </button>
+      {error && (
+        <p className="text-[11px] px-1" style={{ color: "#ef4444" }}>
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
