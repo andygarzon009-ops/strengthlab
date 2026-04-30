@@ -4,6 +4,7 @@ import { logout } from "@/lib/actions/auth";
 import Link from "next/link";
 import ProfileForm from "@/components/ProfileForm";
 import TutorialLauncher from "@/components/TutorialLauncher";
+import ChangePasswordCard from "@/components/ChangePasswordCard";
 
 export default async function ProfilePage() {
   const userId = await requireAuth();
@@ -126,6 +127,8 @@ export default async function ProfilePage() {
           </div>
           <span style={{ color: "var(--fg-dim)" }}>→</span>
         </Link>
+
+        <ChangePasswordCard />
 
         <form action={logout}>
           <button

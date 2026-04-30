@@ -1,11 +1,13 @@
-"use client";
-
-import { login } from "@/lib/actions/auth";
 import Link from "next/link";
-import { useActionState } from "react";
+import LoginForm from "./login-form";
 
-export default function LoginPage() {
-  const [state, action, pending] = useActionState(login, undefined);
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reset?: string }>;
+}) {
+  const { reset } = await searchParams;
+  const justReset = reset === "1";
 
   return (
     <div
@@ -37,68 +39,38 @@ export default function LoginPage() {
           <h1 className="text-[32px] font-bold tracking-tight leading-none mb-2">
             StrengthLab
           </h1>
-          <p
-            className="text-[14px]"
-            style={{ color: "var(--fg-muted)" }}
-          >
+          <p className="text-[14px]" style={{ color: "var(--fg-muted)" }}>
             Log in to continue your training.
           </p>
         </div>
 
-        <form action={action} className="space-y-3">
-          {state?.error && (
-            <div
-              className="text-[13px] px-4 py-3 rounded-xl"
-              style={{
-                background: "rgba(239,68,68,0.08)",
-                border: "1px solid rgba(239,68,68,0.25)",
-                color: "#f87171",
-              }}
-            >
-              {state.error}
-            </div>
-          )}
-
-          <div>
-            <label className="label block mb-1.5">Email</label>
-            <input
-              name="email"
-              type="email"
-              required
-              className="w-full rounded-xl px-4 py-3.5 text-[15px] focus:outline-none transition-colors"
-              style={{
-                background: "var(--bg-card)",
-                border: "1px solid var(--border)",
-                color: "var(--fg)",
-              }}
-            />
-          </div>
-          <div>
-            <label className="label block mb-1.5">Password</label>
-            <input
-              name="password"
-              type="password"
-              required
-              className="w-full rounded-xl px-4 py-3.5 text-[15px] focus:outline-none transition-colors"
-              style={{
-                background: "var(--bg-card)",
-                border: "1px solid var(--border)",
-                color: "var(--fg)",
-              }}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={pending}
-            className="btn-accent w-full py-3.5 rounded-xl text-[15px] mt-2"
+        {justReset && (
+          <div
+            className="text-[13px] px-4 py-3 rounded-xl mb-3"
+            style={{
+              background: "var(--accent-dim)",
+              border: "1px solid rgba(34,197,94,0.25)",
+              color: "var(--accent)",
+            }}
           >
-            {pending ? "Signing in…" : "Log In"}
-          </button>
-        </form>
+            Password updated. Sign in with your new password.
+          </div>
+        )}
+
+        <LoginForm />
+
+        <div className="text-center mt-4">
+          <Link
+            href="/forgot-password"
+            className="text-[13px] font-medium"
+            style={{ color: "var(--fg-muted)" }}
+          >
+            Forgot password?
+          </Link>
+        </div>
 
         <p
-          className="text-center text-[13px] mt-8"
+          className="text-center text-[13px] mt-6"
           style={{ color: "var(--fg-muted)" }}
         >
           New here?{" "}
