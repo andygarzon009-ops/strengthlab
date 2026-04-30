@@ -29,23 +29,19 @@ function chime() {
   const { ctx } = bag;
   // Resume in case the browser suspended the context while backgrounded.
   if (ctx.state === "suspended") ctx.resume().catch(() => {});
-  const play = (freq: number, delayMs: number, durMs: number) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-    const start = ctx.currentTime + delayMs / 1000;
-    const dur = durMs / 1000;
-    gain.gain.setValueAtTime(0, start);
-    gain.gain.linearRampToValueAtTime(0.25, start + 0.01);
-    gain.gain.linearRampToValueAtTime(0, start + dur);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(start);
-    osc.stop(start + dur + 0.05);
-  };
-  // Two-tone "ding-dong" so it cuts through ambient gym noise.
-  play(880, 0, 220);
-  play(660, 230, 320);
+  // Mirrors `cueDone` in Timer.tsx — single 440 Hz sine, 260 ms, 0.2 gain.
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.value = 440;
+  const start = ctx.currentTime;
+  const dur = 0.26;
+  gain.gain.setValueAtTime(0, start);
+  gain.gain.linearRampToValueAtTime(0.2, start + 0.01);
+  gain.gain.linearRampToValueAtTime(0, start + dur);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(start);
+  osc.stop(start + dur + 0.05);
 }
 function buzz(pattern: number | number[]) {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
