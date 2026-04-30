@@ -4,6 +4,59 @@ import { useEffect, useRef } from "react";
 
 const PERMISSION_ASKED_KEY = "sl:notifPermAsked.v1";
 
+// Web Audio chime that mirrors Timer.tsx's `cueDone` so the rest-end
+// notification has the same "ding" the in-app FAB plays. The page must
+// have produced audio at least once already (the Timer's set-logging
+// sound counts) for this to play on iOS PWA.
+type AudioBag = { ctx: AudioContext };
+let audioBag: AudioBag | null = null;
+function ensureAudio(): AudioBag | null {
+  if (audioBag) return audioBag;
+  if (typeof window === "undefined") return null;
+  try {
+    type W = Window & { webkitAudioContext?: typeof AudioContext };
+    const AC = window.AudioContext ?? (window as W).webkitAudioContext;
+    if (!AC) return null;
+    audioBag = { ctx: new AC() };
+    return audioBag;
+  } catch {
+    return null;
+  }
+}
+function chime() {
+  const bag = ensureAudio();
+  if (!bag) return;
+  const { ctx } = bag;
+  // Resume in case the browser suspended the context while backgrounded.
+  if (ctx.state === "suspended") ctx.resume().catch(() => {});
+  const play = (freq: number, delayMs: number, durMs: number) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    const start = ctx.currentTime + delayMs / 1000;
+    const dur = durMs / 1000;
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(0.25, start + 0.01);
+    gain.gain.linearRampToValueAtTime(0, start + dur);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + dur + 0.05);
+  };
+  // Two-tone "ding-dong" so it cuts through ambient gym noise.
+  play(880, 0, 220);
+  play(660, 230, 320);
+}
+function buzz(pattern: number | number[]) {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    try {
+      navigator.vibrate?.(pattern);
+    } catch {
+      // ignore
+    }
+  }
+}
+
 // Listens for the same `strengthlab:rest-start` window event the
 // in-app Timer already reacts to, and schedules a system notification
 // to fire at the rest's wall-clock end. Works alongside the in-app
@@ -65,22 +118,34 @@ export default function RestNotifications() {
       if (pendingTimer.current) clearTimeout(pendingTimer.current);
       pendingTimer.current = setTimeout(async () => {
         pendingTimer.current = null;
+        // Page-side cues. These run on Android Chrome and on web/PWA
+        // tabs that are still alive when the timer fires; iOS Safari
+        // ignores navigator.vibrate but plays the chime.
+        chime();
+        buzz([300, 120, 300]);
         try {
           const reg =
             swReg.current ??
             (await navigator.serviceWorker?.getRegistration?.()) ??
             null;
           if (reg && Notification.permission === "granted") {
-            // Cast to allow renotify/vibrate/badge — TS lib types lag
-            // behind the spec on these fields, but every browser that
-            // supports notifications honors them.
+            // Cast to allow renotify/vibrate/badge/silent — TS lib
+            // types lag behind the spec but every browser that supports
+            // notifications honors them. `silent: false` forces the OS
+            // notification sound; the longer vibrate pattern gives the
+            // wrist a clearer cue.
             await reg.showNotification("Rest done", {
               body: "Back to work — next set's up.",
               tag: "rest-end",
               icon: "/icon-192.png",
               badge: "/icon-192.png",
               data: { url: "/log" },
-              ...({ renotify: true, vibrate: [60] } as object),
+              ...({
+                renotify: true,
+                silent: false,
+                requireInteraction: true,
+                vibrate: [300, 120, 300],
+              } as object),
             } as NotificationOptions);
           } else if (
             "Notification" in window &&
@@ -90,7 +155,8 @@ export default function RestNotifications() {
             new Notification("Rest done", {
               body: "Back to work — next set's up.",
               tag: "rest-end",
-            });
+              ...({ silent: false } as object),
+            } as NotificationOptions);
           }
         } catch {
           // best effort

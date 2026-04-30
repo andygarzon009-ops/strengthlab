@@ -56,7 +56,9 @@ self.addEventListener("push", (event) => {
       tag: payload.tag,
       icon: "/icon-192.png",
       badge: "/icon-192.png",
-      vibrate: [60],
+      vibrate: [300, 120, 300],
+      silent: false,
+      requireInteraction: true,
       data: { url: payload.url || "/" },
     })
   );
