@@ -1,7 +1,11 @@
 "use client";
 
 import { createGoal, deleteGoal, type GoalType } from "@/lib/actions/goals";
+import { PLATE_WEIGHT_LB, usesPlates } from "@/lib/exercises";
 import { useMemo, useState, useTransition } from "react";
+
+const PLATE_UNIT = "plates/side";
+const LB_PER_PLATE_PAIR = PLATE_WEIGHT_LB * 2;
 
 type Exercise = { id: string; name: string };
 
@@ -170,7 +174,7 @@ function GoalCard({ goal }: { goal: GoalWithProgress }) {
             color: complete ? "var(--accent)" : "var(--fg)",
           }}
         >
-          {formatNumber(goal.currentValue)}
+          {formatNumber(displayValue(goal.currentValue, goal.unit))}
           {unitSuffix(goal.unit) && (
             <span
               className="text-[12px] ml-0.5 font-normal"
@@ -191,7 +195,7 @@ function GoalCard({ goal }: { goal: GoalWithProgress }) {
             className="text-[12px] ml-1 font-normal"
             style={{ color: "var(--fg-dim)" }}
           >
-            / {formatNumber(goal.targetValue)}
+            / {formatNumber(displayValue(goal.targetValue, goal.unit))}
             {unitSuffix(goal.unit) && (
               <span className="ml-0.5">{unitSuffix(goal.unit)}</span>
             )}
@@ -277,10 +281,14 @@ function AddGoalForm({
   const [title, setTitle] = useState("");
   const [pending, startTransition] = useTransition();
 
+  const selectedExercise = exercises.find((e) => e.id === exerciseId);
+  const isPlateLift =
+    type === "STRENGTH" && !!selectedExercise && usesPlates(selectedExercise.name);
+
   const unitForType = (t: GoalType) => {
     switch (t) {
       case "STRENGTH":
-        return "lb";
+        return isPlateLift ? PLATE_UNIT : "lb";
       case "FREQUENCY":
         return "sessions/week";
       case "BODYWEIGHT_GAIN":
@@ -293,13 +301,28 @@ function AddGoalForm({
     }
   };
 
+  const targetFieldLabel = () => {
+    if (type === "STRENGTH" && isPlateLift) return "Target (plates per side)";
+    return `Target (${unitForType(type)})`;
+  };
+
+  const targetPlaceholder = () => {
+    if (type === "STRENGTH") return isPlateLift ? "2" : "315";
+    if (type === "FREQUENCY") return "5";
+    if (type === "DISTANCE") return "10";
+    return "180";
+  };
+
   const autoTitle = () => {
     const t = parseFloat(target);
     if (!t) return "";
-    const ex = exercises.find((e) => e.id === exerciseId);
+    const ex = selectedExercise;
     if (type === "STRENGTH" && ex) {
       const r = parseInt(reps);
-      return r > 0 ? `${t}lb ${ex.name} × ${r}` : `${t}lb ${ex.name}`;
+      const loadStr = isPlateLift
+        ? `${t} plate${t === 1 ? "" : "s"}/side`
+        : `${t}lb`;
+      return r > 0 ? `${loadStr} ${ex.name} × ${r}` : `${loadStr} ${ex.name}`;
     }
     if (type === "FREQUENCY") return `Train ${t}× per week`;
     if (type === "BODYWEIGHT_GAIN") return `Reach ${t}lb`;
@@ -320,12 +343,18 @@ function AddGoalForm({
     const targetReps =
       type === "STRENGTH" && parsedReps > 0 ? parsedReps : undefined;
 
+    // Convert plates-per-side into total bar weight so progression
+    // tracking (which compares against logged set weights in lb) works.
+    const storedTarget = isPlateLift
+      ? parsedTarget * LB_PER_PLATE_PAIR
+      : parsedTarget;
+
     startTransition(async () => {
       await createGoal({
         type,
         title: finalTitle || "Goal",
         exerciseId: finalExerciseId,
-        targetValue: parsedTarget,
+        targetValue: storedTarget,
         targetReps,
         unit: unitForType(type),
         deadline: deadline || undefined,
@@ -375,21 +404,13 @@ function AddGoalForm({
         )}
 
         <div>
-          <p className="label mb-1.5">Target ({unitForType(type)})</p>
+          <p className="label mb-1.5">{targetFieldLabel()}</p>
           <input
             type="number"
             inputMode="decimal"
             value={target}
             onChange={(e) => setTarget(e.target.value)}
-            placeholder={
-              type === "STRENGTH"
-                ? "315"
-                : type === "FREQUENCY"
-                  ? "5"
-                  : type === "DISTANCE"
-                    ? "10"
-                    : "180"
-            }
+            placeholder={targetPlaceholder()}
             className="w-full rounded-xl px-4 py-3 text-[15px] focus:outline-none nums"
             style={{
               background: "var(--bg-elevated)",
@@ -504,7 +525,16 @@ function formatNumber(v: number): string {
 function unitSuffix(unit: string | null): string {
   if (!unit) return "";
   if (unit === "sessions/week") return "";
+  if (unit === PLATE_UNIT) return "p/s";
   return unit;
+}
+
+// Goals are always stored in their canonical unit (lb for weight, etc.).
+// Plate-loaded lift goals divide back out for display so the user sees
+// the same "plates per side" they entered.
+function displayValue(value: number, unit: string | null): number {
+  if (unit === PLATE_UNIT) return value / LB_PER_PLATE_PAIR;
+  return value;
 }
 
 function ExercisePicker({
