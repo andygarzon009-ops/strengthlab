@@ -459,8 +459,8 @@ PROFILE:
 - This week: ${thisWeek} sessions | This month: ${thisMonth} sessions
 - Last trained: ${daysSinceLast === null ? "no sessions yet" : daysSinceLast === 0 ? "today" : `${daysSinceLast} days ago`}
 
-BODY METRICS (cm unless noted, optional — may be blank):
-- Height: ${user?.height ? `${user.height}cm` : "not set"}
+BODY METRICS (inches unless noted, optional — may be blank):
+- Height: ${user?.height ? `${user.height}in` : "not set"}
 - Resting HR: ${user?.restingHR ? `${user.restingHR}bpm` : "not set"}
 - Neck: ${user?.neck ?? "—"} | Shoulders: ${user?.shoulders ?? "—"} | Chest: ${user?.chest ?? "—"}
 - Arm: ${user?.arm ?? "—"} | Forearm: ${user?.forearm ?? "—"} | Waist: ${user?.waist ?? "—"}

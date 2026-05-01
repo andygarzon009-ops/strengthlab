@@ -321,7 +321,7 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                 >
                   {filledMeasurements > 0
                     ? `${filledMeasurements} tracked`
-                    : "Optional — cm units"}
+                    : "Optional — inches"}
                 </p>
               </div>
               <svg
@@ -361,8 +361,8 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                     type="number"
                     value={form.height}
                     onChange={set("height")}
-                    placeholder="178"
-                    suffix="cm"
+                    placeholder="70"
+                    suffix="in"
                     compact
                   />
                   <Field
@@ -380,7 +380,7 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                   className="label text-[9px] mt-4"
                   style={{ color: "var(--fg-dim)" }}
                 >
-                  Upper body (cm)
+                  Upper body (in)
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   <Field
@@ -388,7 +388,7 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                     type="number"
                     value={form.neck}
                     onChange={set("neck")}
-                    placeholder="38"
+                    placeholder="15"
                     compact
                   />
                   <Field
@@ -396,7 +396,7 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                     type="number"
                     value={form.shoulders}
                     onChange={set("shoulders")}
-                    placeholder="120"
+                    placeholder="47"
                     compact
                   />
                   <Field
@@ -404,7 +404,7 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                     type="number"
                     value={form.chest}
                     onChange={set("chest")}
-                    placeholder="104"
+                    placeholder="41"
                     compact
                   />
                 </div>
@@ -414,7 +414,7 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                     type="number"
                     value={form.arm}
                     onChange={set("arm")}
-                    placeholder="38"
+                    placeholder="15"
                     compact
                   />
                   <Field
@@ -422,7 +422,7 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                     type="number"
                     value={form.forearm}
                     onChange={set("forearm")}
-                    placeholder="32"
+                    placeholder="13"
                     compact
                   />
                   <Field
@@ -430,7 +430,7 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                     type="number"
                     value={form.waist}
                     onChange={set("waist")}
-                    placeholder="82"
+                    placeholder="32"
                     compact
                   />
                 </div>
@@ -439,7 +439,7 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                   className="label text-[9px] mt-4"
                   style={{ color: "var(--fg-dim)" }}
                 >
-                  Lower body (cm)
+                  Lower body (in)
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   <Field
@@ -447,7 +447,7 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                     type="number"
                     value={form.hips}
                     onChange={set("hips")}
-                    placeholder="98"
+                    placeholder="39"
                     compact
                   />
                   <Field
@@ -455,7 +455,7 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                     type="number"
                     value={form.thigh}
                     onChange={set("thigh")}
-                    placeholder="62"
+                    placeholder="24"
                     compact
                   />
                   <Field
@@ -463,7 +463,7 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
                     type="number"
                     value={form.calf}
                     onChange={set("calf")}
-                    placeholder="40"
+                    placeholder="16"
                     compact
                   />
                 </div>
