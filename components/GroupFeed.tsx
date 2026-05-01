@@ -160,7 +160,7 @@ export default function GroupFeed({
 
   return (
     <div
-      className="mt-4 rounded-2xl overflow-hidden flex flex-col"
+      className="mt-4 rounded-2xl overflow-hidden flex flex-col relative"
       style={{
         border: "1px solid var(--border)",
         background: "var(--bg-card)",
@@ -169,40 +169,41 @@ export default function GroupFeed({
       }}
     >
       <div
-        className="px-3 py-2.5 flex items-center justify-between"
+        className="px-4 pt-3.5 pb-3 flex items-center justify-between"
         style={{
           borderBottom: "1px solid var(--border)",
-          background: "var(--bg-elevated)",
         }}
       >
-        <p
-          className="label text-[10px]"
+        <h2 className="text-[15px] font-bold tracking-tight">
+          Crew feed
+        </h2>
+        <span
+          className="text-[10px] label"
           style={{ color: "var(--fg-dim)" }}
         >
-          Crew chat
-        </p>
-        <span
-          className="text-[10px] nums"
-          style={{
-            color: "var(--fg-dim)",
-            fontFamily: "var(--font-geist-mono)",
-          }}
-        >
-          {data.posts.length} msg
+          {data.posts.length === 0
+            ? "Quiet"
+            : `${data.posts.length} post${data.posts.length === 1 ? "" : "s"}`}
         </span>
       </div>
 
       <div
         ref={scrollerRef}
-        className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
+        className="flex-1 overflow-y-auto px-3 pt-3 pb-24 space-y-3"
       >
         {data.posts.length === 0 ? (
-          <p
-            className="text-[12px] text-center py-10"
+          <div
+            className="text-center py-12 px-6"
             style={{ color: "var(--fg-muted)" }}
           >
-            No messages yet. Say hi, drop a workout, or post a photo.
-          </p>
+            <p className="text-[24px] mb-2">👋</p>
+            <p className="text-[13px] mb-1" style={{ color: "var(--fg)" }}>
+              No posts yet
+            </p>
+            <p className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+              Say hi, drop a workout, or start a challenge.
+            </p>
+          </div>
         ) : (
           data.posts.map((post) => (
             <Message
@@ -239,14 +240,102 @@ function Composer({
   exercises: Exercise[];
   onSent: () => void;
 }) {
+  const [showSheet, setShowSheet] = useState(false);
+  const [showChallenge, setShowChallenge] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setShowSheet(true)}
+        aria-label="New post"
+        className="absolute z-30 rounded-full flex items-center justify-center btn-accent shadow-lg active:scale-95 transition-transform"
+        style={{
+          right: 16,
+          bottom: 16,
+          width: 52,
+          height: 52,
+          fontSize: 26,
+          fontWeight: 600,
+          lineHeight: 1,
+          boxShadow: "0 8px 20px rgba(34,197,94,0.35)",
+        }}
+      >
+        +
+      </button>
+
+      {showSheet && (
+        <ComposerSheet
+          groupId={groupId}
+          onClose={() => setShowSheet(false)}
+          onSent={() => {
+            setShowSheet(false);
+            onSent();
+          }}
+          onPickChallenge={() => {
+            setShowSheet(false);
+            setShowChallenge(true);
+          }}
+          onPickCompare={() => {
+            setShowSheet(false);
+            setShowCompare(true);
+          }}
+        />
+      )}
+
+      {showChallenge && (
+        <ChallengeModal
+          groupId={groupId}
+          exercises={exercises}
+          onClose={() => setShowChallenge(false)}
+          onCreated={() => {
+            setShowChallenge(false);
+            onSent();
+          }}
+        />
+      )}
+      {showCompare && (
+        <CompareModal
+          groupId={groupId}
+          currentUserId={currentUserId}
+          members={members}
+          exercises={exercises}
+          onClose={() => setShowCompare(false)}
+          onCreated={() => {
+            setShowCompare(false);
+            onSent();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function ComposerSheet({
+  groupId,
+  onClose,
+  onSent,
+  onPickChallenge,
+  onPickCompare,
+}: {
+  groupId: string;
+  onClose: () => void;
+  onSent: () => void;
+  onPickChallenge: () => void;
+  onPickCompare: () => void;
+}) {
   const [text, setText] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
-  const [showChallenge, setShowChallenge] = useState(false);
-  const [showCompare, setShowCompare] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    textRef.current?.focus();
+  }, []);
 
   const onFile = async (file: File) => {
     setError("");
@@ -286,36 +375,62 @@ function Composer({
 
   return (
     <div
-      className="px-2.5 py-2.5"
-      style={{
-        borderTop: "1px solid var(--border)",
-        background: "var(--bg-elevated)",
-      }}
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)" }}
+      onClick={onClose}
     >
-      {imageUrl && (
-        <div className="relative mb-2">
-          <img
-            src={imageUrl}
-            alt=""
-            className="rounded-lg"
-            style={{ maxHeight: 120, objectFit: "cover" }}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg animate-slide-up"
+        style={{
+          background: "var(--bg-card)",
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          borderTop: "1px solid var(--border)",
+          paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+        }}
+      >
+        <div className="flex justify-center pt-2.5 pb-1">
+          <div
+            style={{
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              background: "var(--border-strong)",
+            }}
           />
+        </div>
+
+        <div className="px-4 pt-2 pb-3 flex items-center justify-between">
+          <h3 className="text-[15px] font-bold tracking-tight">New post</h3>
           <button
-            type="button"
-            onClick={() => setImageUrl(null)}
-            className="absolute top-1 right-1 text-[10px] px-2 py-0.5 rounded-md"
-            style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}
+            onClick={onClose}
+            className="text-[12px] label"
+            style={{ color: "var(--fg-dim)" }}
           >
-            Remove
+            Cancel
           </button>
         </div>
-      )}
-      {error && (
-        <p className="text-[11px] mb-1" style={{ color: "#f87171" }}>
-          {error}
-        </p>
-      )}
-      <div className="flex items-end gap-1.5">
+
+        <div className="px-4 pb-3 grid grid-cols-3 gap-2">
+          <QuickAction
+            icon="📷"
+            label={uploading ? "Uploading…" : "Photo"}
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading || pending}
+          />
+          <QuickAction
+            icon="⚔️"
+            label="Challenge"
+            onClick={onPickChallenge}
+          />
+          <QuickAction
+            icon="📊"
+            label="Compare"
+            onClick={onPickCompare}
+          />
+        </div>
+
         <input
           ref={fileRef}
           type="file"
@@ -327,98 +442,91 @@ function Composer({
             e.target.value = "";
           }}
         />
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading || pending}
-          className="shrink-0 w-9 h-9 rounded-lg text-[15px] flex items-center justify-center"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-          }}
-          aria-label="Attach photo"
-        >
-          {uploading ? "…" : "📷"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowChallenge(true)}
-          className="shrink-0 w-9 h-9 rounded-lg text-[15px] flex items-center justify-center"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-          }}
-          aria-label="Start challenge"
-        >
-          ⚔️
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowCompare(true)}
-          className="shrink-0 w-9 h-9 rounded-lg text-[15px] flex items-center justify-center"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-          }}
-          aria-label="Compare"
-        >
-          📊
-        </button>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          placeholder="Message the crew…"
-          rows={1}
-          className="flex-1 rounded-lg px-3 py-2 text-[13px] focus:outline-none resize-none"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            color: "var(--fg)",
-            maxHeight: 100,
-          }}
-        />
-        <button
-          type="button"
-          onClick={submit}
-          disabled={pending || uploading || (!text.trim() && !imageUrl)}
-          className="shrink-0 btn-accent w-9 h-9 rounded-lg text-[14px] font-semibold flex items-center justify-center"
-          aria-label="Send"
-        >
-          ➤
-        </button>
-      </div>
 
-      {showChallenge && (
-        <ChallengeModal
-          groupId={groupId}
-          exercises={exercises}
-          onClose={() => setShowChallenge(false)}
-          onCreated={() => {
-            setShowChallenge(false);
-            onSent();
-          }}
-        />
-      )}
-      {showCompare && (
-        <CompareModal
-          groupId={groupId}
-          currentUserId={currentUserId}
-          members={members}
-          exercises={exercises}
-          onClose={() => setShowCompare(false)}
-          onCreated={() => {
-            setShowCompare(false);
-            onSent();
-          }}
-        />
-      )}
+        <div className="px-4 pb-4">
+          {imageUrl && (
+            <div className="relative mb-2.5">
+              <img
+                src={imageUrl}
+                alt=""
+                className="rounded-xl w-full"
+                style={{ maxHeight: 200, objectFit: "cover" }}
+              />
+              <button
+                type="button"
+                onClick={() => setImageUrl(null)}
+                className="absolute top-1.5 right-1.5 text-[10px] px-2 py-1 rounded-md"
+                style={{ background: "rgba(0,0,0,0.7)", color: "#fff" }}
+              >
+                Remove
+              </button>
+            </div>
+          )}
+
+          <textarea
+            ref={textRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Share something with the crew…"
+            rows={3}
+            className="w-full rounded-xl px-3.5 py-3 text-[14px] focus:outline-none resize-none leading-relaxed"
+            style={{
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              color: "var(--fg)",
+            }}
+          />
+
+          {error && (
+            <p className="text-[12px] mt-1.5" style={{ color: "#f87171" }}>
+              {error}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={submit}
+            disabled={pending || uploading || (!text.trim() && !imageUrl)}
+            className="btn-accent w-full mt-3 py-3 rounded-xl text-[14px] font-semibold"
+          >
+            {pending ? "Posting…" : "Post"}
+          </button>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function QuickAction({
+  icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: string;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex flex-col items-center justify-center gap-1 rounded-xl py-3 active:scale-[0.97] transition-transform disabled:opacity-50"
+      style={{
+        background: "var(--bg-elevated)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <span className="text-[20px] leading-none">{icon}</span>
+      <span
+        className="label text-[10px]"
+        style={{ color: "var(--fg)" }}
+      >
+        {label}
+      </span>
+    </button>
   );
 }
 
@@ -768,6 +876,40 @@ function Message({
   const isOwn = post.user.id === currentUserId;
   const isAuto = !post.text && post.workoutId;
 
+  // Type drives the left accent stripe color and small header glyph so
+  // PRs, challenges, and chat messages each have a recognizable beat
+  // without breaking the unified card layout.
+  const cardType: "PR" | "CHALLENGE" | "COMPARE" | "WORKOUT" | "POST" =
+    post.cardType === "WORKOUT_PR"
+      ? "PR"
+      : post.cardType === "CHALLENGE"
+        ? "CHALLENGE"
+        : post.cardType === "COMPARE"
+          ? "COMPARE"
+          : isAuto
+            ? "WORKOUT"
+            : "POST";
+  const stripeColor =
+    cardType === "PR"
+      ? "#facc15"
+      : cardType === "CHALLENGE"
+        ? "var(--accent)"
+        : cardType === "COMPARE"
+          ? "#a78bfa"
+          : cardType === "WORKOUT"
+            ? "#60a5fa"
+            : "transparent";
+  const headerGlyph =
+    cardType === "PR"
+      ? "🏆"
+      : cardType === "CHALLENGE"
+        ? "⚔️"
+        : cardType === "COMPARE"
+          ? "📊"
+          : cardType === "WORKOUT"
+            ? "🏋️"
+            : null;
+
   const reactionCounts = post.reactions.reduce<Record<string, number>>(
     (acc, r) => {
       acc[r.type] = (acc[r.type] ?? 0) + 1;
@@ -778,6 +920,12 @@ function Message({
   const myReactions = new Set(
     post.reactions.filter((r) => r.user.id === currentUserId).map((r) => r.type)
   );
+  const fireCount = reactionCounts["🔥"] ?? 0;
+  const fireMine = myReactions.has("🔥");
+  const otherReactions = Object.entries(reactionCounts).filter(
+    ([t]) => t !== "🔥"
+  );
+  const totalReactions = post.reactions.length;
 
   const toggleReact = (type: string) => {
     startTransition(async () => {
@@ -798,52 +946,73 @@ function Message({
   };
 
   const remove = () => {
-    if (!confirm("Delete this message?")) return;
+    if (!confirm("Delete this post?")) return;
     startTransition(async () => {
       await deleteGroupPost(post.id);
       onChanged();
     });
   };
 
-  const timeStr = new Date(post.createdAt).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-
   return (
-    <div className="group flex gap-2 relative">
-      <div
-        className="w-8 h-8 rounded-md flex items-center justify-center text-[12px] font-semibold shrink-0"
-        style={{
-          background: isOwn ? "var(--accent)" : "var(--accent-dim)",
-          color: isOwn ? "#0a0a0a" : "var(--accent)",
-        }}
-      >
-        {post.user.name[0]?.toUpperCase()}
-      </div>
+    <div
+      className="rounded-2xl overflow-hidden relative"
+      style={{
+        background: "var(--bg-card)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      {stripeColor !== "transparent" && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 3,
+            background: stripeColor,
+          }}
+        />
+      )}
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2 mb-0.5">
-          <span className="text-[13px] font-semibold leading-none">
+      {/* Header */}
+      <div className="flex items-center gap-2.5 px-3.5 pt-3 pb-2">
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-semibold shrink-0"
+          style={{
+            background: isOwn ? "var(--accent)" : "var(--accent-dim)",
+            color: isOwn ? "#0a0a0a" : "var(--accent)",
+          }}
+        >
+          {post.user.name[0]?.toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-semibold leading-tight truncate">
+            {headerGlyph ? `${headerGlyph} ` : ""}
             {isOwn ? "You" : post.user.name}
-          </span>
-          <span
-            className="text-[10px] nums"
-            style={{
-              color: "var(--fg-dim)",
-              fontFamily: "var(--font-geist-mono)",
-            }}
-          >
-            {timeStr}
-          </span>
-          <span
-            className="text-[10px]"
+          </p>
+          <p
+            className="text-[10px] leading-tight mt-0.5"
             style={{ color: "var(--fg-dim)" }}
           >
-            · {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
-          </span>
+            {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
+          </p>
         </div>
+        {isOwn && (
+          <button
+            onClick={remove}
+            disabled={pending}
+            aria-label="Delete post"
+            className="text-[14px] px-2 py-1 rounded-md"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            ⋯
+          </button>
+        )}
+      </div>
 
+      {/* Body */}
+      <div className="px-3.5 pb-2.5">
         {post.cardType === "CHALLENGE" && post.challenge ? (
           <ChallengeCard
             challenge={post.challenge}
@@ -861,19 +1030,36 @@ function Message({
         ) : isAuto && post.workout ? (
           <a
             href={`/workout/${post.workout.id}`}
-            className="inline-block rounded-lg px-3 py-2 text-[13px]"
+            className="block rounded-xl px-3.5 py-3 active:scale-[0.99] transition-transform"
             style={{
               background: "var(--bg-elevated)",
               border: "1px solid var(--border)",
             }}
           >
-            <span style={{ color: "var(--fg-dim)" }}>🏋️ Just logged </span>
-            <span className="font-semibold">{post.workout.title}</span>
+            <p
+              className="label text-[9px] mb-1"
+              style={{ color: "#60a5fa" }}
+            >
+              Logged a workout
+            </p>
+            <p className="text-[16px] font-bold tracking-tight">
+              {post.workout.title}
+            </p>
+            <p
+              className="text-[10px] mt-0.5 nums"
+              style={{
+                color: "var(--fg-dim)",
+                fontFamily: "var(--font-geist-mono)",
+              }}
+            >
+              {format(new Date(post.workout.date), "MMM d")} ·{" "}
+              {post.workout.type}
+            </p>
           </a>
         ) : (
           <>
             {post.text && (
-              <p className="text-[13px] whitespace-pre-wrap break-words leading-relaxed">
+              <p className="text-[14px] whitespace-pre-wrap break-words leading-relaxed">
                 {post.text}
               </p>
             )}
@@ -881,10 +1067,10 @@ function Message({
               <img
                 src={post.imageUrl}
                 alt=""
-                className="rounded-lg mt-1.5"
+                className={`rounded-xl ${post.text ? "mt-2" : ""}`}
                 style={{
-                  maxHeight: 320,
-                  maxWidth: "100%",
+                  maxHeight: 380,
+                  width: "100%",
                   objectFit: "cover",
                 }}
               />
@@ -892,7 +1078,7 @@ function Message({
             {post.workout && post.text && (
               <a
                 href={`/workout/${post.workout.id}`}
-                className="inline-block mt-1.5 rounded-lg px-2.5 py-1.5 text-[11px]"
+                className="inline-flex items-center gap-1.5 mt-2 rounded-lg px-2.5 py-1.5 text-[11px]"
                 style={{
                   background: "var(--bg-elevated)",
                   border: "1px solid var(--border)",
@@ -903,177 +1089,164 @@ function Message({
             )}
           </>
         )}
+      </div>
 
-        {(Object.keys(reactionCounts).length > 0 || showReact) && (
-          <div className="flex items-center gap-1 mt-1.5 flex-wrap relative">
-            {Object.entries(reactionCounts).map(([type, count]) => {
-              const mine = myReactions.has(type);
-              return (
-                <button
-                  key={type}
-                  onClick={() => toggleReact(type)}
-                  className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-md"
-                  style={{
-                    background: mine
-                      ? "var(--accent-dim)"
-                      : "var(--bg-elevated)",
-                    border: mine
-                      ? "1px solid rgba(34,197,94,0.4)"
-                      : "1px solid var(--border)",
-                    color: mine ? "var(--accent)" : "var(--fg)",
-                  }}
-                >
-                  <span className="text-[13px]">{type}</span>
-                  <span
-                    className="nums font-semibold"
-                    style={{ fontFamily: "var(--font-geist-mono)" }}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-            <button
-              onClick={() => setShowReact((v) => !v)}
-              className="w-7 h-6 rounded-md flex items-center justify-center text-[11px]"
-              style={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
-                color: "var(--fg-muted)",
-              }}
-              aria-label="Add reaction"
-            >
-              😀<span className="text-[9px] ml-0.5">+</span>
-            </button>
+      {/* Comments */}
+      {post.comments.length > 0 && (
+        <div
+          className="mx-3.5 mb-2 pl-2.5 py-1 space-y-1"
+          style={{ borderLeft: "2px solid var(--border)" }}
+        >
+          {post.comments.map((c) => (
+            <p key={c.id} className="text-[12px] leading-snug">
+              <span className="font-semibold">{c.user.name}</span>{" "}
+              <span style={{ color: "var(--fg-muted)" }}>{c.text}</span>
+            </p>
+          ))}
+        </div>
+      )}
 
-            {showReact && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowReact(false)}
-                />
-                <div
-                  className="absolute z-50 flex gap-0.5 rounded-full px-2 py-1.5"
-                  style={{
-                    top: -48,
-                    left: 0,
-                    background: "var(--bg-card)",
-                    border: "1px solid var(--border-strong)",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-                  }}
-                >
-                  {REACTIONS.map((r) => (
-                    <button
-                      key={r}
-                      onClick={() => toggleReact(r)}
-                      className="text-[18px] w-8 h-8 rounded-full transition-transform hover:scale-125"
-                      style={{
-                        background: myReactions.has(r)
-                          ? "var(--accent-dim)"
-                          : "transparent",
-                      }}
-                    >
-                      {r}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
+      {/* Action row */}
+      <div
+        className="flex items-stretch px-2 py-1 relative"
+        style={{ borderTop: "1px solid var(--border)" }}
+      >
+        <button
+          onClick={() => toggleReact("🔥")}
+          disabled={pending}
+          className="flex items-center justify-center gap-1.5 flex-1 py-2 rounded-lg text-[12px] active:scale-[0.97] transition-transform"
+          style={{
+            color: fireMine ? "var(--accent)" : "var(--fg-muted)",
+            fontWeight: fireMine ? 600 : 500,
+          }}
+          aria-label={fireMine ? "Remove fire" : "Fire"}
+        >
+          <span className="text-[15px]">🔥</span>
+          <span>{fireCount > 0 ? fireCount : "Hype"}</span>
+        </button>
 
-        {Object.keys(reactionCounts).length === 0 && !showReact && (
-          <div className="flex items-center gap-2 mt-1">
-            <button
-              onClick={() => setShowReact(true)}
-              className="text-[10px] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              😀 react
-            </button>
-            <button
-              onClick={() => setCommenting((v) => !v)}
-              className="text-[10px] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              💬 reply
-            </button>
-            {isOwn && (
-              <button
-                onClick={remove}
-                disabled={pending}
-                className="text-[10px] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                style={{ color: "var(--fg-dim)" }}
-              >
-                delete
-              </button>
-            )}
-          </div>
-        )}
+        <button
+          onClick={() => setCommenting((v) => !v)}
+          className="flex items-center justify-center gap-1.5 flex-1 py-2 rounded-lg text-[12px] active:scale-[0.97] transition-transform"
+          style={{ color: "var(--fg-muted)" }}
+          aria-label="Reply"
+        >
+          <span className="text-[14px]">💬</span>
+          <span>
+            {post.comments.length > 0 ? post.comments.length : "Reply"}
+          </span>
+        </button>
 
-        {(Object.keys(reactionCounts).length > 0 || showReact) && (
-          <div className="flex items-center gap-2 mt-1">
-            <button
-              onClick={() => setCommenting((v) => !v)}
-              className="text-[10px]"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              💬 reply
-            </button>
-            {isOwn && (
-              <button
-                onClick={remove}
-                disabled={pending}
-                className="text-[10px]"
-                style={{ color: "var(--fg-dim)" }}
-              >
-                delete
-              </button>
-            )}
-          </div>
-        )}
+        <button
+          onClick={() => setShowReact((v) => !v)}
+          className="flex items-center justify-center gap-1.5 flex-1 py-2 rounded-lg text-[12px] active:scale-[0.97] transition-transform"
+          style={{ color: "var(--fg-muted)" }}
+          aria-label="More reactions"
+        >
+          <span className="text-[14px]">😀</span>
+          <span>React</span>
+        </button>
 
-        {post.comments.length > 0 && (
-          <div
-            className="mt-2 pl-2 space-y-1"
-            style={{ borderLeft: "2px solid var(--border)" }}
-          >
-            {post.comments.map((c) => (
-              <p key={c.id} className="text-[12px] leading-snug">
-                <span className="font-semibold">{c.user.name}</span>{" "}
-                <span style={{ color: "var(--fg-muted)" }}>{c.text}</span>
-              </p>
-            ))}
-          </div>
-        )}
-
-        {commenting && (
-          <div className="mt-2 flex gap-1">
-            <input
-              autoFocus
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submitComment();
-              }}
-              placeholder="Reply in thread…"
-              className="flex-1 rounded-lg px-2 py-1 text-[12px] focus:outline-none"
-              style={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
-                color: "var(--fg)",
-              }}
+        {showReact && (
+          <>
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setShowReact(false)}
             />
-            <button
-              onClick={submitComment}
-              disabled={pending || !commentText.trim()}
-              className="btn-accent px-2 rounded-lg text-[11px]"
+            <div
+              className="absolute z-50 flex gap-0.5 rounded-full px-2 py-1.5"
+              style={{
+                bottom: 44,
+                right: 8,
+                background: "var(--bg-card)",
+                border: "1px solid var(--border-strong)",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+              }}
             >
-              Send
-            </button>
-          </div>
+              {REACTIONS.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => toggleReact(r)}
+                  className="text-[18px] w-8 h-8 rounded-full transition-transform active:scale-125"
+                  style={{
+                    background: myReactions.has(r)
+                      ? "var(--accent-dim)"
+                      : "transparent",
+                  }}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </>
         )}
       </div>
+
+      {/* Other-reaction summary (non-🔥) sits just above action row */}
+      {(otherReactions.length > 0 || (totalReactions > 0 && fireCount === 0)) && (
+        <div
+          className="flex items-center gap-1 px-3.5 pb-2 flex-wrap"
+          style={{ marginTop: -4 }}
+        >
+          {otherReactions.map(([type, count]) => {
+            const mine = myReactions.has(type);
+            return (
+              <button
+                key={type}
+                onClick={() => toggleReact(type)}
+                className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-full"
+                style={{
+                  background: mine
+                    ? "var(--accent-dim)"
+                    : "var(--bg-elevated)",
+                  border: mine
+                    ? "1px solid rgba(34,197,94,0.4)"
+                    : "1px solid var(--border)",
+                  color: mine ? "var(--accent)" : "var(--fg)",
+                }}
+              >
+                <span>{type}</span>
+                <span
+                  className="nums"
+                  style={{ fontFamily: "var(--font-geist-mono)" }}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {commenting && (
+        <div
+          className="flex gap-1.5 px-3 py-2"
+          style={{ borderTop: "1px solid var(--border)" }}
+        >
+          <input
+            autoFocus
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitComment();
+            }}
+            placeholder="Reply…"
+            className="flex-1 rounded-lg px-2.5 py-2 text-[12px] focus:outline-none"
+            style={{
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              color: "var(--fg)",
+            }}
+          />
+          <button
+            onClick={submitComment}
+            disabled={pending || !commentText.trim()}
+            className="btn-accent px-3 rounded-lg text-[12px]"
+          >
+            Send
+          </button>
+        </div>
+      )}
     </div>
   );
 }
