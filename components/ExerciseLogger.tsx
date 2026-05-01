@@ -114,6 +114,7 @@ type SetData = {
   reps: string;
   rir: string;
   notes: string;
+  completed?: boolean;
 };
 
 type ExerciseData = {
@@ -288,10 +289,10 @@ export default function ExerciseLogger({
     exIdx: number,
     setIdx: number,
     field: keyof SetData,
-    value: string
+    value: string | boolean
   ) => {
     const updated = [...exercises];
-    (updated[exIdx].sets[setIdx] as unknown as Record<string, string>)[field] = value;
+    (updated[exIdx].sets[setIdx] as unknown as Record<string, string | boolean>)[field] = value;
     setExercises(updated);
   };
 
@@ -1023,19 +1024,18 @@ function SetRow({
   setIdx: number;
   exerciseName: string;
   restSeconds: number;
-  onUpdate: (field: keyof SetData, val: string) => void;
+  onUpdate: (field: keyof SetData, val: string | boolean) => void;
   onRemove: () => void;
   isWarmup: boolean;
 }) {
-  // Local "completed" state for working sets — ephemeral UI flag that
-  // also gates the auto rest timer. Toggling on fires the timer once.
-  // Editing a previously-saved log won't show set rows in done state
-  // because state is per-mount.
-  const [done, setDone] = useState(false);
+  // "completed" lives on SetData so the green check survives navigation
+  // (opening the Coach, switching apps, browser reload). The rest timer
+  // only fires on the false→true transition.
+  const done = !!set.completed;
   const toggleDone = () => {
     if (isWarmup) return;
     const next = !done;
-    setDone(next);
+    onUpdate("completed", next);
     if (next && restSeconds > 0) {
       const n = parseInt(set.reps.trim(), 10);
       if (Number.isFinite(n) && n > 0) {

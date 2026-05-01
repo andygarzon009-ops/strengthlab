@@ -44,6 +44,7 @@ type SetData = {
   reps: string;
   rir: string;
   notes: string;
+  completed?: boolean;
 };
 
 type ExerciseData = {
