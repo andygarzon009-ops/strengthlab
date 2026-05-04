@@ -169,12 +169,16 @@ export async function detectAndSavePRs(
       )
     );
 
-    // Identify the set with the heaviest weight (and its reps)
-    const heaviestSet = workingSets.reduce(
-      (best: any, s: any) =>
-        (s.weight ?? 0) > (best.weight ?? 0) ? s : best,
-      workingSets[0]
-    );
+    // Identify the set with the heaviest weight, breaking ties on more
+    // reps so 270×6 outranks 270×5 — adding a rep at the PR weight is
+    // a real progression and should register as a WEIGHT PR.
+    const heaviestSet = workingSets.reduce((best: any, s: any) => {
+      const sw = s.weight ?? 0;
+      const bw = best.weight ?? 0;
+      if (sw > bw) return s;
+      if (sw === bw && (s.reps ?? 0) > (best.reps ?? 0)) return s;
+      return best;
+    }, workingSets[0]);
     const maxWeight = heaviestSet.weight ?? 0;
     const weightAtMaxReps = heaviestSet.reps ?? null;
 
@@ -200,7 +204,12 @@ export async function detectAndSavePRs(
 
     const exName = ex.exercise?.name ?? "";
 
-    if (maxWeight > 0 && (!weightPR || maxWeight > weightPR.value)) {
+    const beatsPriorWeight =
+      !weightPR ||
+      maxWeight > weightPR.value ||
+      (maxWeight === weightPR.value &&
+        (weightAtMaxReps ?? 0) > (weightPR.reps ?? 0));
+    if (maxWeight > 0 && beatsPriorWeight) {
       prCreates.push({
         userId,
         exerciseId: ex.exerciseId,
