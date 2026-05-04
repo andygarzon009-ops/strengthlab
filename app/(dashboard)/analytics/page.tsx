@@ -161,7 +161,11 @@ export default async function AnalyticsPage() {
             const weight = s.weight ?? 0;
             const reps = s.reps ?? 0;
             if (g.targetReps != null && reps < g.targetReps) continue;
-            if (weight > bestWeight) {
+            // Tie-break on reps so 270×6 outranks 270×5 at the same load.
+            if (
+              weight > bestWeight ||
+              (weight === bestWeight && reps > (bestReps ?? 0))
+            ) {
               bestWeight = weight;
               bestReps = reps;
             }
@@ -205,6 +209,15 @@ export default async function AnalyticsPage() {
               100 -
                 ((currentValue - g.targetValue) / g.targetValue) * 100 * 5
             );
+    } else if (g.type === "STRENGTH" && g.targetReps != null && g.targetReps > 0) {
+      // Estimated 1RM (Epley) on both sides so an extra rep at the
+      // same load actually moves the bar — pure weight ratio would
+      // miss progress like 270×5 → 270×6 against a 315×5 target.
+      const targetOneRM = g.targetValue * (1 + g.targetReps / 30);
+      const reps = currentReps ?? 0;
+      const currentOneRM =
+        currentValue > 0 && reps > 0 ? currentValue * (1 + reps / 30) : 0;
+      progressPct = targetOneRM > 0 ? (currentOneRM / targetOneRM) * 100 : 0;
     } else {
       progressPct =
         g.targetValue > 0 ? (currentValue / g.targetValue) * 100 : 0;
