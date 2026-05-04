@@ -525,7 +525,7 @@ function formatNumber(v: number): string {
 function unitSuffix(unit: string | null): string {
   if (!unit) return "";
   if (unit === "sessions/week") return "";
-  if (unit === PLATE_UNIT) return "p/s";
+  if (unit === PLATE_UNIT) return "plates per side";
   return unit;
 }
 
