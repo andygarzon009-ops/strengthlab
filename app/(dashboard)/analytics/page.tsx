@@ -259,6 +259,7 @@ export default async function AnalyticsPage() {
       const tail = missed.length > 5 ? `, +${missed.length - 5} more` : "";
       weakSpots.push({
         id: "missed-priority-muscles",
+        kind: "missed-muscles",
         severity: missed.length >= 5 ? "high" : "medium",
         title: `${missed.length} priority muscle${missed.length === 1 ? "" : "s"} missed this week`,
         detail: `No working sets for: ${sample}${tail}.`,
@@ -306,6 +307,8 @@ export default async function AnalyticsPage() {
       if (maxW - Math.min(...recentWeights) < 0.01) {
         weakSpots.push({
           id: `plateau-${data.name}`,
+          kind: "plateau",
+          subject: data.name,
           severity: "medium",
           title: `${data.name} has plateaued`,
           detail: `Last 3 sessions stuck at ${recentWeights[0]}lb. Time to push or swap rep range.`,
@@ -321,6 +324,8 @@ export default async function AnalyticsPage() {
       ) {
         weakSpots.push({
           id: `rep-stall-${data.name}`,
+          kind: "rep-stall",
+          subject: data.name,
           severity: "medium",
           title: `${data.name} reps have stalled`,
           detail: `Last 3 sessions stuck at ${recentReps[0]} reps. Add a rep, slow the tempo, or load the lift.`,
@@ -333,6 +338,7 @@ export default async function AnalyticsPage() {
   if (user?.trainingDays && last7.length < user.trainingDays) {
     weakSpots.push({
       id: "freq-gap",
+      kind: "freq-gap",
       severity:
         user.trainingDays - last7.length >= 2 ? "high" : "medium",
       title: `Under your weekly target`,
@@ -350,6 +356,7 @@ export default async function AnalyticsPage() {
     );
     weakSpots.push({
       id: "volume-drop",
+      kind: "volume-drop",
       severity: dropPct >= 40 ? "high" : "medium",
       title: `Volume down ${dropPct}% vs 4-wk avg`,
       detail: `${fmtVol(thisWeekVolume)} kg this week vs ${fmtVol(avgWeeklyVolumePrior4)} kg average. Add a set or push the weight up next session.`,
@@ -380,6 +387,7 @@ export default async function AnalyticsPage() {
     if (daysSinceLast === 0 && trailingStreak >= 5) {
       weakSpots.push({
         id: "overtraining",
+        kind: "overtraining",
         severity: "medium",
         title: `${trailingStreak} consecutive training days`,
         detail: `Consider a recovery day. Fatigue compounds — a rest day often unlocks next week's PRs.`,
