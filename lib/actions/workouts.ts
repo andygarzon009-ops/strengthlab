@@ -182,21 +182,29 @@ export async function detectAndSavePRs(
     const maxWeight = heaviestSet.weight ?? 0;
     const weightAtMaxReps = heaviestSet.reps ?? null;
 
-    // Identify the set with the most reps (and its weight)
-    const highestRepSet = workingSets.reduce(
-      (best: any, s: any) => ((s.reps ?? 0) > (best.reps ?? 0) ? s : best),
-      workingSets[0]
-    );
+    // Identify the set with the most reps, breaking ties on heavier
+    // weight — 25 lb × 8 reps outranks 0 lb × 8 reps as a rep PR.
+    const highestRepSet = workingSets.reduce((best: any, s: any) => {
+      const sr = s.reps ?? 0;
+      const br = best.reps ?? 0;
+      if (sr > br) return s;
+      if (sr === br && (s.weight ?? 0) > (best.weight ?? 0)) return s;
+      return best;
+    }, workingSets[0]);
     const maxReps = highestRepSet.reps ?? 0;
+    const weightAtMaxRepSet = highestRepSet.weight ?? 0;
 
     const [weightPR, repsPR] = await Promise.all([
       prisma.personalRecord.findFirst({
         where: { userId, exerciseId: { in: siblingIds }, type: "WEIGHT" },
         orderBy: { value: "desc" },
       }),
+      // For REPS PRs, `reps` holds the rep count and `value` holds the
+      // weight at which those reps were performed. Order by reps first,
+      // then weight, so the prior PR is the strongest historical set.
       prisma.personalRecord.findFirst({
         where: { userId, exerciseId: { in: siblingIds }, type: "REPS" },
-        orderBy: { value: "desc" },
+        orderBy: [{ reps: "desc" }, { value: "desc" }],
       }),
     ]);
 
@@ -227,12 +235,16 @@ export async function detectAndSavePRs(
         reps: weightAtMaxReps,
       });
     }
-    if (maxReps > 0 && (!repsPR || maxReps > repsPR.value)) {
+    const beatsPriorReps =
+      !repsPR ||
+      maxReps > (repsPR.reps ?? 0) ||
+      (maxReps === (repsPR.reps ?? 0) && weightAtMaxRepSet > repsPR.value);
+    if (maxReps > 0 && beatsPriorReps) {
       prCreates.push({
         userId,
         exerciseId: ex.exerciseId,
         type: "REPS",
-        value: maxReps,
+        value: weightAtMaxRepSet,
         reps: maxReps,
         workoutId,
         date: workoutDate,
@@ -241,7 +253,7 @@ export async function detectAndSavePRs(
         exerciseId: ex.exerciseId,
         exerciseName: exName,
         type: "REPS",
-        value: maxReps,
+        value: weightAtMaxRepSet,
         reps: maxReps,
       });
     }

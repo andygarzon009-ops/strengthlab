@@ -1440,7 +1440,9 @@ function WorkoutPRCard({
             <span style={{ color: "var(--fg-muted)" }}>
               {pr.type === "WEIGHT"
                 ? `${pr.value} lb${pr.reps ? ` × ${pr.reps}` : ""}`
-                : `${pr.value} reps`}
+                : pr.value > 0
+                  ? `${pr.reps ?? 0} reps @ ${pr.value} lb`
+                  : `${pr.reps ?? 0} reps`}
             </span>
           </p>
         ))}

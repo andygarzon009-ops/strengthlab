@@ -265,7 +265,9 @@ export default async function WorkoutDetailPage({
                   {pr.type === "WEIGHT"
                     ? `${pr.value}lb`
                     : pr.type === "REPS"
-                      ? `${pr.value} reps`
+                      ? pr.value > 0
+                        ? `${pr.reps ?? 0} reps @ ${pr.value}lb`
+                        : `${pr.reps ?? 0} reps`
                       : `${pr.value}lb vol`}
                 </span>
               </p>
