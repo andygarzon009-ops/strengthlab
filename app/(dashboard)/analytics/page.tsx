@@ -289,7 +289,12 @@ export default async function AnalyticsPage() {
   }
   for (const data of Object.values(exerciseHistory)) {
     const recent = data.topWeights.slice(-3);
-    if (recent.length >= 3 && Math.max(...recent) - Math.min(...recent) < 0.01) {
+    if (recent.length < 3) continue;
+    // Bodyweight / unloaded lifts have weight=0 every session — they
+    // progress on reps, not load, so flagging them as "plateaued at
+    // 0 lb" is noise.
+    if (Math.max(...recent) <= 0) continue;
+    if (Math.max(...recent) - Math.min(...recent) < 0.01) {
       weakSpots.push({
         id: `plateau-${data.name}`,
         severity: "medium",
@@ -326,34 +331,32 @@ export default async function AnalyticsPage() {
     });
   }
 
-  // Overtraining — 5+ consecutive days
+  // Overtraining — only fires when the active streak ending today is
+  // 5+ days. Earlier code reported the largest streak anywhere in the
+  // last 10 sessions, so a 5-day run that ended last week still tripped
+  // the warning even after a couple of rest days.
   if (workouts.length >= 5) {
     const recentDates = [...new Set(
       workouts
         .slice(-10)
         .map((w) => format(new Date(w.date), "yyyy-MM-dd"))
     )].sort();
-    let maxStreak = 1;
-    let currentStreak = 1;
-    for (let i = 1; i < recentDates.length; i++) {
+    let trailingStreak = 1;
+    for (let i = recentDates.length - 1; i > 0; i--) {
       const diff = differenceInDays(
         new Date(recentDates[i]),
         new Date(recentDates[i - 1])
       );
-      if (diff === 1) {
-        currentStreak++;
-        maxStreak = Math.max(maxStreak, currentStreak);
-      } else {
-        currentStreak = 1;
-      }
+      if (diff === 1) trailingStreak++;
+      else break;
     }
     const lastDate = recentDates[recentDates.length - 1];
     const daysSinceLast = differenceInDays(new Date(), new Date(lastDate));
-    if (daysSinceLast === 0 && maxStreak >= 5) {
+    if (daysSinceLast === 0 && trailingStreak >= 5) {
       weakSpots.push({
         id: "overtraining",
         severity: "medium",
-        title: `${maxStreak} consecutive training days`,
+        title: `${trailingStreak} consecutive training days`,
         detail: `Consider a recovery day. Fatigue compounds — a rest day often unlocks next week's PRs.`,
       });
     }
