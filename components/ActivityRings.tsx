@@ -60,7 +60,7 @@ export default function ActivityRings({
       label: "Muscle coverage",
       value: muscleGroups,
       goal: Math.max(1, muscleGroupsGoal),
-      unit: `of ${Math.max(1, muscleGroupsGoal)} groups`,
+      unit: `of ${Math.max(1, muscleGroupsGoal)} muscles`,
       color: "#a855f7",
     },
   ];

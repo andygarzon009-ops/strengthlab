@@ -774,6 +774,35 @@ export function broadGroupForSpecific(
   return BROAD_OF_SPECIFIC[specific] ?? null;
 }
 
+// Curated list of muscles a balanced training week should hit. Tighter
+// than the 6 broad groups (Chest/Back/Shoulders/…) so the coverage
+// ring actually pushes the user toward parts that get skipped — rear
+// delts, side delts, calves, hamstrings, etc. Order is roughly the
+// order users think about training their body.
+export const PRIORITY_MUSCLES = [
+  "Pec Major",
+  "Lats",
+  "Traps",
+  "Front Delts",
+  "Side Delts",
+  "Rear Delts",
+  "Biceps",
+  "Triceps",
+  "Quads",
+  "Hamstrings",
+  "Glutes",
+  "Calves",
+  "Abs",
+] as const;
+export type PriorityMuscle = (typeof PRIORITY_MUSCLES)[number];
+
+export function isPriorityMuscle(
+  specific: string | null | undefined
+): specific is PriorityMuscle {
+  if (!specific) return false;
+  return (PRIORITY_MUSCLES as readonly string[]).includes(specific);
+}
+
 // Isometric / timed movements. The "reps" field stores SECONDS for these.
 const TIMED_PATTERNS = [
   /\(sec\)/i,

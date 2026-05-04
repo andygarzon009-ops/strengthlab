@@ -8,7 +8,8 @@ import {
   isMachineExercise,
   isTimedExercise,
   specificMuscleFor,
-  broadGroupForSpecific,
+  PRIORITY_MUSCLES,
+  isPriorityMuscle,
 } from "@/lib/exercises";
 import { format, subDays, differenceInDays } from "date-fns";
 import PRList from "@/components/PRList";
@@ -90,35 +91,28 @@ export default async function AnalyticsPage() {
       .filter((s) => s.type === "WORKING")
       .reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
 
-  // 6 broad categories used by the ring. Specific muscle is derived from
-  // the exercise name (rear-delt rows get Shoulders, not Back).
-  const BROAD_GROUPS = [
-    "Chest",
-    "Back",
-    "Shoulders",
-    "Arms",
-    "Legs",
-    "Core",
-  ] as const;
-  const broadGroupFor = (name: string): string | null =>
-    broadGroupForSpecific(specificMuscleFor(name));
-  const muscleGroupsIn = (list: typeof workouts): number => {
+  // The activity ring uses a tighter 13-muscle list — hitting all 6
+  // broad groups was automatic on a normal split, so the ring sat at
+  // 100% all the time. Priority muscles surface gaps the broad-group
+  // bucket hides (rear delts, side delts, calves, hamstrings, etc.).
+  const priorityMusclesHitIn = (list: typeof workouts): Set<string> => {
     const hit = new Set<string>();
     for (const w of list) {
       if (shapeForType(w.type) !== "STRENGTH") continue;
       for (const we of w.exercises) {
         const hasWorkingSet = we.sets.some((s) => s.type === "WORKING");
         if (!hasWorkingSet) continue;
-        const g = broadGroupFor(we.exercise.name);
-        if (g) hit.add(g);
+        const m = specificMuscleFor(we.exercise.name);
+        if (isPriorityMuscle(m)) hit.add(m);
       }
     }
-    return hit.size;
+    return hit;
   };
 
   const thisWeekSessions = last7.length;
   const thisWeekVolume = volumeIn(last7);
-  const thisWeekMuscleGroups = muscleGroupsIn(last7);
+  const thisWeekPriorityMuscles = priorityMusclesHitIn(last7);
+  const thisWeekMuscleGroups = thisWeekPriorityMuscles.size;
 
   // Average of previous 4 full weeks (5w → 1w ago), not the current week
   const prior4Start = subDays(new Date(), 35);
@@ -132,7 +126,7 @@ export default async function AnalyticsPage() {
   const sessionsGoal = user?.trainingDays ?? 4;
   const volumeGoal =
     avgWeeklyVolumePrior4 > 0 ? avgWeeklyVolumePrior4 : thisWeekVolume || 5000;
-  const muscleGroupsGoal = BROAD_GROUPS.length;
+  const muscleGroupsGoal = PRIORITY_MUSCLES.length;
 
   const prsThisWeek = prs.filter(
     (p) => new Date(p.date) >= subDays(new Date(), 7)
@@ -251,25 +245,23 @@ export default async function AnalyticsPage() {
   // ---------- Weak spots ----------
   const weakSpots: WeakSpot[] = [];
 
-  // Broad muscle groups (Chest/Back/Shoulders/Arms/Legs/Core) not hit this
-  // week — mirrors the Muscle coverage activity ring.
+  // Priority muscles missed this week — mirrors the Muscle coverage
+  // ring. Surfaces the muscles a balanced trainee tends to under-hit
+  // (rear delts, side delts, calves, hamstrings) rather than just the
+  // 6 broad buckets, which a normal split fills automatically.
   if (last14.length > 0) {
-    const hitThisWeek = new Set<string>();
-    for (const w of last7) {
-      if (shapeForType(w.type) !== "STRENGTH") continue;
-      for (const we of w.exercises) {
-        if (!we.sets.some((s) => s.type === "WORKING")) continue;
-        const g = broadGroupFor(we.exercise.name);
-        if (g) hitThisWeek.add(g);
-      }
-    }
-    const missed = BROAD_GROUPS.filter((g) => !hitThisWeek.has(g));
+    const missed = PRIORITY_MUSCLES.filter(
+      (m) => !thisWeekPriorityMuscles.has(m)
+    );
     if (missed.length > 0) {
+      // Show a sample so the detail line stays scannable.
+      const sample = missed.slice(0, 5).join(", ");
+      const tail = missed.length > 5 ? `, +${missed.length - 5} more` : "";
       weakSpots.push({
-        id: "missed-mg-week",
-        severity: missed.length >= 3 ? "high" : "medium",
-        title: `${missed.length} muscle group${missed.length === 1 ? "" : "s"} missed this week`,
-        detail: `No working sets for: ${missed.join(", ")}.`,
+        id: "missed-priority-muscles",
+        severity: missed.length >= 5 ? "high" : "medium",
+        title: `${missed.length} priority muscle${missed.length === 1 ? "" : "s"} missed this week`,
+        detail: `No working sets for: ${sample}${tail}.`,
       });
     }
   }
