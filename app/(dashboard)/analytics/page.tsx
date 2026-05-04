@@ -239,6 +239,15 @@ export default async function AnalyticsPage() {
     };
   });
 
+  const activeTargetCount = goalsWithProgress.length;
+  const targetsAvgPct =
+    activeTargetCount > 0
+      ? goalsWithProgress.reduce(
+          (sum, g) => sum + Math.min(100, Math.max(0, g.progressPct)),
+          0
+        ) / activeTargetCount
+      : 0;
+
   // ---------- Weak spots ----------
   const weakSpots: WeakSpot[] = [];
 
@@ -612,6 +621,8 @@ export default async function AnalyticsPage() {
             muscleGroups={thisWeekMuscleGroups}
             muscleGroupsGoal={muscleGroupsGoal}
             prsThisWeek={prsThisWeek}
+            targetsAvgPct={targetsAvgPct}
+            targetsCount={activeTargetCount}
           />
 
           {topPRs.length > 0 && (

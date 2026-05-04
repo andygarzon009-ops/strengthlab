@@ -6,6 +6,9 @@ type Ring = {
   unit?: string;
   color: string;
   format?: (v: number) => string;
+  // When the formatted display is itself a percentage, suppress the
+  // duplicated "% of goal" line below the value.
+  hidePct?: boolean;
 };
 
 export default function ActivityRings({
@@ -16,6 +19,8 @@ export default function ActivityRings({
   muscleGroups,
   muscleGroupsGoal,
   prsThisWeek,
+  targetsAvgPct,
+  targetsCount,
 }: {
   sessions: number;
   sessionsGoal: number;
@@ -24,6 +29,8 @@ export default function ActivityRings({
   muscleGroups: number;
   muscleGroupsGoal: number;
   prsThisWeek: number;
+  targetsAvgPct: number;
+  targetsCount: number;
 }) {
   const fmtVolume = (v: number) => {
     if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
@@ -57,6 +64,21 @@ export default function ActivityRings({
       color: "#a855f7",
     },
   ];
+  if (targetsCount > 0) {
+    rings.push({
+      key: "targets",
+      label: "Targets",
+      // Goal=100 so the ring renders the average % directly. Display
+      // formats as "Nx%" so the headline number means something to a
+      // user glancing at the side panel.
+      value: targetsAvgPct,
+      goal: 100,
+      unit: `avg of ${targetsCount} target${targetsCount === 1 ? "" : "s"}`,
+      color: "#38bdf8",
+      format: (v) => `${Math.round(v)}%`,
+      hidePct: true,
+    });
+  }
 
   return (
     <div className="card p-4 mb-4">
@@ -130,15 +152,17 @@ export default function ActivityRings({
                     </span>
                   )}
                 </p>
-                <p
-                  className="text-[10px] nums mt-0.5"
-                  style={{
-                    color: pct >= 100 ? r.color : "var(--fg-dim)",
-                    fontFamily: "var(--font-geist-mono)",
-                  }}
-                >
-                  {pct}%
-                </p>
+                {!r.hidePct && (
+                  <p
+                    className="text-[10px] nums mt-0.5"
+                    style={{
+                      color: pct >= 100 ? r.color : "var(--fg-dim)",
+                      fontFamily: "var(--font-geist-mono)",
+                    }}
+                  >
+                    {pct}%
+                  </p>
+                )}
               </div>
             );
           })}
