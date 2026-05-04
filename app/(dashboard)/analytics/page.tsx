@@ -271,36 +271,60 @@ export default async function AnalyticsPage() {
   );
   const exerciseHistory: Record<
     string,
-    { name: string; topWeights: number[] }
+    { name: string; topWeights: number[]; topReps: number[] }
   > = {};
   for (const w of strengthWorkouts) {
     for (const ex of w.exercises) {
       const ws = ex.sets.filter((s) => s.type === "WORKING");
       if (ws.length === 0) continue;
-      const top = Math.max(...ws.map((s) => s.weight ?? 0));
+      const topWeight = Math.max(...ws.map((s) => s.weight ?? 0));
+      // Top reps at the heaviest weight — for bodyweight lifts that's
+      // just the highest-rep set since weight is 0 across the board.
+      const topReps = ws
+        .filter((s) => (s.weight ?? 0) === topWeight)
+        .reduce((m, s) => Math.max(m, s.reps ?? 0), 0);
       if (!exerciseHistory[ex.exerciseId]) {
         exerciseHistory[ex.exerciseId] = {
           name: ex.exercise.name,
           topWeights: [],
+          topReps: [],
         };
       }
-      exerciseHistory[ex.exerciseId].topWeights.push(top);
+      exerciseHistory[ex.exerciseId].topWeights.push(topWeight);
+      exerciseHistory[ex.exerciseId].topReps.push(topReps);
     }
   }
   for (const data of Object.values(exerciseHistory)) {
-    const recent = data.topWeights.slice(-3);
-    if (recent.length < 3) continue;
-    // Bodyweight / unloaded lifts have weight=0 every session — they
-    // progress on reps, not load, so flagging them as "plateaued at
-    // 0 lb" is noise.
-    if (Math.max(...recent) <= 0) continue;
-    if (Math.max(...recent) - Math.min(...recent) < 0.01) {
-      weakSpots.push({
-        id: `plateau-${data.name}`,
-        severity: "medium",
-        title: `${data.name} has plateaued`,
-        detail: `Last 3 sessions stuck at ${recent[0]}lb. Time to push or swap rep range.`,
-      });
+    const recentWeights = data.topWeights.slice(-3);
+    const recentReps = data.topReps.slice(-3);
+    if (recentWeights.length < 3) continue;
+    const maxW = Math.max(...recentWeights);
+
+    if (maxW > 0) {
+      // Loaded lift: stuck at the same top weight for 3 sessions.
+      if (maxW - Math.min(...recentWeights) < 0.01) {
+        weakSpots.push({
+          id: `plateau-${data.name}`,
+          severity: "medium",
+          title: `${data.name} has plateaued`,
+          detail: `Last 3 sessions stuck at ${recentWeights[0]}lb. Time to push or swap rep range.`,
+        });
+      }
+    } else {
+      // Bodyweight lift: progress = adding reps. Flag if the top-rep
+      // set hasn't budged for 3 sessions and there's actually rep work
+      // to compare (>0 reps).
+      if (
+        recentReps[0] > 0 &&
+        Math.max(...recentReps) - Math.min(...recentReps) < 1
+      ) {
+        weakSpots.push({
+          id: `rep-stall-${data.name}`,
+          severity: "medium",
+          title: `${data.name} reps have stalled`,
+          detail: `Last 3 sessions stuck at ${recentReps[0]} reps. Add a rep, slow the tempo, or load the lift.`,
+        });
+      }
     }
   }
 
