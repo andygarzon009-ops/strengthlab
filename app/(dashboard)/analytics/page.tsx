@@ -254,7 +254,9 @@ export default async function AnalyticsPage() {
       (m) => !thisWeekPriorityMuscles.has(m)
     );
     if (missed.length > 0) {
-      // Show a sample so the detail line stays scannable.
+      // Detail line keeps the truncation so the row stays scannable;
+      // the full list is threaded through `items` and shown as chips
+      // when the card is expanded.
       const sample = missed.slice(0, 5).join(", ");
       const tail = missed.length > 5 ? `, +${missed.length - 5} more` : "";
       weakSpots.push({
@@ -263,6 +265,7 @@ export default async function AnalyticsPage() {
         severity: missed.length >= 5 ? "high" : "medium",
         title: `${missed.length} priority muscle${missed.length === 1 ? "" : "s"} missed this week`,
         detail: `No working sets for: ${sample}${tail}.`,
+        items: missed,
       });
     }
   }

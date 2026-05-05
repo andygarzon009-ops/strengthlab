@@ -21,6 +21,10 @@ export type WeakSpot = {
   // Optional subject (lift or muscle name) so the advice card can
   // reference it in its copy without re-parsing the title.
   subject?: string;
+  // Optional full list of items the spot covers (e.g. every missed
+  // muscle for missed-muscles). Surfaced as chips when the card is
+  // expanded so the detail line can stay short without losing data.
+  items?: string[];
 };
 
 type Advice = {
@@ -211,6 +215,31 @@ function WeakSpotCard({ spot }: { spot: WeakSpot }) {
             className="mt-3 pt-3 border-t space-y-3"
             style={{ borderColor: "var(--border)" }}
           >
+            {spot.items && spot.items.length > 0 && (
+              <div>
+                <p
+                  className="label text-[9px] mb-1.5"
+                  style={{ color: "var(--fg-dim)" }}
+                >
+                  Full list
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {spot.items.map((item) => (
+                    <span
+                      key={item}
+                      className="text-[11px] px-2 py-0.5 rounded-full"
+                      style={{
+                        background: "var(--bg-elevated)",
+                        border: "1px solid var(--border)",
+                        color: "var(--fg-muted)",
+                      }}
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <p
                 className="label text-[9px] mb-1"
