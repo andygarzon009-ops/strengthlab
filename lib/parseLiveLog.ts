@@ -23,6 +23,7 @@ Return sets ONLY when the athlete is reporting completed work. Examples (all sho
 - "just hit bench 225 for 5"                        → 1 set, Bench, 225×5
 - "3 sets of squats at 315 for 5"                   → 3 identical sets, Squat, 315×5
 - "finished pull-ups, 4 sets of 8"                  → 4 sets, Pull-Up, bodyweight ×8
+- "just did 50 push ups" / "knocked out 30 push-ups" → 1 set, Push-Up, bodyweight ×50 (or ×30). When sets aren't stated for a bodyweight movement, treat it as one set with the stated rep count.
 - "leg press 4 plates a side, 10 reps"              → 1 set, Leg Press, weight=360
 - "225×5, 235×3, 245×1 on bench"                    → 3 sets, Bench, different weights
 - "bench 135 warmup 10, 185×5, 225×5×3"             → 1 warmup 135×10 + 1 working 185×5 + 3 working 225×5
