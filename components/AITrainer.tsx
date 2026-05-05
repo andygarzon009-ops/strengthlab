@@ -14,6 +14,23 @@ type LoggedSummary = {
   }[];
 };
 
+type PendingParsedSet = {
+  type: "WARMUP" | "WORKING";
+  weight: string;
+  reps: string;
+  rir: string;
+};
+
+type PendingParsedExercise = {
+  exerciseId: string;
+  exerciseName: string;
+  sets: PendingParsedSet[];
+};
+
+type PendingLog = {
+  parsed: PendingParsedExercise[];
+};
+
 type WorkoutPlanSet = {
   type?: "WARMUP" | "WORKING";
   weight?: number | string | null;
@@ -38,6 +55,8 @@ type Message = {
   content: string;
   createdAt: string;
   logged?: LoggedSummary;
+  pendingLog?: PendingLog;
+  pendingDismissed?: boolean;
   plan?: WorkoutPlan;
 };
 
@@ -114,23 +133,34 @@ function extractPlan(raw: string): { text: string; plan: WorkoutPlan | null } {
 
 function splitLoggedMarker(raw: string): {
   logged: LoggedSummary | null;
+  pendingLog: PendingLog | null;
   text: string;
 } {
   let logged: LoggedSummary | null = null;
+  let pendingLog: PendingLog | null = null;
   let text = raw;
 
-  if (text.startsWith("[LOGGED]")) {
+  // Strip whichever leading marker is present. Only one is emitted per
+  // reply (the trainer stream sends [PENDING_LOG]; [LOGGED] is kept for
+  // backward-compat with anything still emitting it).
+  const consumeMarker = (tag: "[LOGGED]" | "[PENDING_LOG]") => {
+    if (!text.startsWith(tag)) return null;
     const endIdx = text.indexOf("\x1e");
-    if (endIdx !== -1) {
-      const jsonPart = text.slice("[LOGGED]".length, endIdx);
-      try {
-        logged = JSON.parse(jsonPart) as LoggedSummary;
-        text = text.slice(endIdx + 1);
-      } catch {
-        // fall through — keep raw text
-      }
+    if (endIdx === -1) return null;
+    const jsonPart = text.slice(tag.length, endIdx);
+    try {
+      const parsed = JSON.parse(jsonPart);
+      text = text.slice(endIdx + 1);
+      return parsed;
+    } catch {
+      return null;
     }
-  }
+  };
+
+  const loggedParsed = consumeMarker("[LOGGED]");
+  if (loggedParsed) logged = loggedParsed as LoggedSummary;
+  const pendingParsed = consumeMarker("[PENDING_LOG]");
+  if (pendingParsed) pendingLog = pendingParsed as PendingLog;
 
   // If the server reset the stream mid-reply (Gemini dropped mid-sentence
   // and we restarted with the fallback model), keep only the text after
@@ -141,7 +171,7 @@ function splitLoggedMarker(raw: string): {
     text = text.slice(lastReset + resetMarker.length);
   }
 
-  return { logged, text };
+  return { logged, pendingLog, text };
 }
 
 const MD_COMPONENTS: Components = {
@@ -450,6 +480,44 @@ export default function AITrainer() {
     });
   }, [visibleMessages]);
 
+  const confirmPendingLog = async (messageId: string, pending: PendingLog) => {
+    try {
+      const res = await fetch("/api/trainer/confirm-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parsed: pending.parsed }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body || !Array.isArray(body.summary)) {
+        throw new Error(body?.error || "Couldn't log");
+      }
+      const logged: LoggedSummary = {
+        workoutId: body.workoutId,
+        created: !!body.created,
+        summary: body.summary,
+      };
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? { ...m, pendingLog: undefined, logged }
+            : m
+        )
+      );
+    } catch (err) {
+      console.error("confirm-log failed:", err);
+    }
+  };
+
+  const dismissPendingLog = (messageId: string) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId
+          ? { ...m, pendingLog: undefined, pendingDismissed: true }
+          : m
+      )
+    );
+  };
+
   const send = async (text: string) => {
     if (!text.trim() || loading) return;
     if (listening) stopVoice();
@@ -483,15 +551,15 @@ export default function AITrainer() {
         if (done) break;
         const chunk = decoder.decode(value);
         full += chunk;
-        // Strip the [LOGGED]…\x1e marker AND the ```workout-plan```
-        // fence from the streaming preview so the user never sees raw
-        // markers or JSON flash onscreen.
+        // Strip the [LOGGED] / [PENDING_LOG] markers AND the
+        // ```workout-plan``` fence from the streaming preview so the
+        // user never sees raw markers or JSON flash onscreen.
         const { text } = splitLoggedMarker(full);
         const { text: visible } = extractPlan(text);
         setStreaming(visible);
       }
 
-      const { logged, text: postLogged } = splitLoggedMarker(full);
+      const { logged, pendingLog, text: postLogged } = splitLoggedMarker(full);
       const { text: finalText, plan } = extractPlan(postLogged);
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
@@ -499,6 +567,7 @@ export default function AITrainer() {
         content: finalText,
         createdAt: new Date().toISOString(),
         logged: logged ?? undefined,
+        pendingLog: pendingLog ?? undefined,
         plan: plan ?? undefined,
       };
       setMessages((prev) => [...prev, assistantMsg]);
@@ -716,6 +785,15 @@ export default function AITrainer() {
                   <div className="max-w-[92%] space-y-2">
                     {m.logged && m.logged.summary.length > 0 && (
                       <LoggedChip logged={m.logged} />
+                    )}
+                    {m.pendingLog && m.pendingLog.parsed.length > 0 && (
+                      <PendingLogChip
+                        pending={m.pendingLog}
+                        onConfirm={() =>
+                          m.pendingLog && confirmPendingLog(m.id, m.pendingLog)
+                        }
+                        onDismiss={() => dismissPendingLog(m.id)}
+                      />
                     )}
                     <div
                       className="rounded-2xl px-4 py-3.5"
@@ -1062,6 +1140,116 @@ function LogPlanButton({
       </button>
       {error && (
         <p className="text-[11px] px-1" style={{ color: "#ef4444" }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PendingLogChip({
+  pending,
+  onConfirm,
+  onDismiss,
+}: {
+  pending: PendingLog;
+  onConfirm: () => void;
+  onDismiss: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const totalSets = pending.parsed.reduce((n, e) => n + e.sets.length, 0);
+  const preview = pending.parsed
+    .map((e) => {
+      const setsStr = e.sets
+        .map((s) => `${s.weight || "BW"}×${s.reps || "?"}`)
+        .join(", ");
+      return `${e.exerciseName} (${setsStr})`;
+    })
+    .join(" · ");
+
+  const handleConfirm = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't log");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="rounded-xl px-3 py-2 text-[12px] leading-tight"
+      style={{
+        background: "var(--bg-elevated)",
+        color: "var(--fg)",
+        border: "1px dashed var(--border-strong)",
+      }}
+    >
+      <div className="flex items-start gap-2">
+        <span
+          className="shrink-0 mt-[1px]"
+          style={{ color: "var(--fg-muted)" }}
+        >
+          ?
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">
+            Log {totalSets} set{totalSets === 1 ? "" : "s"}?
+          </p>
+          <p
+            className="text-[11px] mt-0.5 truncate"
+            style={{ color: "var(--fg-muted)" }}
+          >
+            {preview}
+          </p>
+        </div>
+      </div>
+      <div className="flex gap-2 mt-2">
+        <button
+          type="button"
+          onClick={handleConfirm}
+          disabled={busy}
+          className="flex-1 rounded-lg py-1.5 text-[12px] font-semibold flex items-center justify-center gap-1 active:scale-[0.98] transition-transform disabled:opacity-60"
+          style={{
+            background: "var(--accent)",
+            color: "#0a0a0a",
+            border: "1px solid var(--accent)",
+          }}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M5 12l5 5 9-11" />
+          </svg>
+          {busy ? "Logging…" : "Log it"}
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          disabled={busy}
+          className="rounded-lg px-3 py-1.5 text-[12px] font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
+          style={{
+            background: "transparent",
+            color: "var(--fg-muted)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          Dismiss
+        </button>
+      </div>
+      {error && (
+        <p className="text-[11px] mt-1" style={{ color: "#ef4444" }}>
           {error}
         </p>
       )}

@@ -7,7 +7,6 @@ import { NextRequest } from "next/server";
 import { shapeForType, labelForType, formatDuration } from "@/lib/exercises";
 import { normalizeExerciseName } from "@/lib/exerciseIdentity";
 import { parseLiveLog } from "@/lib/parseLiveLog";
-import { appendLiveSets } from "@/lib/appendLiveSets";
 
 export const maxDuration = 60;
 
@@ -588,21 +587,20 @@ ${user.coachPrompt.trim()}`
       data: { userId, role: "user", content: message },
     });
 
-    // Silently parse the user's message for any completed sets they just
-    // reported, and append them to today's live workout. Stays fire-and-
-    // forget if no sets were reported — most chat messages return [].
-    let logSummary: Awaited<ReturnType<typeof appendLiveSets>> | null = null;
+    // Parse the athlete's message for any sets they appear to have just
+    // reported. We DON'T commit them yet — the user might have been
+    // talking about a set ("thinking about hitting 225") or asking a
+    // question. Instead we surface a confirm chip on the client; the
+    // /api/trainer/confirm-log endpoint actually appends if they tap ✓.
+    let pendingParsed: Awaited<ReturnType<typeof parseLiveLog>> = [];
     try {
-      const parsed = await parseLiveLog(
+      pendingParsed = await parseLiveLog(
         userId,
         message,
         history.map((m) => ({ role: m.role, content: m.content }))
       );
-      if (parsed.length > 0) {
-        logSummary = await appendLiveSets(userId, parsed);
-      }
     } catch (err) {
-      console.error("Live-log parse/append failed:", err);
+      console.error("Live-log parse failed:", err);
     }
 
     const geminiHistory = history.map((m) => ({
@@ -620,8 +618,8 @@ ${user.coachPrompt.trim()}`
     const FALLBACK_MODEL = "gemini-2.5-flash";
 
     let liveMessage = message;
-    if (logSummary && logSummary.summary.length > 0) {
-      const logged = logSummary.summary
+    if (pendingParsed.length > 0) {
+      const reported = pendingParsed
         .map((e) => {
           const sets = e.sets
             .map((s) => `${s.weight || "BW"}×${s.reps || "?"}`)
@@ -629,7 +627,7 @@ ${user.coachPrompt.trim()}`
           return `${e.exerciseName}: ${sets}`;
         })
         .join("; ");
-      liveMessage = `${message}\n\n[System note: the app already logged these sets: ${logged}. Reply as a real-time spotter.
+      liveMessage = `${message}\n\n[System note: the athlete reported these sets: ${reported}. They are NOT logged yet — the athlete will tap a confirm button to commit. Reply as a real-time spotter.
 
 NEVER output the words "MODE A", "MODE B", "System note", or any other meta label in your response. Those are instructions to you, not text for the athlete.
 
@@ -656,9 +654,9 @@ Format — short, actionable, occasional emoji, no headings, no sign-off, no mod
   👉 {weight} × {reps}
   Optional one-line reason if it adds value.
 
-Keep the entire reply under ~40 words. Do not restate the numbers they just logged — the ✓ Logged chip shows them.
+Keep the entire reply under ~40 words. Do not restate the numbers they reported — the pending-log chip shows them.
 
-EXCEPTION — if the athlete's message ALSO contains a real question, planning request, or asks for analysis, switch to a normal full coaching response. Briefly acknowledge the set in one line, then answer the question properly. Still never output mode labels or restate the logged numbers verbatim.]`;
+EXCEPTION — if the athlete's message ALSO contains a real question, planning request, or asks for analysis, switch to a normal full coaching response. Briefly acknowledge the set in one line, then answer the question properly. Still never output mode labels or restate the reported numbers verbatim.]`;
     }
 
     const tryStream = async (modelName: string) => {
@@ -673,16 +671,13 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
     const stream = new ReadableStream({
       async start(controller) {
         // Prepend a machine-readable marker line so the client can render
-        // a "logged" chip above the coach's reply. The \x1e (RS) sentinel
-        // delimits the marker from coach text to avoid collisions with
-        // normal prose.
-        if (logSummary && logSummary.summary.length > 0) {
-          const payload = JSON.stringify({
-            workoutId: logSummary.workoutId,
-            created: logSummary.created,
-            summary: logSummary.summary,
-          });
-          controller.enqueue(encoder.encode(`[LOGGED]${payload}\x1e`));
+        // a pending-confirm chip above the coach's reply. The athlete has
+        // to tap ✓ to actually log — guards against accidental logging
+        // when they're talking ABOUT a set rather than reporting one.
+        // \x1e (RS) sentinel delimits the marker from coach prose.
+        if (pendingParsed.length > 0) {
+          const payload = JSON.stringify({ parsed: pendingParsed });
+          controller.enqueue(encoder.encode(`[PENDING_LOG]${payload}\x1e`));
         }
         const drainStream = async (
           result: Awaited<ReturnType<typeof tryStream>>
