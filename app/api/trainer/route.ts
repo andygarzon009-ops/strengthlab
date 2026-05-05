@@ -16,6 +16,56 @@ const anthropic = process.env.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   : null;
 
+// Last-line-of-defense: ask Flash to convert prescriptive prose into the
+// canonical ```workout-plan JSON block. Returns the fenced block string on
+// success, or null when the prose isn't actually prescribing a session or
+// the model failed to produce valid plan JSON. Kept tight on purpose — this
+// only fires when the main reply forgot the block.
+async function synthesizePlanBlock(
+  client: GoogleGenerativeAI,
+  modelName: string,
+  coachReply: string
+): Promise<string | null> {
+  const systemInstruction =
+    "You convert a strength coach's prose into a structured workout-plan " +
+    "block. Return ONLY the fenced block — no commentary, no extra text. " +
+    "If the prose is NOT actually prescribing a workout for the athlete to " +
+    "do (it's analysis, advice, or a chat reply), return the literal " +
+    "string NO_PLAN.\n\n" +
+    "Output format MUST be exactly:\n" +
+    "```workout-plan\n" +
+    '{"title":"...","type":"WEIGHT_TRAINING","split":"PUSH",' +
+    '"exercises":[{"name":"Barbell Bench Press","restSeconds":180,' +
+    '"sets":[{"type":"WORKING","weight":225,"reps":5}]}]}\n' +
+    "```\n\n" +
+    "Rules:\n" +
+    "- One entry per WORKING set (3×5 at 225 = three set entries with the same weight/reps).\n" +
+    "- Include WARMUP sets only if they were explicitly prescribed.\n" +
+    '- restSeconds REQUIRED on every exercise; one of 60, 90, 120, 180, 240. Default 120 when uncertain.\n' +
+    "- type ∈ {WEIGHT_TRAINING, CALISTHENICS, RUNNING, CYCLING, SWIMMING, ROWING, HIIT, COMBAT, MOBILITY, SPORT, OTHER}.\n" +
+    "- split ∈ {PUSH, PULL, LEGS, UPPER, LOWER, ARMS, FULL_BODY, CORE} or null.\n" +
+    "- weight in pounds; bodyweight movements use 0.\n" +
+    "- Valid minified JSON, double-quoted keys, no trailing commas, no comments.";
+
+  const model = client.getGenerativeModel({ model: modelName, systemInstruction });
+  const r = await model.generateContent(coachReply);
+  const out = (r.response.text() ?? "").trim();
+  if (!out || /^NO_PLAN\b/i.test(out)) return null;
+
+  const m = /```[ \t]*workout[-_ ]?plan[ \t]*\r?\n?([\s\S]*?)```/i.exec(out);
+  if (!m) return null;
+  const jsonRaw = m[1].trim().replace(/,(\s*[}\]])/g, "$1");
+  try {
+    const parsed = JSON.parse(jsonRaw) as { exercises?: unknown[] };
+    if (!parsed || !Array.isArray(parsed.exercises) || parsed.exercises.length === 0) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  return "```workout-plan\n" + jsonRaw + "\n```";
+}
+
 export async function GET() {
   const userId = await requireAuth();
   const messages = await prisma.trainerMessage.findMany({
@@ -760,6 +810,40 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
           }
 
           if (!succeeded) throw lastErr ?? new Error("All trainer attempts failed");
+
+          // Guarantee the "Do this workout" button when the coach actually
+          // prescribed a session. The system prompt asks for a fenced
+          // ```workout-plan block, but Gemini occasionally forgets, uses
+          // the wrong fence tag, or emits invalid JSON. If the reply lacks
+          // a recognizable plan block but reads as prescriptive, do a
+          // cheap Flash extraction pass and append a canonical block so
+          // the client always renders the button.
+          const hasPlanFence =
+            /```[ \t]*workout[-_ ]?plan/i.test(fullResponse);
+          const setRepHits = (
+            fullResponse.match(/\b\d+\s*[x×]\s*\d+\b/gi) ?? []
+          ).length;
+          const weightHits = (
+            fullResponse.match(/\b\d+\s*lb\b/gi) ?? []
+          ).length;
+          const looksPrescriptive = setRepHits + weightHits >= 3;
+
+          if (!hasPlanFence && looksPrescriptive) {
+            try {
+              const block = await synthesizePlanBlock(
+                genAI,
+                FALLBACK_MODEL,
+                fullResponse
+              );
+              if (block) {
+                const appended = `\n\n${block}`;
+                controller.enqueue(encoder.encode(appended));
+                fullResponse += appended;
+              }
+            } catch (synthErr) {
+              console.warn("Plan synthesis failed:", synthErr);
+            }
+          }
 
           await prisma.trainerMessage.create({
             data: { userId, role: "assistant", content: fullResponse },

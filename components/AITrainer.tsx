@@ -41,34 +41,75 @@ type Message = {
   plan?: WorkoutPlan;
 };
 
-// Strip the fenced ```workout-plan ...``` block from displayed coach text
-// and return the parsed plan if present. We tolerate streaming partials —
-// while the closing fence hasn't streamed in yet, we still hide whatever
-// has appeared so the JSON never flashes onscreen.
-function extractPlan(raw: string): { text: string; plan: WorkoutPlan | null } {
-  const fenceOpen = raw.indexOf("```workout-plan");
-  if (fenceOpen === -1) return { text: raw, plan: null };
-  // Find the closing fence after the opening one.
-  const afterOpen = fenceOpen + "```workout-plan".length;
-  const fenceClose = raw.indexOf("```", afterOpen);
-  if (fenceClose === -1) {
-    // Still streaming — hide everything from the opening fence onward.
-    return { text: raw.slice(0, fenceOpen).trimEnd(), plan: null };
-  }
-  const jsonPart = raw.slice(afterOpen, fenceClose).trim();
-  let plan: WorkoutPlan | null = null;
-  try {
-    const parsed = JSON.parse(jsonPart) as WorkoutPlan;
-    if (parsed && Array.isArray(parsed.exercises) && parsed.exercises.length > 0) {
-      plan = parsed;
+// Parse a JSON string into a WorkoutPlan, tolerating the most common
+// model glitches (trailing commas before } or ]). Returns null unless the
+// result is plan-shaped (object with a non-empty exercises array).
+function tryParsePlan(jsonRaw: string): WorkoutPlan | null {
+  if (!jsonRaw) return null;
+  const cleaned = jsonRaw.replace(/,(\s*[}\]])/g, "$1");
+  for (const candidate of [jsonRaw, cleaned]) {
+    try {
+      const parsed = JSON.parse(candidate) as WorkoutPlan;
+      if (
+        parsed &&
+        Array.isArray(parsed.exercises) &&
+        parsed.exercises.length > 0
+      ) {
+        return parsed;
+      }
+    } catch {
+      // try next candidate
     }
-  } catch {
-    // bad JSON — drop the block from the visible text but offer no button
   }
-  const before = raw.slice(0, fenceOpen).trimEnd();
-  const after = raw.slice(fenceClose + 3).trimStart();
-  const text = [before, after].filter(Boolean).join("\n\n");
-  return { text, plan };
+  return null;
+}
+
+// Strip the fenced workout-plan block from displayed coach text and return
+// the parsed plan if present. Tolerates streaming partials, fence-tag
+// variants (workout-plan / workout_plan / workoutplan, any case), and
+// also rescues plans the model emitted as a bare ```json block.
+function extractPlan(raw: string): { text: string; plan: WorkoutPlan | null } {
+  // Pass 1 — canonical workout-plan fence (with minor tag variants).
+  const planFenceRe = /```[ \t]*workout[-_ ]?plan[ \t]*\r?\n?/i;
+  const m1 = planFenceRe.exec(raw);
+  if (m1 && m1.index !== undefined) {
+    const openStart = m1.index;
+    const openEnd = openStart + m1[0].length;
+    const closeAt = raw.indexOf("```", openEnd);
+    if (closeAt === -1) {
+      // Still streaming — hide everything from the opening fence onward.
+      return { text: raw.slice(0, openStart).trimEnd(), plan: null };
+    }
+    const inner = raw.slice(openEnd, closeAt).trim();
+    const plan = tryParsePlan(inner);
+    // Drop the block from visible text either way — the user shouldn't
+    // see raw JSON. If parse fails we just don't render the button.
+    const before = raw.slice(0, openStart).trimEnd();
+    const after = raw.slice(closeAt + 3).trimStart();
+    return { text: [before, after].filter(Boolean).join("\n\n"), plan };
+  }
+
+  // Pass 2 — any fenced code block whose contents parse as a plan. Covers
+  // the model using ```json or a bare ``` fence by accident. We only strip
+  // and convert if the parse succeeds; otherwise the block stays visible.
+  const anyFenceRe = /```[ \t]*[a-zA-Z0-9_-]*[ \t]*\r?\n?/g;
+  let m: RegExpExecArray | null;
+  while ((m = anyFenceRe.exec(raw)) !== null) {
+    const openStart = m.index;
+    const openEnd = openStart + m[0].length;
+    const closeAt = raw.indexOf("```", openEnd);
+    if (closeAt === -1) break;
+    const inner = raw.slice(openEnd, closeAt).trim();
+    const plan = tryParsePlan(inner);
+    if (plan) {
+      const before = raw.slice(0, openStart).trimEnd();
+      const after = raw.slice(closeAt + 3).trimStart();
+      return { text: [before, after].filter(Boolean).join("\n\n"), plan };
+    }
+    anyFenceRe.lastIndex = closeAt + 3;
+  }
+
+  return { text: raw, plan: null };
 }
 
 function splitLoggedMarker(raw: string): {
