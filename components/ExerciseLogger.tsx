@@ -6,6 +6,7 @@ import {
   usesPlates,
   PLATE_WEIGHT_LB,
   platesPerSideBreakdown,
+  plateSides,
   isBodyweightCapable,
   isTimedExercise,
   specificMuscleFor,
@@ -332,7 +333,7 @@ export default function ExerciseLogger({
                     >
                       Last:{" "}
                       {usesPlates(ex.exerciseName)
-                        ? `${(prev.lastWeight ?? 0) / (PLATE_WEIGHT_LB * 2)} plates`
+                        ? `${(prev.lastWeight ?? 0) / (PLATE_WEIGHT_LB * plateSides(ex.exerciseName))} plates`
                         : isBodyweightCapable(ex.exerciseName)
                           ? (prev.lastWeight ?? 0) > 0
                             ? `+${prev.lastWeight}lb`
@@ -1081,18 +1082,26 @@ function SetRow({
     onUpdate("weight", next === 0 ? "" : String(next));
   };
 
+  // Number of sleeves the lifter actually loads. 2 for barbells / hack
+  // squats / leg press; 1 for the chest-supported T-bar row, where every
+  // plate goes on a single sleeve and there's no "per side" to talk about.
+  const sides = plateSides(exerciseName);
+  const isSingleSide = sides === 1;
+
   const plateLb = parseFloat(set.weight);
   const plateBreakdown = plateMode && Number.isFinite(plateLb) && plateLb > 0
-    ? platesPerSideBreakdown(plateLb / 2)
+    ? platesPerSideBreakdown(plateLb / sides)
     : "";
 
   // Plate-loaded mode: gym-culture splits load into "plates per side"
   // (whole 45-lb plates) and "extras per side" (the small plates a
   // lifter calls out separately — "2 plates and a 25"). The text input
   // edits the plate count; the ± stepper walks extras in 5 lb-per-side
-  // increments and rolls into another full plate at +45.
+  // increments and rolls into another full plate at +45. For single-
+  // sleeve movements (T-bar row) the same math applies with sides=1, so
+  // "plates" is just total plate count and "extras" are total lb.
   const totalLb = Number.isFinite(plateLb) && plateLb > 0 ? plateLb : 0;
-  const totalPerSide = totalLb / 2;
+  const totalPerSide = totalLb / sides;
   const fullPlatesPerSide = Math.floor(totalPerSide / PLATE_WEIGHT_LB);
   const extrasPerSide = +(totalPerSide - fullPlatesPerSide * PLATE_WEIGHT_LB).toFixed(2);
 
@@ -1108,17 +1117,17 @@ function SetRow({
     // the plate count — e.g. "2 plates and a 25" → 3 plates and a 25
     // instead of resetting to a clean 3 plates.
     const newPerSide = plates * PLATE_WEIGHT_LB + extrasPerSide;
-    onUpdate("weight", newPerSide > 0 ? String(newPerSide * 2) : "");
+    onUpdate("weight", newPerSide > 0 ? String(newPerSide * sides) : "");
   };
 
   const stepExtras = (direction: 1 | -1) => {
-    const stepLb = 5; // per-side
+    const stepLb = 5; // per-side (or total, for single-sleeve)
     const nextPerSide = totalPerSide + stepLb * direction;
     if (nextPerSide <= 0) {
       onUpdate("weight", "");
       return;
     }
-    onUpdate("weight", String(+(nextPerSide * 2).toFixed(2)));
+    onUpdate("weight", String(+(nextPerSide * sides).toFixed(2)));
   };
 
   // Snap the bar back to a clean whole-plate count. The ± stepper only
@@ -1128,7 +1137,7 @@ function SetRow({
   const clearExtras = () => {
     if (!plateMode || extrasPerSide <= 0) return;
     const cleanPerSide = fullPlatesPerSide * PLATE_WEIGHT_LB;
-    onUpdate("weight", cleanPerSide > 0 ? String(cleanPerSide * 2) : "");
+    onUpdate("weight", cleanPerSide > 0 ? String(cleanPerSide * sides) : "");
   };
 
   // Common visual treatment when a working set has been ticked done.
@@ -1277,7 +1286,7 @@ function SetRow({
           onChange={(e) => handlePlatesChange(e.target.value)}
           onBlur={handleWeightBlur}
           placeholder="plates"
-          aria-label="Plates per side"
+          aria-label={isSingleSide ? "Plates" : "Plates per side"}
           className="w-14 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
           style={{
             background: "var(--bg-elevated)",
@@ -1323,7 +1332,7 @@ function SetRow({
             color: "var(--fg-muted)",
             fontFamily: "var(--font-geist-mono)",
           }}
-          title={`Tap to clear ${extrasPerSide} lb extras per side`}
+          title={`Tap to clear ${extrasPerSide} lb extras${isSingleSide ? "" : " per side"}`}
           aria-label="Clear extras and snap back to whole plates"
         >
           +{Number.isInteger(extrasPerSide) ? extrasPerSide : extrasPerSide.toFixed(1)}
@@ -1442,7 +1451,7 @@ function SetRow({
           letterSpacing: "0.04em",
         }}
       >
-        per side: {plateBreakdown}
+        {isSingleSide ? "plates: " : "per side: "}{plateBreakdown}
       </p>
     )}
     </div>

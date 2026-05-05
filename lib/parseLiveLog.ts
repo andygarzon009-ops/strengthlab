@@ -43,6 +43,7 @@ Rules:
 - Weights in pounds. "Bar" / "empty bar" / "just the bar" = 45 lb.
 - "Plates per side" on a barbell lift = 45 lb × plates × 2 + 45 bar. E.g. "bench 2 plates for 5" = 225, reps=5.
 - "Plates per side" on a plate-loaded machine (no bar) = 45 × plates × 2. E.g. "leg press 4 plates a side" = 360.
+- Single-sleeve plate-loaded movements (chest-supported / landmine T-bar row) load only ONE end. "T-bar row 2 plates" = 45 × 2 = 90. Do NOT double — there is no "per side."
 - Use context to decide if a bar is involved.
 - Bodyweight-capable lifts (pull-up, chin-up, push-up, dip, muscle-up, pistol squat, etc.): "weight" is ADDED load. Leave "" for clean bodyweight sets.
 - Time holds (L-sit, plank, front lever, handstand, front lever): put held seconds in "reps", weight "".

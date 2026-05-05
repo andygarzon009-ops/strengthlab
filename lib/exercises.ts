@@ -542,10 +542,26 @@ const PLATE_LOADED_PATTERNS = [
   /\bt-bar row\b/i,
 ];
 
+// Single-sleeve plate-loaded movements — plates go on ONE end only, so the
+// rack load equals the plates loaded (no per-side doubling). T-bar rows
+// (chest-supported and landmine-style) are the canonical example.
+const SINGLE_LOADED_PATTERNS = [/\bt-bar row\b/i];
+
 export const PLATE_WEIGHT_LB = 45;
 
 export function usesPlates(name: string): boolean {
   return PLATE_LOADED_PATTERNS.some((re) => re.test(name));
+}
+
+export function isSingleLoaded(name: string): boolean {
+  return SINGLE_LOADED_PATTERNS.some((re) => re.test(name));
+}
+
+// Number of sleeves the lifter loads. 2 for a barbell or hack squat, 1 for a
+// chest-supported T-bar row. Used to convert between rack total and the
+// "plates the lifter actually puts on" they think in.
+export function plateSides(name: string): 1 | 2 {
+  return isSingleLoaded(name) ? 1 : 2;
 }
 
 // Standard commercial-gym plate denominations, heaviest first.

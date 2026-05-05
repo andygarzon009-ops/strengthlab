@@ -1,10 +1,11 @@
 "use client";
 
 import { createGoal, deleteGoal, type GoalType } from "@/lib/actions/goals";
-import { PLATE_WEIGHT_LB, usesPlates } from "@/lib/exercises";
+import { PLATE_WEIGHT_LB, usesPlates, isSingleLoaded } from "@/lib/exercises";
 import { useMemo, useState, useTransition } from "react";
 
 const PLATE_UNIT = "plates/side";
+const PLATE_SINGLE_UNIT = "plates";
 const LB_PER_PLATE_PAIR = PLATE_WEIGHT_LB * 2;
 
 type Exercise = { id: string; name: string };
@@ -284,11 +285,17 @@ function AddGoalForm({
   const selectedExercise = exercises.find((e) => e.id === exerciseId);
   const isPlateLift =
     type === "STRENGTH" && !!selectedExercise && usesPlates(selectedExercise.name);
+  // Chest-supported / landmine T-bar rows load only one sleeve, so the
+  // lifter thinks in "plates" rather than "plates per side".
+  const isSinglePlateLift =
+    isPlateLift && !!selectedExercise && isSingleLoaded(selectedExercise.name);
+  const plateUnit = isSinglePlateLift ? PLATE_SINGLE_UNIT : PLATE_UNIT;
+  const platesMultiplier = isSinglePlateLift ? PLATE_WEIGHT_LB : LB_PER_PLATE_PAIR;
 
   const unitForType = (t: GoalType) => {
     switch (t) {
       case "STRENGTH":
-        return isPlateLift ? PLATE_UNIT : "lb";
+        return isPlateLift ? plateUnit : "lb";
       case "FREQUENCY":
         return "sessions/week";
       case "BODYWEIGHT_GAIN":
@@ -302,7 +309,9 @@ function AddGoalForm({
   };
 
   const targetFieldLabel = () => {
-    if (type === "STRENGTH" && isPlateLift) return "Target (plates per side)";
+    if (type === "STRENGTH" && isPlateLift) {
+      return isSinglePlateLift ? "Target (plates)" : "Target (plates per side)";
+    }
     return `Target (${unitForType(type)})`;
   };
 
@@ -320,7 +329,7 @@ function AddGoalForm({
     if (type === "STRENGTH" && ex) {
       const r = parseInt(reps);
       const loadStr = isPlateLift
-        ? `${t} plate${t === 1 ? "" : "s"}/side`
+        ? `${t} plate${t === 1 ? "" : "s"}${isSinglePlateLift ? "" : "/side"}`
         : `${t}lb`;
       return r > 0 ? `${loadStr} ${ex.name} × ${r}` : `${loadStr} ${ex.name}`;
     }
@@ -346,7 +355,7 @@ function AddGoalForm({
     // Convert plates-per-side into total bar weight so progression
     // tracking (which compares against logged set weights in lb) works.
     const storedTarget = isPlateLift
-      ? parsedTarget * LB_PER_PLATE_PAIR
+      ? parsedTarget * platesMultiplier
       : parsedTarget;
 
     startTransition(async () => {
@@ -526,14 +535,16 @@ function unitSuffix(unit: string | null): string {
   if (!unit) return "";
   if (unit === "sessions/week") return "";
   if (unit === PLATE_UNIT) return "plates per side";
+  if (unit === PLATE_SINGLE_UNIT) return "plates";
   return unit;
 }
 
 // Goals are always stored in their canonical unit (lb for weight, etc.).
 // Plate-loaded lift goals divide back out for display so the user sees
-// the same "plates per side" they entered.
+// the same "plates" / "plates per side" count they entered.
 function displayValue(value: number, unit: string | null): number {
   if (unit === PLATE_UNIT) return value / LB_PER_PLATE_PAIR;
+  if (unit === PLATE_SINGLE_UNIT) return value / PLATE_WEIGHT_LB;
   return value;
 }
 
