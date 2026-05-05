@@ -7,6 +7,7 @@ import { NextRequest } from "next/server";
 import { shapeForType, labelForType, formatDuration } from "@/lib/exercises";
 import { normalizeExerciseName } from "@/lib/exerciseIdentity";
 import { parseLiveLog } from "@/lib/parseLiveLog";
+import { computeWeakSpots, formatWeakSpotsForPrompt } from "@/lib/weakSpots";
 
 export const maxDuration = 60;
 
@@ -234,6 +235,15 @@ export async function POST(req: NextRequest) {
           `${pr.exercise.name}: ${pr.value}lb × ${pr.reps ?? 1} (${format(new Date(pr.date), "MMM d, yyyy")})`
       )
       .join("\n");
+
+    // Same weak-spot detector the analytics "Check-up" cards use, so the
+    // coach sees the same flags the athlete does (missed muscles, plateaus,
+    // rep stalls, frequency gap, volume drop, overtraining streak). Kept
+    // as background context — the coach should weave these in when
+    // relevant, not lead with them.
+    const weakSpotsBlock = formatWeakSpotsForPrompt(
+      computeWeakSpots(workouts, user)
+    );
 
     const thisWeek = workouts.filter(
       (w) => new Date(w.date) >= subDays(new Date(), 7)
@@ -564,6 +574,9 @@ ${progressionLines || "No strength exercises logged yet."}
 
 PERSONAL RECORDS (best weight per lift, with the rep count it was achieved at):
 ${topPRs || "No PRs yet."}
+
+WEAK SPOTS (background signal — same flags the athlete sees on the analytics Check-up cards. Do NOT lead with these or list them out unprompted; reference them only when they sharpen the answer. E.g. when prescribing a session, lean toward priority muscles flagged as missed; when the athlete asks "what should I do today" and a plateau or rep-stall is listed for a relevant lift, account for it; if a frequency-gap or overtraining flag contradicts the athlete's plan, mention it briefly):
+${weakSpotsBlock}
 
 DATA-USE RULES (MANDATORY):
 - Always reference specific numbers from the sessions above when reviewing performance or prescribing next loads.

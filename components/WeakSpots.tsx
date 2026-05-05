@@ -1,31 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import type { WeakSpot, WeakSpotKind } from "@/lib/weakSpots";
 
-type Severity = "high" | "medium" | "low";
-
-export type WeakSpotKind =
-  | "missed-muscles"
-  | "plateau"
-  | "rep-stall"
-  | "freq-gap"
-  | "volume-drop"
-  | "overtraining";
-
-export type WeakSpot = {
-  id: string;
-  kind: WeakSpotKind;
-  severity: Severity;
-  title: string;
-  detail: string;
-  // Optional subject (lift or muscle name) so the advice card can
-  // reference it in its copy without re-parsing the title.
-  subject?: string;
-  // Optional full list of items the spot covers (e.g. every missed
-  // muscle for missed-muscles). Surfaced as chips when the card is
-  // expanded so the detail line can stay short without losing data.
-  items?: string[];
-};
+export type { WeakSpot, WeakSpotKind } from "@/lib/weakSpots";
 
 type Advice = {
   why: string;
