@@ -1182,38 +1182,36 @@ function PendingLogChip({
 
   return (
     <div
-      className="rounded-xl px-3 py-2 text-[12px] leading-tight"
+      className="rounded-xl px-3 py-2.5 text-[12px] leading-tight flex items-center gap-3"
       style={{
-        background: "var(--bg-elevated)",
+        background: "var(--bg-card)",
         color: "var(--fg)",
-        border: "1px dashed var(--border-strong)",
+        border: "1px solid var(--border)",
       }}
     >
-      <div className="flex items-start gap-2">
-        <span
-          className="shrink-0 mt-[1px]"
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold">
+          Log {totalSets} set{totalSets === 1 ? "" : "s"}?
+        </p>
+        <p
+          className="text-[11px] mt-0.5 truncate"
           style={{ color: "var(--fg-muted)" }}
         >
-          ?
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold">
-            Log {totalSets} set{totalSets === 1 ? "" : "s"}?
+          {preview}
+        </p>
+        {error && (
+          <p className="text-[11px] mt-1" style={{ color: "#ef4444" }}>
+            {error}
           </p>
-          <p
-            className="text-[11px] mt-0.5 truncate"
-            style={{ color: "var(--fg-muted)" }}
-          >
-            {preview}
-          </p>
-        </div>
+        )}
       </div>
-      <div className="flex gap-2 mt-2">
+      <div className="flex items-center gap-1.5 shrink-0">
         <button
           type="button"
           onClick={handleConfirm}
           disabled={busy}
-          className="flex-1 rounded-lg py-1.5 text-[12px] font-semibold flex items-center justify-center gap-1 active:scale-[0.98] transition-transform disabled:opacity-60"
+          aria-label="Log these sets"
+          className="rounded-lg px-3 h-8 text-[12px] font-semibold inline-flex items-center gap-1 active:scale-[0.97] transition-transform disabled:opacity-60"
           style={{
             background: "var(--accent)",
             color: "#0a0a0a",
@@ -1232,27 +1230,34 @@ function PendingLogChip({
           >
             <path d="M5 12l5 5 9-11" />
           </svg>
-          {busy ? "Logging…" : "Log it"}
+          {busy ? "Logging…" : "Log"}
         </button>
         <button
           type="button"
           onClick={onDismiss}
           disabled={busy}
-          className="rounded-lg px-3 py-1.5 text-[12px] font-semibold active:scale-[0.98] transition-transform disabled:opacity-60"
+          aria-label="Dismiss"
+          className="w-8 h-8 rounded-lg inline-flex items-center justify-center active:scale-[0.97] transition-transform disabled:opacity-60"
           style={{
             background: "transparent",
             color: "var(--fg-muted)",
             border: "1px solid var(--border)",
           }}
         >
-          Dismiss
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
         </button>
       </div>
-      {error && (
-        <p className="text-[11px] mt-1" style={{ color: "#ef4444" }}>
-          {error}
-        </p>
-      )}
     </div>
   );
 }
