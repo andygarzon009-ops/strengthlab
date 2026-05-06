@@ -276,105 +276,131 @@ export default async function WorkoutDetailPage({
         </div>
       )}
 
-      {shape === "STRENGTH" && (
-      <div className="space-y-3 mb-6">
-        {workout.exercises.map((ex) => {
-          const warmupSets = ex.sets.filter((s) => s.type === "WARMUP");
-          const workingSets = ex.sets.filter((s) => s.type === "WORKING");
-          const ssGroup = ex.supersetGroup;
-          const ssMembers = ssGroup
-            ? workout.exercises.filter((e) => e.supersetGroup === ssGroup)
-            : [];
-          const ssLetter = ssGroup
-            ? String.fromCharCode(
-                65 +
-                  Array.from(
-                    new Set(
-                      workout.exercises
-                        .map((e) => e.supersetGroup)
-                        .filter((g): g is string => !!g)
-                    )
-                  ).indexOf(ssGroup)
-              )
-            : null;
-          const ssPos = ssGroup
-            ? ssMembers.findIndex((e) => e.id === ex.id) + 1
-            : 0;
+      {shape === "STRENGTH" && (() => {
+        // Cluster contiguous exercises sharing a supersetGroup into a
+        // single card so the workout view mirrors how it was logged.
+        type Cluster = {
+          groupId: string | null;
+          items: typeof workout.exercises;
+        };
+        const clusters: Cluster[] = [];
+        for (const ex of workout.exercises) {
+          const g = ex.supersetGroup ?? null;
+          const last = clusters[clusters.length - 1];
+          if (g && last && last.groupId === g) last.items.push(ex);
+          else clusters.push({ groupId: g, items: [ex] });
+        }
+        const letterMap = new Map<string, string>();
+        let code = 65;
+        for (const c of clusters) {
+          if (c.groupId && c.items.length >= 2 && !letterMap.has(c.groupId)) {
+            letterMap.set(c.groupId, String.fromCharCode(code++));
+          }
+        }
+        return (
+          <div className="space-y-3 mb-6">
+            {clusters.map((cluster, ci) => {
+              const isSuperset =
+                !!cluster.groupId && cluster.items.length >= 2;
+              const letter = cluster.groupId
+                ? letterMap.get(cluster.groupId)
+                : null;
+              return (
+                <div
+                  key={`${ci}-${cluster.groupId ?? "solo"}`}
+                  className="card overflow-hidden"
+                  style={
+                    isSuperset
+                      ? { borderLeft: "3px solid var(--accent)" }
+                      : undefined
+                  }
+                >
+                  {isSuperset && (
+                    <div className="px-4 pt-3 pb-1">
+                      <span
+                        className="label text-[9px]"
+                        style={{ color: "var(--accent)" }}
+                      >
+                        Superset {letter} · {cluster.items.length} lifts
+                      </span>
+                    </div>
+                  )}
+                  {cluster.items.map((ex, mi) => {
+                    const warmupSets = ex.sets.filter(
+                      (s) => s.type === "WARMUP"
+                    );
+                    const workingSets = ex.sets.filter(
+                      (s) => s.type === "WORKING"
+                    );
+                    return (
+                      <div
+                        key={ex.id}
+                        style={
+                          mi > 0
+                            ? { borderTop: "1px solid var(--border)" }
+                            : undefined
+                        }
+                      >
+                        <div className="p-4 pb-3">
+                          <h3 className="font-semibold text-[15px] tracking-tight">
+                            {ex.exercise.name}
+                          </h3>
+                          {ex.notes && (
+                            <p
+                              className="text-[11px] mt-1 italic"
+                              style={{ color: "var(--fg-dim)" }}
+                            >
+                              {ex.notes}
+                            </p>
+                          )}
+                        </div>
 
-          return (
-            <div
-              key={ex.id}
-              className="card overflow-hidden"
-              style={
-                ssGroup
-                  ? { borderLeft: "3px solid var(--accent)" }
-                  : undefined
-              }
-            >
-              {ssGroup && (
-                <div className="px-4 pt-3 pb-1">
-                  <span
-                    className="label text-[9px]"
-                    style={{ color: "var(--accent)" }}
-                  >
-                    Superset {ssLetter} · {ssPos}/{ssMembers.length}
-                  </span>
+                        {warmupSets.length > 0 && (
+                          <div className="px-4 pb-3">
+                            <p className="label mb-2">Warm-up</p>
+                            {warmupSets.map((s) => (
+                              <SetLine
+                                key={s.id}
+                                num={s.setNumber}
+                                weight={s.weight}
+                                reps={s.reps}
+                                rir={s.rir}
+                                isWarmup
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        <div
+                          className="px-4 py-3"
+                          style={{
+                            borderTop:
+                              warmupSets.length > 0
+                                ? "1px solid var(--border)"
+                                : "none",
+                          }}
+                        >
+                          <p className="label mb-2">Working sets</p>
+                          {workingSets.map((s) => (
+                            <SetLine
+                              key={s.id}
+                              num={s.setNumber}
+                              weight={s.weight}
+                              reps={s.reps}
+                              rir={s.rir}
+                              note={s.notes}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-              <div className="p-4 pb-3">
-                <h3 className="font-semibold text-[15px] tracking-tight">
-                  {ex.exercise.name}
-                </h3>
-                {ex.notes && (
-                  <p
-                    className="text-[11px] mt-1 italic"
-                    style={{ color: "var(--fg-dim)" }}
-                  >
-                    {ex.notes}
-                  </p>
-                )}
-              </div>
-
-              {warmupSets.length > 0 && (
-                <div className="px-4 pb-3">
-                  <p className="label mb-2">Warm-up</p>
-                  {warmupSets.map((s) => (
-                    <SetLine
-                      key={s.id}
-                      num={s.setNumber}
-                      weight={s.weight}
-                      reps={s.reps}
-                      rir={s.rir}
-                      isWarmup
-                    />
-                  ))}
-                </div>
-              )}
-
-              <div
-                className="px-4 py-3"
-                style={{
-                  borderTop:
-                    warmupSets.length > 0 ? "1px solid var(--border)" : "none",
-                }}
-              >
-                <p className="label mb-2">Working sets</p>
-                {workingSets.map((s) => (
-                  <SetLine
-                    key={s.id}
-                    num={s.setNumber}
-                    weight={s.weight}
-                    reps={s.reps}
-                    rir={s.rir}
-                    note={s.notes}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      )}
+              );
+            })}
+          </div>
+        );
+      })()}
 
       <div className="card p-4 mb-3">
         <ReactionButtons

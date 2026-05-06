@@ -300,53 +300,6 @@ export default function ExerciseLogger({
     setExercises(exercises.filter((_, i) => i !== idx));
   };
 
-  // Toggle a superset link between this exercise and the next one. The
-  // pair share a generated group id; tapping again clears the tag from
-  // both. If the next exercise is already linked into a superset with a
-  // third (or further) exercise, we just merge into that group.
-  const toggleSuperset = (idx: number) => {
-    if (idx >= exercises.length - 1) return;
-    const cur = exercises[idx];
-    const next = exercises[idx + 1];
-    const updated = [...exercises];
-
-    const sharedAlready =
-      cur.supersetGroup &&
-      next.supersetGroup &&
-      cur.supersetGroup === next.supersetGroup;
-
-    if (sharedAlready) {
-      // Unlink — null both. If either belonged to a larger group with a
-      // third exercise, leave the third one's tag intact (still grouped
-      // with whatever else shared the id) by only clearing these two.
-      const groupId = cur.supersetGroup;
-      // Collect every index in this group; if exactly these two share it,
-      // both go null. If more share it (e.g. tri-set), only this pair drops.
-      const memberCount = exercises.filter(
-        (e) => e.supersetGroup === groupId
-      ).length;
-      if (memberCount <= 2) {
-        updated[idx] = { ...cur, supersetGroup: null };
-        updated[idx + 1] = { ...next, supersetGroup: null };
-      } else {
-        // Larger superset: clearing this pair would split the group, which
-        // would surprise the user. Treat the toggle as a no-op and let
-        // them remove individual exercises instead.
-        return;
-      }
-    } else {
-      // Link — adopt next's group if it has one (extends it), else cur's,
-      // else mint a fresh id.
-      const groupId =
-        next.supersetGroup ||
-        cur.supersetGroup ||
-        `ss_${Math.random().toString(36).slice(2, 8)}_${Date.now().toString(36)}`;
-      updated[idx] = { ...cur, supersetGroup: groupId };
-      updated[idx + 1] = { ...next, supersetGroup: groupId };
-    }
-    setExercises(updated);
-  };
-
   const addSet = (exIdx: number, type: "WARMUP" | "WORKING") => {
     const updated = [...exercises];
     const ex = updated[exIdx];
@@ -394,79 +347,46 @@ export default function ExerciseLogger({
     setExercises([...exercises, ...parsed]);
   };
 
-  // Assign sequential letters (A, B, C…) to each distinct supersetGroup
-  // in order of first appearance, plus a 1-based position within the
-  // group. Used by the badge so the athlete can scan "Superset A · 1/2"
-  // and know which lifts pair up.
-  const groupLetter = new Map<string, string>();
-  const groupMembers = new Map<string, number[]>();
+  // Cluster contiguous exercises that share a supersetGroup so the render
+  // step can wrap them into a single card. A cluster is either a solo
+  // exercise (groupId null) or 2+ adjacent exercises with the same group
+  // id. Letters (A, B, C…) are assigned to multi-member clusters in
+  // order of appearance for the header banner.
+  type Cluster = { groupId: string | null; indices: number[] };
+  const clusters: Cluster[] = [];
   for (let i = 0; i < exercises.length; i++) {
-    const g = exercises[i].supersetGroup;
-    if (!g) continue;
-    if (!groupMembers.has(g)) groupMembers.set(g, []);
-    groupMembers.get(g)!.push(i);
+    const g = exercises[i].supersetGroup ?? null;
+    const last = clusters[clusters.length - 1];
+    if (g && last && last.groupId === g) {
+      last.indices.push(i);
+    } else {
+      clusters.push({ groupId: g, indices: [i] });
+    }
   }
+  const clusterLetter = new Map<string, string>();
   let nextLetterCode = 65; // 'A'
-  for (const g of groupMembers.keys()) {
-    groupLetter.set(g, String.fromCharCode(nextLetterCode++));
+  for (const c of clusters) {
+    if (c.groupId && c.indices.length >= 2 && !clusterLetter.has(c.groupId)) {
+      clusterLetter.set(c.groupId, String.fromCharCode(nextLetterCode++));
+    }
   }
 
-  return (
-    <div className="space-y-3">
-      {exercises.map((ex, exIdx) => {
-        const prev = previousData[ex.exerciseId];
-        const warmupSets = ex.sets.filter((s) => s.type === "WARMUP");
-        const workingSets = ex.sets.filter((s) => s.type === "WORKING");
-        const groupId = ex.supersetGroup ?? null;
-        const members = groupId ? groupMembers.get(groupId) ?? [] : [];
-        const letter = groupId ? groupLetter.get(groupId) : null;
-        const positionInGroup = groupId ? members.indexOf(exIdx) + 1 : 0;
-        const groupSize = members.length;
+  const renderExerciseBody = (exIdx: number, withDividerAbove: boolean) => {
+    const ex = exercises[exIdx];
+    const prev = previousData[ex.exerciseId];
+    const warmupSets = ex.sets.filter((s) => s.type === "WARMUP");
+    const workingSets = ex.sets.filter((s) => s.type === "WORKING");
 
-        return (
-          <div
-            key={exIdx}
-            className="card overflow-hidden"
-            style={
-              groupId
-                ? {
-                    borderLeft: "3px solid var(--accent)",
-                  }
-                : undefined
-            }
-          >
-            {groupId && (
-              <div
-                className="px-4 pt-3 pb-1 flex items-center justify-between"
-              >
-                <span
-                  className="label text-[9px]"
-                  style={{ color: "var(--accent)" }}
-                >
-                  Superset {letter} · {positionInGroup}/{groupSize}
-                </span>
-                {groupSize <= 2 && (
-                  <button
-                    onClick={() => {
-                      // Find the pair edge to unlink — prefer linking
-                      // back to the exercise immediately above so the
-                      // toggle is symmetric with how it was created.
-                      const pairIdx =
-                        exIdx > 0 &&
-                        exercises[exIdx - 1].supersetGroup === groupId
-                          ? exIdx - 1
-                          : exIdx;
-                      toggleSuperset(pairIdx);
-                    }}
-                    className="text-[10px] font-semibold underline-offset-2 hover:underline"
-                    style={{ color: "var(--fg-dim)" }}
-                  >
-                    Unlink
-                  </button>
-                )}
-              </div>
-            )}
-            <div className="p-4 pb-3">
+    return (
+      <div
+        key={exIdx}
+        style={
+          withDividerAbove
+            ? { borderTop: "1px solid var(--border)" }
+            : undefined
+        }
+      >
+        <div className="p-4 pb-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-[15px] tracking-tight truncate">
@@ -662,6 +582,59 @@ export default function ExerciseLogger({
                 + Superset
               </button>
             </div>
+          </div>
+        );
+      };
+
+  return (
+    <div className="space-y-3">
+      {clusters.map((cluster, ci) => {
+        const isSuperset =
+          !!cluster.groupId && cluster.indices.length >= 2;
+        const letter = cluster.groupId
+          ? clusterLetter.get(cluster.groupId)
+          : null;
+        return (
+          <div
+            key={`${ci}-${cluster.groupId ?? "solo"}`}
+            className="card overflow-hidden"
+            style={
+              isSuperset
+                ? { borderLeft: "3px solid var(--accent)" }
+                : undefined
+            }
+          >
+            {isSuperset && (
+              <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+                <span
+                  className="label text-[9px]"
+                  style={{ color: "var(--accent)" }}
+                >
+                  Superset {letter} · {cluster.indices.length} lifts
+                </span>
+                <button
+                  onClick={() => {
+                    // Strip the group id from every member so the
+                    // cluster splits back into solo cards. Tap the
+                    // + Superset action again to re-link.
+                    const groupId = cluster.groupId;
+                    const next = exercises.map((e) =>
+                      e.supersetGroup === groupId
+                        ? { ...e, supersetGroup: null }
+                        : e
+                    );
+                    setExercises(next);
+                  }}
+                  className="text-[10px] font-semibold underline-offset-2 hover:underline"
+                  style={{ color: "var(--fg-dim)" }}
+                >
+                  Unlink
+                </button>
+              </div>
+            )}
+            {cluster.indices.map((idx, mi) =>
+              renderExerciseBody(idx, mi > 0)
+            )}
           </div>
         );
       })}
