@@ -159,6 +159,12 @@ export default function ExerciseLogger({
   // exercise at this index instead of appending — preserves sets/notes so
   // users can correct an exercise mid-log without re-entering everything.
   const [swapTargetIdx, setSwapTargetIdx] = useState<number | null>(null);
+  // When set, the next exercise picked is appended right after this index
+  // and tagged into the same superset group — opening the picker via the
+  // "+ Superset" button instead of "+ Add exercise".
+  const [supersetSourceIdx, setSupersetSourceIdx] = useState<number | null>(
+    null
+  );
   // Per-exercise rest duration override, keyed by exerciseId. Falls back
   // to REST_SECONDS_DEFAULT when an exercise has no saved preference.
   const [restPrefs, setRestPrefs] = useState<Record<string, number>>({});
@@ -248,9 +254,41 @@ export default function ExerciseLogger({
       ],
     };
 
+    // Superset mode: insert the new exercise immediately after the source
+    // and stamp both with a shared supersetGroup so they render as a pair.
+    if (supersetSourceIdx !== null) {
+      const sourceIdx = supersetSourceIdx;
+      const source = exercises[sourceIdx];
+      if (source) {
+        const groupId =
+          source.supersetGroup ||
+          `ss_${Math.random().toString(36).slice(2, 8)}_${Date.now().toString(36)}`;
+        const updatedSource = { ...source, supersetGroup: groupId };
+        const linkedNew: ExerciseData = { ...newEx, supersetGroup: groupId };
+        const next = [
+          ...exercises.slice(0, sourceIdx),
+          updatedSource,
+          linkedNew,
+          ...exercises.slice(sourceIdx + 1),
+        ];
+        setExercises(next);
+      } else {
+        setExercises([...exercises, newEx]);
+      }
+      setSupersetSourceIdx(null);
+      setSearch("");
+      setShowSearch(false);
+      return;
+    }
+
     setExercises([...exercises, newEx]);
     setSearch("");
     setShowSearch(false);
+  };
+
+  const startSuperset = (idx: number) => {
+    setSupersetSourceIdx(idx);
+    setShowSearch(true);
   };
 
   const startSwap = (idx: number) => {
@@ -384,10 +422,6 @@ export default function ExerciseLogger({
         const letter = groupId ? groupLetter.get(groupId) : null;
         const positionInGroup = groupId ? members.indexOf(exIdx) + 1 : 0;
         const groupSize = members.length;
-        const next = exercises[exIdx + 1];
-        const linkedWithNext =
-          !!groupId && !!next && next.supersetGroup === groupId;
-        const canPairWithNext = exIdx < exercises.length - 1;
 
         return (
           <div
@@ -616,32 +650,18 @@ export default function ExerciseLogger({
               >
                 + Working
               </button>
-            </div>
-            {canPairWithNext && (
               <button
-                onClick={() => toggleSuperset(exIdx)}
-                className="w-full py-2 text-[11px] font-semibold transition-colors label"
+                onClick={() => startSuperset(exIdx)}
+                className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors label"
                 style={{
-                  background: linkedWithNext
-                    ? "var(--accent-dim)"
-                    : "var(--bg-elevated)",
-                  color: linkedWithNext
-                    ? "var(--accent)"
-                    : "var(--fg-muted)",
-                  borderTop: "1px solid var(--border)",
+                  background: "var(--bg-elevated)",
+                  color: "var(--fg-muted)",
                   letterSpacing: "0.1em",
                 }}
-                aria-label={
-                  linkedWithNext
-                    ? "Break superset with next exercise"
-                    : "Superset with next exercise"
-                }
               >
-                {linkedWithNext
-                  ? "↓ Linked as superset"
-                  : "↓ Superset with next"}
+                + Superset
               </button>
-            )}
+            </div>
           </div>
         );
       })}
@@ -655,6 +675,7 @@ export default function ExerciseLogger({
               setShowSearch(false);
               setSearch("");
               setSwapTargetIdx(null);
+              setSupersetSourceIdx(null);
             }}
           />
           <div
