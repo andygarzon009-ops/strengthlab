@@ -160,7 +160,12 @@ export async function detectAndSavePRs(
   });
 
   for (const ex of exercises) {
-    const workingSets = ex.sets.filter((s: any) => (s.type === "WORKING" || s.type === "SUPERSET"));
+    // PRs are tracked from straight WORKING sets only. SUPERSET sets are
+    // intentionally lighter volume work (the partner lift pre-fatigues the
+    // athlete and the goal is hypertrophy, not a max), so they'd contaminate
+    // the PR ladder with non-max-effort weights. They still count toward
+    // tonnage and weak-spot scoring.
+    const workingSets = ex.sets.filter((s: any) => s.type === "WORKING");
     if (workingSets.length === 0) continue;
 
     const siblingIds = Array.from(

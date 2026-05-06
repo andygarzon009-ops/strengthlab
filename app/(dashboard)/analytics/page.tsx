@@ -152,7 +152,10 @@ export default async function AnalyticsPage() {
         for (const ex of w.exercises) {
           if (!matchingExerciseIds.has(ex.exerciseId)) continue;
           for (const s of ex.sets) {
-            if ((s.type !== "WORKING" && s.type !== "SUPERSET")) continue;
+            // Strength goals track max-effort progression — SUPERSET sets
+            // are intentionally lighter hypertrophy work and would
+            // understate progress against a true target.
+            if (s.type !== "WORKING") continue;
             const weight = s.weight ?? 0;
             const reps = s.reps ?? 0;
             if (g.targetReps != null && reps < g.targetReps) continue;
@@ -346,7 +349,10 @@ export default async function AnalyticsPage() {
       const key =
         normalizeExerciseName(ex.exercise.name) || ex.exerciseId;
       for (const s of ex.sets) {
-        if ((s.type !== "WORKING" && s.type !== "SUPERSET")) continue;
+        // 1RM projections are based on straight WORKING sets — SUPERSET
+        // sets are deliberately lighter for volume, so feeding them into
+        // Epley would understate the athlete's true projected max.
+        if (s.type !== "WORKING") continue;
         const weight = s.weight ?? 0;
         const reps = s.reps ?? 0;
         if (weight <= 0 || reps <= 0 || reps > 10) continue;
