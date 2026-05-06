@@ -256,6 +256,9 @@ export default function ExerciseLogger({
 
     // Superset mode: insert the new exercise immediately after the source
     // and stamp both with a shared supersetGroup so they render as a pair.
+    // The partner's seed set is typed SUPERSET (not WORKING) — Ex B is
+    // *always* the superset side, so it should not start with a WORKING
+    // section that would split its rows across two labels in the card.
     if (supersetSourceIdx !== null) {
       const sourceIdx = supersetSourceIdx;
       const source = exercises[sourceIdx];
@@ -264,7 +267,13 @@ export default function ExerciseLogger({
           source.supersetGroup ||
           `ss_${Math.random().toString(36).slice(2, 8)}_${Date.now().toString(36)}`;
         const updatedSource = { ...source, supersetGroup: groupId };
-        const linkedNew: ExerciseData = { ...newEx, supersetGroup: groupId };
+        const linkedNew: ExerciseData = {
+          ...newEx,
+          supersetGroup: groupId,
+          sets: newEx.sets.map((s) =>
+            s.type === "WORKING" ? { ...s, type: "SUPERSET" } : s
+          ),
+        };
         const next = [
           ...exercises.slice(0, sourceIdx),
           updatedSource,
