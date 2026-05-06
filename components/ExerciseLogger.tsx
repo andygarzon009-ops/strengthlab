@@ -109,7 +109,7 @@ const saveRestPrefs = (prefs: Record<string, number>) => {
 };
 
 type SetData = {
-  type: "WARMUP" | "WORKING" | "SUPERSET";
+  type: "WARMUP" | "WORKING" | "SUPERSET" | "DROP_SET";
   setNumber: number;
   weight: string;
   reps: string;
@@ -319,6 +319,36 @@ export default function ExerciseLogger({
     setExercises(updated);
   };
 
+  // Insert a DROP_SET row in ex.sets immediately after the given parent
+  // set. Pre-fills weight at ~80% of the parent (the standard "drop"
+  // jump) so the lifter only has to confirm reps. Drop sets are real
+  // volume but not max-effort, so they count toward tonnage and are
+  // excluded from PR/1RM math same as supersets.
+  const addDropSetAfter = (exIdx: number, parentSetIdx: number) => {
+    const updated = [...exercises];
+    const ex = { ...updated[exIdx], sets: [...updated[exIdx].sets] };
+    const parent = ex.sets[parentSetIdx];
+    if (!parent) return;
+    const parentWeight = parseFloat(parent.weight);
+    const dropWeight =
+      Number.isFinite(parentWeight) && parentWeight > 0
+        ? String(Math.max(0, Math.round(parentWeight * 0.8 / 5) * 5))
+        : "";
+    const dropCount =
+      ex.sets.filter((s) => s.type === "DROP_SET").length + 1;
+    const drop: SetData = {
+      type: "DROP_SET",
+      setNumber: dropCount,
+      weight: dropWeight,
+      reps: parent.reps,
+      rir: "",
+      notes: "",
+    };
+    ex.sets.splice(parentSetIdx + 1, 0, drop);
+    updated[exIdx] = ex;
+    setExercises(updated);
+  };
+
   const removeSet = (exIdx: number, setIdx: number) => {
     const updated = [...exercises];
     updated[exIdx].sets.splice(setIdx, 1);
@@ -382,8 +412,26 @@ export default function ExerciseLogger({
     const ex = exercises[exIdx];
     const prev = previousData[ex.exerciseId];
     const warmupSets = ex.sets.filter((s) => s.type === "WARMUP");
-    const workingSets = ex.sets.filter((s) => s.type === "WORKING");
-    const supersetSets = ex.sets.filter((s) => s.type === "SUPERSET");
+
+    // Walk ex.sets in original order to build "chains": each WORKING or
+    // SUPERSET parent collects any DROP_SETs that immediately follow it
+    // in the array. Drop rows render indented under their parent.
+    type Chain = { parent: SetData; parentIdx: number; drops: number[] };
+    const workingChains: Chain[] = [];
+    const supersetChains: Chain[] = [];
+    for (let i = 0; i < ex.sets.length; i++) {
+      const s = ex.sets[i];
+      if (s.type !== "WORKING" && s.type !== "SUPERSET") continue;
+      const drops: number[] = [];
+      let j = i + 1;
+      while (j < ex.sets.length && ex.sets[j].type === "DROP_SET") {
+        drops.push(j);
+        j++;
+      }
+      const chain: Chain = { parent: s, parentIdx: i, drops };
+      if (s.type === "WORKING") workingChains.push(chain);
+      else supersetChains.push(chain);
+    }
 
     return (
       <div
@@ -520,30 +568,44 @@ export default function ExerciseLogger({
               </div>
             )}
 
-            {workingSets.length > 0 && (
+            {workingChains.length > 0 && (
               <div className="px-4 pb-3">
                 <p className="label mb-2">Working sets</p>
-                {workingSets.map((set, setIdx) => {
-                  const actualIdx = ex.sets.indexOf(set);
-                  return (
+                {workingChains.map((chain, ci) => (
+                  <div key={ci}>
                     <SetRow
-                      key={setIdx}
-                      set={set}
-                      setIdx={setIdx}
+                      set={chain.parent}
+                      setIdx={ci}
                       exerciseName={ex.exerciseName}
                       restSeconds={restFor(ex.exerciseId)}
                       onUpdate={(field, val) =>
-                        updateSet(exIdx, actualIdx, field, val)
+                        updateSet(exIdx, chain.parentIdx, field, val)
                       }
-                      onRemove={() => removeSet(exIdx, actualIdx)}
+                      onRemove={() => removeSet(exIdx, chain.parentIdx)}
+                      onAddDrop={() => addDropSetAfter(exIdx, chain.parentIdx)}
                       isWarmup={false}
                     />
-                  );
-                })}
+                    {chain.drops.map((dropIdx) => (
+                      <SetRow
+                        key={dropIdx}
+                        set={ex.sets[dropIdx]}
+                        setIdx={dropIdx}
+                        exerciseName={ex.exerciseName}
+                        restSeconds={restFor(ex.exerciseId)}
+                        onUpdate={(field, val) =>
+                          updateSet(exIdx, dropIdx, field, val)
+                        }
+                        onRemove={() => removeSet(exIdx, dropIdx)}
+                        isWarmup={false}
+                        isDrop
+                      />
+                    ))}
+                  </div>
+                ))}
               </div>
             )}
 
-            {supersetSets.length > 0 && (
+            {supersetChains.length > 0 && (
               <div className="px-4 pb-3">
                 <p
                   className="label mb-2"
@@ -551,23 +613,37 @@ export default function ExerciseLogger({
                 >
                   Superset
                 </p>
-                {supersetSets.map((set, setIdx) => {
-                  const actualIdx = ex.sets.indexOf(set);
-                  return (
+                {supersetChains.map((chain, ci) => (
+                  <div key={ci}>
                     <SetRow
-                      key={setIdx}
-                      set={set}
-                      setIdx={setIdx}
+                      set={chain.parent}
+                      setIdx={ci}
                       exerciseName={ex.exerciseName}
                       restSeconds={restFor(ex.exerciseId)}
                       onUpdate={(field, val) =>
-                        updateSet(exIdx, actualIdx, field, val)
+                        updateSet(exIdx, chain.parentIdx, field, val)
                       }
-                      onRemove={() => removeSet(exIdx, actualIdx)}
+                      onRemove={() => removeSet(exIdx, chain.parentIdx)}
+                      onAddDrop={() => addDropSetAfter(exIdx, chain.parentIdx)}
                       isWarmup={false}
                     />
-                  );
-                })}
+                    {chain.drops.map((dropIdx) => (
+                      <SetRow
+                        key={dropIdx}
+                        set={ex.sets[dropIdx]}
+                        setIdx={dropIdx}
+                        exerciseName={ex.exerciseName}
+                        restSeconds={restFor(ex.exerciseId)}
+                        onUpdate={(field, val) =>
+                          updateSet(exIdx, dropIdx, field, val)
+                        }
+                        onRemove={() => removeSet(exIdx, dropIdx)}
+                        isWarmup={false}
+                        isDrop
+                      />
+                    ))}
+                  </div>
+                ))}
               </div>
             )}
 
@@ -1313,6 +1389,8 @@ function SetRow({
   onUpdate,
   onRemove,
   isWarmup,
+  isDrop = false,
+  onAddDrop,
 }: {
   set: SetData;
   setIdx: number;
@@ -1321,6 +1399,8 @@ function SetRow({
   onUpdate: (field: keyof SetData, val: string | boolean) => void;
   onRemove: () => void;
   isWarmup: boolean;
+  isDrop?: boolean;
+  onAddDrop?: () => void;
 }) {
   // "completed" lives on SetData so the green check survives navigation
   // (opening the Coach, switching apps, browser reload). The rest timer
@@ -1550,16 +1630,26 @@ function SetRow({
   } as const;
 
   return (
-    <div className="flex flex-col mb-1.5" style={doneRowStyle}>
+    <div
+      className="flex flex-col mb-1.5"
+      style={{
+        ...doneRowStyle,
+        ...(isDrop ? { paddingLeft: 18 } : {}),
+      }}
+    >
     <div className="flex items-center gap-1.5">
       <span
         className="nums text-[11px] w-5 text-center shrink-0 font-semibold"
         style={{
-          color: isWarmup ? "var(--fg-dim)" : "var(--accent)",
+          color: isDrop
+            ? "var(--fg-dim)"
+            : isWarmup
+              ? "var(--fg-dim)"
+              : "var(--accent)",
           fontFamily: "var(--font-geist-mono)",
         }}
       >
-        {setIdx + 1}
+        {isDrop ? "↘" : setIdx + 1}
       </span>
       <button
         type="button"
@@ -1712,6 +1802,31 @@ function SetRow({
             strokeLinejoin="round"
           >
             <path d="M5 12l5 5 9-11" />
+          </svg>
+        </button>
+      )}
+      {onAddDrop && !isDrop && !isWarmup && (
+        <button
+          type="button"
+          onClick={onAddDrop}
+          className="w-7 h-7 flex items-center justify-center rounded-md"
+          style={{ color: "var(--fg-dim)" }}
+          aria-label="Add drop set"
+          title="Add a drop set after this one"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 5v10" />
+            <path d="m7 12 5 5 5-5" />
+            <path d="M5 21h14" />
           </svg>
         </button>
       )}

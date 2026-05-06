@@ -38,7 +38,7 @@ type PendingSubmit = {
 };
 
 type SetData = {
-  type: "WARMUP" | "WORKING" | "SUPERSET";
+  type: "WARMUP" | "WORKING" | "SUPERSET" | "DROP_SET";
   setNumber: number;
   weight: string;
   reps: string;

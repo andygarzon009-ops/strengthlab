@@ -60,10 +60,10 @@ export default async function WorkoutDetailPage({
   const isOwn = workout.userId === userId;
 
   const totalSets = workout.exercises.flatMap((e) =>
-    e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"))
+    e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"))
   ).length;
   const topSetWeight = workout.exercises
-    .flatMap((e) => e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET")))
+    .flatMap((e) => e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET")))
     .reduce((max, s) => Math.max(max, s.weight ?? 0), 0);
 
   return (
@@ -329,12 +329,32 @@ export default async function WorkoutDetailPage({
                     const warmupSets = ex.sets.filter(
                       (s) => s.type === "WARMUP"
                     );
-                    const workingSets = ex.sets.filter(
-                      (s) => s.type === "WORKING"
-                    );
-                    const supersetSets = ex.sets.filter(
-                      (s) => s.type === "SUPERSET"
-                    );
+                    // Build chains so each WORKING/SUPERSET parent owns
+                    // any DROP_SETs that immediately follow it in the
+                    // sets array (mirrors how the logger renders them).
+                    type ViewChain = {
+                      parent: typeof ex.sets[number];
+                      drops: typeof ex.sets;
+                    };
+                    const workingChains: ViewChain[] = [];
+                    const supersetChains: ViewChain[] = [];
+                    for (let i = 0; i < ex.sets.length; i++) {
+                      const s = ex.sets[i];
+                      if (s.type !== "WORKING" && s.type !== "SUPERSET")
+                        continue;
+                      const drops: typeof ex.sets = [];
+                      let j = i + 1;
+                      while (
+                        j < ex.sets.length &&
+                        ex.sets[j].type === "DROP_SET"
+                      ) {
+                        drops.push(ex.sets[j]);
+                        j++;
+                      }
+                      const c = { parent: s, drops };
+                      if (s.type === "WORKING") workingChains.push(c);
+                      else supersetChains.push(c);
+                    }
                     return (
                       <div
                         key={ex.id}
@@ -374,7 +394,7 @@ export default async function WorkoutDetailPage({
                           </div>
                         )}
 
-                        {workingSets.length > 0 && (
+                        {workingChains.length > 0 && (
                           <div
                             className="px-4 py-3"
                             style={{
@@ -385,26 +405,38 @@ export default async function WorkoutDetailPage({
                             }}
                           >
                             <p className="label mb-2">Working sets</p>
-                            {workingSets.map((s) => (
-                              <SetLine
-                                key={s.id}
-                                num={s.setNumber}
-                                weight={s.weight}
-                                reps={s.reps}
-                                rir={s.rir}
-                                note={s.notes}
-                              />
+                            {workingChains.map((c, ci) => (
+                              <div key={c.parent.id}>
+                                <SetLine
+                                  num={ci + 1}
+                                  weight={c.parent.weight}
+                                  reps={c.parent.reps}
+                                  rir={c.parent.rir}
+                                  note={c.parent.notes}
+                                />
+                                {c.drops.map((d) => (
+                                  <SetLine
+                                    key={d.id}
+                                    num={d.setNumber}
+                                    weight={d.weight}
+                                    reps={d.reps}
+                                    rir={d.rir}
+                                    note={d.notes}
+                                    isDrop
+                                  />
+                                ))}
+                              </div>
                             ))}
                           </div>
                         )}
 
-                        {supersetSets.length > 0 && (
+                        {supersetChains.length > 0 && (
                           <div
                             className="px-4 py-3"
                             style={{
                               borderTop:
                                 warmupSets.length > 0 ||
-                                workingSets.length > 0
+                                workingChains.length > 0
                                   ? "1px solid var(--border)"
                                   : "none",
                             }}
@@ -415,15 +447,27 @@ export default async function WorkoutDetailPage({
                             >
                               Superset
                             </p>
-                            {supersetSets.map((s) => (
-                              <SetLine
-                                key={s.id}
-                                num={s.setNumber}
-                                weight={s.weight}
-                                reps={s.reps}
-                                rir={s.rir}
-                                note={s.notes}
-                              />
+                            {supersetChains.map((c, ci) => (
+                              <div key={c.parent.id}>
+                                <SetLine
+                                  num={ci + 1}
+                                  weight={c.parent.weight}
+                                  reps={c.parent.reps}
+                                  rir={c.parent.rir}
+                                  note={c.parent.notes}
+                                />
+                                {c.drops.map((d) => (
+                                  <SetLine
+                                    key={d.id}
+                                    num={d.setNumber}
+                                    weight={d.weight}
+                                    reps={d.reps}
+                                    rir={d.rir}
+                                    note={d.notes}
+                                    isDrop
+                                  />
+                                ))}
+                              </div>
                             ))}
                           </div>
                         )}
@@ -463,6 +507,7 @@ function SetLine({
   rir,
   note,
   isWarmup,
+  isDrop,
 }: {
   num: number;
   weight: number | null;
@@ -470,17 +515,24 @@ function SetLine({
   rir: number | null;
   note?: string | null;
   isWarmup?: boolean;
+  isDrop?: boolean;
 }) {
   return (
     <div
       className="flex items-center gap-3 mb-1 nums"
-      style={{ fontFamily: "var(--font-geist-mono)" }}
+      style={{
+        fontFamily: "var(--font-geist-mono)",
+        ...(isDrop ? { paddingLeft: 18 } : {}),
+      }}
     >
       <span
         className="text-[11px] w-4 text-center font-semibold"
-        style={{ color: isWarmup ? "var(--fg-dim)" : "var(--accent)" }}
+        style={{
+          color:
+            isDrop || isWarmup ? "var(--fg-dim)" : "var(--accent)",
+        }}
       >
-        {num}
+        {isDrop ? "↘" : num}
       </span>
       <span
         className="text-[13px] font-medium"

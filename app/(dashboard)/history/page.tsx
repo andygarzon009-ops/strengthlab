@@ -138,7 +138,7 @@ export default async function HistoryPage() {
             const typeLabel = labelForType(workout.type);
             const shape = shapeForType(workout.type);
             const workingSets = workout.exercises.flatMap((e) =>
-              e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"))
+              e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"))
             );
 
             return (

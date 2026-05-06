@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     const exerciseLines = workout.exercises
       .map((e) => {
         const warmups = e.sets.filter((s) => s.type === "WARMUP");
-        const working = e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"));
+        const working = e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"));
         const parts: string[] = [];
         if (warmups.length)
           parts.push(`warmup ${warmups.map(formatSet).join(", ")}`);

@@ -76,7 +76,7 @@ export default async function AnalyticsPage() {
     list
       .filter((w) => shapeForType(w.type) === "STRENGTH")
       .flatMap((w) => w.exercises.flatMap((e) => e.sets))
-      .filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"));
+      .filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"));
 
   // Volume = Σ (weight × reps) for STRENGTH working sets. Timed/isometric
   // movements (planks, holds) are excluded — their "reps" field is seconds,
@@ -89,7 +89,7 @@ export default async function AnalyticsPage() {
           .filter((e) => !isTimedExercise(e.exercise.name))
           .flatMap((e) => e.sets)
       )
-      .filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"))
+      .filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"))
       .reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
 
   // The activity ring uses a tighter 13-muscle list — hitting all 6
@@ -101,7 +101,7 @@ export default async function AnalyticsPage() {
     for (const w of list) {
       if (shapeForType(w.type) !== "STRENGTH") continue;
       for (const we of w.exercises) {
-        const hasWorkingSet = we.sets.some((s) => (s.type === "WORKING" || s.type === "SUPERSET"));
+        const hasWorkingSet = we.sets.some((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"));
         if (!hasWorkingSet) continue;
         const m = specificMuscleFor(we.exercise.name);
         if (isPriorityMuscle(m)) hit.add(m);

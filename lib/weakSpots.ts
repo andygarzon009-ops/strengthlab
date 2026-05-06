@@ -74,7 +74,7 @@ export function computeWeakSpots(
           .filter((e) => !isTimedExercise(e.exercise.name))
           .flatMap((e) => e.sets)
       )
-      .filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"))
+      .filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"))
       .reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
 
   const priorityMusclesHitIn = (list: WorkoutRow[]): Set<string> => {
@@ -82,7 +82,7 @@ export function computeWeakSpots(
     for (const w of list) {
       if (shapeForType(w.type) !== "STRENGTH") continue;
       for (const we of w.exercises) {
-        const hasWorkingSet = we.sets.some((s) => (s.type === "WORKING" || s.type === "SUPERSET"));
+        const hasWorkingSet = we.sets.some((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"));
         if (!hasWorkingSet) continue;
         const m = specificMuscleFor(we.exercise.name);
         if (isPriorityMuscle(m)) hit.add(m);
@@ -133,7 +133,7 @@ export function computeWeakSpots(
   > = {};
   for (const w of strengthWorkouts) {
     for (const ex of w.exercises) {
-      const ws = ex.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"));
+      const ws = ex.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"));
       if (ws.length === 0) continue;
       const topWeight = Math.max(...ws.map((s) => s.weight ?? 0));
       const topReps = ws
