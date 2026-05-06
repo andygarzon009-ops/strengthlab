@@ -76,7 +76,7 @@ export default async function AnalyticsPage() {
     list
       .filter((w) => shapeForType(w.type) === "STRENGTH")
       .flatMap((w) => w.exercises.flatMap((e) => e.sets))
-      .filter((s) => s.type === "WORKING");
+      .filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"));
 
   // Volume = Σ (weight × reps) for STRENGTH working sets. Timed/isometric
   // movements (planks, holds) are excluded — their "reps" field is seconds,
@@ -89,7 +89,7 @@ export default async function AnalyticsPage() {
           .filter((e) => !isTimedExercise(e.exercise.name))
           .flatMap((e) => e.sets)
       )
-      .filter((s) => s.type === "WORKING")
+      .filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"))
       .reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
 
   // The activity ring uses a tighter 13-muscle list — hitting all 6
@@ -101,7 +101,7 @@ export default async function AnalyticsPage() {
     for (const w of list) {
       if (shapeForType(w.type) !== "STRENGTH") continue;
       for (const we of w.exercises) {
-        const hasWorkingSet = we.sets.some((s) => s.type === "WORKING");
+        const hasWorkingSet = we.sets.some((s) => (s.type === "WORKING" || s.type === "SUPERSET"));
         if (!hasWorkingSet) continue;
         const m = specificMuscleFor(we.exercise.name);
         if (isPriorityMuscle(m)) hit.add(m);
@@ -152,7 +152,7 @@ export default async function AnalyticsPage() {
         for (const ex of w.exercises) {
           if (!matchingExerciseIds.has(ex.exerciseId)) continue;
           for (const s of ex.sets) {
-            if (s.type !== "WORKING") continue;
+            if ((s.type !== "WORKING" && s.type !== "SUPERSET")) continue;
             const weight = s.weight ?? 0;
             const reps = s.reps ?? 0;
             if (g.targetReps != null && reps < g.targetReps) continue;
@@ -346,7 +346,7 @@ export default async function AnalyticsPage() {
       const key =
         normalizeExerciseName(ex.exercise.name) || ex.exerciseId;
       for (const s of ex.sets) {
-        if (s.type !== "WORKING") continue;
+        if ((s.type !== "WORKING" && s.type !== "SUPERSET")) continue;
         const weight = s.weight ?? 0;
         const reps = s.reps ?? 0;
         if (weight <= 0 || reps <= 0 || reps > 10) continue;

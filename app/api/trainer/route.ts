@@ -144,12 +144,12 @@ export async function POST(req: NextRequest) {
 
       if (shape === "STRENGTH") {
         const workingSets = w.exercises.flatMap((e) =>
-          e.sets.filter((s) => s.type === "WORKING")
+          e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"))
         );
         const exerciseLines = w.exercises
           .map((e) => {
             const warmups = e.sets.filter((s) => s.type === "WARMUP");
-            const working = e.sets.filter((s) => s.type === "WORKING");
+            const working = e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"));
             const parts: string[] = [];
             if (warmups.length)
               parts.push(`warmup ${warmups.map(formatSet).join(", ")}`);
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
       if (shapeForType(w.type) !== "STRENGTH") continue;
       const daysAgo = differenceInDays(new Date(), new Date(w.date));
       for (const e of w.exercises) {
-        const working = e.sets.filter((s) => s.type === "WORKING");
+        const working = e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"));
         if (!working.length) continue;
         const topSet = working.reduce(
           (best, s) => ((s.weight ?? 0) > (best.weight ?? 0) ? s : best),

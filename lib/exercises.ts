@@ -463,6 +463,14 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
 
 export type WorkoutShape = "STRENGTH" | "DISTANCE" | "DURATION";
 
+// Set types stored in DB. SUPERSET is the partner-lift side of a paired
+// superset — counted as real working volume for PRs/analytics, but kept
+// as a distinct type so the log preserves the structure.
+export type SetType = "WARMUP" | "WORKING" | "SUPERSET";
+
+export const isWorkingSet = (s: { type: string }): boolean =>
+  s.type === "WORKING" || s.type === "SUPERSET";
+
 export const WORKOUT_TYPES: {
   value: string;
   label: string;

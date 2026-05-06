@@ -39,7 +39,7 @@ export async function GET() {
     stat.sessions += 1;
     if (shapeForType(w.type) === "STRENGTH") {
       stat.sets += w.exercises.flatMap((e) =>
-        e.sets.filter((s) => s.type === "WORKING")
+        e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"))
       ).length;
     }
     statsByUser.set(w.userId, stat);

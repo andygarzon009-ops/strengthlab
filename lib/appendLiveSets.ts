@@ -74,7 +74,7 @@ export async function appendLiveSets(
       workout.exercises.push(woEx);
     }
 
-    const existingWorking = woEx.sets.filter((s) => s.type === "WORKING");
+    const existingWorking = woEx.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"));
     const existingWarmup = woEx.sets.filter((s) => s.type === "WARMUP");
     let nextWorking = existingWorking.length;
     let nextWarmup = existingWarmup.length;

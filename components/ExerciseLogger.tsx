@@ -109,7 +109,7 @@ const saveRestPrefs = (prefs: Record<string, number>) => {
 };
 
 type SetData = {
-  type: "WARMUP" | "WORKING";
+  type: "WARMUP" | "WORKING" | "SUPERSET";
   setNumber: number;
   weight: string;
   reps: string;
@@ -300,7 +300,10 @@ export default function ExerciseLogger({
     setExercises(exercises.filter((_, i) => i !== idx));
   };
 
-  const addSet = (exIdx: number, type: "WARMUP" | "WORKING") => {
+  const addSet = (
+    exIdx: number,
+    type: "WARMUP" | "WORKING" | "SUPERSET"
+  ) => {
     const updated = [...exercises];
     const ex = updated[exIdx];
     const sameType = ex.sets.filter((s) => s.type === type);
@@ -380,6 +383,7 @@ export default function ExerciseLogger({
     const prev = previousData[ex.exerciseId];
     const warmupSets = ex.sets.filter((s) => s.type === "WARMUP");
     const workingSets = ex.sets.filter((s) => s.type === "WORKING");
+    const supersetSets = ex.sets.filter((s) => s.type === "SUPERSET");
 
     return (
       <div
@@ -516,26 +520,56 @@ export default function ExerciseLogger({
               </div>
             )}
 
-            <div className="px-4 pb-3">
-              <p className="label mb-2">Working sets</p>
-              {workingSets.map((set, setIdx) => {
-                const actualIdx = ex.sets.indexOf(set);
-                return (
-                  <SetRow
-                    key={setIdx}
-                    set={set}
-                    setIdx={setIdx}
-                    exerciseName={ex.exerciseName}
-                    restSeconds={restFor(ex.exerciseId)}
-                    onUpdate={(field, val) =>
-                      updateSet(exIdx, actualIdx, field, val)
-                    }
-                    onRemove={() => removeSet(exIdx, actualIdx)}
-                    isWarmup={false}
-                  />
-                );
-              })}
-            </div>
+            {workingSets.length > 0 && (
+              <div className="px-4 pb-3">
+                <p className="label mb-2">Working sets</p>
+                {workingSets.map((set, setIdx) => {
+                  const actualIdx = ex.sets.indexOf(set);
+                  return (
+                    <SetRow
+                      key={setIdx}
+                      set={set}
+                      setIdx={setIdx}
+                      exerciseName={ex.exerciseName}
+                      restSeconds={restFor(ex.exerciseId)}
+                      onUpdate={(field, val) =>
+                        updateSet(exIdx, actualIdx, field, val)
+                      }
+                      onRemove={() => removeSet(exIdx, actualIdx)}
+                      isWarmup={false}
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            {supersetSets.length > 0 && (
+              <div className="px-4 pb-3">
+                <p
+                  className="label mb-2"
+                  style={{ color: "var(--accent)" }}
+                >
+                  Superset
+                </p>
+                {supersetSets.map((set, setIdx) => {
+                  const actualIdx = ex.sets.indexOf(set);
+                  return (
+                    <SetRow
+                      key={setIdx}
+                      set={set}
+                      setIdx={setIdx}
+                      exerciseName={ex.exerciseName}
+                      restSeconds={restFor(ex.exerciseId)}
+                      onUpdate={(field, val) =>
+                        updateSet(exIdx, actualIdx, field, val)
+                      }
+                      onRemove={() => removeSet(exIdx, actualIdx)}
+                      isWarmup={false}
+                    />
+                  );
+                })}
+              </div>
+            )}
 
             {!inSuperset && (
               <div className="px-4 pb-3">
@@ -555,44 +589,46 @@ export default function ExerciseLogger({
               </div>
             )}
 
-            <div
-              className="px-4 py-3 flex gap-2"
-              style={{ borderTop: "1px solid var(--border)" }}
-            >
-              <button
-                onClick={() => addSet(exIdx, "WARMUP")}
-                className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors label"
-                style={{
-                  background: "var(--bg-elevated)",
-                  color: "var(--fg-muted)",
-                  letterSpacing: "0.1em",
-                }}
+            {!inSuperset && (
+              <div
+                className="px-4 py-3 flex gap-2"
+                style={{ borderTop: "1px solid var(--border)" }}
               >
-                + Warm-up
-              </button>
-              <button
-                onClick={() => addSet(exIdx, "WORKING")}
-                className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors label"
-                style={{
-                  background: "var(--accent-dim)",
-                  color: "var(--accent)",
-                  letterSpacing: "0.1em",
-                }}
-              >
-                + Working
-              </button>
-              <button
-                onClick={() => startSuperset(exIdx)}
-                className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors label"
-                style={{
-                  background: "var(--bg-elevated)",
-                  color: "var(--fg-muted)",
-                  letterSpacing: "0.1em",
-                }}
-              >
-                + Superset
-              </button>
-            </div>
+                <button
+                  onClick={() => addSet(exIdx, "WARMUP")}
+                  className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors label"
+                  style={{
+                    background: "var(--bg-elevated)",
+                    color: "var(--fg-muted)",
+                    letterSpacing: "0.1em",
+                  }}
+                >
+                  + Warm-up
+                </button>
+                <button
+                  onClick={() => addSet(exIdx, "WORKING")}
+                  className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors label"
+                  style={{
+                    background: "var(--accent-dim)",
+                    color: "var(--accent)",
+                    letterSpacing: "0.1em",
+                  }}
+                >
+                  + Working
+                </button>
+                <button
+                  onClick={() => startSuperset(exIdx)}
+                  className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors label"
+                  style={{
+                    background: "var(--bg-elevated)",
+                    color: "var(--fg-muted)",
+                    letterSpacing: "0.1em",
+                  }}
+                >
+                  + Superset
+                </button>
+              </div>
+            )}
           </div>
         );
       };
@@ -711,6 +747,51 @@ export default function ExerciseLogger({
                     color: "var(--fg-muted)",
                   }}
                 />
+              </div>
+            )}
+            {isSuperset && (
+              <div
+                className="px-4 py-3 flex gap-2"
+                style={{ borderTop: "1px solid var(--border)" }}
+              >
+                <button
+                  onClick={() => addSet(firstIdx, "WARMUP")}
+                  className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors label"
+                  style={{
+                    background: "var(--bg-elevated)",
+                    color: "var(--fg-muted)",
+                    letterSpacing: "0.1em",
+                  }}
+                >
+                  + Warm-up
+                </button>
+                <button
+                  onClick={() => addSet(firstIdx, "WORKING")}
+                  className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors label"
+                  style={{
+                    background: "var(--accent-dim)",
+                    color: "var(--accent)",
+                    letterSpacing: "0.1em",
+                  }}
+                >
+                  + Working
+                </button>
+                <button
+                  onClick={() =>
+                    addSet(
+                      cluster.indices[cluster.indices.length - 1],
+                      "SUPERSET"
+                    )
+                  }
+                  className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-colors label"
+                  style={{
+                    background: "var(--accent-dim)",
+                    color: "var(--accent)",
+                    letterSpacing: "0.1em",
+                  }}
+                >
+                  + Superset
+                </button>
               </div>
             )}
           </div>

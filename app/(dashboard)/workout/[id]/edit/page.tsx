@@ -48,8 +48,9 @@ export default async function EditWorkoutPage({
       exerciseId: ex.exerciseId,
       exerciseName: ex.exercise.name,
       notes: ex.notes ?? "",
+      supersetGroup: ex.supersetGroup ?? null,
       sets: ex.sets.map((s) => ({
-        type: s.type as "WARMUP" | "WORKING",
+        type: s.type as "WARMUP" | "WORKING" | "SUPERSET",
         setNumber: s.setNumber,
         weight: s.weight?.toString() ?? "",
         reps: s.reps?.toString() ?? "",

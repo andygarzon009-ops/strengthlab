@@ -160,7 +160,7 @@ export async function detectAndSavePRs(
   });
 
   for (const ex of exercises) {
-    const workingSets = ex.sets.filter((s: any) => s.type === "WORKING");
+    const workingSets = ex.sets.filter((s: any) => (s.type === "WORKING" || s.type === "SUPERSET"));
     if (workingSets.length === 0) continue;
 
     const siblingIds = Array.from(

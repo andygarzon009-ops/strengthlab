@@ -60,10 +60,10 @@ export default async function WorkoutDetailPage({
   const isOwn = workout.userId === userId;
 
   const totalSets = workout.exercises.flatMap((e) =>
-    e.sets.filter((s) => s.type === "WORKING")
+    e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET"))
   ).length;
   const topSetWeight = workout.exercises
-    .flatMap((e) => e.sets.filter((s) => s.type === "WORKING"))
+    .flatMap((e) => e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET")))
     .reduce((max, s) => Math.max(max, s.weight ?? 0), 0);
 
   return (
@@ -332,6 +332,9 @@ export default async function WorkoutDetailPage({
                     const workingSets = ex.sets.filter(
                       (s) => s.type === "WORKING"
                     );
+                    const supersetSets = ex.sets.filter(
+                      (s) => s.type === "SUPERSET"
+                    );
                     return (
                       <div
                         key={ex.id}
@@ -371,27 +374,59 @@ export default async function WorkoutDetailPage({
                           </div>
                         )}
 
-                        <div
-                          className="px-4 py-3"
-                          style={{
-                            borderTop:
-                              warmupSets.length > 0
-                                ? "1px solid var(--border)"
-                                : "none",
-                          }}
-                        >
-                          <p className="label mb-2">Working sets</p>
-                          {workingSets.map((s) => (
-                            <SetLine
-                              key={s.id}
-                              num={s.setNumber}
-                              weight={s.weight}
-                              reps={s.reps}
-                              rir={s.rir}
-                              note={s.notes}
-                            />
-                          ))}
-                        </div>
+                        {workingSets.length > 0 && (
+                          <div
+                            className="px-4 py-3"
+                            style={{
+                              borderTop:
+                                warmupSets.length > 0
+                                  ? "1px solid var(--border)"
+                                  : "none",
+                            }}
+                          >
+                            <p className="label mb-2">Working sets</p>
+                            {workingSets.map((s) => (
+                              <SetLine
+                                key={s.id}
+                                num={s.setNumber}
+                                weight={s.weight}
+                                reps={s.reps}
+                                rir={s.rir}
+                                note={s.notes}
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        {supersetSets.length > 0 && (
+                          <div
+                            className="px-4 py-3"
+                            style={{
+                              borderTop:
+                                warmupSets.length > 0 ||
+                                workingSets.length > 0
+                                  ? "1px solid var(--border)"
+                                  : "none",
+                            }}
+                          >
+                            <p
+                              className="label mb-2"
+                              style={{ color: "var(--accent)" }}
+                            >
+                              Superset
+                            </p>
+                            {supersetSets.map((s) => (
+                              <SetLine
+                                key={s.id}
+                                num={s.setNumber}
+                                weight={s.weight}
+                                reps={s.reps}
+                                rir={s.rir}
+                                note={s.notes}
+                              />
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
