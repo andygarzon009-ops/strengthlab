@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 type Projection = {
   exerciseName: string;
   baseWeight: number;
@@ -6,7 +10,12 @@ type Projection = {
 };
 
 export default function Projections({ items }: { items: Projection[] }) {
+  const [showAll, setShowAll] = useState(false);
   if (items.length === 0) return null;
+
+  const TOP = 5;
+  const visible = showAll ? items : items.slice(0, TOP);
+  const hasMore = items.length > TOP;
 
   return (
     <div className="card p-5">
@@ -23,7 +32,7 @@ export default function Projections({ items }: { items: Projection[] }) {
       </div>
 
       <div className="space-y-2">
-        {items.map((p, i) => (
+        {visible.map((p, i) => (
           <div
             key={p.exerciseName}
             className="flex items-center gap-3 rounded-lg px-3 py-2.5"
@@ -70,6 +79,23 @@ export default function Projections({ items }: { items: Projection[] }) {
           </div>
         ))}
       </div>
+
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="mt-3 w-full text-[11px] font-semibold py-2 rounded-lg transition-colors"
+          style={{
+            color: "var(--accent)",
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          {showAll
+            ? "Show top 5"
+            : `View all ${items.length} projections`}
+        </button>
+      )}
 
       <p
         className="text-[10px] mt-3"

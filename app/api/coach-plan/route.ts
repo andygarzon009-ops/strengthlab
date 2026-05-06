@@ -183,6 +183,7 @@ export async function POST(req: NextRequest) {
         rounds: null,
         elevation: null,
         rpe: null,
+        fromCoachPlan: true,
       },
     });
   } catch (err) {

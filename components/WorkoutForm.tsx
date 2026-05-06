@@ -51,6 +51,7 @@ type ExerciseData = {
   exerciseId: string;
   exerciseName: string;
   notes: string;
+  supersetGroup?: string | null;
   sets: SetData[];
 };
 
@@ -72,6 +73,7 @@ export type WorkoutFormInitial = {
   rounds: number | null;
   elevation: number | null;
   rpe: number | null;
+  fromCoachPlan?: boolean;
 };
 
 function toDateInput(iso: string) {
@@ -440,6 +442,7 @@ export default function WorkoutForm({
               exerciseId: ex.exerciseId,
               order: i,
               notes: ex.notes || undefined,
+              supersetGroup: ex.supersetGroup ?? null,
               sets: ex.sets.map((s) => ({
                 type: s.type,
                 setNumber: s.setNumber,
@@ -502,6 +505,20 @@ export default function WorkoutForm({
         }
 
         const id = result?.workoutId ?? (mode === "edit" ? initial?.id : null);
+
+        // If this workout came from a coach-prescribed plan, kick off
+        // the auto-analysis in the background so the next time the
+        // athlete opens the coach chat, the review is already there.
+        // Fire-and-forget — never block navigation on it.
+        if (mode === "create" && id && initial?.fromCoachPlan) {
+          fetch("/api/trainer/analyze-workout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ workoutId: id }),
+            keepalive: true,
+          }).catch(() => {});
+        }
+
         if (id) router.push(`/workout/${id}`);
       } catch (err) {
         // Drafts stay intact — the user can edit and re-submit, or we'll

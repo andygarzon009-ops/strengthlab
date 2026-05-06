@@ -281,9 +281,46 @@ export default async function WorkoutDetailPage({
         {workout.exercises.map((ex) => {
           const warmupSets = ex.sets.filter((s) => s.type === "WARMUP");
           const workingSets = ex.sets.filter((s) => s.type === "WORKING");
+          const ssGroup = ex.supersetGroup;
+          const ssMembers = ssGroup
+            ? workout.exercises.filter((e) => e.supersetGroup === ssGroup)
+            : [];
+          const ssLetter = ssGroup
+            ? String.fromCharCode(
+                65 +
+                  Array.from(
+                    new Set(
+                      workout.exercises
+                        .map((e) => e.supersetGroup)
+                        .filter((g): g is string => !!g)
+                    )
+                  ).indexOf(ssGroup)
+              )
+            : null;
+          const ssPos = ssGroup
+            ? ssMembers.findIndex((e) => e.id === ex.id) + 1
+            : 0;
 
           return (
-            <div key={ex.id} className="card overflow-hidden">
+            <div
+              key={ex.id}
+              className="card overflow-hidden"
+              style={
+                ssGroup
+                  ? { borderLeft: "3px solid var(--accent)" }
+                  : undefined
+              }
+            >
+              {ssGroup && (
+                <div className="px-4 pt-3 pb-1">
+                  <span
+                    className="label text-[9px]"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    Superset {ssLetter} · {ssPos}/{ssMembers.length}
+                  </span>
+                </div>
+              )}
               <div className="p-4 pb-3">
                 <h3 className="font-semibold text-[15px] tracking-tight">
                   {ex.exercise.name}

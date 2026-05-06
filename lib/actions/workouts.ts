@@ -19,6 +19,7 @@ type ExerciseInput = {
   exerciseId: string;
   order: number;
   notes?: string;
+  supersetGroup?: string | null;
   sets: SetInput[];
 };
 
@@ -72,6 +73,7 @@ export async function createWorkout(data: CreateWorkoutInput) {
           exerciseId: ex.exerciseId,
           order: ex.order,
           notes: ex.notes,
+          supersetGroup: ex.supersetGroup ?? null,
           sets: {
             create: ex.sets.map((s) => ({
               type: s.type,

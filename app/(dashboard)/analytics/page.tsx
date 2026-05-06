@@ -365,7 +365,6 @@ export default async function AnalyticsPage() {
   }
   const projections = [...bestByExercise.values()]
     .sort((a, b) => b.oneRM - a.oneRM)
-    .slice(0, 5)
     .map((p) => ({
       exerciseName: p.exerciseName,
       baseWeight: p.weight,

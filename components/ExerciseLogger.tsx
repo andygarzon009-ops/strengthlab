@@ -122,6 +122,7 @@ type ExerciseData = {
   exerciseId: string;
   exerciseName: string;
   notes: string;
+  supersetGroup?: string | null;
   sets: SetData[];
 };
 
@@ -261,6 +262,53 @@ export default function ExerciseLogger({
     setExercises(exercises.filter((_, i) => i !== idx));
   };
 
+  // Toggle a superset link between this exercise and the next one. The
+  // pair share a generated group id; tapping again clears the tag from
+  // both. If the next exercise is already linked into a superset with a
+  // third (or further) exercise, we just merge into that group.
+  const toggleSuperset = (idx: number) => {
+    if (idx >= exercises.length - 1) return;
+    const cur = exercises[idx];
+    const next = exercises[idx + 1];
+    const updated = [...exercises];
+
+    const sharedAlready =
+      cur.supersetGroup &&
+      next.supersetGroup &&
+      cur.supersetGroup === next.supersetGroup;
+
+    if (sharedAlready) {
+      // Unlink — null both. If either belonged to a larger group with a
+      // third exercise, leave the third one's tag intact (still grouped
+      // with whatever else shared the id) by only clearing these two.
+      const groupId = cur.supersetGroup;
+      // Collect every index in this group; if exactly these two share it,
+      // both go null. If more share it (e.g. tri-set), only this pair drops.
+      const memberCount = exercises.filter(
+        (e) => e.supersetGroup === groupId
+      ).length;
+      if (memberCount <= 2) {
+        updated[idx] = { ...cur, supersetGroup: null };
+        updated[idx + 1] = { ...next, supersetGroup: null };
+      } else {
+        // Larger superset: clearing this pair would split the group, which
+        // would surprise the user. Treat the toggle as a no-op and let
+        // them remove individual exercises instead.
+        return;
+      }
+    } else {
+      // Link — adopt next's group if it has one (extends it), else cur's,
+      // else mint a fresh id.
+      const groupId =
+        next.supersetGroup ||
+        cur.supersetGroup ||
+        `ss_${Math.random().toString(36).slice(2, 8)}_${Date.now().toString(36)}`;
+      updated[idx] = { ...cur, supersetGroup: groupId };
+      updated[idx + 1] = { ...next, supersetGroup: groupId };
+    }
+    setExercises(updated);
+  };
+
   const addSet = (exIdx: number, type: "WARMUP" | "WORKING") => {
     const updated = [...exercises];
     const ex = updated[exIdx];
@@ -308,15 +356,82 @@ export default function ExerciseLogger({
     setExercises([...exercises, ...parsed]);
   };
 
+  // Assign sequential letters (A, B, C…) to each distinct supersetGroup
+  // in order of first appearance, plus a 1-based position within the
+  // group. Used by the badge so the athlete can scan "Superset A · 1/2"
+  // and know which lifts pair up.
+  const groupLetter = new Map<string, string>();
+  const groupMembers = new Map<string, number[]>();
+  for (let i = 0; i < exercises.length; i++) {
+    const g = exercises[i].supersetGroup;
+    if (!g) continue;
+    if (!groupMembers.has(g)) groupMembers.set(g, []);
+    groupMembers.get(g)!.push(i);
+  }
+  let nextLetterCode = 65; // 'A'
+  for (const g of groupMembers.keys()) {
+    groupLetter.set(g, String.fromCharCode(nextLetterCode++));
+  }
+
   return (
     <div className="space-y-3">
       {exercises.map((ex, exIdx) => {
         const prev = previousData[ex.exerciseId];
         const warmupSets = ex.sets.filter((s) => s.type === "WARMUP");
         const workingSets = ex.sets.filter((s) => s.type === "WORKING");
+        const groupId = ex.supersetGroup ?? null;
+        const members = groupId ? groupMembers.get(groupId) ?? [] : [];
+        const letter = groupId ? groupLetter.get(groupId) : null;
+        const positionInGroup = groupId ? members.indexOf(exIdx) + 1 : 0;
+        const groupSize = members.length;
+        const next = exercises[exIdx + 1];
+        const linkedWithNext =
+          !!groupId && !!next && next.supersetGroup === groupId;
+        const canPairWithNext = exIdx < exercises.length - 1;
 
         return (
-          <div key={exIdx} className="card overflow-hidden">
+          <div
+            key={exIdx}
+            className="card overflow-hidden"
+            style={
+              groupId
+                ? {
+                    borderLeft: "3px solid var(--accent)",
+                  }
+                : undefined
+            }
+          >
+            {groupId && (
+              <div
+                className="px-4 pt-3 pb-1 flex items-center justify-between"
+              >
+                <span
+                  className="label text-[9px]"
+                  style={{ color: "var(--accent)" }}
+                >
+                  Superset {letter} · {positionInGroup}/{groupSize}
+                </span>
+                {groupSize <= 2 && (
+                  <button
+                    onClick={() => {
+                      // Find the pair edge to unlink — prefer linking
+                      // back to the exercise immediately above so the
+                      // toggle is symmetric with how it was created.
+                      const pairIdx =
+                        exIdx > 0 &&
+                        exercises[exIdx - 1].supersetGroup === groupId
+                          ? exIdx - 1
+                          : exIdx;
+                      toggleSuperset(pairIdx);
+                    }}
+                    className="text-[10px] font-semibold underline-offset-2 hover:underline"
+                    style={{ color: "var(--fg-dim)" }}
+                  >
+                    Unlink
+                  </button>
+                )}
+              </div>
+            )}
             <div className="p-4 pb-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
@@ -502,6 +617,31 @@ export default function ExerciseLogger({
                 + Working
               </button>
             </div>
+            {canPairWithNext && (
+              <button
+                onClick={() => toggleSuperset(exIdx)}
+                className="w-full py-2 text-[11px] font-semibold transition-colors label"
+                style={{
+                  background: linkedWithNext
+                    ? "var(--accent-dim)"
+                    : "var(--bg-elevated)",
+                  color: linkedWithNext
+                    ? "var(--accent)"
+                    : "var(--fg-muted)",
+                  borderTop: "1px solid var(--border)",
+                  letterSpacing: "0.1em",
+                }}
+                aria-label={
+                  linkedWithNext
+                    ? "Break superset with next exercise"
+                    : "Superset with next exercise"
+                }
+              >
+                {linkedWithNext
+                  ? "↓ Linked as superset"
+                  : "↓ Superset with next"}
+              </button>
+            )}
           </div>
         );
       })}

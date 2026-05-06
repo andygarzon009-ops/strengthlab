@@ -56,6 +56,7 @@ export default async function LogWorkoutPage({
             exerciseId: e.exerciseId,
             exerciseName: e.exercise.name,
             notes: "",
+            supersetGroup: e.supersetGroup ?? null,
             sets: e.sets.map((s) => ({
               type: s.type as "WARMUP" | "WORKING",
               setNumber: s.setNumber,
