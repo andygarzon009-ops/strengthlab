@@ -371,7 +371,11 @@ export default function ExerciseLogger({
     }
   }
 
-  const renderExerciseBody = (exIdx: number, withDividerAbove: boolean) => {
+  const renderExerciseBody = (
+    exIdx: number,
+    withDividerAbove: boolean,
+    inSuperset: boolean = false
+  ) => {
     const ex = exercises[exIdx];
     const prev = previousData[ex.exerciseId];
     const warmupSets = ex.sets.filter((s) => s.type === "WARMUP");
@@ -413,32 +417,35 @@ export default function ExerciseLogger({
                   )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  {(() => {
-                    const secs = restFor(ex.exerciseId);
-                    const enabled = secs > 0;
-                    return (
-                      <button
-                        onClick={() => cycleRest(ex.exerciseId)}
-                        className="px-2.5 h-7 rounded-full text-[11px] font-semibold tracking-tight transition-colors active:scale-95"
-                        style={{
-                          background: enabled
-                            ? "var(--accent-dim)"
-                            : "var(--bg-elevated)",
-                          border: enabled
-                            ? "1px solid var(--accent)"
-                            : "1px solid var(--border)",
-                          color: enabled ? "var(--accent)" : "var(--fg-muted)",
-                          fontFamily: enabled
-                            ? "var(--font-geist-mono)"
-                            : undefined,
-                        }}
-                        aria-label="Cycle rest duration"
-                        title="Tap to change rest duration"
-                      >
-                        {enabled ? formatRestLabel(secs) : "Rest timer"}
-                      </button>
-                    );
-                  })()}
+                  {!inSuperset &&
+                    (() => {
+                      const secs = restFor(ex.exerciseId);
+                      const enabled = secs > 0;
+                      return (
+                        <button
+                          onClick={() => cycleRest(ex.exerciseId)}
+                          className="px-2.5 h-7 rounded-full text-[11px] font-semibold tracking-tight transition-colors active:scale-95"
+                          style={{
+                            background: enabled
+                              ? "var(--accent-dim)"
+                              : "var(--bg-elevated)",
+                            border: enabled
+                              ? "1px solid var(--accent)"
+                              : "1px solid var(--border)",
+                            color: enabled
+                              ? "var(--accent)"
+                              : "var(--fg-muted)",
+                            fontFamily: enabled
+                              ? "var(--font-geist-mono)"
+                              : undefined,
+                          }}
+                          aria-label="Cycle rest duration"
+                          title="Tap to change rest duration"
+                        >
+                          {enabled ? formatRestLabel(secs) : "Rest timer"}
+                        </button>
+                      );
+                    })()}
                   <button
                     onClick={() => startSwap(exIdx)}
                     className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
@@ -530,19 +537,23 @@ export default function ExerciseLogger({
               })}
             </div>
 
-            <div className="px-4 pb-3">
-              <input
-                value={ex.notes}
-                onChange={(e) => updateExerciseNotes(exIdx, e.target.value)}
-                placeholder="Cues (optional)"
-                className="w-full text-[12px] rounded-lg px-3 py-2 focus:outline-none"
-                style={{
-                  background: "var(--bg-elevated)",
-                  border: "1px solid var(--border)",
-                  color: "var(--fg-muted)",
-                }}
-              />
-            </div>
+            {!inSuperset && (
+              <div className="px-4 pb-3">
+                <input
+                  value={ex.notes}
+                  onChange={(e) =>
+                    updateExerciseNotes(exIdx, e.target.value)
+                  }
+                  placeholder="Cues (optional)"
+                  className="w-full text-[12px] rounded-lg px-3 py-2 focus:outline-none"
+                  style={{
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border)",
+                    color: "var(--fg-muted)",
+                  }}
+                />
+              </div>
+            )}
 
             <div
               className="px-4 py-3 flex gap-2"
@@ -594,6 +605,12 @@ export default function ExerciseLogger({
         const letter = cluster.groupId
           ? clusterLetter.get(cluster.groupId)
           : null;
+        // The superset shares one rest timer + one cues input. Both are
+        // keyed off the first member: cycling rest writes the same value
+        // to every member's exerciseId so future solo views stay in sync,
+        // and cues persist on the first member's notes field.
+        const firstIdx = cluster.indices[0];
+        const firstEx = exercises[firstIdx];
         return (
           <div
             key={`${ci}-${cluster.groupId ?? "solo"}`}
@@ -605,35 +622,96 @@ export default function ExerciseLogger({
             }
           >
             {isSuperset && (
-              <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+              <div className="px-4 pt-3 pb-1 flex items-center justify-between gap-2">
                 <span
-                  className="label text-[9px]"
+                  className="label text-[9px] shrink-0"
                   style={{ color: "var(--accent)" }}
                 >
                   Superset {letter} · {cluster.indices.length} lifts
                 </span>
-                <button
-                  onClick={() => {
-                    // Strip the group id from every member so the
-                    // cluster splits back into solo cards. Tap the
-                    // + Superset action again to re-link.
-                    const groupId = cluster.groupId;
-                    const next = exercises.map((e) =>
-                      e.supersetGroup === groupId
-                        ? { ...e, supersetGroup: null }
-                        : e
+                <div className="flex items-center gap-2 shrink-0">
+                  {(() => {
+                    const secs = restFor(firstEx.exerciseId);
+                    const enabled = secs > 0;
+                    return (
+                      <button
+                        onClick={() => {
+                          // Cycle on the first member, then mirror the
+                          // chosen value to every other member so all
+                          // exercises in this superset share the timer.
+                          cycleRest(firstEx.exerciseId);
+                          setRestPrefs((prev) => {
+                            const target = prev[firstEx.exerciseId];
+                            if (target == null) return prev;
+                            const updated = { ...prev };
+                            for (const idx of cluster.indices.slice(1)) {
+                              updated[exercises[idx].exerciseId] = target;
+                            }
+                            saveRestPrefs(updated);
+                            return updated;
+                          });
+                        }}
+                        className="px-2.5 h-7 rounded-full text-[11px] font-semibold tracking-tight transition-colors active:scale-95"
+                        style={{
+                          background: enabled
+                            ? "var(--accent-dim)"
+                            : "var(--bg-elevated)",
+                          border: enabled
+                            ? "1px solid var(--accent)"
+                            : "1px solid var(--border)",
+                          color: enabled
+                            ? "var(--accent)"
+                            : "var(--fg-muted)",
+                          fontFamily: enabled
+                            ? "var(--font-geist-mono)"
+                            : undefined,
+                        }}
+                        aria-label="Cycle rest duration"
+                      >
+                        {enabled ? formatRestLabel(secs) : "Rest timer"}
+                      </button>
                     );
-                    setExercises(next);
-                  }}
-                  className="text-[10px] font-semibold underline-offset-2 hover:underline"
-                  style={{ color: "var(--fg-dim)" }}
-                >
-                  Unlink
-                </button>
+                  })()}
+                  <button
+                    onClick={() => {
+                      const groupId = cluster.groupId;
+                      const next = exercises.map((e) =>
+                        e.supersetGroup === groupId
+                          ? { ...e, supersetGroup: null }
+                          : e
+                      );
+                      setExercises(next);
+                    }}
+                    className="text-[10px] font-semibold underline-offset-2 hover:underline"
+                    style={{ color: "var(--fg-dim)" }}
+                  >
+                    Unlink
+                  </button>
+                </div>
               </div>
             )}
             {cluster.indices.map((idx, mi) =>
-              renderExerciseBody(idx, mi > 0)
+              renderExerciseBody(idx, mi > 0, isSuperset)
+            )}
+            {isSuperset && (
+              <div
+                className="px-4 py-3"
+                style={{ borderTop: "1px solid var(--border)" }}
+              >
+                <input
+                  value={firstEx.notes}
+                  onChange={(e) =>
+                    updateExerciseNotes(firstIdx, e.target.value)
+                  }
+                  placeholder="Cues (optional)"
+                  className="w-full text-[12px] rounded-lg px-3 py-2 focus:outline-none"
+                  style={{
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border)",
+                    color: "var(--fg-muted)",
+                  }}
+                />
+              </div>
             )}
           </div>
         );
