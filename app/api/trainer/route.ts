@@ -828,13 +828,21 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
           // the client always renders the button.
           const hasPlanFence =
             /```[ \t]*workout[-_ ]?plan/i.test(fullResponse);
-          const setRepHits = (
-            fullResponse.match(/\b\d+\s*[x×]\s*\d+\b/gi) ?? []
-          ).length;
-          const weightHits = (
-            fullResponse.match(/\b\d+\s*lb\b/gi) ?? []
-          ).length;
-          const looksPrescriptive = setRepHits + weightHits >= 3;
+          // Score signals that the coach is prescribing a session, not just
+          // chatting. Covers weighted (NxM @ Wlb), bodyweight ("3 sets of 10
+          // push-ups"), and cardio/rep-only prose ("8 reps", "for 30 min").
+          // Synthesis bails with NO_PLAN if the prose isn't actually a plan,
+          // so we can afford to be permissive here.
+          const setsByRe = (re: RegExp) =>
+            (fullResponse.match(re) ?? []).length;
+          const nxmHits = setsByRe(/\b\d+\s*[x×]\s*\d+\b/gi);
+          const setsOfHits = setsByRe(
+            /\b\d+\s*sets?\s*(?:of|[x×])\s*\d+\b/gi
+          );
+          const repsHits = setsByRe(/\b\d+\s*reps?\b/gi);
+          const weightHits = setsByRe(/\b\d+\s*lb\b/gi);
+          const looksPrescriptive =
+            nxmHits + setsOfHits + repsHits + weightHits >= 2;
 
           if (!hasPlanFence && looksPrescriptive) {
             try {
