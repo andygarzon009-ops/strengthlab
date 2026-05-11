@@ -132,6 +132,7 @@ export async function createWorkout(data: CreateWorkoutInput) {
   revalidatePath("/");
   revalidatePath("/history");
   revalidatePath("/group");
+  revalidatePath("/analytics");
   // Return the new workoutId so the client can navigate. We avoid the
   // server-side redirect() so a transient failure surfaces as a normal
   // catchable error and the client keeps the draft for retry.
@@ -340,6 +341,7 @@ export async function updateWorkout(
 
   revalidatePath("/");
   revalidatePath("/history");
+  revalidatePath("/analytics");
   revalidatePath(`/workout/${workoutId}`);
   return { workoutId };
 }
@@ -355,6 +357,7 @@ export async function deleteWorkout(workoutId: string) {
   ]);
   revalidatePath("/");
   revalidatePath("/history");
+  revalidatePath("/analytics");
   redirect("/history");
 }
 
