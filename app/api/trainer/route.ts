@@ -42,6 +42,7 @@ async function synthesizePlanBlock(
     "- One entry per WORKING set (3×5 at 225 = three set entries with the same weight/reps).\n" +
     "- Include WARMUP sets only if they were explicitly prescribed.\n" +
     '- restSeconds REQUIRED on every exercise; one of 60, 90, 120, 180, 240. Default 120 when uncertain.\n' +
+    '- reps REQUIRED on every set — must be a single positive integer. For a prescribed range like "8–12" use the lower bound (8). For AMRAP / "to failure" / "max", pick the lowest realistic target (e.g. 8 for an 8+ AMRAP). NEVER emit "AMRAP", "max", "to failure", a range string, or an object.\n' +
     "- type ∈ {WEIGHT_TRAINING, CALISTHENICS, RUNNING, CYCLING, SWIMMING, ROWING, HIIT, COMBAT, MOBILITY, SPORT, OTHER}.\n" +
     "- split ∈ {PUSH, PULL, LEGS, UPPER, LOWER, ARMS, FULL_BODY, CORE} or null.\n" +
     "- weight in pounds; bodyweight movements use 0.\n" +
@@ -414,6 +415,7 @@ When the athlete asks for a workout, structure it:
    - Emit one entry per WORKING set, even when the prescription is "3×5 at 225" — the athlete needs to check off each set individually. So 3×5 at 225 = 3 entries with the same weight/reps. Drop sets, top sets + back-offs, and AMRAPs each get their own explicit entry with the weight/reps you're prescribing.
    - Include warm-up sets (type:"WARMUP") only when you actually prescribed warm-ups in the prose — otherwise leave them out and the athlete will warm up off-app.
    - "weight" is in pounds. For bodyweight movements (Pull-Up, Push-Up, Dip, etc.) use weight:0 unless you're prescribing added load. For timed holds, put the held seconds in "reps".
+   - "reps" is REQUIRED on EVERY set — never omit it, never leave it null, never emit it as a range or word. It MUST be a single positive integer (e.g. 5, 8, 12). For a prescribed range like "8–12", pick the lower bound (8). For AMRAPs / "to failure" / "max reps", commit to a concrete target the athlete should aim for (the lowest realistic rep count, e.g. 8 for an 8+ AMRAP) and call out the AMRAP intent in the prose. Never emit strings like "AMRAP", "max", "to failure", "8-12", or an object — the athlete's log will render blank reps fields and they'll have to type every number in by hand.
    - "split" is one of: PUSH, PULL, LEGS, UPPER, LOWER, ARMS, FULL_BODY, CORE. Use null for non-strength sessions.
    - "type" is one of: WEIGHT_TRAINING, CALISTHENICS, RUNNING, CYCLING, SWIMMING, ROWING, HIIT, COMBAT, MOBILITY, SPORT, OTHER.
    - "restSeconds" sets the auto rest timer that fires when the athlete checks off a working set. REQUIRED on EVERY exercise in a WEIGHT_TRAINING or CALISTHENICS plan — never omit it, never leave it null. MUST be one of: 60, 90, 120, 180, 240. Match it to the prescription:

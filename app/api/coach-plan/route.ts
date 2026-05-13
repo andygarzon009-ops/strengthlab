@@ -58,6 +58,36 @@ const toStr = (v: unknown): string => {
   return Number.isFinite(n) ? String(n) : "";
 };
 
+// Reps need extra tolerance: the model occasionally emits ranges
+// ("8-12"), AMRAP words ("AMRAP", "max", "to failure"), or an object
+// ({min,max,target}). Pull a usable positive integer out of anything we
+// can; fall back to "" only when there's truly no number to extract.
+const repsToStr = (v: unknown): string => {
+  if (v === null || v === undefined || v === "") return "";
+  if (typeof v === "number") return Number.isFinite(v) && v > 0 ? String(Math.round(v)) : "";
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    for (const k of ["min", "target", "reps", "value", "max"]) {
+      const inner = repsToStr(o[k]);
+      if (inner) return inner;
+    }
+    return "";
+  }
+  const s = String(v).trim();
+  if (!s) return "";
+  // AMRAP / to-failure / max — no specific number prescribed. Default
+  // to 8 so the athlete has a target in the field and can adjust live,
+  // rather than staring at a blank reps box.
+  if (/^(amrap|max|to failure|failure|until failure|as many as possible)\b/i.test(s)) {
+    return "8";
+  }
+  // Range like "8-12", "8–12", "8 to 12" → lower bound.
+  const range = s.match(/(\d+)\s*(?:[-–—]|to)\s*(\d+)/);
+  if (range) return range[1];
+  const m = s.match(/\d+/);
+  return m ? m[0] : "";
+};
+
 export async function POST(req: NextRequest) {
   try {
     const userId = await requireAuth();
@@ -118,7 +148,7 @@ export async function POST(req: NextRequest) {
           type: s.type === "WARMUP" ? "WARMUP" : "WORKING",
           setNumber: i + 1,
           weight: toStr(s.weight),
-          reps: toStr(s.reps),
+          reps: repsToStr(s.reps),
           rir: toStr(s.rir),
           notes: "",
         })),
