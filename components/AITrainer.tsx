@@ -453,9 +453,25 @@ export default function AITrainer() {
             return { ...m, content: text, plan: plan ?? undefined };
           });
           setMessages(hydrated);
+          // Jump to the latest message once the history is in. Without
+          // this the scroller stays pinned to the top of the (long)
+          // transcript and the athlete has to scroll all the way down
+          // to find the most recent exchange.
+          requestAnimationFrame(() => {
+            const scroller = scrollerRef.current;
+            if (scroller) scroller.scrollTop = scroller.scrollHeight;
+          });
         });
     }
-    if (open) setTimeout(() => inputRef.current?.focus(), 100);
+    if (open) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+      // Reopening with cached messages still mounts a fresh scroller at
+      // top — jump to the bottom so the latest exchange is in view.
+      requestAnimationFrame(() => {
+        const scroller = scrollerRef.current;
+        if (scroller) scroller.scrollTop = scroller.scrollHeight;
+      });
+    }
   }, [open]);
 
   // Anchor-on-user-message scroll: when a new user message lands, pin it
