@@ -1,11 +1,14 @@
 import { differenceInDays, format, subDays } from "date-fns";
 import {
-  PRIORITY_MUSCLES,
-  isPriorityMuscle,
+  broadGroupForSpecific,
   isTimedExercise,
   shapeForType,
   specificMuscleFor,
 } from "@/lib/exercises";
+
+const BROAD_GROUPS = ["Chest", "Back", "Shoulders", "Arms", "Legs", "Core"] as const;
+const SEVERITY_RANK = { high: 0, medium: 1, low: 2 } as const;
+const MAX_WEAK_SPOTS = 4;
 
 export type Severity = "high" | "medium" | "low";
 
@@ -64,7 +67,6 @@ export function computeWeakSpots(
 
   const now = new Date();
   const last7 = workouts.filter((w) => new Date(w.date) >= subDays(now, 7));
-  const last14 = workouts.filter((w) => new Date(w.date) >= subDays(now, 14));
 
   const volumeIn = (list: WorkoutRow[]) =>
     list
@@ -77,22 +79,23 @@ export function computeWeakSpots(
       .filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"))
       .reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
 
-  const priorityMusclesHitIn = (list: WorkoutRow[]): Set<string> => {
+  const broadGroupsHitIn = (list: WorkoutRow[]): Set<string> => {
     const hit = new Set<string>();
     for (const w of list) {
       if (shapeForType(w.type) !== "STRENGTH") continue;
       for (const we of w.exercises) {
         const hasWorkingSet = we.sets.some((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"));
         if (!hasWorkingSet) continue;
-        const m = specificMuscleFor(we.exercise.name);
-        if (isPriorityMuscle(m)) hit.add(m);
+        const specific = specificMuscleFor(we.exercise.name);
+        const broad = broadGroupForSpecific(specific);
+        if (broad) hit.add(broad);
       }
     }
     return hit;
   };
 
   const thisWeekVolume = volumeIn(last7);
-  const thisWeekPriorityMuscles = priorityMusclesHitIn(last7);
+  const thisWeekBroadGroups = broadGroupsHitIn(last7);
 
   const prior4Start = subDays(now, 35);
   const prior4End = subDays(now, 7);
@@ -104,21 +107,19 @@ export function computeWeakSpots(
 
   const spots: WeakSpot[] = [];
 
-  // Missed priority muscles
-  if (last14.length > 0) {
-    const missed = PRIORITY_MUSCLES.filter(
-      (m) => !thisWeekPriorityMuscles.has(m)
-    );
+  // Missed muscle groups — only flag once the user has trained this
+  // week, so the card shrinks as new sessions cover groups (rather than
+  // sitting stale from older sessions in the 14-day window).
+  if (last7.length > 0) {
+    const missed = BROAD_GROUPS.filter((g) => !thisWeekBroadGroups.has(g));
     if (missed.length > 0) {
-      const sample = missed.slice(0, 5).join(", ");
-      const tail = missed.length > 5 ? `, +${missed.length - 5} more` : "";
       spots.push({
-        id: "missed-priority-muscles",
+        id: "missed-muscle-groups",
         kind: "missed-muscles",
-        severity: missed.length >= 5 ? "high" : "medium",
-        title: `${missed.length} priority muscle${missed.length === 1 ? "" : "s"} missed this week`,
-        detail: `No working sets for: ${sample}${tail}.`,
-        items: missed,
+        severity: missed.length >= 3 ? "high" : "medium",
+        title: `${missed.length} muscle group${missed.length === 1 ? "" : "s"} missed this week`,
+        detail: `No working sets for: ${missed.join(", ")}.`,
+        items: [...missed],
       });
     }
   }
@@ -241,7 +242,10 @@ export function computeWeakSpots(
     }
   }
 
-  return spots;
+  // Sort by severity then cap — the UI gets overwhelming past ~4 cards
+  // and the user stops scanning them.
+  spots.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
+  return spots.slice(0, MAX_WEAK_SPOTS);
 }
 
 // One-line summary per spot for compact contexts (e.g. injecting into
