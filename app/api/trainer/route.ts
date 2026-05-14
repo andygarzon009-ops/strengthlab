@@ -626,11 +626,8 @@ ${user.coachPrompt.trim()}`
     const encoder = new TextEncoder();
     let fullResponse = "";
 
-    // Stick to GA model ids supported by @google/generative-ai v0.24.
-    // 2.5-pro has the best instruction-following; 2.5-flash is the fast
-    // fallback if pro is overloaded.
-    const PRIMARY_MODEL = "gemini-2.5-pro";
-    const FALLBACK_MODEL = "gemini-2.5-flash";
+    const PRIMARY_MODEL = "gemini-3.1-pro";
+    const FALLBACK_MODEL = "gemini-3.1-flash";
 
     let liveMessage = message;
     if (pendingParsed.length > 0) {

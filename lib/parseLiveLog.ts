@@ -117,11 +117,11 @@ Output ONLY the JSON object. No prose, no code fences.`;
 
   let result;
   try {
-    result = await tryOnce("gemini-2.5-flash-lite");
+    result = await tryOnce("gemini-3.1-flash-lite");
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
     if (/503|overload|unavailable|quota/i.test(msg)) {
-      result = await tryOnce("gemini-2.5-flash");
+      result = await tryOnce("gemini-3.1-flash");
     } else {
       console.error("parseLiveLog error:", err);
       return [];

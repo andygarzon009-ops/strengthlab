@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 
   let result;
   try {
-    result = await tryOnce("gemini-2.5-flash");
+    result = await tryOnce("gemini-3.1-flash");
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
     // Some audio formats (rare) get rejected; surface a clean error.
