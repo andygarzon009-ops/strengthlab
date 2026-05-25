@@ -127,11 +127,11 @@ Output ONLY the JSON object. No prose, no markdown, no code fences.`;
   try {
     let result;
     try {
-      result = await callModel("gemini-3.1-flash-lite");
+      result = await callModel("gemini-2.5-flash-lite");
     } catch (primaryErr) {
       const msg = primaryErr instanceof Error ? primaryErr.message : "";
       if (/503|overload|unavailable|quota/i.test(msg)) {
-        result = await callModel("gemini-3.1-flash");
+        result = await callModel("gemini-2.5-flash");
       } else {
         throw primaryErr;
       }

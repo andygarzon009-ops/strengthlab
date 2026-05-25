@@ -84,12 +84,12 @@ export async function POST(req: NextRequest) {
 
     const tryGemini = async () => {
       if (!genAI) throw new Error("Gemini not configured");
-      const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
       const r = await model.generateContent(prompt);
       const text = (r.response.text() ?? "").trim();
       if (!text) throw new Error("Empty Gemini reply");
       reply = text;
-      usedModel = "gemini-3.1-flash";
+      usedModel = "gemini-2.5-flash";
     };
 
     const tryClaude = async () => {

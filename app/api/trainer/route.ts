@@ -627,8 +627,8 @@ ${user.coachPrompt.trim()}`
     const encoder = new TextEncoder();
     let fullResponse = "";
 
-    const PRIMARY_MODEL = "gemini-3.1-pro";
-    const FALLBACK_MODEL = "gemini-3.1-flash";
+    const PRIMARY_MODEL = "gemini-2.5-pro";
+    const FALLBACK_MODEL = "gemini-2.5-flash";
 
     let liveMessage = message;
     if (pendingParsed.length > 0) {
