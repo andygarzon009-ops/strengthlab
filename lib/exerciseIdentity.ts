@@ -12,6 +12,22 @@ export function normalizeExerciseName(raw: string): string {
     .replace(/s$/, ""); // strip trailing plural 's'
 }
 
+// Split a name into normalized word tokens (lowercased, accent-stripped,
+// per-word de-pluralized). Used for word-set comparison so that a name
+// carrying an extra meaningful qualifier — "Smith machine hip thrust" vs
+// "Machine hip thrust", "Incline barbell bench" vs "Barbell bench" — is
+// NOT collapsed into the shorter lift. Equipment, angle, and grip
+// modifiers each add a token, so the word sets simply won't match.
+function tokenizeExerciseName(raw: string): string[] {
+  return raw
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .map((t) => t.replace(/s$/, "")); // de-pluralize each word
+}
+
 // Levenshtein distance (iterative, O(a·b) time, O(b) space).
 export function editDistance(a: string, b: string): number {
   if (a === b) return 0;
@@ -34,17 +50,58 @@ export function editDistance(a: string, b: string): number {
 }
 
 // Whether two raw exercise names probably refer to the same lift.
+//
+// The hard constraint: a name with an extra meaningful qualifier is a
+// DIFFERENT lift. "Smith machine hip thrust" must never resolve to
+// "Machine hip thrust", nor "Incline bench" to "Bench", nor "Close-grip
+// bench press" to "Bench press" — logging the wrong variant corrupts the
+// athlete's history. Substring containment used to do exactly that, so it's
+// gone. We match only on: identical normalized form, identical word set
+// (order / spacing / per-word plurals differ), a single one-edit typo in
+// one word, or a length-changing typo across the whole string (spacing /
+// compound / plural glitches like "weighted pullup" vs "weighed pull ups").
 export function exerciseNamesMatch(a: string, b: string): boolean {
   const na = normalizeExerciseName(a);
   const nb = normalizeExerciseName(b);
   if (!na || !nb) return false;
   if (na === nb) return true;
-  if (na.includes(nb) || nb.includes(na)) return true;
-  // Allow edit distance 2 but only when strings are long enough that
-  // 2 edits don't collapse two different short lifts (e.g. "row" vs "raw").
-  const minLen = Math.min(na.length, nb.length);
-  if (minLen < 5) return false;
-  return editDistance(na, nb) <= 2;
+
+  const ta = tokenizeExerciseName(a);
+  const tb = tokenizeExerciseName(b);
+  if (ta.length && tb.length) {
+    const sa = new Set(ta);
+    const sb = new Set(tb);
+    // Identical word set — handles reordering, spacing, and per-word plurals.
+    if (sa.size === sb.size && [...sa].every((t) => sb.has(t))) return true;
+    // Same word count differing in exactly one word that is a 1-edit typo of
+    // its counterpart. One edit only — opposite qualifiers like
+    // incline/decline are 2 edits apart and must stay distinct lifts.
+    if (ta.length === tb.length) {
+      const aOnly = ta.filter((t) => !sb.has(t));
+      const bOnly = tb.filter((t) => !sa.has(t));
+      if (
+        aOnly.length === 1 &&
+        bOnly.length === 1 &&
+        Math.min(aOnly[0].length, bOnly[0].length) >= 4 &&
+        editDistance(aOnly[0], bOnly[0]) <= 1
+      ) {
+        return true;
+      }
+    }
+  }
+
+  // Whole-string typo tolerance for spacing/compound/plural glitches that
+  // change length (e.g. "weightedpullup" vs "weighedpullup"). Only when the
+  // lengths actually differ — a same-length 2-edit gap is usually two
+  // different lifts (incline vs decline) and must not collapse.
+  if (
+    Math.min(na.length, nb.length) >= 6 &&
+    na.length !== nb.length &&
+    editDistance(na, nb) <= 2
+  ) {
+    return true;
+  }
+  return false;
 }
 
 // For a given exercise id + name, return every exercise id in the
@@ -78,19 +135,13 @@ export function clusterExercises<
     name: string;
     ids: Set<string>;
     all: T[];
-    normalized: string;
   }[] = [];
   for (const ex of exercises) {
-    const norm = normalizeExerciseName(ex.name);
-    if (!norm) continue;
-    const existing = clusters.find(
-      (c) =>
-        c.normalized === norm ||
-        (Math.min(c.normalized.length, norm.length) >= 5 &&
-          editDistance(c.normalized, norm) <= 2) ||
-        c.normalized.includes(norm) ||
-        norm.includes(c.normalized)
-    );
+    if (!normalizeExerciseName(ex.name)) continue;
+    // Use the shared matcher so analytics grouping stays consistent with
+    // how the rest of the app resolves duplicate lifts — and so qualifier
+    // variants (Smith machine vs machine, incline vs flat) stay separate.
+    const existing = clusters.find((c) => exerciseNamesMatch(c.name, ex.name));
     if (existing) {
       existing.ids.add(ex.id);
       existing.all.push(ex);
@@ -100,11 +151,10 @@ export function clusterExercises<
         name: ex.name,
         ids: new Set([ex.id]),
         all: [ex],
-        normalized: norm,
       });
     }
   }
-  return clusters.map(({ normalized: _n, ...rest }) => rest);
+  return clusters;
 }
 
 // Find an existing exercise row that would be treated as the same lift

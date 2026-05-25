@@ -8,6 +8,7 @@ import { shapeForType, labelForType, formatDuration } from "@/lib/exercises";
 import { normalizeExerciseName } from "@/lib/exerciseIdentity";
 import { parseLiveLog } from "@/lib/parseLiveLog";
 import { computeWeakSpots, formatWeakSpotsForPrompt } from "@/lib/weakSpots";
+import { hasValidPlan } from "@/lib/workoutPlan";
 
 export const maxDuration = 60;
 
@@ -821,17 +822,17 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
           // Guarantee the "Do this workout" button when the coach actually
           // prescribed a session. The system prompt asks for a fenced
           // ```workout-plan block, but Gemini occasionally forgets, uses
-          // the wrong fence tag, or emits invalid JSON. If the reply lacks
-          // a recognizable plan block but reads as prescriptive, do a
-          // cheap Flash extraction pass and append a canonical block so
-          // the client always renders the button.
-          const hasPlanFence =
-            /```[ \t]*workout[-_ ]?plan/i.test(fullResponse);
+          // the wrong fence tag, or emits invalid JSON. We gate the rescue
+          // on whether a plan actually PARSES (the same check the client
+          // uses to render the button), not on mere fence presence — a
+          // fence wrapped around broken JSON would otherwise suppress the
+          // rescue and leave the athlete with no button.
+          const alreadyHasPlan = hasValidPlan(fullResponse);
           // Score signals that the coach is prescribing a session, not just
-          // chatting. Covers weighted (NxM @ Wlb), bodyweight ("3 sets of 10
-          // push-ups"), and cardio/rep-only prose ("8 reps", "for 30 min").
-          // Synthesis bails with NO_PLAN if the prose isn't actually a plan,
-          // so we can afford to be permissive here.
+          // chatting. Covers weighted (NxM @ Wlb/kg/#), bodyweight ("3 sets
+          // of 10 push-ups"), and cardio/rep-only prose ("8 reps", "for 30
+          // min"). Synthesis bails with NO_PLAN if the prose isn't actually
+          // a plan, so we can afford to be permissive here.
           const setsByRe = (re: RegExp) =>
             (fullResponse.match(re) ?? []).length;
           const nxmHits = setsByRe(/\b\d+\s*[x×]\s*\d+\b/gi);
@@ -839,11 +840,14 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
             /\b\d+\s*sets?\s*(?:of|[x×])\s*\d+\b/gi
           );
           const repsHits = setsByRe(/\b\d+\s*reps?\b/gi);
-          const weightHits = setsByRe(/\b\d+\s*lb\b/gi);
+          // Weight: "225 lb", "225 lbs", "60 kg", "60kgs", "135#", or the
+          // coach's shorthand "@ 185" / "@185".
+          const weightHits = setsByRe(/\b\d+\s*(?:lbs?|kgs?|#)\b/gi);
+          const atWeightHits = setsByRe(/@\s*\d+/g);
           const looksPrescriptive =
-            nxmHits + setsOfHits + repsHits + weightHits >= 2;
+            nxmHits + setsOfHits + repsHits + weightHits + atWeightHits >= 2;
 
-          if (!hasPlanFence && looksPrescriptive) {
+          if (!alreadyHasPlan && looksPrescriptive) {
             try {
               const block = await synthesizePlanBlock(
                 genAI,
