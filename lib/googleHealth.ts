@@ -144,3 +144,43 @@ export async function listExercise(
   return data.dataPoints ?? [];
 }
 
+export type HeartRateSample = {
+  timestamp: Date;
+  bpm: number;
+};
+
+/// Heart-rate data points covered by the activity_and_fitness scope.
+/// The Health API returns one point per Fitbit reading (every few seconds when
+/// the device is actively tracking, less frequent otherwise).
+type HeartRateRawPoint = {
+  heartRate?: {
+    interval?: { startTime?: string };
+    beatsPerMinute?: number;
+  };
+};
+
+export async function listHeartRateBetween(
+  userId: string,
+  startISO: string,
+  endISO: string,
+): Promise<HeartRateSample[]> {
+  // The Health API filter syntax is "field >= \"value\" AND field <= \"value\"".
+  // civil_start_time is local-naive — the start/end we pass should already be
+  // the local-naive ISO without trailing Z (YYYY-MM-DDTHH:MM:SS).
+  const filter =
+    `heart_rate.interval.civil_start_time >= "${startISO}"` +
+    ` AND heart_rate.interval.civil_start_time <= "${endISO}"`;
+  const path =
+    "/users/me/dataTypes/heart_rate/dataPoints?filter=" + encodeURIComponent(filter);
+  const data = (await healthFetch(userId, path)) as { dataPoints?: HeartRateRawPoint[] };
+  const samples: HeartRateSample[] = [];
+  for (const point of data.dataPoints ?? []) {
+    const ts = point.heartRate?.interval?.startTime;
+    const bpm = point.heartRate?.beatsPerMinute;
+    if (!ts || typeof bpm !== "number" || bpm <= 0) continue;
+    samples.push({ timestamp: new Date(ts), bpm });
+  }
+  samples.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+  return samples;
+}
+

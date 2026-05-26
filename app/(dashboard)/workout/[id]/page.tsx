@@ -14,6 +14,7 @@ import BackButton from "@/components/BackButton";
 import ReactionButtons from "@/components/ReactionButtons";
 import CommentSection from "@/components/CommentSection";
 import DeleteWorkoutButton from "@/components/DeleteWorkoutButton";
+import WorkoutHRChart from "@/components/WorkoutHRChart";
 
 export default async function WorkoutDetailPage({
   params,
@@ -49,6 +50,12 @@ export default async function WorkoutDetailPage({
   const prs = await prisma.personalRecord.findMany({
     where: { workoutId: id, userId },
     include: { exercise: true },
+  });
+
+  const hrSamples = await prisma.workoutHeartRateSample.findMany({
+    where: { workoutId: id },
+    orderBy: { timestamp: "asc" },
+    select: { timestamp: true, bpm: true },
   });
 
   const typeLabel = labelForType(workout.type);
@@ -214,6 +221,17 @@ export default async function WorkoutDetailPage({
                 ]
         }
       />
+
+      {hrSamples.length > 0 && (
+        <div className="mb-4">
+          <WorkoutHRChart
+            samples={hrSamples.map((s) => ({
+              timestamp: s.timestamp.toISOString(),
+              bpm: s.bpm,
+            }))}
+          />
+        </div>
+      )}
 
       {/* Secondary metrics: HR, elevation, calories */}
       {(workout.avgHeartRate ||

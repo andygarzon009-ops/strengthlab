@@ -34,6 +34,8 @@ type WorkoutMetrics = {
   elevation?: number | null;
   calories?: number | null;
   rpe?: number | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
 };
 
 export type CreateWorkoutInput = {
@@ -68,6 +70,8 @@ export async function createWorkout(data: CreateWorkoutInput) {
       elevation: data.elevation ?? null,
       calories: data.calories ?? null,
       rpe: data.rpe ?? null,
+      startedAt: data.startedAt ? new Date(data.startedAt) : null,
+      endedAt: data.endedAt ? new Date(data.endedAt) : null,
       exercises: {
         create: data.exercises.map((ex) => ({
           exerciseId: ex.exerciseId,
@@ -311,6 +315,8 @@ export async function updateWorkout(
         elevation: data.elevation ?? null,
         calories: data.calories ?? null,
         rpe: data.rpe ?? null,
+        startedAt: data.startedAt ? new Date(data.startedAt) : null,
+        endedAt: data.endedAt ? new Date(data.endedAt) : null,
         exercises: {
           create: data.exercises.map((ex) => ({
             exerciseId: ex.exerciseId,

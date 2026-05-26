@@ -20,6 +20,7 @@ import {
   type WorkoutShape,
 } from "@/lib/exercises";
 import ExerciseLogger from "@/components/ExerciseLogger";
+import WorkoutTimerStrip from "@/components/WorkoutTimerStrip";
 import { useTransition, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -73,6 +74,8 @@ export type WorkoutFormInitial = {
   rounds: number | null;
   elevation: number | null;
   rpe: number | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
   fromCoachPlan?: boolean;
 };
 
@@ -143,6 +146,13 @@ export default function WorkoutForm({
     initial?.exercises ?? []
   );
 
+  // Live-workout timer. When startedAt is set the header shows a running clock
+  // and the Save button becomes Finish. On save, endedAt is captured and the
+  // [startedAt, endedAt] window is used to pull HR samples from Google Health.
+  const [startedAt, setStartedAt] = useState<Date | null>(
+    initial?.startedAt ? new Date(initial.startedAt) : null,
+  );
+
   // Shape-specific metrics
   const [durationMin, setDurationMin] = useState(
     initial?.duration ? String(Math.floor(initial.duration / 60)) : ""
@@ -188,6 +198,7 @@ export default function WorkoutForm({
     if (typeof d.rounds === "string") setRounds(d.rounds);
     if (typeof d.elevation === "string") setElevation(d.elevation);
     if (typeof d.rpe === "string") setRpe(d.rpe);
+    if (typeof d.startedAt === "string") setStartedAt(new Date(d.startedAt));
   };
 
   useEffect(() => {
@@ -283,6 +294,7 @@ export default function WorkoutForm({
       rounds,
       elevation,
       rpe,
+      startedAt: startedAt ? startedAt.toISOString() : null,
     };
     const serialized = JSON.stringify(draft);
 
@@ -349,6 +361,7 @@ export default function WorkoutForm({
     rounds,
     elevation,
     rpe,
+    startedAt,
   ]);
 
   const shape: WorkoutShape = workoutType ? shapeForType(workoutType) : "STRENGTH";
@@ -436,6 +449,8 @@ export default function WorkoutForm({
       elevation:
         shape === "DISTANCE" && elevation ? parseInt(elevation) : null,
       rpe: rpe ? parseInt(rpe) : null,
+      startedAt: startedAt ? startedAt.toISOString() : null,
+      endedAt: startedAt ? new Date().toISOString() : null,
       exercises:
         shape === "STRENGTH"
           ? exercises.map((ex, i) => ({
@@ -515,6 +530,16 @@ export default function WorkoutForm({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ workoutId: id }),
+            keepalive: true,
+          }).catch(() => {});
+        }
+
+        // Live-timed workout — sync Fitbit HR for [startedAt, endedAt] in the
+        // background. Endpoint is a no-op if the user hasn't connected Fitbit,
+        // so it's safe to always call. Fire-and-forget; never blocks navigation.
+        if (id && startedAt) {
+          fetch(`/api/workouts/${id}/sync-hr`, {
+            method: "POST",
             keepalive: true,
           }).catch(() => {});
         }
@@ -773,10 +798,18 @@ export default function WorkoutForm({
             disabled={!canSave || pending}
             className="btn-accent px-4 py-2 rounded-xl text-[13px]"
           >
-            {pending ? "Saving…" : "Save"}
+            {pending ? "Saving…" : startedAt ? "Finish" : "Save"}
           </button>
         </div>
       </div>
+
+      {step === "log" && (
+        <WorkoutTimerStrip
+          startedAt={startedAt}
+          onBegin={() => setStartedAt(new Date())}
+          onCancel={() => setStartedAt(null)}
+        />
+      )}
 
       {(submitError || !online) && (
         <div
