@@ -209,25 +209,54 @@ export async function POST(req: NextRequest) {
     const split =
       plan.split && VALID_SPLITS.has(plan.split) ? plan.split : null;
 
-    // Sanitize the warmup block — silently drop anything malformed so a
-    // bad model output doesn't break the whole prescription.
+    // Sanitize the warmup block. Be tolerant of model drift — accept several
+    // common synonyms for duration/reps so a slightly-off model output still
+    // produces a usable warmup instead of silently dropping every item.
     let warmup: PlanWarmup | null = null;
-    if (plan.warmup && Array.isArray(plan.warmup.items)) {
+    const rawWarmup = (plan as { warmup?: unknown }).warmup;
+    if (rawWarmup && typeof rawWarmup === "object") {
+      // Tolerate either { items: [...] } or a bare [...] in case the model
+      // collapsed the wrapper.
+      const rawItems = Array.isArray(rawWarmup)
+        ? rawWarmup
+        : Array.isArray((rawWarmup as { items?: unknown }).items)
+          ? ((rawWarmup as { items: unknown[] }).items)
+          : [];
+
       const items: PlanWarmupItem[] = [];
       let totalSec = 0;
-      for (const raw of plan.warmup.items) {
+      for (const r of rawItems) {
+        const raw = r as Record<string, unknown>;
         const name = typeof raw?.name === "string" ? raw.name.trim() : "";
         if (!name) continue;
-        const durationSec =
-          typeof raw.durationSec === "number" && raw.durationSec > 0
-            ? Math.min(600, Math.round(raw.durationSec))
-            : undefined;
-        const reps =
-          typeof raw.reps === "number" && raw.reps > 0
-            ? Math.round(raw.reps)
-            : undefined;
+
+        // Accept durationSec | duration | seconds | time. If it's a string
+        // like "3 min" pull the number out.
+        const durCandidate =
+          raw.durationSec ?? raw.duration ?? raw.seconds ?? raw.time ?? raw.timeSec;
+        let durationSec: number | undefined;
+        if (typeof durCandidate === "number" && durCandidate > 0) {
+          durationSec = Math.round(durCandidate);
+        } else if (typeof durCandidate === "string") {
+          const m = durCandidate.match(/(\d+(?:\.\d+)?)\s*(min|m)\b/i);
+          const numMatch = durCandidate.match(/(\d+(?:\.\d+)?)/);
+          if (m) durationSec = Math.round(parseFloat(m[1]) * 60);
+          else if (numMatch) durationSec = Math.round(parseFloat(numMatch[1]));
+        }
+        if (durationSec !== undefined) {
+          durationSec = Math.min(600, Math.max(1, durationSec));
+        }
+
+        const repsCandidate = raw.reps ?? raw.repetitions ?? raw.count;
+        let reps: number | undefined;
+        if (typeof repsCandidate === "number" && repsCandidate > 0) {
+          reps = Math.round(repsCandidate);
+        } else if (typeof repsCandidate === "string") {
+          const m = repsCandidate.match(/\d+/);
+          if (m) reps = parseInt(m[0]);
+        }
+
         if (!durationSec && !reps) continue;
-        // Cap total warmup time at 10 min — matches the product guideline
         if (durationSec) {
           if (totalSec + durationSec > 600) continue;
           totalSec += durationSec;
@@ -235,17 +264,26 @@ export async function POST(req: NextRequest) {
         items.push({
           kind:
             raw.kind === "cardio" || raw.kind === "mobility" || raw.kind === "activation"
-              ? raw.kind
+              ? (raw.kind as PlanWarmupItem["kind"])
               : undefined,
           name,
           durationSec,
           reps,
           instructions:
-            typeof raw.instructions === "string" ? raw.instructions.slice(0, 200) : undefined,
+            typeof raw.instructions === "string"
+              ? raw.instructions.slice(0, 200)
+              : undefined,
         });
       }
       if (items.length > 0) warmup = { items };
     }
+
+    // Logged so we can see in Vercel runtime logs whether the model is
+    // actually emitting the warmup block as instructed.
+    console.log("coach-plan warmup:", {
+      raw: rawWarmup,
+      sanitized: warmup,
+    });
 
     return Response.json({
       restPrefs,
