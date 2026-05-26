@@ -44,6 +44,9 @@ export default async function EditWorkoutPage({
     rounds: workout.rounds,
     elevation: workout.elevation,
     rpe: workout.rpe,
+    startedAt: workout.startedAt ? workout.startedAt.toISOString() : null,
+    endedAt: workout.endedAt ? workout.endedAt.toISOString() : null,
+    warmup: workout.warmup as WorkoutFormInitial["warmup"],
     exercises: workout.exercises.map((ex) => ({
       exerciseId: ex.exerciseId,
       exerciseName: ex.exercise.name,

@@ -21,6 +21,7 @@ import {
 } from "@/lib/exercises";
 import ExerciseLogger from "@/components/ExerciseLogger";
 import WorkoutTimerStrip from "@/components/WorkoutTimerStrip";
+import GuidedWarmup from "@/components/GuidedWarmup";
 import { useTransition, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -76,6 +77,15 @@ export type WorkoutFormInitial = {
   rpe: number | null;
   startedAt?: string | null;
   endedAt?: string | null;
+  warmup?: {
+    items: {
+      kind?: "cardio" | "mobility" | "activation";
+      name: string;
+      durationSec?: number;
+      reps?: number;
+      instructions?: string;
+    }[];
+  } | null;
   fromCoachPlan?: boolean;
 };
 
@@ -152,6 +162,10 @@ export default function WorkoutForm({
   const [startedAt, setStartedAt] = useState<Date | null>(
     initial?.startedAt ? new Date(initial.startedAt) : null,
   );
+
+  // Coach-prescribed warmup (cardio + mobility + activation items). Carried
+  // through to the workout row on save so the detail page can replay it.
+  const warmup = initial?.warmup ?? null;
 
   // Shape-specific metrics
   const [durationMin, setDurationMin] = useState(
@@ -451,6 +465,7 @@ export default function WorkoutForm({
       rpe: rpe ? parseInt(rpe) : null,
       startedAt: startedAt ? startedAt.toISOString() : null,
       endedAt: startedAt ? new Date().toISOString() : null,
+      warmup: warmup ?? null,
       exercises:
         shape === "STRENGTH"
           ? exercises.map((ex, i) => ({
@@ -802,6 +817,10 @@ export default function WorkoutForm({
           </button>
         </div>
       </div>
+
+      {step === "log" && warmup && warmup.items.length > 0 && (
+        <GuidedWarmup items={warmup.items} />
+      )}
 
       {step === "log" && (
         <WorkoutTimerStrip

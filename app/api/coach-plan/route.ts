@@ -21,10 +21,26 @@ type PlanExercise = {
   sets: PlanSet[];
 };
 
+/// One item in a coach-prescribed warmup. Either timed (durationSec) for
+/// holds + light cardio, or counted (reps) for activation drills like
+/// band pull-aparts. `kind` is a soft hint used for grouping/icon only.
+export type PlanWarmupItem = {
+  kind?: "cardio" | "mobility" | "activation";
+  name: string;
+  durationSec?: number;
+  reps?: number;
+  instructions?: string;
+};
+
+export type PlanWarmup = {
+  items: PlanWarmupItem[];
+};
+
 type PlanPayload = {
   title?: string;
   type?: string;
   split?: string | null;
+  warmup?: PlanWarmup;
   exercises: PlanExercise[];
 };
 
@@ -193,6 +209,44 @@ export async function POST(req: NextRequest) {
     const split =
       plan.split && VALID_SPLITS.has(plan.split) ? plan.split : null;
 
+    // Sanitize the warmup block — silently drop anything malformed so a
+    // bad model output doesn't break the whole prescription.
+    let warmup: PlanWarmup | null = null;
+    if (plan.warmup && Array.isArray(plan.warmup.items)) {
+      const items: PlanWarmupItem[] = [];
+      let totalSec = 0;
+      for (const raw of plan.warmup.items) {
+        const name = typeof raw?.name === "string" ? raw.name.trim() : "";
+        if (!name) continue;
+        const durationSec =
+          typeof raw.durationSec === "number" && raw.durationSec > 0
+            ? Math.min(600, Math.round(raw.durationSec))
+            : undefined;
+        const reps =
+          typeof raw.reps === "number" && raw.reps > 0
+            ? Math.round(raw.reps)
+            : undefined;
+        if (!durationSec && !reps) continue;
+        // Cap total warmup time at 10 min — matches the product guideline
+        if (durationSec) {
+          if (totalSec + durationSec > 600) continue;
+          totalSec += durationSec;
+        }
+        items.push({
+          kind:
+            raw.kind === "cardio" || raw.kind === "mobility" || raw.kind === "activation"
+              ? raw.kind
+              : undefined,
+          name,
+          durationSec,
+          reps,
+          instructions:
+            typeof raw.instructions === "string" ? raw.instructions.slice(0, 200) : undefined,
+        });
+      }
+      if (items.length > 0) warmup = { items };
+    }
+
     return Response.json({
       restPrefs,
       initial: {
@@ -205,6 +259,7 @@ export async function POST(req: NextRequest) {
         feeling: "",
         isDeload: false,
         exercises: resolvedExercises,
+        warmup,
         duration: null,
         distance: null,
         pace: null,

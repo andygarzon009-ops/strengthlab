@@ -36,6 +36,9 @@ async function synthesizePlanBlock(
     "Output format MUST be exactly:\n" +
     "```workout-plan\n" +
     '{"title":"...","type":"WEIGHT_TRAINING","split":"PUSH",' +
+    '"warmup":{"items":[{"kind":"cardio","name":"Easy bike","durationSec":180},' +
+    '{"kind":"mobility","name":"Cat-cow","durationSec":45},' +
+    '{"kind":"activation","name":"Band pull-aparts","reps":15}]},' +
     '"exercises":[{"name":"Barbell Bench Press","restSeconds":180,' +
     '"sets":[{"type":"WORKING","weight":225,"reps":5}]}]}\n' +
     "```\n\n" +
@@ -47,6 +50,7 @@ async function synthesizePlanBlock(
     "- type ∈ {WEIGHT_TRAINING, CALISTHENICS, RUNNING, CYCLING, SWIMMING, ROWING, HIIT, COMBAT, MOBILITY, SPORT, OTHER}.\n" +
     "- split ∈ {PUSH, PULL, LEGS, UPPER, LOWER, ARMS, FULL_BODY, CORE} or null.\n" +
     "- weight in pounds; bodyweight movements use 0.\n" +
+    "- warmup is OPTIONAL. Include it ONLY if the coach's prose actually prescribed a warm-up routine. Each item has name, kind ∈ {cardio, mobility, activation}, and EITHER durationSec (timed; integer seconds, max 600) OR reps (counted; positive integer). Total durationSec across all items must stay under 600 (10 min cap).\n" +
     "- Valid minified JSON, double-quoted keys, no trailing commas, no comments.";
 
   const model = client.getGenerativeModel({ model: modelName, systemInstruction });
@@ -429,6 +433,19 @@ When the athlete asks for a workout, structure it:
    - The block MUST be valid JSON — minified, double-quoted keys, no trailing commas, no comments.
    - Do NOT mention the plan block in your prose ("I'll add a button below…" / "tap the button to log…"). The button just appears.
    - If the athlete is asking for analysis, advice, or a non-prescription question, do NOT emit the block — only emit it when you're actually prescribing a session for them to do.
+
+   WARMUP BLOCK (optional inside the plan block):
+   - You can ADDITIONALLY include a "warmup" key alongside "exercises" when a warm-up actually serves this session. Heavy compound days, cold mornings, injury-prone athletes — yes. Pure pump/isolation days, deloads, mobility days — usually no, skip it.
+   - Shape: "warmup":{"items":[{"kind":"...","name":"...","durationSec":N},{"kind":"...","name":"...","reps":N,"instructions":"..."}]}
+   - "kind" ∈ {"cardio", "mobility", "activation"} — pick the one that fits.
+     * cardio    — light global warm-up (easy bike, treadmill walk, jumping rope)
+     * mobility  — dynamic stretches, joint prep (cat-cow, leg swings, world's greatest stretch)
+     * activation — small priming reps that pre-fire the muscles you're about to load (band pull-aparts, scapular pull-ups, glute bridges, face pulls)
+   - Each item has EITHER durationSec (integer seconds, for holds + cardio) OR reps (positive integer, for activation drills). Don't include both on the same item.
+   - "instructions" is optional, ≤ 200 chars, e.g. "slow controlled tempo", "each side", "build to working pace".
+   - TOTAL durationSec across all items MUST stay under 600 (10 minutes). The whole warmup should ideally come in around 5–8 minutes — the athlete is here to lift, not jog.
+   - Order matters: cardio first → mobility → activation. Specific to the muscles being trained today (push day = shoulders, T-spine, chest; legs day = hips, ankles, glutes; pull day = lats, scaps, rotator cuff).
+   - When the prescription is just a chat reply, deload, mobility session, or analysis — omit the warmup block entirely. Do not invent one to fill space.
 
 LOG ANALYSIS STYLE:
 When the athlete gives workout numbers, respond like a coach reviewing game film.

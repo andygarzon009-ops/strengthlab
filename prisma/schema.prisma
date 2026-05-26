@@ -147,6 +147,8 @@ model Workout {
   rpe          Int?
   startedAt    DateTime?
   endedAt      DateTime?
+  /// Coach-prescribed warmup payload: { items: [{ kind, name, durationSec?, reps?, instructions? }] }
+  warmup       Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

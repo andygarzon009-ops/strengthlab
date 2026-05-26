@@ -23,6 +23,16 @@ type ExerciseInput = {
   sets: SetInput[];
 };
 
+export type WarmupItem = {
+  kind?: "cardio" | "mobility" | "activation";
+  name: string;
+  durationSec?: number;
+  reps?: number;
+  instructions?: string;
+};
+
+export type Warmup = { items: WarmupItem[] };
+
 type WorkoutMetrics = {
   split?: string | null;
   duration?: number | null;
@@ -36,6 +46,7 @@ type WorkoutMetrics = {
   rpe?: number | null;
   startedAt?: string | null;
   endedAt?: string | null;
+  warmup?: Warmup | null;
 };
 
 export type CreateWorkoutInput = {
@@ -72,6 +83,7 @@ export async function createWorkout(data: CreateWorkoutInput) {
       rpe: data.rpe ?? null,
       startedAt: data.startedAt ? new Date(data.startedAt) : null,
       endedAt: data.endedAt ? new Date(data.endedAt) : null,
+      warmup: data.warmup ?? undefined,
       exercises: {
         create: data.exercises.map((ex) => ({
           exerciseId: ex.exerciseId,
@@ -317,6 +329,7 @@ export async function updateWorkout(
         rpe: data.rpe ?? null,
         startedAt: data.startedAt ? new Date(data.startedAt) : null,
         endedAt: data.endedAt ? new Date(data.endedAt) : null,
+        warmup: data.warmup ?? undefined,
         exercises: {
           create: data.exercises.map((ex) => ({
             exerciseId: ex.exerciseId,

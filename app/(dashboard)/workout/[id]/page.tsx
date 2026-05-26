@@ -15,6 +15,17 @@ import ReactionButtons from "@/components/ReactionButtons";
 import CommentSection from "@/components/CommentSection";
 import DeleteWorkoutButton from "@/components/DeleteWorkoutButton";
 import WorkoutHRChart from "@/components/WorkoutHRChart";
+import GuidedWarmup from "@/components/GuidedWarmup";
+
+type WarmupShape = {
+  items: {
+    kind?: "cardio" | "mobility" | "activation";
+    name: string;
+    durationSec?: number;
+    reps?: number;
+    instructions?: string;
+  }[];
+};
 
 export default async function WorkoutDetailPage({
   params,
@@ -221,6 +232,12 @@ export default async function WorkoutDetailPage({
                 ]
         }
       />
+
+      {workout.warmup &&
+        Array.isArray((workout.warmup as WarmupShape).items) &&
+        (workout.warmup as WarmupShape).items.length > 0 && (
+          <GuidedWarmup items={(workout.warmup as WarmupShape).items} />
+        )}
 
       {hrSamples.length > 0 && (
         <div className="mb-4">
