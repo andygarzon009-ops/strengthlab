@@ -35,72 +35,67 @@ export async function POST(
   }
 
   // Derive the sync window. Priority:
-  //   1. startedAt/endedAt from the live logger (exact)
-  //   2. A Google Health exercise session on the same local-tz date as the
-  //      workout — handles backdated workouts where date is correct but no
-  //      timing was captured. The session's start/end is the truth.
+  //   1. A Google Health exercise session on the same local-tz date as the
+  //      workout — most authoritative, and corrects bad startedAt values
+  //      that prior syncs may have backfilled from a fuzzy fallback.
+  //   2. startedAt/endedAt from the live logger
   //   3. date + duration (manual logging without the timer)
   //   4. date ± 30min fuzzy fallback
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { timezone: true },
+  });
+  const tz = user?.timezone ?? "UTC";
+  const dayKey = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(d);
+  const targetDay = dayKey(workout.date);
+
+  let matched: { startTime: string; endTime: string; durationSec: number } | null = null;
+  try {
+    const { sessions } = await getCachedSessions(userId, { days: 30 });
+    const sameDay = sessions.filter(
+      (s) => dayKey(new Date(s.startTime)) === targetDay,
+    );
+    if (sameDay.length > 0) {
+      if (workout.duration && workout.duration > 0) {
+        sameDay.sort(
+          (a, b) =>
+            Math.abs(a.durationSec - workout.duration!) -
+            Math.abs(b.durationSec - workout.duration!),
+        );
+      } else {
+        sameDay.sort((a, b) => b.durationSec - a.durationSec);
+      }
+      matched = sameDay[0];
+    }
+  } catch {
+    // Fall through to fallback windows.
+  }
+
   let start: Date;
   let end: Date;
   let windowSource: string;
-  if (workout.startedAt) {
+  if (matched) {
+    start = new Date(matched.startTime);
+    end = new Date(matched.endTime);
+    windowSource = "matched-session";
+  } else if (workout.startedAt) {
     start = workout.startedAt;
     end = workout.endedAt ?? new Date();
     windowSource = "logger";
+  } else if (workout.duration && workout.duration > 0) {
+    start = workout.date;
+    end = new Date(workout.date.getTime() + workout.duration * 1000);
+    windowSource = "date+duration";
   } else {
-    // Refresh the Fitbit/Health session cache and pick whichever recorded
-    // session falls on the same calendar day (in the user's timezone) as
-    // this workout. If multiple match, pick the one closest in duration.
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { timezone: true },
-    });
-    const tz = user?.timezone ?? "UTC";
-    const dayKey = (d: Date) =>
-      new Intl.DateTimeFormat("en-CA", {
-        timeZone: tz,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(d);
-    const targetDay = dayKey(workout.date);
-
-    let matched: { startTime: string; endTime: string; durationSec: number } | null = null;
-    try {
-      const { sessions } = await getCachedSessions(userId, { days: 30 });
-      const sameDay = sessions.filter(
-        (s) => dayKey(new Date(s.startTime)) === targetDay,
-      );
-      if (sameDay.length > 0) {
-        if (workout.duration && workout.duration > 0) {
-          sameDay.sort(
-            (a, b) =>
-              Math.abs(a.durationSec - workout.duration!) -
-              Math.abs(b.durationSec - workout.duration!),
-          );
-        } else {
-          sameDay.sort((a, b) => b.durationSec - a.durationSec);
-        }
-        matched = sameDay[0];
-      }
-    } catch {
-      // Fall through to fallback windows.
-    }
-
-    if (matched) {
-      start = new Date(matched.startTime);
-      end = new Date(matched.endTime);
-      windowSource = "matched-session";
-    } else if (workout.duration && workout.duration > 0) {
-      start = workout.date;
-      end = new Date(workout.date.getTime() + workout.duration * 1000);
-      windowSource = "date+duration";
-    } else {
-      start = new Date(workout.date.getTime() - 30 * 60 * 1000);
-      end = new Date(workout.date.getTime() + 30 * 60 * 1000);
-      windowSource = "fuzzy";
-    }
+    start = new Date(workout.date.getTime() - 30 * 60 * 1000);
+    end = new Date(workout.date.getTime() + 30 * 60 * 1000);
+    windowSource = "fuzzy";
   }
 
   let samples;
@@ -140,10 +135,13 @@ export async function POST(
       data: {
         avgHeartRate: avg,
         maxHeartRate: max,
-        // Persist the derived window so repeat syncs and the chart use the
-        // exact same range — only when not already set, to preserve any
-        // precise timer values from a live-logged session.
-        ...(workout.startedAt ? {} : { startedAt: start, endedAt: end }),
+        // Persist the derived window. Always overwrite when we used a
+        // matched Google Health session (truth source); otherwise only
+        // fill in when startedAt is missing so we don't clobber precise
+        // timer values from a live-logged session.
+        ...(windowSource === "matched-session" || !workout.startedAt
+          ? { startedAt: start, endedAt: end }
+          : {}),
       },
     });
   });
