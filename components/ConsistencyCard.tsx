@@ -70,13 +70,31 @@ export default async function ConsistencyCard({
   });
   const daysHit = daysThisWeek.filter((d) => d.hasWorkout).length;
 
-  // Muscle recency at the specific-muscle level. The previous version
-  // collapsed every region to its broad group's minimum, so an RDL on
-  // leg day would re-paint the entire Back as Fresh even when Lats and
-  // Rhomboids hadn't been hit in a week. Tracking per specific keeps
-  // each region honest. SUPERSET / DROP_SET sets count too — they're
-  // real working volume for stimulus, even if PR tracking ignores them.
+  // Per-specific-muscle recency, but drive it off two signals so a custom
+  // exercise (or one with an unfamiliar name) still credits something:
+  //  1. The exercise's muscleGroup column on the log — authoritative when
+  //     the user set it. Tells us the broad area (Chest / Back / …).
+  //  2. specificMuscleFor on the name — gets us finer than the broad group
+  //     when the name is recognizable (lateral raise → Side Delts, not
+  //     just Shoulders).
+  // If we have both, prefer the specific. If only broad, stamp every
+  // specific muscle in that broad group. If neither, skip.
+  const BROAD_TO_SPECIFICS: Record<string, string[]> = {
+    Chest: ["Pec Major", "Pec Minor", "Serratus"],
+    Back: ["Lats", "Traps", "Rhomboids", "Lower Back", "Teres"],
+    Shoulders: ["Front Delts", "Side Delts", "Rear Delts"],
+    Arms: ["Biceps", "Brachialis", "Triceps", "Forearms"],
+    Legs: ["Quads", "Hamstrings", "Glutes", "Adductors", "Abductors", "Calves", "Tibialis"],
+    Core: ["Abs", "Obliques"],
+  };
+
   const recency: MuscleRecency = {};
+  const credit = (m: string, days: number) => {
+    if (recency[m] === undefined || days < (recency[m] as number)) {
+      recency[m] = days;
+    }
+  };
+
   for (const w of workouts) {
     if (shapeForType(w.type) !== "STRENGTH") continue;
     const days = differenceInCalendarDays(today, new Date(w.date));
@@ -85,10 +103,19 @@ export default async function ConsistencyCard({
         (s) => s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"
       );
       if (!hit) continue;
+
       const specific = specificMuscleFor(we.exercise.name);
-      if (!specific) continue;
-      if (recency[specific] === undefined || days < (recency[specific] as number)) {
-        recency[specific] = days;
+      if (specific && specific !== "Other") {
+        credit(specific, days);
+        continue;
+      }
+
+      // Name didn't tell us a specific muscle — fall back to the broad
+      // muscleGroup column. Spread the recency across every specific in
+      // that broad area so the body map still shows something.
+      const broad = we.exercise.muscleGroup;
+      if (broad && BROAD_TO_SPECIFICS[broad]) {
+        for (const m of BROAD_TO_SPECIFICS[broad]) credit(m, days);
       }
     }
   }
