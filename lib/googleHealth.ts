@@ -5,11 +5,13 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const HEALTH_API_BASE = "https://health.googleapis.com/v4";
 
-// activity_and_fitness includes per-session heart rate metrics
-// (averageHeartRateBeatsPerMinute on each exercise point). There's no
-// standalone heart_rate scope in the Google Health API today.
+// activity_and_fitness covers exercise sessions; heart_rate is a separate
+// scope required to read per-second heart-rate data points. Adding scopes
+// here invalidates the consent of previously connected users — they must
+// disconnect and reconnect to grant the new scope.
 export const HEALTH_SCOPES = [
   "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
+  "https://www.googleapis.com/auth/googlehealth.heart_rate.readonly",
 ];
 
 function requireEnv(name: string): string {
@@ -171,7 +173,7 @@ export async function listHeartRateBetween(
     `heart_rate.interval.civil_start_time >= "${startISO}"` +
     ` AND heart_rate.interval.civil_start_time <= "${endISO}"`;
   const path =
-    "/users/me/dataTypes/heart_rate/dataPoints?filter=" + encodeURIComponent(filter);
+    "/users/me/dataTypes/heart-rate/dataPoints?filter=" + encodeURIComponent(filter);
   const data = (await healthFetch(userId, path)) as { dataPoints?: HeartRateRawPoint[] };
   const samples: HeartRateSample[] = [];
   for (const point of data.dataPoints ?? []) {

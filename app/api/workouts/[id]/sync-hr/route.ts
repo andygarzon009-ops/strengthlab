@@ -39,6 +39,17 @@ export async function POST(
     samples = await listHeartRateBetween(userId, toCivilISO(start), toCivilISO(end));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    // Missing scope → token lacks heart_rate.readonly; user must reconnect.
+    if (msg.includes("403") || msg.toLowerCase().includes("permission")) {
+      return Response.json(
+        {
+          error:
+            "Heart-rate scope not granted. Disconnect and reconnect Fitbit on the Health page.",
+          needsReconnect: true,
+        },
+        { status: 403 },
+      );
+    }
     return Response.json({ error: msg }, { status: 502 });
   }
 
