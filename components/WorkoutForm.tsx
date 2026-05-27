@@ -47,6 +47,7 @@ type SetData = {
   rir: string;
   notes: string;
   completed?: boolean;
+  loggedAt?: string;
 };
 
 type ExerciseData = {
@@ -480,6 +481,7 @@ export default function WorkoutForm({
                 reps: s.reps ? parseInt(s.reps) : undefined,
                 rir: s.rir ? parseInt(s.rir) : undefined,
                 notes: s.notes || undefined,
+                loggedAt: s.loggedAt ?? null,
               })),
             }))
           : [],

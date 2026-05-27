@@ -15,6 +15,7 @@ import ReactionButtons from "@/components/ReactionButtons";
 import CommentSection from "@/components/CommentSection";
 import DeleteWorkoutButton from "@/components/DeleteWorkoutButton";
 import WorkoutHRChart from "@/components/WorkoutHRChart";
+import SyncHRButton from "@/components/SyncHRButton";
 import GuidedWarmup from "@/components/GuidedWarmup";
 
 type WarmupShape = {
@@ -246,8 +247,20 @@ export default async function WorkoutDetailPage({
               timestamp: s.timestamp.toISOString(),
               bpm: s.bpm,
             }))}
+            setMarkers={workout.exercises.flatMap((ex) =>
+              ex.sets
+                .filter((s) => s.loggedAt && (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"))
+                .map((s) => ({
+                  timestamp: s.loggedAt!.toISOString(),
+                  label: `${ex.exercise.name} · ${s.weight ?? "—"}×${s.reps ?? "—"}`,
+                }))
+            )}
           />
         </div>
+      )}
+
+      {isOwn && workout.startedAt && (
+        <SyncHRButton workoutId={workout.id} />
       )}
 
       {/* Secondary metrics: HR, elevation, calories */}

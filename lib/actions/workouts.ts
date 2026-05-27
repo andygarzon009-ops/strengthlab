@@ -13,6 +13,7 @@ type SetInput = {
   reps?: number | null;
   rir?: number | null;
   notes?: string;
+  loggedAt?: string | null;
 };
 
 type ExerciseInput = {
@@ -98,6 +99,7 @@ export async function createWorkout(data: CreateWorkoutInput) {
               reps: s.reps,
               rir: s.rir,
               notes: s.notes,
+              loggedAt: s.loggedAt ? new Date(s.loggedAt) : null,
             })),
           },
         })),
@@ -343,6 +345,7 @@ export async function updateWorkout(
                 reps: s.reps,
                 rir: s.rir,
                 notes: s.notes,
+                loggedAt: s.loggedAt ? new Date(s.loggedAt) : null,
               })),
             },
           })),

@@ -116,6 +116,7 @@ type SetData = {
   rir: string;
   notes: string;
   completed?: boolean;
+  loggedAt?: string;
 };
 
 type ExerciseData = {
@@ -374,7 +375,13 @@ export default function ExerciseLogger({
     value: string | boolean
   ) => {
     const updated = [...exercises];
-    (updated[exIdx].sets[setIdx] as unknown as Record<string, string | boolean>)[field] = value;
+    const target = updated[exIdx].sets[setIdx] as unknown as Record<string, string | boolean | undefined>;
+    target[field] = value;
+    // First time a set is marked complete, stamp loggedAt so the HR chart can
+    // overlay a marker. Toggling off doesn't clear it — preserves history.
+    if (field === "completed" && value === true && !target.loggedAt) {
+      target.loggedAt = new Date().toISOString();
+    }
     setExercises(updated);
   };
 

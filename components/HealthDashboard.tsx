@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type ExercisePoint = {
   name: string;
@@ -39,6 +40,18 @@ function formatTime(iso: string): string {
   });
 }
 
+type DetectedSession = {
+  name: string;
+  startTime: string;
+  endTime: string;
+  displayName: string;
+  exerciseType?: string;
+  durationSec: number;
+  calories?: number;
+  steps?: number;
+  avgHR?: number;
+};
+
 export default function HealthDashboard({
   connected,
   connectedAt,
@@ -46,8 +59,42 @@ export default function HealthDashboard({
   connected: boolean;
   connectedAt: Date | null;
 }) {
+  const router = useRouter();
   const [data, setData] = useState<SyncResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [detected, setDetected] = useState<DetectedSession[]>([]);
+  const [detectLoading, setDetectLoading] = useState(false);
+  const [importing, setImporting] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!connected) return;
+    setDetectLoading(true);
+    fetch("/api/health/detect")
+      .then((r) => r.json())
+      .then((body) => {
+        if (Array.isArray(body.sessions)) setDetected(body.sessions);
+      })
+      .catch(() => {})
+      .finally(() => setDetectLoading(false));
+  }, [connected]);
+
+  async function importSession(s: DetectedSession) {
+    setImporting(s.name);
+    try {
+      const res = await fetch("/api/health/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(s),
+      });
+      const body = await res.json();
+      if (body.workoutId) {
+        setDetected((prev) => prev.filter((x) => x.name !== s.name));
+        router.push(`/workout/${body.workoutId}`);
+      }
+    } finally {
+      setImporting(null);
+    }
+  }
 
   async function pull() {
     setLoading(true);
@@ -105,6 +152,58 @@ export default function HealthDashboard({
         Connected
         {connectedAt && ` · since ${new Date(connectedAt).toLocaleDateString()}`}
       </div>
+
+      <section>
+        <div className="flex items-baseline justify-between mb-2">
+          <h2 className="text-[15px] font-semibold">Detected workouts</h2>
+          {detectLoading && (
+            <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+              Scanning…
+            </span>
+          )}
+        </div>
+        {!detectLoading && detected.length === 0 ? (
+          <p className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
+            No unimported Fitbit workouts in the last 14 days.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {detected.map((s) => {
+              const minutes = Math.round(s.durationSec / 60);
+              return (
+                <li
+                  key={s.name}
+                  className="rounded-xl p-3"
+                  style={{ background: "var(--surface)" }}
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="font-semibold text-[14px]">{s.displayName}</span>
+                    <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+                      {formatTime(s.startTime)}
+                    </span>
+                  </div>
+                  <div
+                    className="text-[12px] mt-1 flex gap-3 flex-wrap"
+                    style={{ color: "var(--fg-dim)" }}
+                  >
+                    {minutes > 0 && <span>{minutes} min</span>}
+                    {s.calories != null && <span>{s.calories} kcal</span>}
+                    {s.avgHR && <span>{s.avgHR} bpm avg</span>}
+                  </div>
+                  <button
+                    onClick={() => importSession(s)}
+                    disabled={importing === s.name}
+                    className="mt-2 w-full rounded-lg px-3 py-2 text-[12px] font-semibold disabled:opacity-50"
+                    style={{ background: "var(--accent)", color: "#000" }}
+                  >
+                    {importing === s.name ? "Importing…" : "Import as workout"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <div className="flex gap-2">
         <button

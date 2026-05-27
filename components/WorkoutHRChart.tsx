@@ -1,8 +1,16 @@
 "use client";
 
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 type Sample = { timestamp: string; bpm: number };
+type SetMarker = { timestamp: string; label: string };
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, {
@@ -11,7 +19,13 @@ function formatTime(iso: string): string {
   });
 }
 
-export default function WorkoutHRChart({ samples }: { samples: Sample[] }) {
+export default function WorkoutHRChart({
+  samples,
+  setMarkers = [],
+}: {
+  samples: Sample[];
+  setMarkers?: SetMarker[];
+}) {
   if (samples.length === 0) return null;
 
   const bpms = samples.map((s) => s.bpm);
@@ -59,6 +73,29 @@ export default function WorkoutHRChart({ samples }: { samples: Sample[] }) {
               tickFormatter={formatTime}
             />
             <Bar dataKey="bpm" fill="#ef4444" radius={[1, 1, 0, 0]} maxBarSize={6} />
+            {setMarkers.map((m, i) => {
+              // Snap each set's loggedAt to the nearest HR sample so the
+              // ReferenceLine lands on an actual category tick.
+              const target = new Date(m.timestamp).getTime();
+              let nearestIdx = 0;
+              let nearestDiff = Infinity;
+              for (let j = 0; j < data.length; j++) {
+                const diff = Math.abs(new Date(data[j].time).getTime() - target);
+                if (diff < nearestDiff) {
+                  nearestDiff = diff;
+                  nearestIdx = j;
+                }
+              }
+              return (
+                <ReferenceLine
+                  key={`${m.timestamp}-${i}`}
+                  x={data[nearestIdx].time}
+                  stroke="rgba(34,197,94,0.55)"
+                  strokeDasharray="2 2"
+                  ifOverflow="extendDomain"
+                />
+              );
+            })}
           </BarChart>
         </ResponsiveContainer>
       </div>

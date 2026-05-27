@@ -59,6 +59,8 @@ export default async function EditWorkoutPage({
         reps: s.reps?.toString() ?? "",
         rir: s.rir?.toString() ?? "",
         notes: s.notes ?? "",
+        completed: !!s.loggedAt,
+        loggedAt: s.loggedAt ? s.loggedAt.toISOString() : undefined,
       })),
     })),
   };
