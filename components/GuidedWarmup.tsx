@@ -35,6 +35,47 @@ function totalDuration(items: Item[]): number {
   return items.reduce((sum, i) => sum + (i.durationSec ?? (i.reps ? 30 : 0)), 0);
 }
 
+export function WarmupSummary({ items }: { items: Item[] }) {
+  return (
+    <div
+      className="mb-4 rounded-2xl p-4"
+      style={{ background: "var(--surface)" }}
+    >
+      <div className="flex items-baseline justify-between mb-2">
+        <h2 className="text-[14px] font-semibold">Warm-up</h2>
+        <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+          ~{Math.round(totalDuration(items) / 60)} min · {items.length}{" "}
+          item{items.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      <ul className="space-y-1.5">
+        {items.map((it, i) => (
+          <li
+            key={i}
+            className="flex items-center justify-between text-[13px]"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              {it.kind && (
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ background: KIND_COLOR[it.kind] }}
+                />
+              )}
+              <span className="truncate">{it.name}</span>
+            </div>
+            <span
+              className="text-[11px] tabular-nums shrink-0 ml-2"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              {it.durationSec ? formatTime(it.durationSec) : `${it.reps} reps`}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function GuidedWarmup({ items }: { items: Item[] }) {
   const [mode, setMode] = useState<Mode>("idle");
   const [idx, setIdx] = useState(0);

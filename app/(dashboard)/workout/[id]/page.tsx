@@ -16,7 +16,7 @@ import CommentSection from "@/components/CommentSection";
 import DeleteWorkoutButton from "@/components/DeleteWorkoutButton";
 import WorkoutHRChart from "@/components/WorkoutHRChart";
 import SyncHRButton from "@/components/SyncHRButton";
-import GuidedWarmup from "@/components/GuidedWarmup";
+import { WarmupSummary } from "@/components/GuidedWarmup";
 
 type WarmupShape = {
   items: {
@@ -237,7 +237,7 @@ export default async function WorkoutDetailPage({
       {workout.warmup &&
         Array.isArray((workout.warmup as WarmupShape).items) &&
         (workout.warmup as WarmupShape).items.length > 0 && (
-          <GuidedWarmup items={(workout.warmup as WarmupShape).items} />
+          <WarmupSummary items={(workout.warmup as WarmupShape).items} />
         )}
 
       {hrSamples.length > 0 && (
