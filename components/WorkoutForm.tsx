@@ -21,6 +21,7 @@ import {
 } from "@/lib/exercises";
 import ExerciseLogger from "@/components/ExerciseLogger";
 import WorkoutTimerStrip from "@/components/WorkoutTimerStrip";
+import LiveHRWidget from "@/components/LiveHRWidget";
 import GuidedWarmup from "@/components/GuidedWarmup";
 import { useTransition, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -831,6 +832,8 @@ export default function WorkoutForm({
           onCancel={() => setStartedAt(null)}
         />
       )}
+
+      {step === "log" && startedAt && <LiveHRWidget />}
 
       {(submitError || !online) && (
         <div
