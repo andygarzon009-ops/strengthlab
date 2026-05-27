@@ -7,11 +7,7 @@ import {
   format,
   differenceInCalendarDays,
 } from "date-fns";
-import {
-  shapeForType,
-  specificMuscleFor,
-  broadGroupForSpecific,
-} from "@/lib/exercises";
+import { shapeForType, specificMuscleFor } from "@/lib/exercises";
 import MuscleMap, { type MuscleRecency } from "@/components/MuscleMap";
 
 const WEEKDAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -74,56 +70,27 @@ export default async function ConsistencyCard({
   });
   const daysHit = daysThisWeek.filter((d) => d.hasWorkout).length;
 
-  // ----- Muscle recency at the broad-group level (Chest/Back/Shoulders/
-  // Arms/Legs/Core) so the body map matches the 6-group activity ring.
-  // All specific muscles inside a group take on the group's recency,
-  // giving each broad region a single, consistent color.
-  const broadRecency: Record<string, number> = {};
+  // Muscle recency at the specific-muscle level. The previous version
+  // collapsed every region to its broad group's minimum, so an RDL on
+  // leg day would re-paint the entire Back as Fresh even when Lats and
+  // Rhomboids hadn't been hit in a week. Tracking per specific keeps
+  // each region honest. SUPERSET / DROP_SET sets count too — they're
+  // real working volume for stimulus, even if PR tracking ignores them.
+  const recency: MuscleRecency = {};
   for (const w of workouts) {
     if (shapeForType(w.type) !== "STRENGTH") continue;
     const days = differenceInCalendarDays(today, new Date(w.date));
     for (const we of w.exercises) {
-      const hit = we.sets.some((s) => s.type === "WORKING");
+      const hit = we.sets.some(
+        (s) => s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"
+      );
       if (!hit) continue;
-      const broad = broadGroupForSpecific(specificMuscleFor(we.exercise.name));
-      if (!broad) continue;
-      if (broadRecency[broad] === undefined || days < broadRecency[broad]) {
-        broadRecency[broad] = days;
+      const specific = specificMuscleFor(we.exercise.name);
+      if (!specific) continue;
+      if (recency[specific] === undefined || days < (recency[specific] as number)) {
+        recency[specific] = days;
       }
     }
-  }
-
-  // Every specific-muscle region in MuscleMap gets its group's recency.
-  const SPECIFIC_TO_BROAD: Record<string, string> = {
-    "Pec Major": "Chest",
-    "Pec Minor": "Chest",
-    Serratus: "Chest",
-    Lats: "Back",
-    Traps: "Back",
-    Rhomboids: "Back",
-    "Lower Back": "Back",
-    Teres: "Back",
-    "Front Delts": "Shoulders",
-    "Side Delts": "Shoulders",
-    "Rear Delts": "Shoulders",
-    Biceps: "Arms",
-    Brachialis: "Arms",
-    Triceps: "Arms",
-    Forearms: "Arms",
-    Quads: "Legs",
-    Hamstrings: "Legs",
-    Glutes: "Legs",
-    Adductors: "Legs",
-    Abductors: "Legs",
-    Calves: "Legs",
-    Tibialis: "Legs",
-    Abs: "Core",
-    Obliques: "Core",
-  };
-  const recency: MuscleRecency = {};
-  for (const [specific, broad] of Object.entries(SPECIFIC_TO_BROAD)) {
-    const d = broadRecency[broad];
-    if (d !== undefined) recency[specific] = d;
   }
 
   return (
