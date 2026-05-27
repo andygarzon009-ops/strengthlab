@@ -9,7 +9,7 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Flat Barbell Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Incline Barbell Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Decline Barbell Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
-  { name: "Close-Grip Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER,ARMS" },
+  { name: "Close-Grip Bench Press", muscleGroup: "Triceps", splits: "PUSH,UPPER,ARMS" },
   { name: "Reverse-Grip Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Pin Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Spoto Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
@@ -40,8 +40,8 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Deficit Push-Up", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Diamond Push-Up", muscleGroup: "Chest", splits: "PUSH,UPPER,ARMS" },
   { name: "Chest Dip", muscleGroup: "Chest", splits: "PUSH,UPPER" },
-  { name: "Landmine Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
-  { name: "Single-Arm Landmine Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
+  { name: "Landmine Press", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
+  { name: "Single-Arm Landmine Press", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
 
   // Chest — Smith machine
   { name: "Smith Machine Flat Bench Press", muscleGroup: "Chest", splits: "PUSH,UPPER" },
@@ -69,20 +69,20 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Machine Row", muscleGroup: "Back", splits: "PULL,UPPER" },
   { name: "Meadows Row", muscleGroup: "Back", splits: "PULL,UPPER" },
   { name: "Straight-Arm Pulldown", muscleGroup: "Back", splits: "PULL,UPPER" },
-  { name: "Face Pull", muscleGroup: "Back", splits: "PULL,UPPER" },
+  { name: "Face Pull", muscleGroup: "Shoulders", splits: "PULL,UPPER" },
   { name: "Barbell Shrug", muscleGroup: "Back", splits: "PULL,UPPER" },
   { name: "Dumbbell Shrug", muscleGroup: "Back", splits: "PULL,UPPER" },
   { name: "Trap Bar Shrug", muscleGroup: "Back", splits: "PULL,UPPER" },
   { name: "Rack Pull", muscleGroup: "Back", splits: "PULL" },
 
   // Deadlifts
-  { name: "Conventional Deadlift", muscleGroup: "Back", splits: "PULL,LOWER" },
-  { name: "Sumo Deadlift", muscleGroup: "Back", splits: "PULL,LOWER" },
-  { name: "Trap Bar Deadlift", muscleGroup: "Back", splits: "PULL,LOWER" },
+  { name: "Conventional Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
+  { name: "Sumo Deadlift", muscleGroup: "Glutes", splits: "PULL,LOWER" },
+  { name: "Trap Bar Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
   { name: "Romanian Deadlift (Barbell)", muscleGroup: "Hamstrings", splits: "PULL,LEGS,LOWER" },
   { name: "Romanian Deadlift (Dumbbell)", muscleGroup: "Hamstrings", splits: "PULL,LEGS,LOWER" },
   { name: "Stiff-Leg Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LEGS,LOWER" },
-  { name: "Snatch-Grip Deadlift", muscleGroup: "Back", splits: "PULL" },
+  { name: "Snatch-Grip Deadlift", muscleGroup: "Hamstrings", splits: "PULL" },
   { name: "Good Morning", muscleGroup: "Hamstrings", splits: "LEGS,LOWER,PULL" },
 
   // Shoulders
@@ -327,8 +327,8 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Safety Squat Bar Squat", muscleGroup: "Quads", splits: "LEGS,LOWER" },
   { name: "Front Squat (Dumbbell)", muscleGroup: "Quads", splits: "LEGS,LOWER" },
   { name: "Deficit Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
-  { name: "Block Pull Deadlift", muscleGroup: "Back", splits: "PULL,LOWER" },
-  { name: "Pause Deadlift", muscleGroup: "Back", splits: "PULL,LOWER" },
+  { name: "Block Pull Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
+  { name: "Pause Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
   { name: "Single-Leg Romanian Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
   { name: "B-Stance Romanian Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
   { name: "Deficit Romanian Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
@@ -561,7 +561,7 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Kettlebell Jerk", muscleGroup: "Shoulders", splits: "PUSH,FULL_BODY" },
   { name: "Kettlebell Long Cycle", muscleGroup: "Shoulders", splits: "FULL_BODY" },
   { name: "Kettlebell Single-Arm Row", muscleGroup: "Back", splits: "PULL,UPPER" },
-  { name: "Kettlebell Deadlift", muscleGroup: "Back", splits: "PULL,LOWER" },
+  { name: "Kettlebell Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
   { name: "Kettlebell Single-Leg Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
   { name: "Kettlebell Figure 8", muscleGroup: "Core", splits: "FULL_BODY" },
 
@@ -579,7 +579,7 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Stone-to-Shoulder", muscleGroup: "Back", splits: "PULL,FULL_BODY" },
   { name: "Log Press", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
   { name: "Axle Press", muscleGroup: "Shoulders", splits: "PUSH,UPPER" },
-  { name: "Axle Deadlift", muscleGroup: "Back", splits: "PULL,LOWER" },
+  { name: "Axle Deadlift", muscleGroup: "Hamstrings", splits: "PULL,LOWER" },
   { name: "Tire Flip", muscleGroup: "Quads", splits: "FULL_BODY" },
   { name: "Sandbag Clean", muscleGroup: "Back", splits: "PULL,FULL_BODY" },
   { name: "Sandbag Press", muscleGroup: "Shoulders", splits: "PUSH,FULL_BODY" },
@@ -843,15 +843,29 @@ export function isBodyweightCapable(name: string): boolean {
 export function specificMuscleFor(name: string): string {
   const n = name.toLowerCase();
 
-  // Leg curl variants must win before generic "curl" → Biceps and
-  // "lateral(s)" → Side Delts (matches "Iso-Lateral" in machine names).
-  if (/\bleg curl\b/.test(n)) return "Hamstrings";
+  // Early guards — these must win before the generic regexes below
+  // (e.g. \bcurl\b → Biceps, \blaterals?\b → Side Delts, \bdip\b → Pec Major,
+  // \bbench press\b → Pec Major) would otherwise mis-classify them.
+  if (/\breverse nordic\b/.test(n)) return "Quads";
+  if (/\bleg curl\b|\bnordic\b|\bjefferson curl\b/.test(n)) return "Hamstrings";
+  if (/\bclose-?grip bench\b/.test(n)) return "Triceps";
+  if (/\btricep dip\b|\bbench dip\b|\bdip machine\b|\bassisted dip\b/.test(n))
+    return "Triceps";
+  // Planche push-up variants are shoulder-dominant, not chest.
+  if (/\bplanche push-?up\b/.test(n)) return "Front Delts";
 
   // --- Shoulders (granular) — check first so we catch moves often
   // bucketed under Back or Chest in the old taxonomy.
   if (/\brear[- ]?delt\b|\bface pull\b|\breverse fly\b/.test(n))
     return "Rear Delts";
-  if (/\blateral raise\b|\bside raise\b|\blaterals?\b|\bupright row\b/.test(n))
+  // Exclude "iso-lateral" (Hammer Strength machine naming) and lower-body
+  // moves like "lateral lunge/bound/walk" from matching the lateral regex.
+  if (
+    !/\biso[- ]lateral\b/.test(n) &&
+    /\blateral raise\b|\bside raise\b|\blaterals?\b(?! (?:lunge|bound|walk))|\bupright row\b/.test(
+      n
+    )
+  )
     return "Side Delts";
   if (/\bfront raise\b/.test(n)) return "Front Delts";
   if (
@@ -875,13 +889,11 @@ export function specificMuscleFor(name: string): string {
   if (/\brhomboid\b/.test(n)) return "Rhomboids";
   if (/\bteres\b/.test(n)) return "Teres";
   // Glute-focused back extensions land on Glutes, not Lower Back.
-  if (/\bglute[- ]?focus\b/.test(n)) return "Glutes";
-  if (
-    /\bback extension\b|\bhyperextension\b|\bgood morning\b|\breverse hyper\b/.test(
-      n
-    )
-  )
-    return "Lower Back";
+  if (/\bglute[- ]?focus(?:ed)?\b/.test(n)) return "Glutes";
+  // Good Morning is hamstring/posterior-chain dominant; Reverse Hyper is glute-dominant.
+  if (/\bgood morning\b/.test(n)) return "Hamstrings";
+  if (/\breverse hyper\b/.test(n)) return "Glutes";
+  if (/\bback extension\b|\bhyperextension\b/.test(n)) return "Lower Back";
   if (
     /\bpull-?up\b|\bchin-?up\b|\bpulldown\b|\brow\b|\bpullover\b|\bmuscle-?up\b|\blever\b|\bskin the cat\b|\bscapular\b|\bstraight-arm\b/.test(
       n
