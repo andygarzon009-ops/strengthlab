@@ -86,6 +86,26 @@ export default async function ConsistencyCard({
     Core: ["Abs", "Obliques"],
   };
 
+  // The seed library tags exercises with a mix of broad ("Chest", "Back")
+  // and specific ("Quads", "Triceps") muscleGroup strings — normalize both
+  // to one of the 6 broad regions so any logged exercise contributes.
+  const TO_BROAD: Record<string, string> = {
+    Chest: "Chest",
+    Back: "Back",
+    "Lower Back": "Back",
+    Shoulders: "Shoulders",
+    Arms: "Arms",
+    Biceps: "Arms",
+    Triceps: "Arms",
+    Forearms: "Arms",
+    Legs: "Legs",
+    Quads: "Legs",
+    Hamstrings: "Legs",
+    Glutes: "Legs",
+    Calves: "Legs",
+    Core: "Core",
+  };
+
   const broadRecency: Record<string, number> = {};
   for (const w of workouts) {
     if (shapeForType(w.type) !== "STRENGTH") continue;
@@ -95,8 +115,10 @@ export default async function ConsistencyCard({
         (s) => s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"
       );
       if (!hit) continue;
-      const broad = we.exercise.muscleGroup;
-      if (!broad || !BROAD_TO_SPECIFICS[broad]) continue;
+      const raw = we.exercise.muscleGroup;
+      if (!raw) continue;
+      const broad = TO_BROAD[raw];
+      if (!broad) continue;
       if (broadRecency[broad] === undefined || days < broadRecency[broad]) {
         broadRecency[broad] = days;
       }
