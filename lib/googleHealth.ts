@@ -157,7 +157,8 @@ export type HeartRateSample = {
 type HeartRateRawPoint = {
   heartRate?: {
     sampleTime?: { physicalTime?: string };
-    beatsPerMinute?: number;
+    // Returned as a string-encoded int64 per Google's API conventions.
+    beatsPerMinute?: string | number;
   };
 };
 
@@ -180,9 +181,10 @@ export async function listHeartRateBetween(
   const samples: HeartRateSample[] = [];
   for (const point of data.dataPoints ?? []) {
     const ts = point.heartRate?.sampleTime?.physicalTime;
-    const bpm = point.heartRate?.beatsPerMinute;
-    if (!ts || typeof bpm !== "number" || bpm <= 0) continue;
-    samples.push({ timestamp: new Date(ts), bpm });
+    const raw = point.heartRate?.beatsPerMinute;
+    const bpm = typeof raw === "string" ? Number(raw) : raw;
+    if (!ts || typeof bpm !== "number" || !Number.isFinite(bpm) || bpm <= 0) continue;
+    samples.push({ timestamp: new Date(ts), bpm: Math.round(bpm) });
   }
   samples.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
   return samples;
