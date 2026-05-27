@@ -22,6 +22,68 @@ const anthropic = process.env.ANTHROPIC_API_KEY
 // success, or null when the prose isn't actually prescribing a session or
 // the model failed to produce valid plan JSON. Kept tight on purpose — this
 // only fires when the main reply forgot the block.
+/// Find the last balanced `{...}` substring in `text` that contains an
+/// `"exercises":[` key and parses as JSON with a non-empty exercises array.
+/// If found and it isn't already inside a ```workout-plan fence, wrap it and
+/// return the new text. Otherwise return null. Saves an LLM round-trip when
+/// the model emitted the right JSON but forgot the fence.
+function wrapBareJsonAsPlan(text: string): string | null {
+  // Don't re-wrap something the model already fenced as workout-plan.
+  if (/```[ \t]*workout[-_ ]?plan/i.test(text)) return null;
+
+  // Walk every `{` ... scanning forward with brace counting, ignoring braces
+  // inside strings. We want the LAST balanced object that parses as a plan,
+  // since the coach usually puts the plan at the end of the reply.
+  const candidates: { start: number; end: number }[] = [];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== "{") continue;
+    let depth = 0;
+    let inStr = false;
+    let esc = false;
+    for (let j = i; j < text.length; j++) {
+      const ch = text[j];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === "\\") esc = true;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') inStr = true;
+      else if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          candidates.push({ start: i, end: j + 1 });
+          break;
+        }
+      }
+    }
+  }
+  for (let k = candidates.length - 1; k >= 0; k--) {
+    const { start, end } = candidates[k];
+    const slice = text.slice(start, end);
+    if (!/"exercises"\s*:\s*\[/.test(slice)) continue;
+    try {
+      const parsed = JSON.parse(slice.replace(/,(\s*[}\]])/g, "$1")) as {
+        exercises?: unknown[];
+      };
+      if (
+        parsed &&
+        Array.isArray(parsed.exercises) &&
+        parsed.exercises.length > 0
+      ) {
+        const before = text.slice(0, start).replace(/\s+$/, "");
+        const after = text.slice(end).replace(/^\s+/, "");
+        const fenced = "```workout-plan\n" + slice + "\n```";
+        return [before, fenced, after].filter(Boolean).join("\n\n");
+      }
+    } catch {
+      // try the next candidate going backwards
+    }
+  }
+  return null;
+}
+
 async function synthesizePlanBlock(
   client: GoogleGenerativeAI,
   modelName: string,
@@ -865,19 +927,32 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
             nxmHits + setsOfHits + repsHits + weightHits + atWeightHits >= 2;
 
           if (!alreadyHasPlan && looksPrescriptive) {
-            try {
-              const block = await synthesizePlanBlock(
-                genAI,
-                FALLBACK_MODEL,
-                fullResponse
-              );
-              if (block) {
-                const appended = `\n\n${block}`;
-                controller.enqueue(encoder.encode(appended));
-                fullResponse += appended;
+            // First try: the model often emits the plan JSON directly in
+            // prose without the ```workout-plan fence. If we can locate a
+            // balanced JSON object that contains "exercises":[ and parses
+            // cleanly, wrap it in the canonical fence — no extra LLM call.
+            const wrapped = wrapBareJsonAsPlan(fullResponse);
+            if (wrapped && wrapped !== fullResponse) {
+              const delta = wrapped.slice(fullResponse.length);
+              if (delta) {
+                controller.enqueue(encoder.encode(delta));
               }
-            } catch (synthErr) {
-              console.warn("Plan synthesis failed:", synthErr);
+              fullResponse = wrapped;
+            } else {
+              try {
+                const block = await synthesizePlanBlock(
+                  genAI,
+                  FALLBACK_MODEL,
+                  fullResponse
+                );
+                if (block) {
+                  const appended = `\n\n${block}`;
+                  controller.enqueue(encoder.encode(appended));
+                  fullResponse += appended;
+                }
+              } catch (synthErr) {
+                console.warn("Plan synthesis failed:", synthErr);
+              }
             }
           }
 
