@@ -166,13 +166,13 @@ export async function listHeartRateBetween(
   startISO: string,
   endISO: string,
 ): Promise<HeartRateSample[]> {
-  // Health API requires the camelCase member name (heartRate.interval.start_time)
-  // with UTC ISO timestamps (trailing Z). Inputs are accepted as either civil
-  // or UTC; we normalize to UTC ISO with Z below.
+  // Filter member must match the data type ID — Google's docs are inconsistent
+  // about casing, but empirically the API accepts snake_case `heart_rate` here
+  // (the path uses kebab `heart-rate`). UTC ISO with trailing Z is required.
   const toUtc = (s: string) => (s.endsWith("Z") ? s : `${s}Z`);
   const filter =
-    `heartRate.interval.start_time >= "${toUtc(startISO)}"` +
-    ` AND heartRate.interval.start_time <= "${toUtc(endISO)}"`;
+    `heart_rate.interval.start_time >= "${toUtc(startISO)}"` +
+    ` AND heart_rate.interval.start_time <= "${toUtc(endISO)}"`;
   const path =
     "/users/me/dataTypes/heart-rate/dataPoints?filter=" + encodeURIComponent(filter);
   const data = (await healthFetch(userId, path)) as { dataPoints?: HeartRateRawPoint[] };
