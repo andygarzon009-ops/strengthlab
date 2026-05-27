@@ -1,12 +1,19 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { labelForType, shapeForType, formatDuration } from "@/lib/exercises";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { startOfMonth, endOfMonth } from "date-fns";
 import Link from "next/link";
 import HistoryCalendar from "@/components/HistoryCalendar";
+import { formatShortDate, formatDateKey } from "@/lib/dateFormat";
 
 export default async function HistoryPage() {
   const userId = await requireAuth();
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { timezone: true },
+  });
+  const tz = user?.timezone ?? null;
 
   const workouts = await prisma.workout.findMany({
     where: { userId },
@@ -36,15 +43,13 @@ export default async function HistoryPage() {
   const now = new Date();
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
-  const workoutDateStrings = workouts.map((w) =>
-    format(new Date(w.date), "yyyy-MM-dd")
-  );
+  const workoutDateStrings = workouts.map((w) => formatDateKey(w.date, tz));
   // Build a date → workoutId map so calendar days are clickable. When
   // multiple workouts share a day, pick the most recent (workouts are
   // already ordered by date desc).
   const workoutIdByDate: Record<string, string> = {};
   for (const w of workouts) {
-    const key = format(new Date(w.date), "yyyy-MM-dd");
+    const key = formatDateKey(w.date, tz);
     if (!workoutIdByDate[key]) workoutIdByDate[key] = w.id;
   }
   const earliestYear =
@@ -183,7 +188,7 @@ export default async function HistoryPage() {
                         fontFamily: "var(--font-geist-mono)",
                       }}
                     >
-                      {format(new Date(workout.date), "EEE · MMM d")}
+                      {formatShortDate(workout.date, tz)}
                     </p>
                   </div>
                   <div

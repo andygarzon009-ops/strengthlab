@@ -7,7 +7,7 @@ import {
   shapeForType,
   formatDuration,
 } from "@/lib/exercises";
-import { format } from "date-fns";
+import { formatLongDate } from "@/lib/dateFormat";
 import Link from "next/link";
 import { deleteWorkout } from "@/lib/actions/workouts";
 import BackButton from "@/components/BackButton";
@@ -170,7 +170,7 @@ export default async function WorkoutDetailPage({
             fontFamily: "var(--font-geist-mono)",
           }}
         >
-          {format(new Date(workout.date), "EEEE, MMMM d, yyyy")}
+          {formatLongDate(workout.date, workout.user.timezone)}
           {!isOwn && ` · by ${workout.user.name}`}
         </p>
         {workout.notes && (
