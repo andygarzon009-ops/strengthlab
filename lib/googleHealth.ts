@@ -156,7 +156,7 @@ export type HeartRateSample = {
 /// the device is actively tracking, less frequent otherwise).
 type HeartRateRawPoint = {
   heartRate?: {
-    interval?: { startTime?: string };
+    sampleTime?: { physicalTime?: string };
     beatsPerMinute?: number;
   };
 };
@@ -166,19 +166,19 @@ export async function listHeartRateBetween(
   startISO: string,
   endISO: string,
 ): Promise<HeartRateSample[]> {
-  // Filter member must match the data type ID — Google's docs are inconsistent
-  // about casing, but empirically the API accepts snake_case `heart_rate` here
-  // (the path uses kebab `heart-rate`). UTC ISO with trailing Z is required.
+  // Heart-rate is a sample-type data point (instantaneous reading), so the
+  // filter uses sample_time.physical_time — not interval.start_time which only
+  // applies to interval-type data points like exercise.
   const toUtc = (s: string) => (s.endsWith("Z") ? s : `${s}Z`);
   const filter =
-    `heart_rate.interval.start_time >= "${toUtc(startISO)}"` +
-    ` AND heart_rate.interval.start_time <= "${toUtc(endISO)}"`;
+    `heart_rate.sample_time.physical_time >= "${toUtc(startISO)}"` +
+    ` AND heart_rate.sample_time.physical_time <= "${toUtc(endISO)}"`;
   const path =
     "/users/me/dataTypes/heart-rate/dataPoints?filter=" + encodeURIComponent(filter);
   const data = (await healthFetch(userId, path)) as { dataPoints?: HeartRateRawPoint[] };
   const samples: HeartRateSample[] = [];
   for (const point of data.dataPoints ?? []) {
-    const ts = point.heartRate?.interval?.startTime;
+    const ts = point.heartRate?.sampleTime?.physicalTime;
     const bpm = point.heartRate?.beatsPerMinute;
     if (!ts || typeof bpm !== "number" || bpm <= 0) continue;
     samples.push({ timestamp: new Date(ts), bpm });
