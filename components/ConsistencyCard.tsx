@@ -5,8 +5,16 @@ import {
   subWeeks,
   addDays,
   format,
-  differenceInCalendarDays,
 } from "date-fns";
+
+// Vercel runs in UTC but the user lives in MST; compute calendar-day
+// deltas in MST so "6 days ago" doesn't tip over into 7 days for late-day
+// workouts logged near the UTC boundary.
+const MST_OFFSET_MS = 7 * 60 * 60 * 1000;
+const mstDayIndex = (d: Date) =>
+  Math.floor((d.getTime() - MST_OFFSET_MS) / 86_400_000);
+const daysSinceInMST = (now: Date, then: Date) =>
+  mstDayIndex(now) - mstDayIndex(then);
 import { shapeForType } from "@/lib/exercises";
 import MuscleMap, { type MuscleRecency } from "@/components/MuscleMap";
 
@@ -109,7 +117,7 @@ export default async function ConsistencyCard({
   const broadRecency: Record<string, number> = {};
   for (const w of workouts) {
     if (shapeForType(w.type) !== "STRENGTH") continue;
-    const days = differenceInCalendarDays(today, new Date(w.date));
+    const days = daysSinceInMST(today, new Date(w.date));
     for (const we of w.exercises) {
       const hit = we.sets.some(
         (s) => s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"
