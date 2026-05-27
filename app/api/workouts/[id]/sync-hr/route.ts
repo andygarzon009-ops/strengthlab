@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { listHeartRateBetween } from "@/lib/googleHealth";
-import { getCachedSessions } from "@/lib/fitbitDetect";
+import { getCachedSessions, fitbitTypeToWorkoutType } from "@/lib/fitbitDetect";
 
 function toUtcISO(d: Date): string {
   return d.toISOString();
@@ -23,6 +23,8 @@ export async function POST(
       endedAt: true,
       date: true,
       duration: true,
+      type: true,
+      title: true,
     },
   });
   if (!workout || workout.userId !== userId) {
@@ -62,16 +64,30 @@ export async function POST(
       (s) => dayKey(new Date(s.startTime)) === targetDay,
     );
     if (sameDay.length > 0) {
+      // Filter by type first — same-day workouts of different kinds (e.g.
+      // a morning lift and an afternoon round of golf) need to map to the
+      // right Fitbit session. Match by mapped workout type OR by the
+      // workout title containing the session's displayName.
+      const titleLower = workout.title.toLowerCase();
+      const typeMatches = sameDay.filter((s) => {
+        const mapped = fitbitTypeToWorkoutType(s.exerciseType);
+        if (mapped === workout.type) return true;
+        const name = s.displayName.toLowerCase();
+        return (
+          titleLower.includes(name) || name.includes(titleLower)
+        );
+      });
+      const pool = typeMatches.length > 0 ? typeMatches : sameDay;
       if (workout.duration && workout.duration > 0) {
-        sameDay.sort(
+        pool.sort(
           (a, b) =>
             Math.abs(a.durationSec - workout.duration!) -
             Math.abs(b.durationSec - workout.duration!),
         );
       } else {
-        sameDay.sort((a, b) => b.durationSec - a.durationSec);
+        pool.sort((a, b) => b.durationSec - a.durationSec);
       }
-      matched = sameDay[0];
+      matched = pool[0];
     }
   } catch {
     // Fall through to fallback windows.
