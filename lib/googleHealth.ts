@@ -11,7 +11,7 @@ const HEALTH_API_BASE = "https://health.googleapis.com/v4";
 // disconnect and reconnect to grant the new scope.
 export const HEALTH_SCOPES = [
   "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
-  "https://www.googleapis.com/auth/googlehealth.heart_rate.readonly",
+  "https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly",
 ];
 
 function requireEnv(name: string): string {
