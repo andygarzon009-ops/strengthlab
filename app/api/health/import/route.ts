@@ -9,6 +9,7 @@ function toCivilISO(d: Date): string {
 }
 
 type Body = {
+  externalId?: string;
   startTime: string;
   endTime: string;
   displayName: string;
@@ -69,6 +70,15 @@ export async function POST(req: Request) {
     },
     select: { id: true },
   });
+
+  // Mark the cached Fitbit session as imported so it stops appearing in the
+  // detected list without needing a fresh round-trip to Google.
+  if (body.externalId) {
+    await prisma.fitbitExerciseSession.updateMany({
+      where: { userId, externalId: body.externalId },
+      data: { importedWorkoutId: workout.id },
+    });
+  }
 
   return Response.json({ workoutId: workout.id, hrSamples: samples.length });
 }

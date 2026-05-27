@@ -41,7 +41,7 @@ function formatTime(iso: string): string {
 }
 
 type DetectedSession = {
-  name: string;
+  externalId: string;
   startTime: string;
   endTime: string;
   displayName: string;
@@ -79,7 +79,7 @@ export default function HealthDashboard({
   }, [connected]);
 
   async function importSession(s: DetectedSession) {
-    setImporting(s.name);
+    setImporting(s.externalId);
     try {
       const res = await fetch("/api/health/import", {
         method: "POST",
@@ -88,7 +88,7 @@ export default function HealthDashboard({
       });
       const body = await res.json();
       if (body.workoutId) {
-        setDetected((prev) => prev.filter((x) => x.name !== s.name));
+        setDetected((prev) => prev.filter((x) => x.externalId !== s.externalId));
         router.push(`/workout/${body.workoutId}`);
       }
     } finally {
@@ -172,7 +172,7 @@ export default function HealthDashboard({
               const minutes = Math.round(s.durationSec / 60);
               return (
                 <li
-                  key={s.name}
+                  key={s.externalId}
                   className="rounded-xl p-3"
                   style={{ background: "var(--surface)" }}
                 >
@@ -192,11 +192,11 @@ export default function HealthDashboard({
                   </div>
                   <button
                     onClick={() => importSession(s)}
-                    disabled={importing === s.name}
+                    disabled={importing === s.externalId}
                     className="mt-2 w-full rounded-lg px-3 py-2 text-[12px] font-semibold disabled:opacity-50"
                     style={{ background: "var(--accent)", color: "#000" }}
                   >
-                    {importing === s.name ? "Importing…" : "Import as workout"}
+                    {importing === s.externalId ? "Importing…" : "Import as workout"}
                   </button>
                 </li>
               );

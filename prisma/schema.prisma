@@ -89,10 +89,34 @@ model HealthAccount {
   refreshToken    String
   expiresAt       DateTime
   scope           String
+  lastSyncedAt    DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Cached snapshot of Fitbit exercise sessions pulled from Google Health.
+/// Upserted by (userId, externalId) on each refresh. `importedWorkoutId` is
+/// set when the user clicks "Import as workout" so it disappears from the
+/// detected list without needing a fresh API roundtrip.
+model FitbitExerciseSession {
+  id                String   @id @default(cuid())
+  userId            String
+  externalId        String
+  startTime         DateTime
+  endTime           DateTime
+  displayName       String
+  exerciseType      String?
+  durationSec       Int      @default(0)
+  calories          Int?
+  steps             Int?
+  avgHR             Int?
+  importedWorkoutId String?
+  fetchedAt         DateTime @default(now())
+
+  @@unique([userId, externalId])
+  @@index([userId, startTime])
 }
 
 model PasswordResetToken {
