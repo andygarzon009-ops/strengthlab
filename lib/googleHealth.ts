@@ -166,12 +166,13 @@ export async function listHeartRateBetween(
   startISO: string,
   endISO: string,
 ): Promise<HeartRateSample[]> {
-  // The Health API filter syntax is "field >= \"value\" AND field <= \"value\"".
-  // civil_start_time is local-naive — the start/end we pass should already be
-  // the local-naive ISO without trailing Z (YYYY-MM-DDTHH:MM:SS).
+  // Health API requires the camelCase member name (heartRate.interval.start_time)
+  // with UTC ISO timestamps (trailing Z). Inputs are accepted as either civil
+  // or UTC; we normalize to UTC ISO with Z below.
+  const toUtc = (s: string) => (s.endsWith("Z") ? s : `${s}Z`);
   const filter =
-    `heart_rate.interval.civil_start_time >= "${startISO}"` +
-    ` AND heart_rate.interval.civil_start_time <= "${endISO}"`;
+    `heartRate.interval.start_time >= "${toUtc(startISO)}"` +
+    ` AND heartRate.interval.start_time <= "${toUtc(endISO)}"`;
   const path =
     "/users/me/dataTypes/heart-rate/dataPoints?filter=" + encodeURIComponent(filter);
   const data = (await healthFetch(userId, path)) as { dataPoints?: HeartRateRawPoint[] };

@@ -4,8 +4,8 @@ import { listHeartRateBetween } from "@/lib/googleHealth";
 import { fitbitTypeToWorkoutType } from "@/lib/fitbitDetect";
 import { labelForType } from "@/lib/exercises";
 
-function toCivilISO(d: Date): string {
-  return d.toISOString().slice(0, 19);
+function toUtcISO(d: Date): string {
+  return d.toISOString();
 }
 
 type Body = {
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   let samples: { timestamp: Date; bpm: number }[] = [];
   if (account) {
     try {
-      samples = await listHeartRateBetween(userId, toCivilISO(start), toCivilISO(end));
+      samples = await listHeartRateBetween(userId, toUtcISO(start), toUtcISO(end));
     } catch {
       // Fall through — still create the workout; HR can be synced later.
     }

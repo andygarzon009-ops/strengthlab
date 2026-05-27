@@ -2,9 +2,8 @@ import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { listHeartRateBetween } from "@/lib/googleHealth";
 
-function toCivilISO(d: Date): string {
-  // Google Health civil_start_time is local-naive: YYYY-MM-DDTHH:MM:SS (no timezone).
-  return d.toISOString().slice(0, 19);
+function toUtcISO(d: Date): string {
+  return d.toISOString();
 }
 
 export async function POST(
@@ -36,7 +35,7 @@ export async function POST(
 
   let samples;
   try {
-    samples = await listHeartRateBetween(userId, toCivilISO(start), toCivilISO(end));
+    samples = await listHeartRateBetween(userId, toUtcISO(start), toUtcISO(end));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     // Missing scope → token lacks heart_rate.readonly; user must reconnect.
