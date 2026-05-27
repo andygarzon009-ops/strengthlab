@@ -843,6 +843,10 @@ export function isBodyweightCapable(name: string): boolean {
 export function specificMuscleFor(name: string): string {
   const n = name.toLowerCase();
 
+  // Leg curl variants must win before generic "curl" → Biceps and
+  // "lateral(s)" → Side Delts (matches "Iso-Lateral" in machine names).
+  if (/\bleg curl\b/.test(n)) return "Hamstrings";
+
   // --- Shoulders (granular) — check first so we catch moves often
   // bucketed under Back or Chest in the old taxonomy.
   if (/\brear[- ]?delt\b|\bface pull\b|\breverse fly\b/.test(n))
