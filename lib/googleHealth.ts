@@ -170,9 +170,10 @@ export async function listHeartRateBetween(
   // filter uses sample_time.physical_time — not interval.start_time which only
   // applies to interval-type data points like exercise.
   const toUtc = (s: string) => (s.endsWith("Z") ? s : `${s}Z`);
+  // Sample-type members only support >= and < (not <=).
   const filter =
     `heart_rate.sample_time.physical_time >= "${toUtc(startISO)}"` +
-    ` AND heart_rate.sample_time.physical_time <= "${toUtc(endISO)}"`;
+    ` AND heart_rate.sample_time.physical_time < "${toUtc(endISO)}"`;
   const path =
     "/users/me/dataTypes/heart-rate/dataPoints?filter=" + encodeURIComponent(filter);
   const data = (await healthFetch(userId, path)) as { dataPoints?: HeartRateRawPoint[] };
