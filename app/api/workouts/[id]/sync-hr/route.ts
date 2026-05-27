@@ -15,13 +15,17 @@ export async function POST(
 
   const workout = await prisma.workout.findUnique({
     where: { id },
-    select: { id: true, userId: true, startedAt: true, endedAt: true },
+    select: {
+      id: true,
+      userId: true,
+      startedAt: true,
+      endedAt: true,
+      date: true,
+      duration: true,
+    },
   });
   if (!workout || workout.userId !== userId) {
     return Response.json({ error: "not found" }, { status: 404 });
-  }
-  if (!workout.startedAt) {
-    return Response.json({ error: "workout has no startedAt" }, { status: 400 });
   }
 
   const account = await prisma.healthAccount.findUnique({ where: { userId } });
@@ -29,9 +33,22 @@ export async function POST(
     return Response.json({ connected: false, synced: 0 });
   }
 
-  const start = workout.startedAt;
-  // If user hits "sync" mid-workout (no endedAt yet), use "now" as the window end
-  const end = workout.endedAt ?? new Date();
+  // Derive the sync window. Priority:
+  //   1. startedAt/endedAt — exact timing from the live logger
+  //   2. date + duration — covers workouts logged without the timer
+  //   3. date ± 30min — fuzzy fallback when only the calendar date is known
+  let start: Date;
+  let end: Date;
+  if (workout.startedAt) {
+    start = workout.startedAt;
+    end = workout.endedAt ?? new Date();
+  } else if (workout.duration && workout.duration > 0) {
+    start = workout.date;
+    end = new Date(workout.date.getTime() + workout.duration * 1000);
+  } else {
+    start = new Date(workout.date.getTime() - 30 * 60 * 1000);
+    end = new Date(workout.date.getTime() + 30 * 60 * 1000);
+  }
 
   let samples;
   try {
@@ -67,7 +84,14 @@ export async function POST(
     const max = samples.length > 0 ? Math.max(...samples.map((s) => s.bpm)) : null;
     await tx.workout.update({
       where: { id },
-      data: { avgHeartRate: avg, maxHeartRate: max },
+      data: {
+        avgHeartRate: avg,
+        maxHeartRate: max,
+        // Persist the derived window so repeat syncs and the chart use the
+        // exact same range — only when not already set, to preserve any
+        // precise timer values from a live-logged session.
+        ...(workout.startedAt ? {} : { startedAt: start, endedAt: end }),
+      },
     });
   });
 

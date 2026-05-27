@@ -45,13 +45,10 @@ export default function WorkoutHRChart({
   const midTs = data[Math.floor(data.length / 2)].time;
   const lastTs = data[data.length - 1].time;
 
-  // Y-axis ticks — a few clean reference levels so users can read effort at a
-  // glance without hovering. min/avg/max are the values they care about; we
-  // pad in a couple of rounded numbers for additional context.
-  const round = (n: number, step: number) => Math.round(n / step) * step;
-  const yTicks = Array.from(
-    new Set([round(yMin, 10), min, avg, max, round(yMax, 10)]),
-  ).sort((a, b) => a - b);
+  // Y-axis ticks: keep only min and max — drawing avg as a separate tick
+  // ended up overlapping the dashed "avg N" reference line label. Padded
+  // values are rounded so the axis reads as 50/100/150 etc.
+  const yTicks = [min, max];
 
   return (
     <section className="rounded-2xl p-4" style={{ background: "var(--surface)" }}>
@@ -64,7 +61,7 @@ export default function WorkoutHRChart({
 
       <div style={{ width: "100%", height: 200 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 18, right: 36, bottom: 4, left: 0 }}>
+          <AreaChart data={data} margin={{ top: 24, right: 16, bottom: 8, left: 0 }}>
             <defs>
               <linearGradient id="hrFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#ef4444" stopOpacity={0.35} />
@@ -74,29 +71,24 @@ export default function WorkoutHRChart({
             <YAxis
               domain={[yMin, yMax]}
               ticks={yTicks}
-              tick={{ fill: "rgba(255,255,255,0.55)", fontSize: 10 }}
+              tick={{ fill: "rgba(255,255,255,0.6)", fontSize: 10 }}
               axisLine={false}
               tickLine={false}
-              width={32}
+              width={36}
             />
             <XAxis
               dataKey="time"
-              tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }}
+              tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 10 }}
               axisLine={false}
               tickLine={false}
               ticks={[firstTs, midTs, lastTs]}
               tickFormatter={formatTime}
+              height={20}
             />
             <ReferenceLine
               y={avg}
-              stroke="rgba(255,255,255,0.22)"
+              stroke="rgba(255,255,255,0.2)"
               strokeDasharray="3 3"
-              label={{
-                value: `avg ${avg}`,
-                position: "right",
-                fill: "rgba(255,255,255,0.5)",
-                fontSize: 10,
-              }}
             />
             <Area
               type="monotone"
@@ -118,6 +110,7 @@ export default function WorkoutHRChart({
               label={{
                 value: `${max}`,
                 position: "top",
+                offset: 8,
                 fill: "#ef4444",
                 fontSize: 11,
                 fontWeight: 600,
@@ -127,14 +120,15 @@ export default function WorkoutHRChart({
               x={data[minIdx].time}
               y={min}
               r={3.5}
-              fill="rgba(255,255,255,0.4)"
+              fill="rgba(255,255,255,0.45)"
               stroke="var(--surface)"
               strokeWidth={1.5}
               ifOverflow="extendDomain"
               label={{
                 value: `${min}`,
                 position: "bottom",
-                fill: "rgba(255,255,255,0.7)",
+                offset: 8,
+                fill: "rgba(255,255,255,0.75)",
                 fontSize: 11,
                 fontWeight: 600,
               }}

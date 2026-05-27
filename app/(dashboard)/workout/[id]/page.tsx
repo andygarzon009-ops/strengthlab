@@ -259,9 +259,7 @@ export default async function WorkoutDetailPage({
         </div>
       )}
 
-      {isOwn && workout.startedAt && (
-        <SyncHRButton workoutId={workout.id} />
-      )}
+      {isOwn && <SyncHRButton workoutId={workout.id} />}
 
       {/* Secondary metrics: HR, elevation, calories */}
       {(workout.avgHeartRate ||
