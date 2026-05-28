@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type SessionRow = {
   workoutId: string;
@@ -245,6 +246,7 @@ function LineChart({
   sessions: SessionRow[];
   range: Range;
 }) {
+  const router = useRouter();
   const W = 320;
   const H = 200;
   const padL = 8;
@@ -378,17 +380,45 @@ function LineChart({
         strokeLinejoin="round"
       />
 
-      {sessions.map((s, i) => (
-        <circle
-          key={i}
-          cx={xFor(s.at)}
-          cy={yFor(s.topE1rm)}
-          r={s.isPR ? 4 : 2.5}
-          fill={s.isPR ? PR_COLOR : COLOR}
-          stroke={s.isPR ? "var(--bg-card)" : "none"}
-          strokeWidth={s.isPR ? 1.5 : 0}
-        />
-      ))}
+      {sessions.map((s, i) => {
+        const cx = xFor(s.at);
+        const cy = yFor(s.topE1rm);
+        const href = `/workout/${s.workoutId}`;
+        const onActivate = () => router.push(href);
+        return (
+          <g
+            key={i}
+            onClick={onActivate}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onActivate();
+              }
+            }}
+            role="link"
+            tabIndex={0}
+            aria-label={`${s.topWeight} × ${s.topReps} session, est 1RM ${Math.round(s.topE1rm)} lb${s.isPR ? ", PR" : ""}`}
+            style={{ cursor: "pointer", outline: "none" }}
+          >
+            {/* Invisible hit zone wider than the visible dot so it's easy
+                to tap on mobile and to keyboard-focus. */}
+            <circle
+              cx={cx}
+              cy={cy}
+              r={9}
+              fill="transparent"
+            />
+            <circle
+              cx={cx}
+              cy={cy}
+              r={s.isPR ? 4 : 2.5}
+              fill={s.isPR ? PR_COLOR : COLOR}
+              stroke={s.isPR ? "var(--bg-card)" : "none"}
+              strokeWidth={s.isPR ? 1.5 : 0}
+            />
+          </g>
+        );
+      })}
     </svg>
   );
 }
