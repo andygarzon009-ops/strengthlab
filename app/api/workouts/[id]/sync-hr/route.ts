@@ -159,6 +159,9 @@ export async function POST(
     // in manually before the sync ran.
     const metricUpdates: Record<string, number> = {};
     if (matched) {
+      if (matched.durationSec > 0 && (workout.duration == null || workout.duration === 0)) {
+        metricUpdates.duration = matched.durationSec;
+      }
       if (matched.calories != null && workout.calories == null) {
         metricUpdates.calories = matched.calories;
       }

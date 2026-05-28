@@ -264,6 +264,10 @@ export default async function WorkoutDetailPage({
       {/* Secondary metrics: HR, elevation, calories, steps, active zone min */}
       {(() => {
         const chips: { label: string; value: string | number; suffix?: string }[] = [];
+        // Strength sessions don't show duration in the primary card, so
+        // surface it here once it's been synced from Fitbit (or entered).
+        if (shape === "STRENGTH" && workout.duration && workout.duration > 0)
+          chips.push({ label: "Duration", value: formatDuration(workout.duration) });
         if (workout.avgHeartRate)
           chips.push({ label: "Avg HR", value: workout.avgHeartRate, suffix: "bpm" });
         if (workout.maxHeartRate)
