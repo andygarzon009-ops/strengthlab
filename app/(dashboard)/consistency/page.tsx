@@ -550,16 +550,28 @@ Rules:
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.5,
-      },
+      generationConfig: { temperature: 0.5 },
     });
     const resp = await model.generateContent(prompt);
-    const text = resp.response.text();
-    const parsed = JSON.parse(text) as CoachAnalysis;
+    const raw = resp.response.text();
+    // Extract the first balanced JSON object from the response. The model
+    // sometimes wraps it in ```json fences or trailing prose despite the
+    // prompt; this skips past anything before the first {.
+    const firstBrace = raw.indexOf("{");
+    const lastBrace = raw.lastIndexOf("}");
+    if (firstBrace === -1 || lastBrace <= firstBrace) {
+      console.error("consistency/coach: no JSON object in response", raw.slice(0, 200));
+      return null;
+    }
+    const slice = raw.slice(firstBrace, lastBrace + 1);
+    const parsed = JSON.parse(slice) as CoachAnalysis;
+    // Defensive normalize so a missing array doesn't crash the renderer.
+    if (!Array.isArray(parsed.coverage?.trained)) parsed.coverage.trained = [];
+    if (!Array.isArray(parsed.coverage?.missed)) parsed.coverage.missed = [];
+    if (!Array.isArray(parsed.nextWeek)) parsed.nextWeek = [];
     return parsed;
-  } catch {
+  } catch (e) {
+    console.error("consistency/coach failed", e);
     return null;
   }
 }
