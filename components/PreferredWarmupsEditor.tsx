@@ -90,8 +90,39 @@ export default function PreferredWarmupsEditor({
   );
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<string | null>(null);
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [promptText, setPromptText] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
 
   const drafts = bySplit[split];
+
+  const generateFromPrompt = async () => {
+    const text = promptText.trim();
+    if (!text) return;
+    setGenerating(true);
+    setPromptError(null);
+    try {
+      const res = await fetch("/api/warmup-from-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: text, split }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setPromptError(body.error ?? "Couldn't generate");
+        return;
+      }
+      const items = (body.items as WarmupItem[]).map(toDraft);
+      setBySplit((prev) => ({ ...prev, [split]: items }));
+      setShowPrompt(false);
+      setPromptText("");
+    } catch (e) {
+      setPromptError(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const update = (idx: number, patch: Partial<DraftItem>) => {
     setBySplit((prev) => ({
@@ -153,6 +184,75 @@ export default function PreferredWarmupsEditor({
             </button>
           );
         })}
+      </div>
+
+      <div className="mb-4">
+        {showPrompt ? (
+          <div className="card p-3 space-y-2">
+            <p
+              className="text-[11px]"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              Describe your {SPLIT_LABEL[split]} warm-up — AI will structure it.
+              This replaces the current list for this split.
+            </p>
+            <textarea
+              value={promptText}
+              onChange={(e) => setPromptText(e.target.value)}
+              placeholder="e.g. 5 min easy bike, hip openers, 10 banded glute bridges, leg swings"
+              rows={3}
+              className="w-full px-3 py-2 rounded-lg text-[13px] resize-none"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
+              }}
+            />
+            {promptError && (
+              <p className="text-[12px]" style={{ color: "#f87171" }}>
+                {promptError}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={generateFromPrompt}
+                disabled={generating || !promptText.trim()}
+                className="btn-accent px-3 py-1.5 rounded-lg text-[12px]"
+              >
+                {generating ? "Generating…" : "Generate"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPrompt(false);
+                  setPromptError(null);
+                }}
+                className="px-3 py-1.5 rounded-lg text-[12px]"
+                style={{
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg-muted)",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowPrompt(true)}
+            className="w-full py-2.5 rounded-lg text-[13px] font-medium flex items-center justify-center gap-2"
+            style={{
+              background: "var(--accent-dim)",
+              border: "1px solid var(--accent)",
+              color: "var(--accent)",
+            }}
+          >
+            ✨ Describe it in your own words
+          </button>
+        )}
       </div>
 
       <div className="space-y-3">
