@@ -355,6 +355,50 @@ export async function POST(req: NextRequest) {
     const oneWeekAgoStr = fmtLong(subDays(now, 7));
     const thirtyDaysAgoStr = fmtLong(subDays(now, 30));
 
+    // Athlete's preferred warmup routine by split, set in Profile → Preferred
+    // warm-ups. When prescribing a session whose split matches one of these
+    // keys, the coach should emit the listed items verbatim in the workout-plan
+    // warmup block (instead of inventing one) — but is free to omit/replace
+    // items that don't fit the day (e.g. skip a cardio item for a deload).
+    const preferredWarmupsBlock = (() => {
+      const raw = user?.preferredWarmups;
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
+      const splitOrder = ["PUSH","PULL","LEGS","UPPER","LOWER","ARMS","FULL_BODY","CORE"] as const;
+      const lines: string[] = [];
+      for (const k of splitOrder) {
+        const items = (raw as Record<string, unknown>)[k];
+        if (!Array.isArray(items) || items.length === 0) continue;
+        const rendered = items
+          .map((r) => {
+            const o = r as Record<string, unknown>;
+            const name = typeof o.name === "string" ? o.name : "";
+            if (!name) return null;
+            const parts: string[] = [];
+            if (typeof o.kind === "string") parts.push(o.kind);
+            parts.push(name);
+            if (typeof o.durationSec === "number") {
+              parts.push(`${Math.round(o.durationSec)}s`);
+            }
+            if (typeof o.reps === "number") parts.push(`${o.reps} reps`);
+            if (typeof o.instructions === "string" && o.instructions) {
+              parts.push(`(${o.instructions})`);
+            }
+            return `    - ${parts.join(" · ")}`;
+          })
+          .filter(Boolean)
+          .join("\n");
+        if (rendered) lines.push(`  ${k}:\n${rendered}`);
+      }
+      if (lines.length === 0) return "";
+      return `
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+ATHLETE'S PREFERRED WARM-UPS (by split)
+(When you prescribe a session whose split matches a key below, use these items as the warmup block instead of inventing one. Emit them in the workout-plan "warmup":{"items":[...]} payload, preserving kind/durationSec/reps. You may drop an item that doesn't fit the day, but do not invent unrelated items when the athlete has set their preference.)
+━━━━━━━━━━━━━━━━━━━━━━━━
+${lines.join("\n\n")}`;
+    })();
+
     const systemPrompt = `You are an elite strength, hypertrophy, and performance coach chatbot.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
@@ -678,7 +722,7 @@ PERSONAL COACHING INSTRUCTIONS FROM THIS ATHLETE
 ━━━━━━━━━━━━━━━━━━━━━━━━
 ${user.coachPrompt.trim()}`
     : ""
-}`;
+}${preferredWarmupsBlock}`;
 
     await prisma.trainerMessage.create({
       data: { userId, role: "user", content: message },

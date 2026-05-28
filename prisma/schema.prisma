@@ -45,6 +45,7 @@ model User {
   trainingDays   Int?
   injuries       String?
   coachPrompt    String?
+  preferredWarmups Json?
   height         Float?
   bodyFat        Float?
   restingHR      Int?
