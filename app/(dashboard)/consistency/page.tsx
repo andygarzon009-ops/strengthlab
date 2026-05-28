@@ -159,7 +159,7 @@ export default async function ConsistencyDetailPage() {
       type: true,
       exercises: {
         select: {
-          exercise: { select: { name: true } },
+          exercise: { select: { id: true, name: true } },
           sets: {
             select: { type: true, weight: true, reps: true },
           },

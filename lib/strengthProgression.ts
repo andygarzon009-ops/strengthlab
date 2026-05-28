@@ -17,12 +17,13 @@ type WorkoutLike = {
   startedAt: Date | null;
   type: string;
   exercises: {
-    exercise: { name: string };
+    exercise: { id?: string; name: string };
     sets: WorkingSet[];
   }[];
 };
 
 export type LiftTrend = {
+  exerciseId: string;
   name: string;
   sessions: number; // total sessions hit in the lookback window
   currentE1rm: number; // most recent session's top e1rm
@@ -46,20 +47,21 @@ export function computeTopLiftTrends(
   const topN = options.topN ?? 5;
   const minSessions = options.minSessions ?? 2;
 
-  // Per-exercise → list of { sessionAt, sessionTopE1rm }
+  // Keyed by exerciseId; tracks name and per-session top e1rm.
   type SessionPoint = {
     at: Date;
     e1: number;
     weight: number;
     reps: number;
   };
-  const byLift = new Map<string, SessionPoint[]>();
+  const byLift = new Map<string, { name: string; points: SessionPoint[] }>();
 
   for (const w of workouts) {
     if (shapeForType(w.type) !== "STRENGTH") continue;
     const at = w.endedAt ?? w.startedAt ?? w.date;
     for (const e of w.exercises) {
       const name = e.exercise.name;
+      const id = e.exercise.id ?? name;
       if (isTimedExercise(name)) continue;
       let topE1 = 0;
       let topWeight = 0;
@@ -77,9 +79,9 @@ export function computeTopLiftTrends(
         }
       }
       if (topE1 <= 0) continue;
-      const arr = byLift.get(name) ?? [];
-      arr.push({ at, e1: topE1, weight: topWeight, reps: topReps });
-      byLift.set(name, arr);
+      const entry = byLift.get(id) ?? { name, points: [] };
+      entry.points.push({ at, e1: topE1, weight: topWeight, reps: topReps });
+      byLift.set(id, entry);
     }
   }
 
@@ -91,7 +93,7 @@ export function computeTopLiftTrends(
   const baselineStartMs = now - 5 * weekMs; // 4 weeks back from start of this week
 
   const trends: LiftTrend[] = [];
-  for (const [name, points] of byLift) {
+  for (const [exerciseId, { name, points }] of byLift) {
     if (points.length < minSessions) continue;
     points.sort((a, b) => a.at.getTime() - b.at.getTime());
     const latest = points[points.length - 1];
@@ -115,6 +117,7 @@ export function computeTopLiftTrends(
       else direction = "flat";
     }
     trends.push({
+      exerciseId,
       name,
       sessions: points.length,
       currentE1rm: latest.e1,

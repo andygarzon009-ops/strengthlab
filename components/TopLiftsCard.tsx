@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { LiftTrend } from "@/lib/strengthProgression";
 
 function formatLbs(n: number): string {
@@ -64,6 +65,17 @@ export default function TopLiftsCard({ lifts }: { lifts: LiftTrend[] }) {
 }
 
 function LiftRow({ lift }: { lift: LiftTrend }) {
+  return (
+    <Link
+      href={`/strength/${encodeURIComponent(lift.exerciseId)}`}
+      className="block transition-colors"
+    >
+      <LiftRowBody lift={lift} />
+    </Link>
+  );
+}
+
+function LiftRowBody({ lift }: { lift: LiftTrend }) {
   const arrow =
     lift.direction === "up"
       ? "↑"
@@ -98,13 +110,16 @@ function LiftRow({ lift }: { lift: LiftTrend }) {
           {relativeDate(lift.lastSessionAt)}
         </p>
       </div>
-      <div className="text-right tabular-nums shrink-0">
-        <p className="text-[16px] font-bold">
-          {formatLbs(lift.currentE1rm)}
-        </p>
-        <p className="text-[11px]" style={{ color }}>
-          {arrow} {trendLabel}
-        </p>
+      <div className="text-right tabular-nums shrink-0 flex items-center gap-2">
+        <div>
+          <p className="text-[16px] font-bold">
+            {formatLbs(lift.currentE1rm)}
+          </p>
+          <p className="text-[11px]" style={{ color }}>
+            {arrow} {trendLabel}
+          </p>
+        </div>
+        <span style={{ color: "var(--fg-dim)" }}>→</span>
       </div>
     </div>
   );
