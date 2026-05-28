@@ -62,7 +62,7 @@ export default async function ActivityRingsCard({ userId }: Props) {
 
   return (
     <Link
-      href="/heart-rate"
+      href="/activity"
       className="block rounded-2xl p-4 mb-3 transition-colors"
       style={{
         background: "var(--bg-card)",
