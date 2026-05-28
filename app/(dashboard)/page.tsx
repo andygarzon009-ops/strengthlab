@@ -4,6 +4,7 @@ import Link from "next/link";
 import WeeklyRecap from "@/components/WeeklyRecap";
 import ActivityRingsCard from "@/components/ActivityRingsCard";
 import HeartRateCard from "@/components/HeartRateCard";
+import PullToRefresh from "@/components/PullToRefresh";
 import GroupFeed from "@/components/GroupFeed";
 import ConsistencyCard from "@/components/ConsistencyCard";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
@@ -69,6 +70,7 @@ export default async function FeedPage({
   const currentUser = await prisma.user.findUnique({ where: { id: userId } });
 
   return (
+    <PullToRefresh>
     <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-end justify-between mb-8">
         <div>
@@ -233,6 +235,7 @@ export default async function FeedPage({
         </div>
       ))}
     </div>
+    </PullToRefresh>
   );
 }
 
