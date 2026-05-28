@@ -93,7 +93,7 @@ export default function DailyHRChart({
 
   // Fetch multi-day data when range changes to W/M/Y.
   useEffect(() => {
-    if (range === "D") return;
+    if (range === "D" || range === "H") return;
     let cancelled = false;
     setLoading(true);
     fetch(`/api/health/hr-range?range=${range}`, { cache: "no-store" })
@@ -109,6 +109,37 @@ export default function DailyHRChart({
       cancelled = true;
     };
   }, [range]);
+
+  // Manual refresh — fires whatever fetch matches the current range.
+  // Useful when the user knows the watch should have new data but the
+  // background poll is mid-interval.
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      if (range === "H") {
+        const res = await fetch("/api/health/hourly-hr", { cache: "no-store" });
+        if (res.ok) {
+          const body = await res.json();
+          if (Array.isArray(body.samples)) setHourSamples(body.samples);
+          if (body.windowStart && body.windowEnd) {
+            setHourWindow({ start: body.windowStart, end: body.windowEnd });
+          }
+        }
+      } else if (range === "D") {
+        const res = await fetch("/api/health/daily-hr", { cache: "no-store" });
+        if (res.ok) setData(await res.json());
+      } else {
+        const res = await fetch(`/api/health/hr-range?range=${range}`, {
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const body = await res.json();
+          if (Array.isArray(body.days)) setRangeDays(body.days);
+        }
+      }
+    } catch {}
+    setLoading(false);
+  };
 
   if (!data.connected) {
     return (
@@ -128,25 +159,65 @@ export default function DailyHRChart({
 
   return (
     <div>
-      <div className="flex gap-1 mb-3 p-1 rounded-full" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-        {RANGE_LABELS.map((r) => {
-          const active = r.value === range;
-          return (
-            <button
-              key={r.value}
-              type="button"
-              onClick={() => onRangeChange(r.value)}
-              className="flex-1 py-1.5 rounded-full text-[12px] font-semibold transition-colors"
-              style={{
-                background: active ? "var(--bg-elevated)" : "transparent",
-                color: active ? "var(--fg)" : "var(--fg-dim)",
-              }}
-            >
-              {r.label}
-            </button>
-          );
-        })}
+      <div className="flex items-center gap-2 mb-3">
+        <div
+          className="flex gap-1 p-1 rounded-full flex-1"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          {RANGE_LABELS.map((r) => {
+            const active = r.value === range;
+            return (
+              <button
+                key={r.value}
+                type="button"
+                onClick={() => onRangeChange(r.value)}
+                className="flex-1 py-1.5 rounded-full text-[12px] font-semibold transition-colors"
+                style={{
+                  background: active ? "var(--bg-elevated)" : "transparent",
+                  color: active ? "var(--fg)" : "var(--fg-dim)",
+                }}
+              >
+                {r.label}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={refresh}
+          disabled={loading}
+          aria-label="Refresh"
+          className="w-9 h-9 rounded-full flex items-center justify-center"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            color: "var(--fg-muted)",
+          }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              animation: loading ? "spin 0.9s linear infinite" : undefined,
+            }}
+          >
+            <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+            <polyline points="21 3 21 8 16 8" />
+            <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+            <polyline points="3 21 3 16 8 16" />
+          </svg>
+        </button>
       </div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
       {range === "H" ? (
         <HourCard
