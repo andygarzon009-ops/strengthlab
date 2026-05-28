@@ -1,10 +1,24 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { listRestingHeartRate } from "@/lib/googleHealth";
+import {
+  listRestingHeartRate,
+  listHeartRateBetween,
+  type HeartRateSample,
+} from "@/lib/googleHealth";
 
 type Props = {
   userId: string;
 };
+
+function computeRestingFromSamples(samples: HeartRateSample[]): number | null {
+  if (samples.length < 10) return null;
+  const sorted = [...samples].sort((a, b) => a.bpm - b.bpm);
+  // Average the lowest 10 readings — robust to a single low outlier and
+  // tracks the watch's own resting algorithm reasonably well.
+  const lowestTen = sorted.slice(0, 10);
+  const avg = lowestTen.reduce((sum, s) => sum + s.bpm, 0) / lowestTen.length;
+  return Math.round(avg);
+}
 
 function formatRelative(d: Date): string {
   const sec = Math.floor((Date.now() - d.getTime()) / 1000);
@@ -56,6 +70,7 @@ export default async function HeartRateCard({ userId }: Props) {
   // Surfaces "you're trending down" without us having to chart anything.
   let restingNow: number | null = null;
   let restingDelta: number | null = null;
+  let restingSource: "fitbit" | "computed" = "fitbit";
   if (samples.length > 0) {
     restingNow = samples[samples.length - 1].bpm;
     const cutoff = now.getTime() - 7 * 24 * 60 * 60 * 1000;
@@ -64,6 +79,29 @@ export default async function HeartRateCard({ userId }: Props) {
       const priorAvg =
         prior.reduce((sum, s) => sum + s.bpm, 0) / prior.length;
       restingDelta = restingNow - Math.round(priorAvg);
+    }
+  } else {
+    // Google Health didn't return a dedicated resting-HR sample (common —
+    // depends on device and how the user wears it). Fall back to computing
+    // resting HR ourselves from the last 24h of raw HR samples: take the
+    // average of the lowest 10 readings, which approximates the watch's
+    // own resting-HR algorithm well enough for a feed card.
+    try {
+      const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const raw = await listHeartRateBetween(
+        userId,
+        dayAgo.toISOString(),
+        now.toISOString(),
+      );
+      const computed = computeRestingFromSamples(raw);
+      if (computed !== null) {
+        restingNow = computed;
+        restingSource = "computed";
+        // Optional week-over-week: pull a prior 24h window and compute the
+        // same way. Skipped on cost grounds for now — feed should be cheap.
+      }
+    } catch {
+      // Leave restingNow null.
     }
   }
 
@@ -173,11 +211,11 @@ export default async function HeartRateCard({ userId }: Props) {
               className="text-[11px]"
               style={{ color: trendColor }}
             >
-              {restingDelta === null
-                ? "today's reading"
-                : restingDelta === 0
-                  ? "no change vs last week"
-                  : `${trendArrow} ${Math.abs(restingDelta)} bpm vs last week`}
+              {restingDelta !== null && restingDelta !== 0
+                ? `${trendArrow} ${Math.abs(restingDelta)} bpm vs last week`
+                : restingSource === "computed"
+                  ? "estimated from today's HR"
+                  : "today's reading"}
             </p>
           </div>
         )}
