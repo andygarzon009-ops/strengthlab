@@ -16,6 +16,9 @@ type Workout = {
 };
 
 const RANGE_DAYS: Record<Range, number> = {
+  // H slices an hour off the day; the cutoff is hours, not days, but the
+  // shape still fits since the filter is just a millisecond comparison.
+  H: 1 / 24,
   D: 1,
   W: 7,
   M: 30,
@@ -23,6 +26,7 @@ const RANGE_DAYS: Record<Range, number> = {
 };
 
 const RANGE_LABEL: Record<Range, string> = {
+  H: "Last hour",
   D: "Today",
   W: "Last 7 days",
   M: "Last 30 days",

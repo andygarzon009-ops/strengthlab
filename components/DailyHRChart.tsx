@@ -10,13 +10,15 @@ type RangeDay = {
   peakHR?: number;
   avgHR?: number;
 };
-export type Range = "D" | "W" | "M" | "Y";
+export type Range = "H" | "D" | "W" | "M" | "Y";
 
 const BUCKET_MIN = 30;
+const HOUR_BUCKET_MIN = 2;
 const Y_MIN = 50;
 const Y_MAX = 200;
 
 const RANGE_LABELS: { value: Range; label: string }[] = [
+  { value: "H", label: "H" },
   { value: "D", label: "D" },
   { value: "W", label: "W" },
   { value: "M", label: "M" },
@@ -39,6 +41,8 @@ export default function DailyHRChart({
 }) {
   const [data, setData] = useState(initial);
   const [rangeDays, setRangeDays] = useState<RangeDay[]>([]);
+  const [hourSamples, setHourSamples] = useState<Sample[]>([]);
+  const [hourWindow, setHourWindow] = useState<{ start: string; end: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Day-view auto-refresh: re-pull samples once a minute so the chart
@@ -54,6 +58,33 @@ export default function DailyHRChart({
         if (!cancelled) setData(body);
       } catch {}
     }, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [range]);
+
+  // Hour-view fetch + tight 20s poll so the chart tracks an active workout.
+  useEffect(() => {
+    if (range !== "H") return;
+    let cancelled = false;
+    const pull = async () => {
+      try {
+        const res = await fetch("/api/health/hourly-hr", { cache: "no-store" });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (cancelled) return;
+        if (Array.isArray(body.samples)) setHourSamples(body.samples);
+        if (body.windowStart && body.windowEnd) {
+          setHourWindow({ start: body.windowStart, end: body.windowEnd });
+        }
+      } catch {}
+    };
+    setLoading(true);
+    pull().finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    const id = setInterval(pull, 20_000);
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -117,10 +148,82 @@ export default function DailyHRChart({
         })}
       </div>
 
-      {range === "D" ? (
+      {range === "H" ? (
+        <HourCard
+          samples={hourSamples}
+          windowStart={hourWindow?.start ?? null}
+          windowEnd={hourWindow?.end ?? null}
+          tz={data.tz}
+          loading={loading}
+        />
+      ) : range === "D" ? (
         <DayCard data={data} loading={loading} />
       ) : (
         <RangeCard range={range} days={rangeDays} loading={loading} />
+      )}
+    </div>
+  );
+}
+
+function HourCard({
+  samples,
+  windowStart,
+  windowEnd,
+  tz,
+  loading,
+}: {
+  samples: Sample[];
+  windowStart: string | null;
+  windowEnd: string | null;
+  tz: string;
+  loading: boolean;
+}) {
+  const range = useMemo(() => {
+    if (samples.length === 0) return null;
+    let min = Infinity;
+    let max = -Infinity;
+    for (const s of samples) {
+      if (s.bpm < min) min = s.bpm;
+      if (s.bpm > max) max = s.bpm;
+    }
+    return { min, max };
+  }, [samples]);
+
+  const latest = samples.length ? samples[samples.length - 1] : null;
+  const startMs = windowStart ? new Date(windowStart).getTime() : null;
+  const endMs = windowEnd ? new Date(windowEnd).getTime() : null;
+
+  return (
+    <div
+      className="rounded-2xl p-4"
+      style={{
+        background: "var(--bg-card)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <RangeHeader
+        label="Range"
+        primary={range ? `${range.min}–${range.max}` : null}
+        subtitle="Last hour"
+        loading={loading}
+      />
+      <HourSvg samples={samples} startMs={startMs} endMs={endMs} tz={tz} />
+      {latest && (
+        <div
+          className="mt-3 pt-3 flex items-center justify-between"
+          style={{ borderTop: "1px solid var(--border)" }}
+        >
+          <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
+            Latest:{" "}
+            {new Date(latest.t).toLocaleTimeString(undefined, {
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </span>
+          <span className="text-[14px] font-bold tabular-nums">
+            {latest.bpm} BPM
+          </span>
+        </div>
       )}
     </div>
   );
@@ -326,6 +429,136 @@ function RangeHeader({
   );
 }
 
+function HourSvg({
+  samples,
+  startMs,
+  endMs,
+  tz,
+}: {
+  samples: Sample[];
+  startMs: number | null;
+  endMs: number | null;
+  tz: string;
+}) {
+  const W = 320;
+  const H = 200;
+  const padL = 8;
+  const padR = 32;
+  const padT = 8;
+  const padB = 22;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const totalMin = 60;
+
+  // Bucket by HOUR_BUCKET_MIN. Offset relative to startMs so the leftmost
+  // bucket is exactly the start of the window.
+  const buckets = useMemo<{ offsetMin: number; min: number; max: number }[]>(() => {
+    if (!samples.length || startMs === null) return [];
+    const map = new Map<number, { min: number; max: number }>();
+    for (const s of samples) {
+      const t = new Date(s.t).getTime();
+      const offsetMin = Math.floor((t - startMs) / 60_000);
+      if (offsetMin < 0 || offsetMin >= totalMin) continue;
+      const bucket = Math.floor(offsetMin / HOUR_BUCKET_MIN) * HOUR_BUCKET_MIN;
+      const cur = map.get(bucket);
+      if (!cur) map.set(bucket, { min: s.bpm, max: s.bpm });
+      else {
+        if (s.bpm < cur.min) cur.min = s.bpm;
+        if (s.bpm > cur.max) cur.max = s.bpm;
+      }
+    }
+    return Array.from(map.entries())
+      .map(([offsetMin, v]) => ({ offsetMin, ...v }))
+      .sort((a, b) => a.offsetMin - b.offsetMin);
+  }, [samples, startMs]);
+
+  const yFor = (bpm: number) => {
+    const clamped = Math.max(Y_MIN, Math.min(Y_MAX, bpm));
+    return padT + plotH * (1 - (clamped - Y_MIN) / (Y_MAX - Y_MIN));
+  };
+  const bucketWidth = (plotW / totalMin) * HOUR_BUCKET_MIN - 1;
+  const xFor = (offsetMin: number) =>
+    padL + (offsetMin / totalMin) * plotW + 0.5;
+
+  const yTicks = [50, 100, 150, 200];
+  // Five x ticks at 0, 15, 30, 45, 60 minutes into the window.
+  const tickOffsets = [0, 15, 30, 45, 60];
+  const fmt = new Intl.DateTimeFormat(undefined, {
+    timeZone: tz,
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  const tickLabel = (offsetMin: number) => {
+    if (startMs === null || endMs === null) return "";
+    const ms =
+      offsetMin === 60 ? endMs : startMs + offsetMin * 60_000;
+    return fmt.format(new Date(ms));
+  };
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      width="100%"
+      style={{ display: "block" }}
+      preserveAspectRatio="none"
+    >
+      {yTicks.map((y) => (
+        <line
+          key={`y-${y}`}
+          x1={padL}
+          x2={W - padR}
+          y1={yFor(y)}
+          y2={yFor(y)}
+          stroke="var(--border)"
+          strokeDasharray="2 3"
+          strokeWidth={0.5}
+        />
+      ))}
+      {yTicks.map((y) => (
+        <text
+          key={`yl-${y}`}
+          x={W - padR + 4}
+          y={yFor(y) + 3}
+          fontSize="9"
+          fill="var(--fg-dim)"
+        >
+          {y}
+        </text>
+      ))}
+      {tickOffsets.map((m) => (
+        <text
+          key={`xl-${m}`}
+          x={padL + (m / totalMin) * plotW}
+          y={H - padB + 14}
+          fontSize="9"
+          fill="var(--fg-dim)"
+          textAnchor="middle"
+        >
+          {tickLabel(m)}
+        </text>
+      ))}
+      {buckets.map((b) => {
+        const y1 = yFor(b.max);
+        const y2 = yFor(b.min);
+        const h = Math.max(2, y2 - y1);
+        return (
+          <rect
+            key={b.offsetMin}
+            x={xFor(b.offsetMin)}
+            y={y1}
+            width={Math.max(2, bucketWidth)}
+            height={h}
+            rx={1.5}
+            fill="#ef4444"
+            opacity={0.85}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
 function DaySvg({ buckets }: { buckets: Bucket[] }) {
   const W = 320;
   const H = 200;
@@ -444,15 +677,14 @@ function RangeSvg({ days, range }: { days: RangeDay[]; range: Range }) {
 
   const yTicks = [50, 100, 150, 200];
 
-  // Label cadence: weekly view shows every day; monthly every ~5 days;
-  // yearly shows month name on the 1st of each month.
+  // Label cadence: W shows every day. M and Y both show the first index of
+  // each month seen, labeled with the month name. Day-of-month numbers
+  // ("29, 04, 09…") were ambiguous and didn't communicate where months
+  // started.
   const tickIndices: number[] = [];
   if (range === "W") {
     for (let i = 0; i < days.length; i++) tickIndices.push(i);
-  } else if (range === "M") {
-    for (let i = 0; i < days.length; i += 5) tickIndices.push(i);
   } else {
-    // Y: pick the first index of each month seen.
     let lastMonth = "";
     days.forEach((d, i) => {
       const month = d.dateKey.slice(0, 7);
@@ -463,14 +695,13 @@ function RangeSvg({ days, range }: { days: RangeDay[]; range: Range }) {
     });
   }
 
+  const MONTH_ABBR = [
+    "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec",
+  ];
   const formatTick = (dateKey: string) => {
-    if (range === "Y") {
-      const monthNum = Number(dateKey.slice(5, 7));
-      return [
-        "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec",
-      ][monthNum - 1];
-    }
-    return dateKey.slice(8, 10);
+    if (range === "W") return dateKey.slice(8, 10);
+    const monthNum = Number(dateKey.slice(5, 7));
+    return MONTH_ABBR[monthNum - 1] ?? "";
   };
 
   return (
