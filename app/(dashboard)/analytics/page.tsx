@@ -13,6 +13,7 @@ import {
 } from "@/lib/exercises";
 import { format, subDays, differenceInDays } from "date-fns";
 import PRList from "@/components/PRList";
+import CollapsibleSection from "@/components/CollapsibleSection";
 import Projections from "@/components/Projections";
 import GoalsSection, {
   type GoalWithProgress,
@@ -469,20 +470,13 @@ export default async function AnalyticsPage() {
       ) : (
         <div className="space-y-3">
           {topPRs.length > 0 && (
-            <div className="card p-5">
-              <div className="flex items-baseline justify-between mb-4">
-                <h2 className="font-semibold text-[14px] tracking-tight">
-                  Top lifts
-                </h2>
-                <p
-                  className="label text-[9px]"
-                  style={{ color: "var(--fg-dim)" }}
-                >
-                  Personal records
-                </p>
-              </div>
+            <CollapsibleSection
+              title="Top lifts"
+              subtitle="Personal records"
+              defaultOpen={false}
+            >
               <PRList prs={topPRs} />
-            </div>
+            </CollapsibleSection>
           )}
 
           <Projections items={projections} />
