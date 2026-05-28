@@ -780,9 +780,14 @@ function RangeSvg({ days, range }: { days: RangeDay[]; range: Range }) {
   const MONTH_ABBR = [
     "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec",
   ];
+  const DAY_ABBR = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const ticks: { index: number; label: string }[] = [];
   if (range === "W") {
-    days.forEach((d, i) => ticks.push({ index: i, label: d.dateKey.slice(8, 10) }));
+    days.forEach((d, i) => {
+      const [yy, mm, dd] = d.dateKey.split("-").map(Number);
+      const dow = new Date(Date.UTC(yy, mm - 1, dd)).getUTCDay();
+      ticks.push({ index: i, label: DAY_ABBR[dow] });
+    });
   } else {
     const byMonth = new Map<string, number[]>();
     days.forEach((d, i) => {
