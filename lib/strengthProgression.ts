@@ -33,6 +33,14 @@ export type LiftTrend = {
   deltaLb: number | null; // current − baseline
   direction: "up" | "flat" | "down" | null;
   lastSessionAt: Date;
+  // Populated when the lift has an active Goal record. Progress is
+  // currentE1rm / targetE1rm, clamped to [0, 1.2].
+  target?: {
+    targetWeight: number;
+    targetReps: number;
+    targetE1rm: number;
+    progressPct: number;
+  };
 };
 
 const FLAT_THRESHOLD_LB = 2;
@@ -137,4 +145,87 @@ export function computeTopLiftTrends(
     return b.lastSessionAt.getTime() - a.lastSessionAt.getTime();
   });
   return trends.slice(0, topN);
+}
+
+export type GoalLike = {
+  exerciseId: string | null;
+  targetValue: number;
+  targetReps: number | null;
+};
+
+/// Builds a unified, target-first lift list:
+///   1. Every active lift goal (exerciseId set) gets a row, even if the
+///      athlete hasn't trained that lift recently.
+///   2. Top-trained lifts fill remaining slots until the total hits `topN`.
+/// Targets carry the `target` payload so the row can render a progress bar.
+export function mergeLiftsWithTargets(
+  workouts: WorkoutLike[],
+  goals: GoalLike[],
+  options: { topN?: number } = {},
+): LiftTrend[] {
+  const topN = options.topN ?? 6;
+  // First compute the unranked trend for every lift in the history. We need
+  // a wider net than computeTopLiftTrends because targets may reference a
+  // lift the athlete hasn't trained much.
+  const allTrends = computeTopLiftTrends(workouts, {
+    topN: Number.MAX_SAFE_INTEGER,
+    minSessions: 1,
+  });
+  const trendById = new Map(allTrends.map((t) => [t.exerciseId, t]));
+
+  const result: LiftTrend[] = [];
+  const seen = new Set<string>();
+  const goalsByExerciseId = new Map<string, GoalLike>();
+  for (const g of goals) {
+    if (!g.exerciseId) continue;
+    if (!goalsByExerciseId.has(g.exerciseId)) {
+      goalsByExerciseId.set(g.exerciseId, g);
+    }
+  }
+
+  for (const [exerciseId, goal] of goalsByExerciseId) {
+    const trend = trendById.get(exerciseId);
+    const reps = Math.max(1, goal.targetReps ?? 1);
+    const targetE1 = e1rm(goal.targetValue, reps);
+    const targetPayload = {
+      targetWeight: goal.targetValue,
+      targetReps: reps,
+      targetE1rm: targetE1,
+      progressPct: trend
+        ? Math.min(1.2, trend.currentE1rm / Math.max(1, targetE1))
+        : 0,
+    };
+    if (trend) {
+      result.push({ ...trend, target: targetPayload });
+      seen.add(exerciseId);
+    } else {
+      // Lift has a target but no logged sessions yet — emit a stub row so
+      // the athlete still sees the goal exists.
+      result.push({
+        exerciseId,
+        name: "Lift",
+        sessions: 0,
+        currentE1rm: 0,
+        currentWeight: 0,
+        currentReps: 0,
+        baselineE1rm: null,
+        deltaLb: null,
+        direction: null,
+        lastSessionAt: new Date(0),
+        target: targetPayload,
+      });
+      seen.add(exerciseId);
+    }
+  }
+
+  // Fill remainder with most-trained lifts the targets haven't covered.
+  for (const t of allTrends) {
+    if (result.length >= topN) break;
+    if (seen.has(t.exerciseId)) continue;
+    if (t.sessions < 2) continue;
+    result.push(t);
+    seen.add(t.exerciseId);
+  }
+
+  return result.slice(0, topN);
 }

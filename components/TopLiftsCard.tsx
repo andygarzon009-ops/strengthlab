@@ -38,15 +38,22 @@ export default function TopLiftsCard({ lifts }: { lifts: LiftTrend[] }) {
     );
   }
 
+  const targetCount = lifts.filter((l) => l.target).length;
+  const topCount = lifts.length - targetCount;
+  const subtitle =
+    targetCount > 0
+      ? `${targetCount} target${targetCount === 1 ? "" : "s"} · ${topCount} top lift${topCount === 1 ? "" : "s"}`
+      : "Est. 1RM · 4-wk trend";
+
   return (
     <div className="mt-6">
       <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-[15px] font-bold tracking-tight">Top lifts</h2>
+        <h2 className="text-[15px] font-bold tracking-tight">Strength</h2>
         <span
           className="text-[10px] uppercase tracking-wider font-semibold"
           style={{ color: "var(--fg-dim)" }}
         >
-          Est. 1RM · 4-wk trend
+          {subtitle}
         </span>
       </div>
       <div
@@ -57,7 +64,7 @@ export default function TopLiftsCard({ lifts }: { lifts: LiftTrend[] }) {
         }}
       >
         {lifts.map((l) => (
-          <LiftRow key={l.name} lift={l} />
+          <LiftRow key={l.exerciseId} lift={l} />
         ))}
       </div>
     </div>
@@ -76,6 +83,14 @@ function LiftRow({ lift }: { lift: LiftTrend }) {
 }
 
 function LiftRowBody({ lift }: { lift: LiftTrend }) {
+  const target = lift.target;
+  const targetPct = target ? Math.min(1, target.progressPct) : 0;
+  const targetOver = target ? target.progressPct >= 1 : false;
+  const targetColor = targetOver
+    ? "var(--accent)"
+    : lift.direction === "down" && target
+      ? "#f97316"
+      : "#1dd2e6";
   const arrow =
     lift.direction === "up"
       ? "↑"
@@ -99,28 +114,77 @@ function LiftRowBody({ lift }: { lift: LiftTrend }) {
   })();
 
   return (
-    <div className="flex items-center justify-between px-4 py-3">
-      <div className="min-w-0 flex-1 pr-3">
-        <p className="text-[14px] font-medium truncate">{lift.name}</p>
-        <p
-          className="text-[11px] mt-0.5 tabular-nums"
-          style={{ color: "var(--fg-dim)" }}
-        >
-          {lift.currentWeight} × {lift.currentReps} ·{" "}
-          {relativeDate(lift.lastSessionAt)}
-        </p>
-      </div>
-      <div className="text-right tabular-nums shrink-0 flex items-center gap-2">
-        <div>
-          <p className="text-[16px] font-bold">
-            {formatLbs(lift.currentE1rm)}
-          </p>
-          <p className="text-[11px]" style={{ color }}>
-            {arrow} {trendLabel}
+    <div className="px-4 py-3">
+      <div className="flex items-center justify-between">
+        <div className="min-w-0 flex-1 pr-3">
+          <div className="flex items-center gap-2 mb-0.5">
+            <p className="text-[14px] font-medium truncate">{lift.name}</p>
+            {target && (
+              <span
+                className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                style={{
+                  background: "rgba(29,210,230,0.12)",
+                  border: "1px solid rgba(29,210,230,0.35)",
+                  color: "#1dd2e6",
+                }}
+              >
+                Target
+              </span>
+            )}
+          </div>
+          <p
+            className="text-[11px] tabular-nums"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            {lift.sessions === 0
+              ? "No sessions logged yet"
+              : `${lift.currentWeight} × ${lift.currentReps} · ${relativeDate(lift.lastSessionAt)}`}
           </p>
         </div>
-        <span style={{ color: "var(--fg-dim)" }}>→</span>
+        <div className="text-right tabular-nums shrink-0 flex items-center gap-2">
+          <div>
+            <p className="text-[16px] font-bold">
+              {formatLbs(lift.currentE1rm)}
+            </p>
+            <p className="text-[11px]" style={{ color }}>
+              {arrow} {trendLabel}
+            </p>
+          </div>
+          <span style={{ color: "var(--fg-dim)" }}>→</span>
+        </div>
       </div>
+
+      {target && (
+        <div className="mt-2.5">
+          <div
+            className="h-1.5 rounded-full overflow-hidden"
+            style={{ background: "var(--bg-elevated)" }}
+          >
+            <div
+              className="h-full transition-all"
+              style={{
+                width: `${Math.round(targetPct * 100)}%`,
+                background: targetColor,
+              }}
+            />
+          </div>
+          <div
+            className="flex items-center justify-between mt-1 tabular-nums"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            <span className="text-[10px]">
+              Goal {target.targetWeight} × {target.targetReps} ·{" "}
+              {formatLbs(target.targetE1rm)}
+            </span>
+            <span
+              className="text-[10px] font-semibold"
+              style={{ color: targetColor }}
+            >
+              {Math.round(target.progressPct * 100)}%
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

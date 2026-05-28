@@ -4,7 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { shapeForType, labelForType } from "@/lib/exercises";
-import { computeTopLiftTrends } from "@/lib/strengthProgression";
+import { mergeLiftsWithTargets } from "@/lib/strengthProgression";
 import TopLiftsCard from "@/components/TopLiftsCard";
 
 export const dynamic = "force-dynamic";
@@ -167,7 +167,29 @@ export default async function ConsistencyDetailPage() {
       },
     },
   });
-  const topLifts = computeTopLiftTrends(liftHistory);
+  const goals = await prisma.goal.findMany({
+    where: { userId, completed: false, exerciseId: { not: null } },
+    select: { exerciseId: true, targetValue: true, targetReps: true },
+  });
+  const topLifts = mergeLiftsWithTargets(liftHistory, goals);
+
+  // Stub-row targets have no exercise name yet — backfill from the DB so
+  // the row reads "Bench Press" instead of "Lift".
+  const stubIds = topLifts
+    .filter((l) => l.sessions === 0)
+    .map((l) => l.exerciseId);
+  if (stubIds.length > 0) {
+    const stubExercises = await prisma.exercise.findMany({
+      where: { id: { in: stubIds } },
+      select: { id: true, name: true },
+    });
+    const nameById = new Map(stubExercises.map((e) => [e.id, e.name]));
+    for (const l of topLifts) {
+      if (l.sessions === 0 && nameById.has(l.exerciseId)) {
+        l.name = nameById.get(l.exerciseId)!;
+      }
+    }
+  }
 
   let analysis: AnalysisResult;
   const cached = user?.weeklyAnalysisCache as

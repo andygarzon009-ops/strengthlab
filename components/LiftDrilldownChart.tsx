@@ -125,14 +125,14 @@ export default function LiftDrilldownChart({
           className="text-[10px] uppercase tracking-wider font-semibold mb-1"
           style={{ color: "var(--fg-dim)" }}
         >
-          Est. 1RM trend
+          Est. 1RM (lb) · trend
         </p>
         <p
           className="text-[11px] mb-3"
           style={{ color: "var(--fg-dim)" }}
         >
           {RANGE_SUBTITLE[range]} · {filtered.length} session
-          {filtered.length === 1 ? "" : "s"}
+          {filtered.length === 1 ? "" : "s"} · each dot is one session
         </p>
         {filtered.length === 0 ? (
           <p
@@ -355,7 +355,7 @@ function LineChart({
           fontSize="9"
           fill="var(--fg-dim)"
         >
-          {Math.round(y)}
+          {Math.round(y)}{i === yTicks.length - 1 ? " lb" : ""}
         </text>
       ))}
       {xTicks.map((t, i) => (
