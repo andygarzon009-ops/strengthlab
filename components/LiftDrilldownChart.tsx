@@ -10,6 +10,7 @@ type SessionRow = {
   topReps: number;
   topE1rm: number;
   isPR: boolean;
+  setE1rms: number[];
 };
 
 type Range = "W" | "M" | "Y";
@@ -134,7 +135,7 @@ export default function LiftDrilldownChart({
           style={{ color: "var(--fg-dim)" }}
         >
           {RANGE_SUBTITLE[range]} · {filtered.length} session
-          {filtered.length === 1 ? "" : "s"} · each dot is one session
+          {filtered.length === 1 ? "" : "s"} · faint dots are working sets, bold dots are session tops
         </p>
         {filtered.length === 0 ? (
           <p
@@ -328,10 +329,15 @@ function LineChart({
   const span = Math.max(1, windowEnd - windowStart);
 
   // Smart axis: bracket the actual e1rm range to use the full plot height.
-  // Pad ±5 lb so a point doesn't sit on the edge.
-  const vals = sessions.map((s) => s.topE1rm);
-  const minVal = Math.max(0, Math.min(...vals) - 5);
-  const maxVal = Math.max(...vals) + 5;
+  // Pad ±5 lb so a point doesn't sit on the edge. Include EVERY set's e1rm
+  // (not just top-set) so volume work doesn't clip below the visible range.
+  const allVals: number[] = [];
+  for (const s of sessions) {
+    allVals.push(s.topE1rm);
+    for (const v of s.setE1rms) allVals.push(v);
+  }
+  const minVal = Math.max(0, Math.min(...allVals) - 5);
+  const maxVal = Math.max(...allVals) + 5;
   const span2 = Math.max(1, maxVal - minVal);
 
   const xFor = (atIso: string) => {
@@ -436,6 +442,23 @@ function LineChart({
           {t.label}
         </text>
       ))}
+
+      {/* All-sets scatter underneath the trend line. Non-top sets render
+          as faint dots so volume days show as a vertical column. */}
+      {sessions.map((s) =>
+        s.setE1rms
+          .filter((v) => v !== s.topE1rm)
+          .map((v, j) => (
+            <circle
+              key={`set-${s.workoutId}-${j}`}
+              cx={xFor(s.at)}
+              cy={yFor(v)}
+              r={1.8}
+              fill={COLOR}
+              fillOpacity={0.35}
+            />
+          )),
+      )}
 
       <path
         d={linePath}

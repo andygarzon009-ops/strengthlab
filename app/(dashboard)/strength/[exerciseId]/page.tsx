@@ -13,6 +13,8 @@ type SessionRow = {
   topReps: number;
   topE1rm: number;
   isPR: boolean;
+  // Every working set's e1rm for the volume-aware scatter overlay.
+  setE1rms: number[];
 };
 
 export default async function LiftDrilldownPage({
@@ -68,13 +70,16 @@ export default async function LiftDrilldownPage({
     orderBy: { date: "asc" },
   });
 
-  // Build per-session top-set point + running PR marker.
+  // Build per-session top-set point + running PR marker, plus an array of
+  // every working set's e1rm so the chart can render volume sessions as a
+  // vertical column of dots.
   const sessions: SessionRow[] = [];
   let runningMax = 0;
   for (const w of workouts) {
     let topE1 = 0;
     let topWeight = 0;
     let topReps = 0;
+    const setE1rms: number[] = [];
     for (const ex of w.exercises) {
       for (const s of ex.sets) {
         if (s.type === "WARMUP") continue;
@@ -82,6 +87,7 @@ export default async function LiftDrilldownPage({
         const reps = s.reps ?? 0;
         if (weight <= 0 || reps <= 0) continue;
         const proj = e1rm(weight, reps);
+        setE1rms.push(proj);
         if (proj > topE1) {
           topE1 = proj;
           topWeight = weight;
@@ -100,6 +106,7 @@ export default async function LiftDrilldownPage({
       topReps,
       topE1rm: Math.round(topE1 * 10) / 10,
       isPR,
+      setE1rms: setE1rms.map((v) => Math.round(v * 10) / 10),
     });
   }
 
