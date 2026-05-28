@@ -228,7 +228,14 @@ export async function POST(req: NextRequest) {
             return `    • ${e.exercise.name}${exNote}: ${parts.join(" | ")}`;
           })
           .join("\n");
-        return `- [${typeLbl}]${tagStr} ${w.title} (${when}, ${whenFmt}) — ${workingSets.length} working sets${noteStr}\n${exerciseLines}`;
+        const hrParts: string[] = [];
+        if (w.avgHeartRate) hrParts.push(`avg HR ${w.avgHeartRate}`);
+        if (w.maxHeartRate) hrParts.push(`max HR ${w.maxHeartRate}`);
+        if (w.calories) hrParts.push(`${w.calories} kcal`);
+        if (w.activeZoneMin) hrParts.push(`${w.activeZoneMin} zone min`);
+        if (w.duration) hrParts.push(formatDuration(w.duration));
+        const metricsStr = hrParts.length ? ` · ${hrParts.join(" · ")}` : "";
+        return `- [${typeLbl}]${tagStr} ${w.title} (${when}, ${whenFmt}) — ${workingSets.length} working sets${metricsStr}${noteStr}\n${exerciseLines}`;
       }
 
       if (shape === "DISTANCE") {
