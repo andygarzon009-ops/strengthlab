@@ -3,8 +3,9 @@ import { format } from "date-fns";
 import Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { shapeForType, labelForType, isTimedExercise } from "@/lib/exercises";
-import StrengthVolumeChart from "@/components/StrengthVolumeChart";
+import { shapeForType, labelForType } from "@/lib/exercises";
+import { computeTopLiftTrends } from "@/lib/strengthProgression";
+import TopLiftsCard from "@/components/TopLiftsCard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -146,38 +147,27 @@ export default async function ConsistencyDetailPage() {
   );
   const fingerprint = `${weekKey}|${thisWeekSessions.length}|${latestUpdate}`;
 
-  // Seed the strength-volume chart with the last 7 days so the first paint
-  // isn't blank. The client refetches on mount and on range changes.
-  const sevenAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const volumeByDay = new Map<string, number>();
-  for (const w of recent) {
-    if (w.date < sevenAgo) continue;
-    if (shapeForType(w.type) !== "STRENGTH") continue;
-    let dv = 0;
-    for (const e of w.exercises) {
-      if (isTimedExercise(e.exercise.name)) continue;
-      for (const s of e.sets) {
-        if (s.type === "WARMUP") continue;
-        const weight = s.weight ?? 0;
-        const reps = s.reps ?? 0;
-        if (weight > 0 && reps > 0) dv += weight * reps;
-      }
-    }
-    if (dv <= 0) continue;
-    const k = dayKey(w.date);
-    volumeByDay.set(k, (volumeByDay.get(k) ?? 0) + dv);
-  }
-  const strengthDays: { dateKey: string; volume: number }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-    const k = dayKey(d);
-    strengthDays.push({ dateKey: k, volume: Math.round(volumeByDay.get(k) ?? 0) });
-  }
-  const strengthTotal = strengthDays.reduce((s, x) => s + x.volume, 0);
-  const strengthBest = strengthDays.reduce(
-    (m, x) => (x.volume > m ? x.volume : m),
-    0,
-  );
+  // Top lifts need a longer lookback to compute the 4-week baseline. Pull
+  // the last 12 weeks of strength workouts in one query.
+  const twelveWeeksAgo = new Date(now.getTime() - 12 * 7 * 86400_000);
+  const liftHistory = await prisma.workout.findMany({
+    where: { userId, date: { gte: twelveWeeksAgo } },
+    select: {
+      date: true,
+      startedAt: true,
+      endedAt: true,
+      type: true,
+      exercises: {
+        select: {
+          exercise: { select: { name: true } },
+          sets: {
+            select: { type: true, weight: true, reps: true },
+          },
+        },
+      },
+    },
+  });
+  const topLifts = computeTopLiftTrends(liftHistory);
 
   let analysis: AnalysisResult;
   const cached = user?.weeklyAnalysisCache as
@@ -268,17 +258,7 @@ export default async function ConsistencyDetailPage() {
         </div>
       )}
 
-      <div className="mt-6">
-        <StrengthVolumeChart
-          initial={{
-            range: "W",
-            tz,
-            total: strengthTotal,
-            best: strengthBest,
-            days: strengthDays,
-          }}
-        />
-      </div>
+      <TopLiftsCard lifts={topLifts} />
     </div>
   );
 }
