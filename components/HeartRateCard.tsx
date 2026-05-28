@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { listRestingHeartRate } from "@/lib/googleHealth";
 
@@ -79,8 +80,9 @@ export default async function HeartRateCard({ userId }: Props) {
     restingDelta === null ? "" : restingDelta < 0 ? "↓" : restingDelta > 0 ? "↑" : "·";
 
   return (
-    <div
-      className="rounded-2xl p-4 mb-3"
+    <Link
+      href="/heart-rate"
+      className="block rounded-2xl p-4 mb-3 transition-colors"
       style={{
         background: "var(--bg-card)",
         border: "1px solid var(--border)",
@@ -97,6 +99,7 @@ export default async function HeartRateCard({ userId }: Props) {
           />
           <h3 className="text-[14px] font-bold tracking-tight">Heart rate</h3>
         </div>
+        <span style={{ color: "var(--fg-dim)" }}>→</span>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -175,6 +178,6 @@ export default async function HeartRateCard({ userId }: Props) {
           </div>
         )}
       </div>
-    </div>
+    </Link>
   );
 }
