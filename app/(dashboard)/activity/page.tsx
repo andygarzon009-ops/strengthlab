@@ -91,7 +91,7 @@ export default async function ActivityPage() {
           sessionGoal: 1,
           days: [
             {
-              dateKey,
+              dateKey: dayKey,
               moveKcal: todayMove,
               exerciseMin: todayEx,
               sessions: todayWorkouts.length,
