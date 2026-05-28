@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { listHeartRateBetween } from "@/lib/googleHealth";
-import DailyHRChart from "@/components/DailyHRChart";
+import HeartRateView from "@/components/HeartRateView";
 
 export const dynamic = "force-dynamic";
 
@@ -45,24 +45,25 @@ export default async function HeartRatePage() {
     }
   }
 
-  // Today's workout(s) for the Highlights section.
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayWorkouts = await prisma.workout.findMany({
+  // All workouts with HR data in the last year — filtered client-side by
+  // the active range chip (D / W / M / Y). One query covers all four views.
+  const yearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+  const recentWorkouts = await prisma.workout.findMany({
     where: {
       userId,
-      date: { gte: todayStart },
+      date: { gte: yearAgo },
       OR: [{ avgHeartRate: { not: null } }, { maxHeartRate: { not: null } }],
     },
     orderBy: { date: "desc" },
     select: {
       id: true,
       title: true,
+      date: true,
+      startedAt: true,
+      endedAt: true,
       avgHeartRate: true,
       maxHeartRate: true,
-      duration: true,
     },
-    take: 3,
   });
 
   return (
@@ -83,61 +84,23 @@ export default async function HeartRatePage() {
         <h1 className="text-[22px] font-bold tracking-tight">Heart rate</h1>
       </div>
 
-      <DailyHRChart
+      <HeartRateView
         initial={{
           connected: !!account,
           samples: initialSamples,
           tz,
           dateKey,
         }}
+        workouts={recentWorkouts.map((w) => ({
+          id: w.id,
+          title: w.title,
+          date: w.date.toISOString(),
+          startedAt: w.startedAt ? w.startedAt.toISOString() : null,
+          endedAt: w.endedAt ? w.endedAt.toISOString() : null,
+          avgHeartRate: w.avgHeartRate,
+          maxHeartRate: w.maxHeartRate,
+        }))}
       />
-
-      {todayWorkouts.length > 0 && (
-        <div className="mt-6">
-          <h2 className="text-[15px] font-bold tracking-tight mb-2">
-            Highlights
-          </h2>
-          <div className="space-y-2">
-            {todayWorkouts.map((w) => (
-              <Link
-                key={w.id}
-                href={`/workout/${w.id}`}
-                className="card flex items-center justify-between px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span
-                      className="inline-block w-2 h-2 rounded-full"
-                      style={{ background: "#ef4444" }}
-                    />
-                    <span
-                      className="text-[10px] uppercase tracking-wider font-semibold"
-                      style={{ color: "var(--fg-dim)" }}
-                    >
-                      Workout HR
-                    </span>
-                  </div>
-                  <p className="text-[14px] font-medium truncate">{w.title}</p>
-                </div>
-                <div className="text-right tabular-nums">
-                  <p className="text-[16px] font-bold">
-                    {w.avgHeartRate ?? "—"}
-                    <span
-                      className="text-[10px] ml-1"
-                      style={{ color: "var(--fg-dim)" }}
-                    >
-                      avg
-                    </span>
-                  </p>
-                  <p className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
-                    max {w.maxHeartRate ?? "—"}
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

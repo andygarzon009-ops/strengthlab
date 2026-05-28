@@ -10,7 +10,7 @@ type RangeDay = {
   peakHR?: number;
   avgHR?: number;
 };
-type Range = "D" | "W" | "M" | "Y";
+export type Range = "D" | "W" | "M" | "Y";
 
 const BUCKET_MIN = 30;
 const Y_MIN = 50;
@@ -25,6 +25,8 @@ const RANGE_LABELS: { value: Range; label: string }[] = [
 
 export default function DailyHRChart({
   initial,
+  range,
+  onRangeChange,
 }: {
   initial: {
     connected: boolean;
@@ -32,9 +34,10 @@ export default function DailyHRChart({
     tz: string;
     dateKey: string;
   };
+  range: Range;
+  onRangeChange: (r: Range) => void;
 }) {
   const [data, setData] = useState(initial);
-  const [range, setRange] = useState<Range>("D");
   const [rangeDays, setRangeDays] = useState<RangeDay[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -101,7 +104,7 @@ export default function DailyHRChart({
             <button
               key={r.value}
               type="button"
-              onClick={() => setRange(r.value)}
+              onClick={() => onRangeChange(r.value)}
               className="flex-1 py-1.5 rounded-full text-[12px] font-semibold transition-colors"
               style={{
                 background: active ? "var(--bg-elevated)" : "transparent",
