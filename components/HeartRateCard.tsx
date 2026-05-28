@@ -37,6 +37,8 @@ export default async function HeartRateCard({ userId }: Props) {
       id: true,
       title: true,
       date: true,
+      startedAt: true,
+      endedAt: true,
       avgHeartRate: true,
       maxHeartRate: true,
     },
@@ -115,7 +117,9 @@ export default async function HeartRateCard({ userId }: Props) {
               {lastWorkout.title}
             </p>
             <p className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
-              {formatRelative(lastWorkout.date)}
+              {formatRelative(
+                lastWorkout.endedAt ?? lastWorkout.startedAt ?? lastWorkout.date,
+              )}
             </p>
             <div className="flex items-baseline gap-3 pt-1 tabular-nums">
               {lastWorkout.avgHeartRate && (
