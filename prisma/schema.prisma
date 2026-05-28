@@ -113,6 +113,8 @@ model FitbitExerciseSession {
   calories          Int?
   steps             Int?
   avgHR             Int?
+  activeZoneMin     Int?
+  distanceMm        Int?
   importedWorkoutId String?
   fetchedAt         DateTime @default(now())
 
@@ -169,6 +171,8 @@ model Workout {
   rounds       Int?
   elevation    Int?
   calories     Int?
+  steps        Int?
+  activeZoneMin Int?
   rpe          Int?
   startedAt    DateTime?
   endedAt      DateTime?

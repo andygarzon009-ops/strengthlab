@@ -12,6 +12,8 @@ export type DetectedSession = {
   calories?: number;
   steps?: number;
   avgHR?: number;
+  activeZoneMin?: number;
+  distanceMm?: number;
   importedWorkoutId?: string | null;
 };
 
@@ -58,6 +60,14 @@ function parsePoint(p: ExercisePoint): Omit<DetectedSession, "importedWorkoutId"
     avgHR: m.averageHeartRateBeatsPerMinute
       ? Number(m.averageHeartRateBeatsPerMinute)
       : undefined,
+    activeZoneMin:
+      m.activeZoneMinutes !== undefined && m.activeZoneMinutes !== null
+        ? Math.round(Number(m.activeZoneMinutes))
+        : undefined,
+    distanceMm:
+      m.distanceMillimiters !== undefined && m.distanceMillimiters !== null
+        ? Math.round(Number(m.distanceMillimiters))
+        : undefined,
   };
 }
 
@@ -89,6 +99,8 @@ export async function refreshFitbitCache(userId: string, days = 14): Promise<num
         calories: parsed.calories,
         steps: parsed.steps,
         avgHR: parsed.avgHR,
+        activeZoneMin: parsed.activeZoneMin,
+        distanceMm: parsed.distanceMm,
       },
       update: {
         startTime: new Date(parsed.startTime),
@@ -99,6 +111,8 @@ export async function refreshFitbitCache(userId: string, days = 14): Promise<num
         calories: parsed.calories,
         steps: parsed.steps,
         avgHR: parsed.avgHR,
+        activeZoneMin: parsed.activeZoneMin,
+        distanceMm: parsed.distanceMm,
         fetchedAt: new Date(),
       },
     });
@@ -153,6 +167,8 @@ export async function getCachedSessions(
     calories: r.calories ?? undefined,
     steps: r.steps ?? undefined,
     avgHR: r.avgHR ?? undefined,
+    activeZoneMin: r.activeZoneMin ?? undefined,
+    distanceMm: r.distanceMm ?? undefined,
     importedWorkoutId: r.importedWorkoutId,
   }));
 

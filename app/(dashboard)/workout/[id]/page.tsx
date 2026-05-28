@@ -261,11 +261,13 @@ export default async function WorkoutDetailPage({
 
       {isOwn && <SyncHRButton workoutId={workout.id} />}
 
-      {/* Secondary metrics: HR, elevation, calories */}
+      {/* Secondary metrics: HR, elevation, calories, steps, active zone min */}
       {(workout.avgHeartRate ||
         workout.maxHeartRate ||
         workout.elevation ||
-        workout.calories) && (
+        workout.calories ||
+        workout.steps ||
+        workout.activeZoneMin) && (
         <div className="grid grid-cols-2 gap-2 mb-6">
           {workout.avgHeartRate && (
             <MetricChip label="Avg HR" value={workout.avgHeartRate} suffix="bpm" />
@@ -273,11 +275,17 @@ export default async function WorkoutDetailPage({
           {workout.maxHeartRate && (
             <MetricChip label="Max HR" value={workout.maxHeartRate} suffix="bpm" />
           )}
-          {workout.elevation && (
-            <MetricChip label="Elevation" value={workout.elevation} suffix="m" />
-          )}
           {workout.calories && (
             <MetricChip label="Calories" value={workout.calories} suffix="kcal" />
+          )}
+          {workout.activeZoneMin && (
+            <MetricChip label="Zone min" value={workout.activeZoneMin} suffix="min" />
+          )}
+          {workout.steps && (
+            <MetricChip label="Steps" value={workout.steps.toLocaleString()} />
+          )}
+          {workout.elevation && (
+            <MetricChip label="Elevation" value={workout.elevation} suffix="m" />
           )}
         </div>
       )}

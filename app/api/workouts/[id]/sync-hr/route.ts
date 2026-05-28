@@ -1,7 +1,11 @@
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { listHeartRateBetween } from "@/lib/googleHealth";
-import { getCachedSessions, fitbitTypeToWorkoutType } from "@/lib/fitbitDetect";
+import {
+  getCachedSessions,
+  fitbitTypeToWorkoutType,
+  type DetectedSession,
+} from "@/lib/fitbitDetect";
 
 function toUtcISO(d: Date): string {
   return d.toISOString();
@@ -25,6 +29,10 @@ export async function POST(
       duration: true,
       type: true,
       title: true,
+      calories: true,
+      steps: true,
+      activeZoneMin: true,
+      distance: true,
     },
   });
   if (!workout || workout.userId !== userId) {
@@ -57,7 +65,7 @@ export async function POST(
     }).format(d);
   const targetDay = dayKey(workout.date);
 
-  let matched: { startTime: string; endTime: string; durationSec: number } | null = null;
+  let matched: DetectedSession | null = null;
   try {
     const { sessions } = await getCachedSessions(userId, { days: 30 });
     const sameDay = sessions.filter(
@@ -146,11 +154,31 @@ export async function POST(
         ? Math.round(samples.reduce((s, x) => s + x.bpm, 0) / samples.length)
         : null;
     const max = samples.length > 0 ? Math.max(...samples.map((s) => s.bpm)) : null;
+    // Only fill metrics from the matched Fitbit session when the workout
+    // doesn't already have a value — preserves anything the athlete typed
+    // in manually before the sync ran.
+    const metricUpdates: Record<string, number> = {};
+    if (matched) {
+      if (matched.calories != null && workout.calories == null) {
+        metricUpdates.calories = matched.calories;
+      }
+      if (matched.steps != null && workout.steps == null) {
+        metricUpdates.steps = matched.steps;
+      }
+      if (matched.activeZoneMin != null && workout.activeZoneMin == null) {
+        metricUpdates.activeZoneMin = matched.activeZoneMin;
+      }
+      if (matched.distanceMm != null && workout.distance == null) {
+        // Workout.distance is stored in kilometers; Fitbit reports mm.
+        metricUpdates.distance = matched.distanceMm / 1_000_000;
+      }
+    }
     await tx.workout.update({
       where: { id },
       data: {
         avgHeartRate: avg,
         maxHeartRate: max,
+        ...metricUpdates,
         // Persist the derived window. Always overwrite when we used a
         // matched Google Health session (truth source); otherwise only
         // fill in when startedAt is missing so we don't clobber precise

@@ -128,7 +128,7 @@ export type ExercisePoint = {
       distanceMillimiters?: number;
       steps?: string;
       averageHeartRateBeatsPerMinute?: string;
-      activeZoneMinutes?: string;
+      activeZoneMinutes?: string | number;
     };
   };
 };
