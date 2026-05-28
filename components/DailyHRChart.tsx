@@ -280,21 +280,24 @@ function HourCard({
       />
       <HourSvg samples={samples} startMs={startMs} endMs={endMs} tz={tz} />
       {latest && (
-        <div
-          className="mt-3 pt-3 flex items-center justify-between"
-          style={{ borderTop: "1px solid var(--border)" }}
-        >
-          <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
-            Latest:{" "}
-            {new Date(latest.t).toLocaleTimeString(undefined, {
-              hour: "numeric",
-              minute: "2-digit",
-            })}
-          </span>
-          <span className="text-[14px] font-bold tabular-nums">
-            {latest.bpm} BPM
-          </span>
-        </div>
+        <>
+          <div
+            className="mt-3 pt-3 flex items-center justify-between"
+            style={{ borderTop: "1px solid var(--border)" }}
+          >
+            <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
+              Latest:{" "}
+              {new Date(latest.t).toLocaleTimeString(undefined, {
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </span>
+            <span className="text-[14px] font-bold tabular-nums">
+              {latest.bpm} BPM
+            </span>
+          </div>
+          <StaleHint latestAt={new Date(latest.t)} />
+        </>
       )}
     </div>
   );
@@ -371,23 +374,40 @@ function DayCard({
       />
       <DaySvg buckets={buckets} />
       {latest && (
-        <div
-          className="mt-3 pt-3 flex items-center justify-between"
-          style={{ borderTop: "1px solid var(--border)" }}
-        >
-          <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
-            Latest:{" "}
-            {new Date(latest.t).toLocaleTimeString(undefined, {
-              hour: "numeric",
-              minute: "2-digit",
-            })}
-          </span>
-          <span className="text-[14px] font-bold tabular-nums">
-            {latest.bpm} BPM
-          </span>
-        </div>
+        <>
+          <div
+            className="mt-3 pt-3 flex items-center justify-between"
+            style={{ borderTop: "1px solid var(--border)" }}
+          >
+            <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
+              Latest:{" "}
+              {new Date(latest.t).toLocaleTimeString(undefined, {
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </span>
+            <span className="text-[14px] font-bold tabular-nums">
+              {latest.bpm} BPM
+            </span>
+          </div>
+          <StaleHint latestAt={new Date(latest.t)} />
+        </>
       )}
     </div>
+  );
+}
+
+function StaleHint({ latestAt }: { latestAt: Date }) {
+  const ageMin = Math.floor((Date.now() - latestAt.getTime()) / 60_000);
+  if (ageMin < 15) return null;
+  return (
+    <p
+      className="mt-2 text-[11px]"
+      style={{ color: ageMin > 60 ? "#f97316" : "var(--fg-dim)" }}
+    >
+      Last sample {ageMin} min ago — Fitbit hasn&apos;t pushed newer data.
+      Open the Fitbit app on your phone to force a sync, then refresh.
+    </p>
   );
 }
 
