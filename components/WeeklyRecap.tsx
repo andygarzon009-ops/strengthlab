@@ -289,8 +289,8 @@ function HeartIcon() {
       width="14"
       height="14"
       viewBox="0 0 24 24"
-      fill="#f87171"
-      stroke="#f87171"
+      fill="#ef4444"
+      stroke="#dc2626"
       strokeWidth="1.5"
       strokeLinejoin="round"
       aria-hidden
