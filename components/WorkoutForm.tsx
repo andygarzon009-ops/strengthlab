@@ -403,8 +403,16 @@ export default function WorkoutForm({
     const detected = detectSplit(exercises.map((e) => e.exerciseName));
     if (!detected || detected === split) return;
     setSplit(detected);
-    if (splitDrivesTitle) setTitle(titleFor(workoutType, detected));
-  }, [exercises, shape, workoutType, split, splitDrivesTitle]);
+    // Only overwrite the title if it still matches an auto-generated label
+    // for the current split or type — never clobber a name the user typed.
+    if (splitDrivesTitle) {
+      const isAutoTitle =
+        title === "" ||
+        title === titleFor(workoutType, split) ||
+        title === titleFor(workoutType);
+      if (isAutoTitle) setTitle(titleFor(workoutType, detected));
+    }
+  }, [exercises, shape, workoutType, split, splitDrivesTitle, title]);
 
   // Strength sets with weight but missing reps block save
   const missingRepsCount =
@@ -798,9 +806,15 @@ export default function WorkoutForm({
         )}
         <div className="flex-1 min-w-0">
           <p className="label">{labelForType(workoutType)}</p>
-          <h1 className="text-[18px] font-bold tracking-tight leading-none mt-0.5 truncate">
-            {title || "Session"}
-          </h1>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Session"
+            aria-label="Workout title"
+            className="text-[18px] font-bold tracking-tight leading-none mt-0.5 w-full bg-transparent border-0 outline-none p-0 truncate"
+            style={{ color: "var(--fg)" }}
+          />
         </div>
         <div className="flex items-center gap-2">
           {mode === "create" && autosaveStatus !== "idle" && (
