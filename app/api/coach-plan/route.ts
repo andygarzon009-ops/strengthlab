@@ -68,6 +68,37 @@ const VALID_SPLITS = new Set([
   "CORE",
 ]);
 
+const SPLIT_TITLE: Record<string, string> = {
+  PUSH: "Push Day",
+  PULL: "Pull Day",
+  LEGS: "Legs Day",
+  UPPER: "Upper Day",
+  LOWER: "Lower Day",
+  ARMS: "Arms Day",
+  FULL_BODY: "Full Body",
+  CORE: "Core Day",
+};
+
+// Coaches sometimes echo back the user's weekly schedule ("Monday Push") in
+// the generated title, but the athlete may run that session on a different
+// day. Strip weekday names from the title so the log reflects what was
+// trained, not when it was planned. Falls back to a split-derived default
+// when stripping leaves the title empty.
+const sanitizeTitle = (raw: string | undefined, split: string | null): string => {
+  const fallback = (split && SPLIT_TITLE[split]) || "Workout";
+  if (!raw) return fallback;
+  const weekday =
+    /\b(?:mon|tue|tues|wed|wednes|thu|thur|thurs|fri|sat|satur|sun)(?:day)?s?\b/gi;
+  let cleaned = raw
+    .replace(weekday, "")
+    .replace(/\s*[—–\-:·|]\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  // Trim leftover orphan separators at the ends.
+  cleaned = cleaned.replace(/^[\s—–\-:·|]+|[\s—–\-:·|]+$/g, "").trim();
+  return cleaned || fallback;
+};
+
 const toStr = (v: unknown): string => {
   if (v === null || v === undefined || v === "") return "";
   const n = typeof v === "number" ? v : parseFloat(String(v));
@@ -289,7 +320,7 @@ export async function POST(req: NextRequest) {
       restPrefs,
       initial: {
         id: "",
-        title: plan.title?.trim() || "Coach plan",
+        title: sanitizeTitle(plan.title, split),
         type,
         split,
         date: new Date().toISOString(),

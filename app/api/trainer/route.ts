@@ -111,6 +111,7 @@ async function synthesizePlanBlock(
     '- reps REQUIRED on every set — must be a single positive integer. For a prescribed range like "8–12" use the lower bound (8). For AMRAP / "to failure" / "max", pick the lowest realistic target (e.g. 8 for an 8+ AMRAP). NEVER emit "AMRAP", "max", "to failure", a range string, or an object.\n' +
     "- type ∈ {WEIGHT_TRAINING, CALISTHENICS, RUNNING, CYCLING, SWIMMING, ROWING, HIIT, COMBAT, MOBILITY, SPORT, OTHER}.\n" +
     "- split ∈ {PUSH, PULL, LEGS, UPPER, LOWER, ARMS, FULL_BODY, CORE} or null.\n" +
+    "- title MUST describe the session content (e.g. \"Push Day\", \"Legs Day\", \"Bench-Focused Push\"). NEVER include a weekday name like \"Monday\", \"Tuesday\", \"Wed\" — the athlete may shift days and the log must stay accurate.\n" +
     "- weight in pounds; bodyweight movements use 0.\n" +
     "- warmup is OPTIONAL. Include it ONLY if the coach's prose actually prescribed a warm-up routine. Each item has name, kind ∈ {cardio, mobility, activation}, and EITHER durationSec (timed; integer seconds, max 600) OR reps (counted; positive integer). Total durationSec across all items must stay under 600 (10 min cap).\n" +
     "- Valid minified JSON, double-quoted keys, no trailing commas, no comments.";
@@ -483,6 +484,7 @@ When the athlete asks for a workout, structure it:
    - Include warm-up sets (type:"WARMUP") only when you actually prescribed warm-ups in the prose — otherwise leave them out and the athlete will warm up off-app.
    - "weight" is in pounds. For bodyweight movements (Pull-Up, Push-Up, Dip, etc.) use weight:0 unless you're prescribing added load. For timed holds, put the held seconds in "reps".
    - "reps" is REQUIRED on EVERY set — never omit it, never leave it null, never emit it as a range or word. It MUST be a single positive integer (e.g. 5, 8, 12). For a prescribed range like "8–12", pick the lower bound (8). For AMRAPs / "to failure" / "max reps", commit to a concrete target the athlete should aim for (the lowest realistic rep count, e.g. 8 for an 8+ AMRAP) and call out the AMRAP intent in the prose. Never emit strings like "AMRAP", "max", "to failure", "8-12", or an object — the athlete's log will render blank reps fields and they'll have to type every number in by hand.
+   - "title" must describe the SESSION CONTENT, never the weekday. Use the split label ("Push Day", "Pull Day", "Legs Day", "Upper Day", "Lower Day", "Full Body", etc.) or a focus ("Bench-Focused Push", "Squat Day"). Never include weekday names ("Monday", "Tuesday", "Wed", …) — the athlete may run Monday's plan on a Tuesday and the log must stay accurate to what was trained.
    - "split" is one of: PUSH, PULL, LEGS, UPPER, LOWER, ARMS, FULL_BODY, CORE. Use null for non-strength sessions.
    - "type" is one of: WEIGHT_TRAINING, CALISTHENICS, RUNNING, CYCLING, SWIMMING, ROWING, HIIT, COMBAT, MOBILITY, SPORT, OTHER.
    - "restSeconds" sets the auto rest timer that fires when the athlete checks off a working set. REQUIRED on EVERY exercise in a WEIGHT_TRAINING or CALISTHENICS plan — never omit it, never leave it null. MUST be one of: 60, 90, 120, 180, 240. Match it to the prescription:
