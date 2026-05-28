@@ -3,7 +3,8 @@ import { format } from "date-fns";
 import Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { shapeForType, labelForType } from "@/lib/exercises";
+import { shapeForType, labelForType, isTimedExercise } from "@/lib/exercises";
+import StrengthVolumeChart from "@/components/StrengthVolumeChart";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -145,6 +146,39 @@ export default async function ConsistencyDetailPage() {
   );
   const fingerprint = `${weekKey}|${thisWeekSessions.length}|${latestUpdate}`;
 
+  // Seed the strength-volume chart with the last 7 days so the first paint
+  // isn't blank. The client refetches on mount and on range changes.
+  const sevenAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const volumeByDay = new Map<string, number>();
+  for (const w of recent) {
+    if (w.date < sevenAgo) continue;
+    if (shapeForType(w.type) !== "STRENGTH") continue;
+    let dv = 0;
+    for (const e of w.exercises) {
+      if (isTimedExercise(e.exercise.name)) continue;
+      for (const s of e.sets) {
+        if (s.type === "WARMUP") continue;
+        const weight = s.weight ?? 0;
+        const reps = s.reps ?? 0;
+        if (weight > 0 && reps > 0) dv += weight * reps;
+      }
+    }
+    if (dv <= 0) continue;
+    const k = dayKey(w.date);
+    volumeByDay.set(k, (volumeByDay.get(k) ?? 0) + dv);
+  }
+  const strengthDays: { dateKey: string; volume: number }[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const k = dayKey(d);
+    strengthDays.push({ dateKey: k, volume: Math.round(volumeByDay.get(k) ?? 0) });
+  }
+  const strengthTotal = strengthDays.reduce((s, x) => s + x.volume, 0);
+  const strengthBest = strengthDays.reduce(
+    (m, x) => (x.volume > m ? x.volume : m),
+    0,
+  );
+
   let analysis: AnalysisResult;
   const cached = user?.weeklyAnalysisCache as
     | { fingerprint?: string; analysis?: CoachAnalysis }
@@ -233,6 +267,18 @@ export default async function ConsistencyDetailPage() {
           </p>
         </div>
       )}
+
+      <div className="mt-6">
+        <StrengthVolumeChart
+          initial={{
+            range: "W",
+            tz,
+            total: strengthTotal,
+            best: strengthBest,
+            days: strengthDays,
+          }}
+        />
+      </div>
     </div>
   );
 }
