@@ -48,6 +48,7 @@ model User {
   preferredWarmups Json?
   moveGoalKcal     Int?
   exerciseGoalMin  Int?
+  weeklyAnalysisCache Json?
   height         Float?
   bodyFat        Float?
   restingHR      Int?

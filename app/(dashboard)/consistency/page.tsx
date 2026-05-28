@@ -58,6 +58,7 @@ export default async function ConsistencyDetailPage() {
       preferredSplit: true,
       experienceLevel: true,
       primaryFocus: true,
+      weeklyAnalysisCache: true,
     },
   });
   const tz = user?.timezone ?? "UTC";
@@ -130,19 +131,54 @@ export default async function ConsistencyDetailPage() {
     lastWeekKeys.has(dayKey(w.date)),
   );
 
-  const analysis = await generateAnalysis({
-    name: user?.name ?? "Athlete",
-    goalDays,
-    experienceLevel: user?.experienceLevel ?? null,
-    primaryFocus: user?.primaryFocus ?? null,
-    preferredSplit: user?.preferredSplit ?? null,
-    trainedDays,
-    grid: grid.map((g) => ({
-      ...g,
-      sessions: g.sessions as unknown as SessionForAnalysis[],
-    })),
-    lastWeekSessionCount: lastWeekSessions.length,
-  });
+  // Cache key encodes the week + this-week workout count + last-edit
+  // timestamp. As long as nothing about the week's data has changed since
+  // the cached analysis was written, we reuse it and skip the model call.
+  const weekKey = dayKey(monday);
+  const thisWeekKeys = new Set(grid.map((g) => g.dateKey));
+  const thisWeekSessions = recent.filter((w) =>
+    thisWeekKeys.has(dayKey(w.date)),
+  );
+  const latestUpdate = thisWeekSessions.reduce(
+    (max, w) => Math.max(max, w.updatedAt.getTime()),
+    0,
+  );
+  const fingerprint = `${weekKey}|${thisWeekSessions.length}|${latestUpdate}`;
+
+  let analysis: AnalysisResult;
+  const cached = user?.weeklyAnalysisCache as
+    | { fingerprint?: string; analysis?: CoachAnalysis }
+    | null
+    | undefined;
+  if (cached?.fingerprint === fingerprint && cached.analysis) {
+    analysis = { ok: true, analysis: cached.analysis };
+  } else {
+    analysis = await generateAnalysis({
+      name: user?.name ?? "Athlete",
+      goalDays,
+      experienceLevel: user?.experienceLevel ?? null,
+      primaryFocus: user?.primaryFocus ?? null,
+      preferredSplit: user?.preferredSplit ?? null,
+      trainedDays,
+      grid: grid.map((g) => ({
+        ...g,
+        sessions: g.sessions as unknown as SessionForAnalysis[],
+      })),
+      lastWeekSessionCount: lastWeekSessions.length,
+    });
+    if (analysis.ok) {
+      // Persist so next visit is free. Failures aren't cached — we'll retry.
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          weeklyAnalysisCache: {
+            fingerprint,
+            analysis: analysis.analysis,
+          } as unknown as object,
+        },
+      });
+    }
+  }
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
