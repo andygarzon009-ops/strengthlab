@@ -150,20 +150,23 @@ export default async function ConsistencyCard({
             Your rhythm
           </h2>
         </div>
-        {streak > 0 && (
-          <span
-            className="label text-[10px] px-2 py-1 rounded-full nums"
-            style={{
-              background: "rgba(249,115,22,0.12)",
-              border: "1px solid rgba(249,115,22,0.35)",
-              color: "#fb923c",
-              fontFamily: "var(--font-geist-mono)",
-            }}
-            title={`Consecutive weeks meeting your ${goal}-day training goal`}
-          >
-            🔥 {streak}-wk streak
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {streak > 0 && (
+            <span
+              className="label text-[10px] px-2 py-1 rounded-full nums"
+              style={{
+                background: "rgba(249,115,22,0.12)",
+                border: "1px solid rgba(249,115,22,0.35)",
+                color: "#fb923c",
+                fontFamily: "var(--font-geist-mono)",
+              }}
+              title={`Consecutive weeks meeting your ${goal}-day training goal`}
+            >
+              🔥 {streak}-wk streak
+            </span>
+          )}
+          <span style={{ color: "var(--fg-dim)" }}>→</span>
+        </div>
       </div>
 
       <div className="flex items-start gap-4">
