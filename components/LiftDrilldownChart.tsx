@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 type SessionRow = {
   workoutId: string;
@@ -45,6 +44,9 @@ export default function LiftDrilldownChart({
   sessions: SessionRow[];
 }) {
   const [range, setRange] = useState<Range>("M");
+  // When the user taps a dot, we highlight the corresponding row in the
+  // sessions list and scroll it into view rather than navigating away.
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const cutoff = Date.now() - RANGE_DAYS[range] * 24 * 60 * 60 * 1000;
@@ -142,62 +144,123 @@ export default function LiftDrilldownChart({
             No sessions in this window.
           </p>
         ) : (
-          <LineChart sessions={filtered} range={range} />
+          <LineChart
+            sessions={filtered}
+            range={range}
+            selectedWorkoutId={selectedWorkoutId}
+            onSelect={(id) =>
+              setSelectedWorkoutId((cur) => (cur === id ? null : id))
+            }
+          />
         )}
       </div>
 
       {/* Session list */}
       {filtered.length > 0 && (
-        <div className="mt-6">
-          <h2 className="text-[14px] font-bold tracking-tight mb-2">
-            Sessions
-          </h2>
-          <div className="space-y-2">
-            {[...filtered].reverse().map((s) => (
-              <Link
-                key={s.workoutId + s.at}
-                href={`/workout/${s.workoutId}`}
-                className="card flex items-center justify-between px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-[14px] font-medium tabular-nums">
-                    {s.topWeight} × {s.topReps}
-                    {s.isPR && (
-                      <span
-                        className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded"
-                        style={{
-                          background: "rgba(234,179,8,0.15)",
-                          color: PR_COLOR,
-                          border: "1px solid rgba(234,179,8,0.35)",
-                        }}
-                      >
-                        PR
-                      </span>
-                    )}
-                  </p>
-                  <p
-                    className="text-[11px] mt-0.5"
+        <SessionList
+          sessions={[...filtered].reverse()}
+          selectedWorkoutId={selectedWorkoutId}
+          onClear={() => setSelectedWorkoutId(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function SessionList({
+  sessions,
+  selectedWorkoutId,
+  onClear,
+}: {
+  sessions: SessionRow[];
+  selectedWorkoutId: string | null;
+  onClear: () => void;
+}) {
+  const rowRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
+
+  // Scroll the selected row into view when the user taps a dot.
+  useEffect(() => {
+    if (!selectedWorkoutId) return;
+    const el = rowRefs.current.get(selectedWorkoutId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [selectedWorkoutId]);
+
+  return (
+    <div className="mt-6">
+      <div className="flex items-baseline justify-between mb-2">
+        <h2 className="text-[14px] font-bold tracking-tight">Sessions</h2>
+        {selectedWorkoutId && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-[11px] underline"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            Clear selection
+          </button>
+        )}
+      </div>
+      <div className="space-y-2">
+        {sessions.map((s) => {
+          const isSelected = s.workoutId === selectedWorkoutId;
+          return (
+            <Link
+              key={s.workoutId + s.at}
+              ref={(el) => {
+                if (el) rowRefs.current.set(s.workoutId, el);
+                else rowRefs.current.delete(s.workoutId);
+              }}
+              href={`/workout/${s.workoutId}`}
+              className="card flex items-center justify-between px-4 py-3 transition-colors"
+              style={
+                isSelected
+                  ? {
+                      borderColor: "var(--accent)",
+                      background: "var(--accent-dim)",
+                    }
+                  : undefined
+              }
+            >
+              <div className="min-w-0">
+                <p className="text-[14px] font-medium tabular-nums">
+                  {s.topWeight} × {s.topReps}
+                  {s.isPR && (
+                    <span
+                      className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded"
+                      style={{
+                        background: "rgba(234,179,8,0.15)",
+                        color: PR_COLOR,
+                        border: "1px solid rgba(234,179,8,0.35)",
+                      }}
+                    >
+                      PR
+                    </span>
+                  )}
+                </p>
+                <p
+                  className="text-[11px] mt-0.5"
+                  style={{ color: "var(--fg-dim)" }}
+                >
+                  {formatRelative(new Date(s.at))}
+                </p>
+              </div>
+              <div className="text-right tabular-nums">
+                <p className="text-[14px] font-bold">
+                  {Math.round(s.topE1rm)}
+                  <span
+                    className="text-[10px] ml-1"
                     style={{ color: "var(--fg-dim)" }}
                   >
-                    {formatRelative(new Date(s.at))}
-                  </p>
-                </div>
-                <div className="text-right tabular-nums">
-                  <p className="text-[14px] font-bold">
-                    {Math.round(s.topE1rm)}
-                    <span
-                      className="text-[10px] ml-1"
-                      style={{ color: "var(--fg-dim)" }}
-                    >
-                      e1RM
-                    </span>
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
+                    e1RM
+                  </span>
+                </p>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -242,11 +305,14 @@ function Tile({
 function LineChart({
   sessions,
   range,
+  selectedWorkoutId,
+  onSelect,
 }: {
   sessions: SessionRow[];
   range: Range;
+  selectedWorkoutId: string | null;
+  onSelect: (workoutId: string) => void;
 }) {
-  const router = useRouter();
   const W = 320;
   const H = 200;
   const padL = 8;
@@ -383,8 +449,12 @@ function LineChart({
       {sessions.map((s, i) => {
         const cx = xFor(s.at);
         const cy = yFor(s.topE1rm);
-        const href = `/workout/${s.workoutId}`;
-        const onActivate = () => router.push(href);
+        const isSelected = s.workoutId === selectedWorkoutId;
+        const onActivate = () => onSelect(s.workoutId);
+        // Selected dot ring expands to make the highlight unambiguous; PR
+        // dots are slightly larger by default.
+        const r = isSelected ? 6 : s.isPR ? 4 : 2.5;
+        const ringR = isSelected ? r + 3 : 0;
         return (
           <g
             key={i}
@@ -395,26 +465,32 @@ function LineChart({
                 onActivate();
               }
             }}
-            role="link"
+            role="button"
             tabIndex={0}
             aria-label={`${s.topWeight} × ${s.topReps} session, est 1RM ${Math.round(s.topE1rm)} lb${s.isPR ? ", PR" : ""}`}
             style={{ cursor: "pointer", outline: "none" }}
           >
             {/* Invisible hit zone wider than the visible dot so it's easy
                 to tap on mobile and to keyboard-focus. */}
+            <circle cx={cx} cy={cy} r={9} fill="transparent" />
+            {ringR > 0 && (
+              <circle
+                cx={cx}
+                cy={cy}
+                r={ringR}
+                fill="none"
+                stroke={s.isPR ? PR_COLOR : COLOR}
+                strokeOpacity={0.45}
+                strokeWidth={1.5}
+              />
+            )}
             <circle
               cx={cx}
               cy={cy}
-              r={9}
-              fill="transparent"
-            />
-            <circle
-              cx={cx}
-              cy={cy}
-              r={s.isPR ? 4 : 2.5}
+              r={r}
               fill={s.isPR ? PR_COLOR : COLOR}
-              stroke={s.isPR ? "var(--bg-card)" : "none"}
-              strokeWidth={s.isPR ? 1.5 : 0}
+              stroke={isSelected || s.isPR ? "var(--bg-card)" : "none"}
+              strokeWidth={isSelected ? 2 : s.isPR ? 1.5 : 0}
             />
           </g>
         );
