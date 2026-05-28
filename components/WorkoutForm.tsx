@@ -785,7 +785,7 @@ export default function WorkoutForm({
         ) : (
           <button
             type="button"
-            onClick={() => router.push(backHref)}
+            onClick={() => router.back()}
             className="w-9 h-9 rounded-full flex items-center justify-center"
             style={{
               background: "var(--bg-card)",
