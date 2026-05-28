@@ -355,11 +355,15 @@ function RangeCard({
       <RangeHeader
         label="Range"
         primary={
-          summary && summary.lo !== null && summary.hi !== null
-            ? `${summary.lo}–${summary.hi}`
-            : summary && summary.lo !== null
-              ? `${summary.lo}`
-              : null
+          summary
+            ? summary.lo !== null && summary.hi !== null
+              ? `${summary.lo}–${summary.hi}`
+              : summary.lo !== null
+                ? `${summary.lo}`
+                : summary.hi !== null
+                  ? `${summary.hi}`
+                  : null
+            : null
         }
         subtitle={subtitle}
         loading={loading}
@@ -677,32 +681,35 @@ function RangeSvg({ days, range }: { days: RangeDay[]; range: Range }) {
 
   const yTicks = [50, 100, 150, 200];
 
-  // Label cadence: W shows every day. M and Y both show the first index of
-  // each month seen, labeled with the month name. Day-of-month numbers
-  // ("29, 04, 09…") were ambiguous and didn't communicate where months
-  // started.
-  const tickIndices: number[] = [];
-  if (range === "W") {
-    for (let i = 0; i < days.length; i++) tickIndices.push(i);
-  } else {
-    let lastMonth = "";
-    days.forEach((d, i) => {
-      const month = d.dateKey.slice(0, 7);
-      if (month !== lastMonth) {
-        tickIndices.push(i);
-        lastMonth = month;
-      }
-    });
-  }
-
+  // Label cadence: W shows the day-of-month for every day. M and Y label
+  // each calendar month seen at the MIDPOINT of its days in the window —
+  // anchoring at the first day bunched labels at the left when the window
+  // straddled a month boundary (e.g. last 30 days starting Apr 28 placed
+  // Apr at index 0 and May right next to it at index 3).
   const MONTH_ABBR = [
     "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec",
   ];
-  const formatTick = (dateKey: string) => {
-    if (range === "W") return dateKey.slice(8, 10);
-    const monthNum = Number(dateKey.slice(5, 7));
-    return MONTH_ABBR[monthNum - 1] ?? "";
-  };
+  const ticks: { index: number; label: string }[] = [];
+  if (range === "W") {
+    days.forEach((d, i) => ticks.push({ index: i, label: d.dateKey.slice(8, 10) }));
+  } else {
+    const byMonth = new Map<string, number[]>();
+    days.forEach((d, i) => {
+      const m = d.dateKey.slice(0, 7);
+      const cur = byMonth.get(m);
+      if (cur) cur.push(i);
+      else byMonth.set(m, [i]);
+    });
+    // Drop a month if it only has 2 or fewer days in-window — its label
+    // would crowd the next one. Keep it only when it occupies real space.
+    const minSpan = range === "M" ? 3 : 1;
+    for (const [month, indices] of byMonth) {
+      if (indices.length < minSpan) continue;
+      const midIdx = indices[Math.floor(indices.length / 2)];
+      const monthNum = Number(month.slice(5, 7));
+      ticks.push({ index: midIdx, label: MONTH_ABBR[monthNum - 1] ?? "" });
+    }
+  }
 
   return (
     <svg
@@ -735,16 +742,16 @@ function RangeSvg({ days, range }: { days: RangeDay[]; range: Range }) {
         </text>
       ))}
 
-      {tickIndices.map((i) => (
+      {ticks.map((t) => (
         <text
-          key={`xl-${i}`}
-          x={padL + i * slotW + slotW / 2}
+          key={`xl-${t.index}-${t.label}`}
+          x={padL + t.index * slotW + slotW / 2}
           y={H - padB + 14}
           fontSize="9"
           fill="var(--fg-dim)"
           textAnchor="middle"
         >
-          {formatTick(days[i].dateKey)}
+          {t.label}
         </text>
       ))}
 
