@@ -42,6 +42,10 @@ type CoachAnalysis = {
   nextWeek: string[];
 };
 
+type AnalysisResult =
+  | { ok: true; analysis: CoachAnalysis }
+  | { ok: false; error: string };
+
 export default async function ConsistencyDetailPage() {
   const userId = await requireAuth();
 
@@ -169,18 +173,27 @@ export default async function ConsistencyDetailPage() {
 
       <WeekStrip grid={grid} />
 
-      {analysis ? (
-        <AnalysisDashboard analysis={analysis} />
+      {analysis.ok ? (
+        <AnalysisDashboard analysis={analysis.analysis} />
       ) : (
         <div
-          className="rounded-2xl p-5 text-center"
+          className="rounded-2xl p-5"
           style={{
             background: "var(--bg-card)",
             border: "1px solid var(--border)",
           }}
         >
-          <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
+          <p
+            className="text-[13px] mb-2"
+            style={{ color: "var(--fg-dim)" }}
+          >
             Coach analysis unavailable. Pull to refresh.
+          </p>
+          <p
+            className="text-[10px] font-mono break-all"
+            style={{ color: "#f97316" }}
+          >
+            {analysis.error}
           </p>
         </div>
       )}
@@ -458,8 +471,10 @@ async function generateAnalysis(args: {
     sessions: SessionForAnalysis[];
   }[];
   lastWeekSessionCount: number;
-}): Promise<CoachAnalysis | null> {
-  if (!process.env.GEMINI_API_KEY) return null;
+}): Promise<AnalysisResult> {
+  if (!process.env.GEMINI_API_KEY) {
+    return { ok: false, error: "GEMINI_API_KEY not configured" };
+  }
 
   const sessionLines: string[] = [];
   for (const day of args.grid) {
@@ -546,6 +561,7 @@ Rules:
 - Verdicts: Strong = hit goal + variety; Steady = on track but unremarkable; Light = under goal or recovery week; Inconsistent = scattered or skipping common muscles.
 - Output valid JSON only. No commentary.`;
 
+  let raw = "";
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
@@ -553,26 +569,41 @@ Rules:
       generationConfig: { temperature: 0.5 },
     });
     const resp = await model.generateContent(prompt);
-    const raw = resp.response.text();
-    // Extract the first balanced JSON object from the response. The model
-    // sometimes wraps it in ```json fences or trailing prose despite the
-    // prompt; this skips past anything before the first {.
-    const firstBrace = raw.indexOf("{");
-    const lastBrace = raw.lastIndexOf("}");
-    if (firstBrace === -1 || lastBrace <= firstBrace) {
-      console.error("consistency/coach: no JSON object in response", raw.slice(0, 200));
-      return null;
-    }
-    const slice = raw.slice(firstBrace, lastBrace + 1);
-    const parsed = JSON.parse(slice) as CoachAnalysis;
-    // Defensive normalize so a missing array doesn't crash the renderer.
-    if (!Array.isArray(parsed.coverage?.trained)) parsed.coverage.trained = [];
-    if (!Array.isArray(parsed.coverage?.missed)) parsed.coverage.missed = [];
-    if (!Array.isArray(parsed.nextWeek)) parsed.nextWeek = [];
-    return parsed;
+    raw = resp.response.text();
   } catch (e) {
-    console.error("consistency/coach failed", e);
-    return null;
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `Gemini call failed: ${msg.slice(0, 240)}` };
+  }
+  if (!raw) {
+    return { ok: false, error: "Gemini returned an empty response" };
+  }
+  // Extract the first balanced JSON object from the response. The model
+  // sometimes wraps it in ```json fences or trailing prose despite the
+  // prompt; this skips past anything before the first {.
+  const firstBrace = raw.indexOf("{");
+  const lastBrace = raw.lastIndexOf("}");
+  if (firstBrace === -1 || lastBrace <= firstBrace) {
+    return {
+      ok: false,
+      error: `No JSON in response: ${raw.slice(0, 160)}`,
+    };
+  }
+  const slice = raw.slice(firstBrace, lastBrace + 1);
+  try {
+    const parsed = JSON.parse(slice) as CoachAnalysis;
+    if (!parsed.coverage) {
+      parsed.coverage = { trained: [], missed: [], note: "" };
+    }
+    if (!Array.isArray(parsed.coverage.trained)) parsed.coverage.trained = [];
+    if (!Array.isArray(parsed.coverage.missed)) parsed.coverage.missed = [];
+    if (!Array.isArray(parsed.nextWeek)) parsed.nextWeek = [];
+    return { ok: true, analysis: parsed };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      error: `JSON parse failed: ${msg} · raw: ${slice.slice(0, 160)}`,
+    };
   }
 }
 
