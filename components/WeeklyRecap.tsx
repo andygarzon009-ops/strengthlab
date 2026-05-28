@@ -34,24 +34,42 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
     (w) => new Date(w.date) >= subDays(new Date(), 35) && new Date(w.date) < weekAgo
   );
 
-  // --- Volume (strength, excluding timed holds) ---
-  const volumeOf = (list: typeof workouts) =>
-    list
-      .filter((w) => shapeForType(w.type) === "STRENGTH")
-      .flatMap((w) =>
-        w.exercises
-          .filter((e) => !isTimedExercise(e.exercise.name))
-          .flatMap((e) => e.sets)
-      )
-      .filter((s) => s.type === "WORKING")
-      .reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
+  // --- Avg HR across sessions with recorded heart-rate data ---
+  // Weight each workout's average by its duration so a 45-min run doesn't
+  // get equal pull with a 5-min warmup. Falls back to a plain mean when
+  // duration is missing.
+  const avgHrOf = (list: typeof workouts) => {
+    const withHr = list.filter(
+      (w): w is (typeof list)[number] & { avgHeartRate: number } =>
+        typeof w.avgHeartRate === "number" && w.avgHeartRate > 0
+    );
+    if (withHr.length === 0) return null;
+    let num = 0;
+    let den = 0;
+    for (const w of withHr) {
+      const weight = w.duration && w.duration > 0 ? w.duration : 1;
+      num += w.avgHeartRate * weight;
+      den += weight;
+    }
+    return den > 0 ? Math.round(num / den) : null;
+  };
+  const maxHrOf = (list: typeof workouts) => {
+    let m = 0;
+    for (const w of list) {
+      if (typeof w.maxHeartRate === "number" && w.maxHeartRate > m) {
+        m = w.maxHeartRate;
+      }
+    }
+    return m > 0 ? m : null;
+  };
 
-  const thisVolume = volumeOf(thisWeek);
-  const avg4wkVolume = prior4Weeks.length > 0 ? volumeOf(prior4Weeks) / 4 : 0;
-  const volumeDeltaPct =
-    avg4wkVolume > 0
-      ? Math.round(((thisVolume - avg4wkVolume) / avg4wkVolume) * 100)
+  const thisAvgHr = avgHrOf(thisWeek);
+  const prior4wkAvgHr = avgHrOf(prior4Weeks);
+  const hrDelta =
+    thisAvgHr !== null && prior4wkAvgHr !== null
+      ? thisAvgHr - prior4wkAvgHr
       : null;
+  const thisMaxHr = maxHrOf(thisWeek);
 
   // --- Sessions delta ---
   const sessionDelta = thisWeek.length - lastWeek.length;
@@ -137,9 +155,6 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
   const weekStart = format(weekAgo, "MMM d");
   const weekEnd = format(new Date(), "MMM d");
 
-  const fmtVolume = (v: number) =>
-    v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v));
-
   return (
     <div
       className="card p-5 mb-4"
@@ -192,21 +207,19 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
           }
         />
         <Tile
-          value={fmtVolume(thisVolume)}
-          suffix="kg"
-          label="Volume"
+          value={thisAvgHr !== null ? String(thisAvgHr) : "—"}
+          suffix={thisAvgHr !== null ? "bpm" : undefined}
+          label="Avg HR"
           hint={
-            volumeDeltaPct !== null
-              ? `${volumeDeltaPct > 0 ? "+" : ""}${volumeDeltaPct}% vs 4-wk avg`
-              : undefined
+            thisAvgHr === null
+              ? "sync a workout"
+              : hrDelta !== null
+                ? `${hrDelta > 0 ? "+" : ""}${hrDelta} vs 4-wk avg`
+                : thisMaxHr !== null
+                  ? `max ${thisMaxHr}`
+                  : undefined
           }
-          hintColor={
-            volumeDeltaPct !== null && volumeDeltaPct > 0
-              ? "accent"
-              : volumeDeltaPct !== null && volumeDeltaPct < 0
-                ? "negative"
-                : "dim"
-          }
+          hintColor="dim"
         />
         <Tile
           value={String(prsThisWeek.length)}

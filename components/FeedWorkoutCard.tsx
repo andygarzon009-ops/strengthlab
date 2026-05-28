@@ -25,6 +25,8 @@ type WorkoutProp = {
   pace: string | null;
   rounds: number | null;
   rpe: number | null;
+  avgHeartRate: number | null;
+  maxHeartRate: number | null;
   user: { name: string };
   exercises: {
     id: string;
@@ -140,6 +142,8 @@ export default function FeedWorkoutCard({
           pace={workout.pace}
           rounds={workout.rounds}
           rpe={workout.rpe}
+          avgHeartRate={workout.avgHeartRate}
+          maxHeartRate={workout.maxHeartRate}
         />
       </div>
 
@@ -272,6 +276,8 @@ function CompactSummary({
   pace,
   rounds,
   rpe,
+  avgHeartRate,
+  maxHeartRate,
 }: {
   shape: "STRENGTH" | "DISTANCE" | "DURATION";
   exercisesCount: number;
@@ -282,6 +288,8 @@ function CompactSummary({
   pace: string | null;
   rounds: number | null;
   rpe: number | null;
+  avgHeartRate: number | null;
+  maxHeartRate: number | null;
 }) {
   const bits: ReactNode[] = [];
   if (shape === "STRENGTH") {
@@ -296,6 +304,14 @@ function CompactSummary({
     if (duration != null) bits.push(<Bit key="t">{formatDuration(duration)}</Bit>);
     if (rounds != null) bits.push(<Bit key="r">{rounds} rds</Bit>);
     if (rpe != null) bits.push(<Bit key="rpe">RPE {rpe}</Bit>);
+  }
+  if (avgHeartRate) {
+    bits.push(
+      <Bit key="hr">
+        <span aria-hidden style={{ color: "#f87171" }}>♥</span> {avgHeartRate}
+        {maxHeartRate ? `/${maxHeartRate}` : ""} bpm
+      </Bit>
+    );
   }
   if (bits.length === 0) return null;
   return <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">{bits}</div>;
