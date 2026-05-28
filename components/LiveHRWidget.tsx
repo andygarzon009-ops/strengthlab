@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 type Snapshot = { bpm: number | null; at: string | null; error?: string };
 
-const POLL_MS = 20000;
+const POLL_MS = 7000;
 
 export default function LiveHRWidget() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
