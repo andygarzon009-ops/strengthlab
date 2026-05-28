@@ -1105,11 +1105,20 @@ export function detectSplit(exerciseNames: string[]): string | null {
   for (const name of exerciseNames) {
     const ex = DEFAULT_EXERCISES.find((e) => e.name === name);
     if (!ex) continue;
-    const bucket = MUSCLE_BUCKET[ex.muscleGroup];
+    const tags = ex.splits.split(",");
+    // Tagged movement intent wins over the muscle group, so a Face Pull
+    // (Shoulders, splits: "PULL,UPPER") buckets as PULL rather than PUSH.
+    // Only override when the tag is unambiguous — a "PUSH,PULL" tag (rare)
+    // falls back to the muscle map.
+    const tagPush = tags.includes("PUSH");
+    const tagPull = tags.includes("PULL");
+    let bucket: string | undefined;
+    if (tagPull && !tagPush) bucket = "PULL";
+    else if (tagPush && !tagPull) bucket = "PUSH";
+    else bucket = MUSCLE_BUCKET[ex.muscleGroup];
     if (!bucket) continue;
     tally[bucket] = (tally[bucket] ?? 0) + 1;
     if (bucket !== "CORE") nonCoreCount++;
-    const tags = ex.splits.split(",");
     if (tags.includes("LOWER")) lowerTaggedCount++;
     if (bucket === "PULL" && tags.includes("LOWER")) posteriorChainCount++;
   }
