@@ -161,8 +161,12 @@ export default function WorkoutForm({
   // Live-workout timer. When startedAt is set the header shows a running clock
   // and the Save button becomes Finish. On save, endedAt is captured and the
   // [startedAt, endedAt] window is used to pull HR samples from Google Health.
+  // A workout with endedAt is already finished — editing it must not resurrect
+  // the live clock.
   const [startedAt, setStartedAt] = useState<Date | null>(
-    initial?.startedAt ? new Date(initial.startedAt) : null,
+    initial?.startedAt && !initial?.endedAt
+      ? new Date(initial.startedAt)
+      : null,
   );
 
   // Coach-prescribed warmup (cardio + mobility + activation items). Carried
@@ -779,8 +783,9 @@ export default function WorkoutForm({
             <BackIcon />
           </button>
         ) : (
-          <Link
-            href={backHref}
+          <button
+            type="button"
+            onClick={() => router.push(backHref)}
             className="w-9 h-9 rounded-full flex items-center justify-center"
             style={{
               background: "var(--bg-card)",
@@ -789,7 +794,7 @@ export default function WorkoutForm({
             }}
           >
             <BackIcon />
-          </Link>
+          </button>
         )}
         <div className="flex-1 min-w-0">
           <p className="label">{labelForType(workoutType)}</p>
