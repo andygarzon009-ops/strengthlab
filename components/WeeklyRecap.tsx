@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { subDays, format } from "date-fns";
@@ -209,7 +210,8 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
         <Tile
           value={thisAvgHr !== null ? String(thisAvgHr) : "—"}
           suffix={thisAvgHr !== null ? "bpm" : undefined}
-          label="Avg HR"
+          label="Avg HR in workout"
+          icon={<HeartIcon />}
           hint={
             thisAvgHr === null
               ? "sync a workout"
@@ -281,6 +283,24 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
   );
 }
 
+function HeartIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="#f87171"
+      stroke="#f87171"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+      aria-hidden
+      className="animate-pulse"
+    >
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  );
+}
+
 function Tile({
   value,
   suffix,
@@ -289,6 +309,7 @@ function Tile({
   hintColor,
   href,
   small,
+  icon,
 }: {
   value: string;
   suffix?: string;
@@ -297,6 +318,7 @@ function Tile({
   hintColor: "accent" | "negative" | "dim";
   href?: string;
   small?: boolean;
+  icon?: ReactNode;
 }) {
   const hintC =
     hintColor === "accent"
@@ -307,9 +329,10 @@ function Tile({
   const inner = (
     <div className="p-3 h-full" style={{ background: "var(--bg-elevated)" }}>
       <p
-        className={`nums ${small ? "text-[15px]" : "text-[22px]"} font-bold leading-none tracking-tight`}
+        className={`nums ${small ? "text-[15px]" : "text-[22px]"} font-bold leading-none tracking-tight flex items-center gap-1.5`}
         style={{ fontFamily: "var(--font-geist-mono)" }}
       >
+        {icon}
         {value}
         {suffix && (
           <span className="text-[10px] font-normal opacity-70 ml-0.5">
