@@ -175,17 +175,34 @@ export async function listHeartRateBetween(
   const filter =
     `heart_rate.sample_time.physical_time >= "${toUtc(startISO)}"` +
     ` AND heart_rate.sample_time.physical_time < "${toUtc(endISO)}"`;
-  const path =
-    "/users/me/dataTypes/heart-rate/dataPoints?filter=" + encodeURIComponent(filter);
-  const data = (await healthFetch(userId, path)) as { dataPoints?: HeartRateRawPoint[] };
+  const basePath =
+    "/users/me/dataTypes/heart-rate/dataPoints?pageSize=1000&filter=" +
+    encodeURIComponent(filter);
+
   const samples: HeartRateSample[] = [];
-  for (const point of data.dataPoints ?? []) {
-    const ts = point.heartRate?.sampleTime?.physicalTime;
-    const raw = point.heartRate?.beatsPerMinute;
-    const bpm = typeof raw === "string" ? Number(raw) : raw;
-    if (!ts || typeof bpm !== "number" || !Number.isFinite(bpm) || bpm <= 0) continue;
-    samples.push({ timestamp: new Date(ts), bpm: Math.round(bpm) });
-  }
+  let pageToken: string | undefined;
+  // The Health API caps each page well below a typical workout's sample
+  // count (Fitbit emits one reading every ~5s during activity), so we
+  // must page through nextPageToken until exhausted — otherwise long
+  // workouts only render the first few minutes of HR data.
+  do {
+    const path: string = pageToken
+      ? `${basePath}&pageToken=${encodeURIComponent(pageToken)}`
+      : basePath;
+    const data = (await healthFetch(userId, path)) as {
+      dataPoints?: HeartRateRawPoint[];
+      nextPageToken?: string;
+    };
+    for (const point of data.dataPoints ?? []) {
+      const ts = point.heartRate?.sampleTime?.physicalTime;
+      const raw = point.heartRate?.beatsPerMinute;
+      const bpm = typeof raw === "string" ? Number(raw) : raw;
+      if (!ts || typeof bpm !== "number" || !Number.isFinite(bpm) || bpm <= 0) continue;
+      samples.push({ timestamp: new Date(ts), bpm: Math.round(bpm) });
+    }
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
   samples.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
   return samples;
 }
