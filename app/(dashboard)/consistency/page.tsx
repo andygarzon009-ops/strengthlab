@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { shapeForType, labelForType } from "@/lib/exercises";
@@ -472,8 +472,8 @@ async function generateAnalysis(args: {
   }[];
   lastWeekSessionCount: number;
 }): Promise<AnalysisResult> {
-  if (!process.env.GEMINI_API_KEY) {
-    return { ok: false, error: "GEMINI_API_KEY not configured" };
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return { ok: false, error: "ANTHROPIC_API_KEY not configured" };
   }
 
   const sessionLines: string[] = [];
@@ -563,19 +563,24 @@ Rules:
 
   let raw = "";
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: { temperature: 0.5 },
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const resp = await anthropic.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 1024,
+      temperature: 0.5,
+      system:
+        "You return ONLY valid JSON matching the schema in the user message. No prose, no markdown fences.",
+      messages: [{ role: "user", content: prompt }],
     });
-    const resp = await model.generateContent(prompt);
-    raw = resp.response.text();
+    // First text block from Claude's content array.
+    const block = resp.content.find((c) => c.type === "text");
+    if (block && block.type === "text") raw = block.text;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { ok: false, error: `Gemini call failed: ${msg.slice(0, 240)}` };
+    return { ok: false, error: `Claude call failed: ${msg.slice(0, 240)}` };
   }
   if (!raw) {
-    return { ok: false, error: "Gemini returned an empty response" };
+    return { ok: false, error: "Claude returned an empty response" };
   }
   // Extract the first balanced JSON object from the response. The model
   // sometimes wraps it in ```json fences or trailing prose despite the
