@@ -162,6 +162,54 @@ type HeartRateRawPoint = {
   };
 };
 
+export type RestingHeartRateSample = {
+  date: Date;
+  bpm: number;
+};
+
+/// Daily resting heart-rate samples from Google Health. Fitbit emits one
+/// reading per day, typically computed overnight. Returns sorted oldest →
+/// newest. Returns an empty array if the data type isn't available on the
+/// connected account (e.g. user wears the watch only during workouts).
+export async function listRestingHeartRate(
+  userId: string,
+  startISO: string,
+  endISO: string,
+): Promise<RestingHeartRateSample[]> {
+  const toUtc = (s: string) => (s.endsWith("Z") ? s : `${s}Z`);
+  const filter =
+    `resting_heart_rate.sample_time.physical_time >= "${toUtc(startISO)}"` +
+    ` AND resting_heart_rate.sample_time.physical_time < "${toUtc(endISO)}"`;
+  const path =
+    "/users/me/dataTypes/resting-heart-rate/dataPoints?pageSize=200&filter=" +
+    encodeURIComponent(filter);
+
+  try {
+    const data = (await healthFetch(userId, path)) as {
+      dataPoints?: {
+        restingHeartRate?: {
+          sampleTime?: { physicalTime?: string };
+          beatsPerMinute?: string | number;
+        };
+      }[];
+    };
+    const out: RestingHeartRateSample[] = [];
+    for (const p of data.dataPoints ?? []) {
+      const ts = p.restingHeartRate?.sampleTime?.physicalTime;
+      const raw = p.restingHeartRate?.beatsPerMinute;
+      const bpm = typeof raw === "string" ? Number(raw) : raw;
+      if (!ts || typeof bpm !== "number" || !Number.isFinite(bpm) || bpm <= 0)
+        continue;
+      out.push({ date: new Date(ts), bpm: Math.round(bpm) });
+    }
+    out.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return out;
+  } catch {
+    // Some accounts/devices don't expose this data type — degrade silently.
+    return [];
+  }
+}
+
 export async function listHeartRateBetween(
   userId: string,
   startISO: string,

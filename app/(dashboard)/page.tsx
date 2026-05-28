@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import Link from "next/link";
 import WeeklyRecap from "@/components/WeeklyRecap";
+import HeartRateCard from "@/components/HeartRateCard";
 import GroupFeed from "@/components/GroupFeed";
 import ConsistencyCard from "@/components/ConsistencyCard";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
@@ -175,6 +176,7 @@ export default async function FeedPage({
       {!activeGroup && (
         <>
           <WeeklyRecap userId={userId} />
+          <HeartRateCard userId={userId} />
           <ConsistencyCard
             userId={userId}
             trainingDaysGoal={currentUser?.trainingDays ?? null}
