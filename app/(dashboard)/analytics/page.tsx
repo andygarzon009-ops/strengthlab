@@ -14,7 +14,6 @@ import {
 import { format, subDays, differenceInDays } from "date-fns";
 import PRList from "@/components/PRList";
 import Projections from "@/components/Projections";
-import ActivityRings from "@/components/ActivityRings";
 import GoalsSection, {
   type GoalWithProgress,
 } from "@/components/GoalsSection";
@@ -469,18 +468,6 @@ export default async function AnalyticsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          <ActivityRings
-            sessions={thisWeekSessions}
-            sessionsGoal={sessionsGoal}
-            volume={thisWeekVolume}
-            volumeGoal={volumeGoal}
-            muscleGroups={thisWeekMuscleGroups}
-            muscleGroupsGoal={muscleGroupsGoal}
-            prsThisWeek={prsThisWeek}
-            targetsAvgPct={targetsAvgPct}
-            targetsCount={activeTargetCount}
-          />
-
           {topPRs.length > 0 && (
             <div className="card p-5">
               <div className="flex items-baseline justify-between mb-4">

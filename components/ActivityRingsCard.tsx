@@ -5,8 +5,8 @@ type Props = {
   userId: string;
 };
 
-const MOVE_GOAL = 500; // kcal
-const EXERCISE_GOAL = 30; // active-zone-minutes
+const MOVE_GOAL_DEFAULT = 500; // kcal
+const EXERCISE_GOAL_DEFAULT = 30; // exercise minutes
 const SESSION_GOAL = 1; // workouts logged today
 
 const MOVE_COLOR = "#fa114f";
@@ -16,9 +16,15 @@ const SESSION_COLOR = "#1dd2e6";
 export default async function ActivityRingsCard({ userId }: Props) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { timezone: true },
+    select: {
+      timezone: true,
+      moveGoalKcal: true,
+      exerciseGoalMin: true,
+    },
   });
   const tz = user?.timezone ?? "UTC";
+  const moveGoal = user?.moveGoalKcal ?? MOVE_GOAL_DEFAULT;
+  const exerciseGoal = user?.exerciseGoalMin ?? EXERCISE_GOAL_DEFAULT;
 
   // Local day boundary in the user's tz.
   const dayKey = new Intl.DateTimeFormat("en-CA", {
@@ -37,11 +43,21 @@ export default async function ActivityRingsCard({ userId }: Props) {
       userId,
       date: { gte: startUtc, lt: endUtc },
     },
-    select: { calories: true, activeZoneMin: true },
+    select: { calories: true, activeZoneMin: true, duration: true },
   });
 
   const moveKcal = workouts.reduce((s, w) => s + (w.calories ?? 0), 0);
-  const exerciseMin = workouts.reduce((s, w) => s + (w.activeZoneMin ?? 0), 0);
+  // Exercise minutes: prefer Fitbit's activeZoneMin (HR-weighted), but
+  // fall back to workout duration in minutes when AZM is missing — common
+  // for sessions Fitbit logged without an intensity breakdown. Any logged
+  // workout still counts toward the daily exercise goal.
+  const exerciseMin = Math.round(
+    workouts.reduce((sum, w) => {
+      if (w.activeZoneMin && w.activeZoneMin > 0) return sum + w.activeZoneMin;
+      if (w.duration && w.duration > 0) return sum + w.duration / 60;
+      return sum;
+    }, 0),
+  );
   const sessionCount = workouts.length;
 
   return (
@@ -60,10 +76,10 @@ export default async function ActivityRingsCard({ userId }: Props) {
 
       <div className="flex items-center gap-4">
         <Rings
-          move={{ value: moveKcal, goal: MOVE_GOAL, color: MOVE_COLOR }}
+          move={{ value: moveKcal, goal: moveGoal, color: MOVE_COLOR }}
           exercise={{
             value: exerciseMin,
-            goal: EXERCISE_GOAL,
+            goal: exerciseGoal,
             color: EXERCISE_COLOR,
           }}
           session={{
@@ -75,13 +91,13 @@ export default async function ActivityRingsCard({ userId }: Props) {
         <div className="flex-1 space-y-2 min-w-0">
           <Stat
             label="Move"
-            value={`${moveKcal}/${MOVE_GOAL}`}
+            value={`${moveKcal}/${moveGoal}`}
             unit="CAL"
             color={MOVE_COLOR}
           />
           <Stat
             label="Exercise"
-            value={`${exerciseMin}/${EXERCISE_GOAL}`}
+            value={`${exerciseMin}/${exerciseGoal}`}
             unit="MIN"
             color={EXERCISE_COLOR}
           />

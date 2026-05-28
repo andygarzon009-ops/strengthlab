@@ -478,6 +478,8 @@ export async function updateProfile(data: {
   primaryFocus?: string;
   trainingPhase?: string;
   trainingDays?: number;
+  moveGoalKcal?: number | null;
+  exerciseGoalMin?: number | null;
   injuries?: string;
   coachPrompt?: string;
   height?: number | null;

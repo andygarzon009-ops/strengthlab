@@ -15,6 +15,8 @@ type UserProfile = {
   primaryFocus: string | null;
   trainingPhase: string | null;
   trainingDays: number | null;
+  moveGoalKcal: number | null;
+  exerciseGoalMin: number | null;
   injuries: string | null;
   coachPrompt: string | null;
   height: number | null;
@@ -43,6 +45,8 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
     sex: user.sex ?? "",
     bodyweight: user.bodyweight?.toString() ?? "",
     trainingDays: user.trainingDays?.toString() ?? "",
+    moveGoalKcal: user.moveGoalKcal?.toString() ?? "",
+    exerciseGoalMin: user.exerciseGoalMin?.toString() ?? "",
     experienceLevel: user.experienceLevel ?? "",
     primaryFocus: user.primaryFocus ?? "",
     trainingPhase: user.trainingPhase ?? "",
@@ -84,6 +88,8 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
         trainingDays: form.trainingDays
           ? parseInt(form.trainingDays)
           : undefined,
+        moveGoalKcal: intOrNull(form.moveGoalKcal),
+        exerciseGoalMin: intOrNull(form.exerciseGoalMin),
         experienceLevel: form.experienceLevel,
         primaryFocus: form.primaryFocus,
         trainingPhase: form.trainingPhase,
@@ -167,6 +173,25 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
               value={form.trainingDays}
               onChange={set("trainingDays")}
               placeholder="4"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <Field
+              label="Move goal"
+              type="number"
+              value={form.moveGoalKcal}
+              onChange={set("moveGoalKcal")}
+              placeholder="500"
+              suffix="kcal"
+            />
+            <Field
+              label="Exercise goal"
+              type="number"
+              value={form.exerciseGoalMin}
+              onChange={set("exerciseGoalMin")}
+              placeholder="30"
+              suffix="min"
             />
           </div>
 
