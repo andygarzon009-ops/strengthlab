@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import {
   startOfWeek,
@@ -141,7 +142,7 @@ export default async function ConsistencyCard({
   }
 
   return (
-    <div className="card p-4 mb-4">
+    <Link href="/consistency" className="card block p-4 mb-4 transition-colors">
       <div className="flex items-baseline justify-between mb-4">
         <div>
           <p className="label">Consistency</p>
@@ -227,7 +228,7 @@ export default async function ConsistencyCard({
           </div>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
