@@ -262,33 +262,29 @@ export default async function WorkoutDetailPage({
       {isOwn && <SyncHRButton workoutId={workout.id} />}
 
       {/* Secondary metrics: HR, elevation, calories, steps, active zone min */}
-      {(workout.avgHeartRate ||
-        workout.maxHeartRate ||
-        workout.elevation ||
-        workout.calories ||
-        workout.steps ||
-        workout.activeZoneMin) && (
-        <div className="grid grid-cols-2 gap-2 mb-6">
-          {workout.avgHeartRate && (
-            <MetricChip label="Avg HR" value={workout.avgHeartRate} suffix="bpm" />
-          )}
-          {workout.maxHeartRate && (
-            <MetricChip label="Max HR" value={workout.maxHeartRate} suffix="bpm" />
-          )}
-          {workout.calories && (
-            <MetricChip label="Calories" value={workout.calories} suffix="kcal" />
-          )}
-          {workout.activeZoneMin && (
-            <MetricChip label="Zone min" value={workout.activeZoneMin} suffix="min" />
-          )}
-          {workout.steps && (
-            <MetricChip label="Steps" value={workout.steps.toLocaleString()} />
-          )}
-          {workout.elevation && (
-            <MetricChip label="Elevation" value={workout.elevation} suffix="m" />
-          )}
-        </div>
-      )}
+      {(() => {
+        const chips: { label: string; value: string | number; suffix?: string }[] = [];
+        if (workout.avgHeartRate)
+          chips.push({ label: "Avg HR", value: workout.avgHeartRate, suffix: "bpm" });
+        if (workout.maxHeartRate)
+          chips.push({ label: "Max HR", value: workout.maxHeartRate, suffix: "bpm" });
+        if (workout.calories)
+          chips.push({ label: "Calories", value: workout.calories, suffix: "kcal" });
+        if (workout.activeZoneMin && workout.activeZoneMin > 0)
+          chips.push({ label: "Zone min", value: workout.activeZoneMin, suffix: "min" });
+        if (workout.steps && workout.steps > 0)
+          chips.push({ label: "Steps", value: workout.steps.toLocaleString() });
+        if (workout.elevation)
+          chips.push({ label: "Elevation", value: workout.elevation, suffix: "m" });
+        if (chips.length === 0) return null;
+        return (
+          <div className="grid grid-cols-2 gap-2 mb-6">
+            {chips.map((c) => (
+              <MetricChip key={c.label} label={c.label} value={c.value} suffix={c.suffix} />
+            ))}
+          </div>
+        );
+      })()}
 
       {prs.length > 0 && (
         <div
