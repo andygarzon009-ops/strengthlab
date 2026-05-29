@@ -67,14 +67,19 @@ export default async function StrengthOverviewPage() {
       oneRepMax: p.oneRM,
     }));
 
-  // ---- Strength score series ----
-  // Combines every (non-machine) lift into one number: the running sum of
-  // each lift's best est. 1RM so far. The line steps up whenever any lift
-  // sets a new best, so it reads as "am I getting stronger overall."
-  const bestByLift = new Map<string, number>();
-  const points: ScorePoint[] = [];
+  // ---- Strength score series (current form, not all-time) ----
+  // Each lift contributes its best est. 1RM from the trailing 6 weeks; the
+  // score is the sum across lifts trained in that window, sampled weekly.
+  // Unlike a running max it can fall — when recent sessions are lighter, or
+  // when a lift goes untrained long enough that its peak ages out — so the
+  // line shows when you're slipping, not just when you PR.
+  const WINDOW_DAYS = 42;
+  const windowMs = WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+  // All working-set e1RM points per lift.
+  const liftPoints = new Map<string, { t: number; e: number }[]>();
   for (const w of workouts) {
-    let newBest = false;
+    const at = (w.endedAt ?? w.startedAt ?? w.date).getTime();
     for (const ex of w.exercises) {
       if (isMachineExercise(ex.exercise.name)) continue;
       const key = normalizeExerciseName(ex.exercise.name) || ex.exercise.id;
@@ -82,18 +87,45 @@ export default async function StrengthOverviewPage() {
         if (s.type !== "WORKING") continue;
         const proj = e1rm(s.weight ?? 0, s.reps ?? 0);
         if (proj <= 0) continue;
-        const prev = bestByLift.get(key) ?? 0;
-        if (proj > prev + 0.5) {
-          bestByLift.set(key, proj);
-          newBest = true;
-        }
+        const arr = liftPoints.get(key);
+        if (arr) arr.push({ t: at, e: proj });
+        else liftPoints.set(key, [{ t: at, e: proj }]);
       }
     }
-    if (bestByLift.size === 0) continue;
-    let score = 0;
-    for (const v of bestByLift.values()) score += v;
-    const at = (w.endedAt ?? w.startedAt ?? w.date).toISOString();
-    points.push({ at, score: Math.round(score), isPR: newBest });
+  }
+
+  const points: ScorePoint[] = [];
+  let activeLifts = 0;
+  const allTimes = [...liftPoints.values()].flat().map((p) => p.t);
+  if (allTimes.length > 0) {
+    const nowMs = new Date().getTime();
+    const firstT = Math.min(...allTimes);
+    const sampleTimes: number[] = [];
+    for (let t = nowMs; t >= firstT; t -= 7 * 24 * 60 * 60 * 1000) {
+      sampleTimes.push(t);
+    }
+    sampleTimes.reverse(); // chronological
+    let runningMax = 0;
+    for (const t of sampleTimes) {
+      let score = 0;
+      let active = 0;
+      for (const arr of liftPoints.values()) {
+        let best = 0;
+        for (const p of arr) {
+          if (p.t <= t && p.t >= t - windowMs && p.e > best) best = p.e;
+        }
+        if (best > 0) {
+          score += best;
+          active++;
+        }
+      }
+      if (score <= 0) continue;
+      score = Math.round(score);
+      const isPeak = score > runningMax + 0.5;
+      if (isPeak) runningMax = score;
+      points.push({ at: new Date(t).toISOString(), score, isPR: isPeak });
+      activeLifts = active;
+    }
   }
 
   const hasData = points.length > 0;
@@ -113,7 +145,7 @@ export default async function StrengthOverviewPage() {
       </div>
 
       {hasData ? (
-        <StrengthScoreChart points={points} liftsTracked={bestByLift.size} />
+        <StrengthScoreChart points={points} liftsTracked={activeLifts} />
       ) : (
         <div
           className="rounded-2xl p-6 text-center"

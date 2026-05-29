@@ -36,7 +36,8 @@ export default function StrengthScoreChart({
   }, [points, range, now]);
 
   const current = points.length ? points[points.length - 1].score : 0;
-  const prCount = points.filter((p) => p.isPR).length;
+  const peak = points.reduce((m, p) => (p.score > m ? p.score : m), 0);
+  const belowPeak = peak - current;
 
   return (
     <div>
@@ -49,18 +50,20 @@ export default function StrengthScoreChart({
         }}
       >
         <Tile
-          label="Strength score"
+          label="Current"
           value={current > 0 ? current.toLocaleString() : "—"}
           unit="lb"
           color={COLOR}
         />
-        <Tile label="Lifts tracked" value={String(liftsTracked)} unit="" />
         <Tile
-          label="PRs"
-          value={String(prCount)}
-          unit=""
-          color={prCount > 0 ? PR_COLOR : undefined}
+          label={belowPeak > 0 ? "Below peak" : "At peak"}
+          value={
+            belowPeak > 0 ? `−${belowPeak.toLocaleString()}` : peak.toLocaleString()
+          }
+          unit="lb"
+          color={belowPeak > 0 ? "#f97316" : COLOR}
         />
+        <Tile label="Active lifts" value={String(liftsTracked)} unit="" />
       </div>
 
       {/* Range chips */}
@@ -105,7 +108,8 @@ export default function StrengthScoreChart({
           Overall strength · trend
         </p>
         <p className="text-[11px] mb-3" style={{ color: "var(--fg-dim)" }}>
-          {RANGE_SUBTITLE[range]} · sum of your best est. 1RM across every lift
+          {RANGE_SUBTITLE[range]} · best est. 1RM per lift over the last 6
+          weeks, summed — dips when you fall behind
         </p>
         {filtered.length < 2 ? (
           <p
