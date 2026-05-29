@@ -145,7 +145,7 @@ export default async function ConsistencyCard({
     <Link href="/consistency" className="card block p-4 mb-4 transition-colors">
       <div className="flex items-baseline justify-between mb-4">
         <div>
-          <p className="label">Consistency</p>
+          <p className="label">Progress</p>
           <h2 className="text-[14px] font-semibold tracking-tight leading-none mt-1">
             Your rhythm
           </h2>
