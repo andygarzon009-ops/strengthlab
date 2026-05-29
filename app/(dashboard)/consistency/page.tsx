@@ -1,13 +1,17 @@
 import Link from "next/link";
-import { format } from "date-fns";
+import { format, subDays, differenceInDays } from "date-fns";
 import Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { shapeForType, labelForType } from "@/lib/exercises";
+import { shapeForType, labelForType, isMachineExercise } from "@/lib/exercises";
 import { mergeLiftsWithTargets } from "@/lib/strengthProgression";
+import { normalizeExerciseName } from "@/lib/exerciseIdentity";
+import { computeWeakSpots } from "@/lib/weakSpots";
 import TopLiftsCard from "@/components/TopLiftsCard";
 import CoverageBars, { type MuscleCoverage } from "@/components/CoverageBars";
 import MomentumBars, { type MomentumStats } from "@/components/MomentumBars";
+import Projections from "@/components/Projections";
+import WeakSpots from "@/components/WeakSpots";
 import BackButton from "@/components/BackButton";
 
 export const dynamic = "force-dynamic";
@@ -255,6 +259,79 @@ export default async function ConsistencyDetailPage() {
     }
   }
 
+  // ---- Projections (estimated 1RM via Epley) ----
+  // Best straight WORKING set per lift where reps ≤ 10 (Epley is unreliable
+  // higher). Machine lifts and near-duplicate names are collapsed so a
+  // single movement doesn't split across rows. Drawn from the 12-week
+  // history already in memory — recent maxes, no extra query.
+  const bestByExercise = new Map<
+    string,
+    { exerciseName: string; weight: number; reps: number; oneRM: number }
+  >();
+  for (const w of liftHistory) {
+    for (const ex of w.exercises) {
+      if (isMachineExercise(ex.exercise.name)) continue;
+      const key = normalizeExerciseName(ex.exercise.name) || ex.exercise.id;
+      for (const s of ex.sets) {
+        if (s.type !== "WORKING") continue;
+        const weight = s.weight ?? 0;
+        const reps = s.reps ?? 0;
+        if (weight <= 0 || reps <= 0 || reps > 10) continue;
+        const oneRM = weight * (1 + reps / 30);
+        const prev = bestByExercise.get(key);
+        if (!prev || oneRM > prev.oneRM) {
+          bestByExercise.set(key, {
+            exerciseName: ex.exercise.name,
+            weight,
+            reps,
+            oneRM,
+          });
+        }
+      }
+    }
+  }
+  const projections = [...bestByExercise.values()]
+    .sort((a, b) => b.oneRM - a.oneRM)
+    .map((p) => ({
+      exerciseName: p.exerciseName,
+      baseWeight: p.weight,
+      baseReps: p.reps,
+      oneRepMax: p.oneRM,
+    }));
+
+  // ---- Training streak — consecutive days ending today or yesterday ----
+  const streakDays = (() => {
+    if (liftHistory.length === 0) return 0;
+    const dates = [
+      ...new Set(liftHistory.map((w) => format(new Date(w.date), "yyyy-MM-dd"))),
+    ].sort();
+    const today = format(new Date(), "yyyy-MM-dd");
+    const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
+    const lastDate = dates[dates.length - 1];
+    if (lastDate !== today && lastDate !== yesterday) return 0;
+    let streak = 1;
+    for (let i = dates.length - 2; i >= 0; i--) {
+      const diff = differenceInDays(new Date(dates[i + 1]), new Date(dates[i]));
+      if (diff === 1) streak++;
+      else break;
+    }
+    return streak;
+  })();
+
+  // ---- Weak spots — same analyzer the old Stats page used ----
+  const weakSpots = computeWeakSpots(
+    liftHistory.map((w) => ({
+      date: w.date,
+      type: w.type,
+      exercises: w.exercises.map((e) => ({
+        exerciseId: e.exercise.id,
+        exercise: { name: e.exercise.name },
+        sets: e.sets,
+      })),
+    })),
+    { trainingDays: user?.trainingDays ?? null },
+  );
+
   // ---- Body-scan coverage + momentum (computed, not model-generated) ----
   const thisWeekByMuscle = setsByMuscle(thisWeekSessions);
   const lastWeekByMuscle = setsByMuscle(lastWeekSessions);
@@ -327,9 +404,9 @@ export default async function ConsistencyDetailPage() {
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
       <div className="flex items-center gap-3 mb-5">
         <BackButton href="/" ariaLabel="Back to feed" />
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-[22px] font-bold tracking-tight leading-none">
-            Your rhythm
+            Progress
           </h1>
           <p className="text-[12px] mt-1" style={{ color: "var(--fg-dim)" }}>
             This week ({format(monday, "MMM d")} – {format(new Date(monday.getTime() + 6 * 86400_000), "MMM d")}) ·{" "}
@@ -337,19 +414,43 @@ export default async function ConsistencyDetailPage() {
             {goalDays ? ` / ${goalDays}` : ""} days trained
           </p>
         </div>
+        {streakDays > 0 && (
+          <div
+            className="shrink-0 text-right px-3 py-2 rounded-xl"
+            style={{
+              background: "var(--accent-dim)",
+              border: "1px solid rgba(34,197,94,0.3)",
+            }}
+          >
+            <p className="label text-[9px]" style={{ color: "var(--accent)" }}>
+              Streak
+            </p>
+            <p
+              className="nums font-bold text-[18px] leading-none tracking-tight mt-0.5"
+              style={{
+                color: "var(--accent)",
+                fontFamily: "var(--font-geist-mono)",
+              }}
+            >
+              {streakDays}
+              <span className="text-[11px] font-normal ml-0.5 opacity-70">
+                d
+              </span>
+            </p>
+          </div>
+        )}
       </div>
 
       <WeekStrip grid={grid} />
 
       {analysis.ok ? (
-        <AnalysisDashboard
+        <ThisWeekCard
           analysis={analysis.analysis}
-          bodyCoverage={bodyCoverage}
           momentumStats={momentumStats}
         />
       ) : (
         <div
-          className="rounded-2xl p-5"
+          className="rounded-2xl p-5 mb-3"
           style={{
             background: "var(--bg-card)",
             border: "1px solid var(--border)",
@@ -371,6 +472,34 @@ export default async function ConsistencyDetailPage() {
       )}
 
       <TopLiftsCard lifts={topLifts} />
+
+      <div className="mt-3 space-y-3">
+        <Projections items={projections} />
+
+        {/* Coverage — interactive body scan */}
+        <div
+          className="rounded-2xl p-4"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <p
+            className="text-[10px] uppercase tracking-wider font-semibold mb-3"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            Coverage
+          </p>
+          <CoverageBars
+            coverage={bodyCoverage}
+            note={analysis.ok ? analysis.analysis.coverage.note : ""}
+          />
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <WeakSpots spots={weakSpots} />
+      </div>
     </div>
   );
 }
@@ -440,13 +569,11 @@ function WeekStrip({
   );
 }
 
-function AnalysisDashboard({
+function ThisWeekCard({
   analysis,
-  bodyCoverage,
   momentumStats,
 }: {
   analysis: CoachAnalysis;
-  bodyCoverage: MuscleCoverage[];
   momentumStats: MomentumStats;
 }) {
   const verdictColor: Record<CoachAnalysis["rhythm"]["verdict"], string> = {
@@ -457,105 +584,74 @@ function AnalysisDashboard({
   };
 
   return (
-    <div className="space-y-3">
-      {/* Rhythm */}
-      <div
-        className="rounded-2xl p-4"
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <div className="flex items-center justify-between mb-2">
-          <p
-            className="text-[10px] uppercase tracking-wider font-semibold"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            Rhythm
-          </p>
-          <span
-            className="text-[11px] font-bold px-2.5 py-1 rounded-full"
-            style={{
-              background: `${verdictColor[analysis.rhythm.verdict]}22`,
-              border: `1px solid ${verdictColor[analysis.rhythm.verdict]}66`,
-              color: verdictColor[analysis.rhythm.verdict],
-            }}
-          >
-            {analysis.rhythm.verdict}
-          </span>
-        </div>
-        <p className="text-[13px] leading-relaxed">{analysis.rhythm.line}</p>
-      </div>
-
-      {/* Coverage — interactive body scan */}
-      <div
-        className="rounded-2xl p-4"
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-        }}
-      >
+    <div
+      className="rounded-2xl p-4 mb-3"
+      style={{
+        background: "var(--bg-card)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      {/* Rhythm verdict + line */}
+      <div className="flex items-center justify-between mb-2">
         <p
-          className="text-[10px] uppercase tracking-wider font-semibold mb-3"
+          className="text-[10px] uppercase tracking-wider font-semibold"
           style={{ color: "var(--fg-dim)" }}
         >
-          Coverage
+          This week
         </p>
-        <CoverageBars coverage={bodyCoverage} note={analysis.coverage.note} />
-      </div>
-
-      {/* Momentum — visual volume comparison (no arrow) */}
-      <div
-        className="rounded-2xl p-4"
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <p
-          className="text-[10px] uppercase tracking-wider font-semibold mb-3"
-          style={{ color: "var(--fg-dim)" }}
+        <span
+          className="text-[11px] font-bold px-2.5 py-1 rounded-full"
+          style={{
+            background: `${verdictColor[analysis.rhythm.verdict]}22`,
+            border: `1px solid ${verdictColor[analysis.rhythm.verdict]}66`,
+            color: verdictColor[analysis.rhythm.verdict],
+          }}
         >
-          Momentum
-        </p>
+          {analysis.rhythm.verdict}
+        </span>
+      </div>
+      <p className="text-[13px] leading-relaxed">{analysis.rhythm.line}</p>
+
+      {/* Momentum — volume vs last week */}
+      <div
+        className="mt-4 pt-4 border-t"
+        style={{ borderColor: "var(--border)" }}
+      >
         <MomentumBars stats={momentumStats} line={analysis.momentum.line} />
       </div>
 
       {/* Next week */}
-      <div
-        className="rounded-2xl p-4"
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-        }}
+      {analysis.nextWeek.length > 0 && (
+        <div
+          className="mt-4 pt-4 border-t"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <p
+            className="text-[10px] uppercase tracking-wider font-semibold mb-2"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            Next 7 days
+          </p>
+          <ul className="space-y-2">
+            {analysis.nextWeek.map((b, i) => (
+              <li key={i} className="text-[13px] leading-relaxed flex gap-2">
+                <span
+                  className="shrink-0 w-1.5 h-1.5 rounded-full mt-2"
+                  style={{ background: "var(--accent)" }}
+                />
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <Link
+        href="/log"
+        className="btn-accent inline-flex items-center mt-4 px-4 py-2 rounded-xl text-[12px]"
       >
-        <p
-          className="text-[10px] uppercase tracking-wider font-semibold mb-2"
-          style={{ color: "var(--fg-dim)" }}
-        >
-          Next 7 days
-        </p>
-        <ul className="space-y-2">
-          {analysis.nextWeek.map((b, i) => (
-            <li
-              key={i}
-              className="text-[13px] leading-relaxed flex gap-2"
-            >
-              <span
-                className="shrink-0 w-1.5 h-1.5 rounded-full mt-2"
-                style={{ background: "var(--accent)" }}
-              />
-              <span>{b}</span>
-            </li>
-          ))}
-        </ul>
-        <Link
-          href="/log"
-          className="btn-accent inline-flex items-center mt-4 px-4 py-2 rounded-xl text-[12px]"
-        >
-          Log next session →
-        </Link>
-      </div>
+        Log next session →
+      </Link>
     </div>
   );
 }
