@@ -474,7 +474,7 @@ export default async function ConsistencyDetailPage() {
       <TopLiftsCard lifts={topLifts} />
 
       <div className="mt-3 space-y-3">
-        <Projections items={projections} />
+        <Projections items={projections} href="/strength" />
 
         {/* Coverage — interactive body scan */}
         <div

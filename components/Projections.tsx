@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 type Projection = {
   exerciseName: string;
@@ -9,20 +10,42 @@ type Projection = {
   oneRepMax: number;
 };
 
-export default function Projections({ items }: { items: Projection[] }) {
+/// `href`, when set, turns the card into an entry point for a dedicated
+/// strength page: the header links there and the footer swaps its inline
+/// "view all" toggle for a link to the full trend.
+export default function Projections({
+  items,
+  href,
+}: {
+  items: Projection[];
+  href?: string;
+}) {
   const [showAll, setShowAll] = useState(false);
   if (items.length === 0) return null;
 
   const TOP = 5;
-  const visible = showAll ? items : items.slice(0, TOP);
+  // When linking out, always show just the top 5 — the full list lives on
+  // the destination page.
+  const visible = !href && showAll ? items : items.slice(0, TOP);
   const hasMore = items.length > TOP;
 
   return (
     <div className="card p-5">
       <div className="flex items-baseline justify-between mb-4">
-        <h2 className="font-semibold text-[14px] tracking-tight">
-          Projections
-        </h2>
+        {href ? (
+          <Link href={href} className="flex items-center gap-1">
+            <h2 className="font-semibold text-[14px] tracking-tight">
+              Projections
+            </h2>
+            <span className="text-[14px]" style={{ color: "var(--fg-dim)" }}>
+              ›
+            </span>
+          </Link>
+        ) : (
+          <h2 className="font-semibold text-[14px] tracking-tight">
+            Projections
+          </h2>
+        )}
         <p
           className="label text-[9px]"
           style={{ color: "var(--fg-dim)" }}
@@ -80,21 +103,35 @@ export default function Projections({ items }: { items: Projection[] }) {
         ))}
       </div>
 
-      {hasMore && (
-        <button
-          type="button"
-          onClick={() => setShowAll((v) => !v)}
-          className="mt-3 w-full text-[11px] font-semibold py-2 rounded-lg transition-colors"
+      {href ? (
+        <Link
+          href={href}
+          className="mt-3 w-full text-[11px] font-semibold py-2 rounded-lg transition-colors block text-center"
           style={{
             color: "var(--accent)",
             background: "var(--bg-elevated)",
             border: "1px solid var(--border)",
           }}
         >
-          {showAll
-            ? "Show top 5"
-            : `View all ${items.length} projections`}
-        </button>
+          View strength trend →
+        </Link>
+      ) : (
+        hasMore && (
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="mt-3 w-full text-[11px] font-semibold py-2 rounded-lg transition-colors"
+            style={{
+              color: "var(--accent)",
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            {showAll
+              ? "Show top 5"
+              : `View all ${items.length} projections`}
+          </button>
+        )
       )}
 
       <p
