@@ -2,7 +2,9 @@ import Link from "next/link";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { e1rm } from "@/lib/strengthProgression";
+import { buildLiftCoachInsight } from "@/lib/coachInsights";
 import LiftDrilldownChart from "@/components/LiftDrilldownChart";
+import CoachInsightCard from "@/components/CoachInsightCard";
 
 export const dynamic = "force-dynamic";
 
@@ -110,6 +112,8 @@ export default async function LiftDrilldownPage({
     });
   }
 
+  const coachInsight = buildLiftCoachInsight(sessions, exercise.name);
+
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
       <div className="flex items-center gap-3 mb-5">
@@ -139,6 +143,8 @@ export default async function LiftDrilldownPage({
           )}
         </div>
       </div>
+
+      {coachInsight && <CoachInsightCard insight={coachInsight} />}
 
       <LiftDrilldownChart sessions={sessions} />
     </div>
