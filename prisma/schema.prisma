@@ -80,6 +80,25 @@ model User {
   customExercises Exercise[]            @relation("ExerciseOwner")
   passwordResetTokens PasswordResetToken[]
   healthAccount   HealthAccount?
+  following       Follow[]              @relation("Following")
+  followers       Follow[]              @relation("Followers")
+}
+
+/// Directed follow edge: `follower` follows `following`. One-way (Strava
+/// style) — no accept step. Replaces the old crew/group membership model
+/// as the basis for the Crew ranking and the home feed's "Crew" view.
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
 }
 
 /// Per-user Google OAuth tokens for the Google Health API. The Health API
