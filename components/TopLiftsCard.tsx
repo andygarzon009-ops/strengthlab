@@ -100,6 +100,13 @@ function LiftRowBody({ lift }: { lift: LiftTrend }) {
     const sign = lift.deltaLb > 0 ? "+" : "";
     return `${sign}${Math.round(lift.deltaLb)} lb vs 4-wk avg`;
   })();
+  // Green = above the 4-wk average, orange = below, neutral = flat / new.
+  const trendColor =
+    lift.direction === "up"
+      ? "var(--accent)"
+      : lift.direction === "down"
+        ? "#f97316"
+        : "var(--fg-dim)";
 
   return (
     <div className="px-4 py-3">
@@ -120,7 +127,7 @@ function LiftRowBody({ lift }: { lift: LiftTrend }) {
             <p className="text-[16px] font-bold">
               {formatLbs(lift.currentE1rm)}
             </p>
-            <p className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+            <p className="text-[11px]" style={{ color: trendColor }}>
               {arrow} {trendLabel}
             </p>
           </div>
