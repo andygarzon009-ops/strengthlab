@@ -5,51 +5,36 @@ import WeeklyRecap from "@/components/WeeklyRecap";
 import ActivityRingsCard from "@/components/ActivityRingsCard";
 import HeartRateCard from "@/components/HeartRateCard";
 import PullToRefresh from "@/components/PullToRefresh";
-import GroupFeed from "@/components/GroupFeed";
 import ConsistencyCard from "@/components/ConsistencyCard";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 
 export default async function FeedPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; mode?: string; user?: string }>;
+  searchParams: Promise<{ view?: string; user?: string }>;
 }) {
   const userId = await requireAuth();
-  const { view, mode, user: filterUserParam } = await searchParams;
-  const groupMode = mode === "chat" ? "chat" : "feed";
+  const { view, user: filterUserParam } = await searchParams;
 
-  const memberships = await prisma.groupMember.findMany({
-    where: { userId },
-    include: {
-      group: {
-        include: {
-          members: {
-            include: { user: { select: { id: true, name: true } } },
-          },
-        },
-      },
-    },
+  // Crew = people you follow. Drives the "Crew" feed tab + per-person filter.
+  const follows = await prisma.follow.findMany({
+    where: { followerId: userId },
+    select: { following: { select: { id: true, name: true } } },
   });
+  const followingPeople = follows.map((f) => f.following);
+  const followingIds = followingPeople.map((p) => p.id);
 
-  const activeView = view ?? "mine";
-  const activeGroup =
-    activeView.startsWith("group-") &&
-    memberships.find((m) => `group-${m.groupId}` === activeView);
-
-  const allMemberIds = activeGroup
-    ? activeGroup.group.members.map((gm) => gm.userId)
-    : [];
+  const isCrew = view === "crew" && followingIds.length > 0;
   const filterUserId =
-    activeGroup && filterUserParam && allMemberIds.includes(filterUserParam)
+    isCrew && filterUserParam && followingIds.includes(filterUserParam)
       ? filterUserParam
       : null;
 
-  let scopedUserIds: string[];
-  if (activeGroup) {
-    scopedUserIds = filterUserId ? [filterUserId] : allMemberIds;
-  } else {
-    scopedUserIds = [userId];
-  }
+  const scopedUserIds = isCrew
+    ? filterUserId
+      ? [filterUserId]
+      : followingIds
+    : [userId];
 
   const workouts = await prisma.workout.findMany({
     where: { userId: { in: scopedUserIds } },
@@ -104,79 +89,34 @@ export default async function FeedPage({
         </Link>
       </div>
 
-      {memberships.length > 0 && (
+      {followingIds.length > 0 && (
         <div
           className="flex gap-1.5 mb-5 overflow-x-auto -mx-4 px-4 pb-1"
           style={{ scrollbarWidth: "none" }}
         >
-          <FeedTab
-            href="/"
-            label="Mine"
-            active={!activeGroup}
-          />
-          {memberships.map((m) => (
-            <FeedTab
-              key={m.groupId}
-              href={`/?view=group-${m.groupId}`}
-              label={m.group.name}
-              active={activeGroup && activeGroup.groupId === m.groupId ? true : false}
-            />
-          ))}
+          <FeedTab href="/" label="Mine" active={!isCrew} />
+          <FeedTab href="/?view=crew" label="Crew" active={isCrew} />
         </div>
       )}
 
-      {activeGroup && (
-        <div
-          className="flex gap-1.5 mb-4"
-          style={{
-            padding: 3,
-            background: "var(--bg-elevated)",
-            border: "1px solid var(--border)",
-            borderRadius: 10,
-          }}
-        >
-          <SubTab
-            href={`/?view=group-${activeGroup.groupId}`}
-            label="Feed"
-            active={groupMode === "feed"}
-          />
-          <SubTab
-            href={`/?view=group-${activeGroup.groupId}&mode=chat`}
-            label="Chat"
-            active={groupMode === "chat"}
-          />
-        </div>
-      )}
-
-      {activeGroup && groupMode === "feed" && activeGroup.group.members.length > 1 && (
+      {isCrew && followingPeople.length > 1 && (
         <div
           className="flex gap-1.5 mb-4 overflow-x-auto -mx-4 px-4 pb-1"
           style={{ scrollbarWidth: "none" }}
         >
-          <FeedTab
-            href={`/?view=group-${activeGroup.groupId}`}
-            label="All"
-            active={!filterUserId}
-          />
-          {activeGroup.group.members.map((gm) => (
+          <FeedTab href="/?view=crew" label="All" active={!filterUserId} />
+          {followingPeople.map((p) => (
             <FeedTab
-              key={gm.userId}
-              href={`/?view=group-${activeGroup.groupId}&user=${gm.userId}`}
-              label={gm.userId === userId ? "You" : gm.user.name.split(" ")[0]}
-              active={filterUserId === gm.userId}
+              key={p.id}
+              href={`/?view=crew&user=${p.id}`}
+              label={p.name.split(" ")[0]}
+              active={filterUserId === p.id}
             />
           ))}
         </div>
       )}
 
-      {activeGroup && groupMode === "chat" && (
-        <GroupFeed
-          groupId={activeGroup.groupId}
-          height="calc(100dvh - 380px)"
-        />
-      )}
-
-      {!activeGroup && (
+      {!isCrew && (
         <>
           <WeeklyRecap userId={userId} />
           <ActivityRingsCard userId={userId} />
@@ -188,7 +128,7 @@ export default async function FeedPage({
         </>
       )}
 
-      {(!activeGroup || groupMode === "feed") && (workouts.length === 0 ? (
+      {workouts.length === 0 ? (
         <div className="text-center py-16 card px-6">
           <div
             className="w-14 h-14 mx-auto mb-5 rounded-2xl flex items-center justify-center"
@@ -211,16 +151,21 @@ export default async function FeedPage({
             </svg>
           </div>
           <h2 className="text-lg font-semibold tracking-tight mb-1.5">
-            Nothing logged yet
+            {isCrew ? "Your crew is quiet" : "Nothing logged yet"}
           </h2>
           <p
             className="text-sm mb-6"
             style={{ color: "var(--fg-muted)" }}
           >
-            Log your first session or join a group to see your crew&apos;s workouts.
+            {isCrew
+              ? "Nobody you follow has logged a session yet."
+              : "Log your first session, or follow friends on the Crew tab to see their workouts."}
           </p>
-          <Link href="/log" className="btn-accent inline-block px-6 py-3 rounded-xl text-sm">
-            Log First Session
+          <Link
+            href={isCrew ? "/group" : "/log"}
+            className="btn-accent inline-block px-6 py-3 rounded-xl text-sm"
+          >
+            {isCrew ? "Find your crew" : "Log First Session"}
           </Link>
         </div>
       ) : (
@@ -233,39 +178,9 @@ export default async function FeedPage({
             />
           ))}
         </div>
-      ))}
+      )}
     </div>
     </PullToRefresh>
-  );
-}
-
-function SubTab({
-  href,
-  label,
-  active,
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      className="flex-1 text-center text-[12px] py-2 rounded-md label"
-      style={
-        active
-          ? {
-              background: "var(--accent)",
-              color: "#0a0a0a",
-            }
-          : {
-              color: "var(--fg-muted)",
-            }
-      }
-    >
-      {label}
-    </Link>
   );
 }
 
