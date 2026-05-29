@@ -12,7 +12,6 @@ import GroupFeed from "@/components/GroupFeed";
 import GroupChallenges, {
   GroupChallengePRs,
 } from "@/components/GroupChallenges";
-import BackButton from "@/components/BackButton";
 
 type Group = {
   id: string;
@@ -72,14 +71,11 @@ export default function GroupPage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
-      <div className="flex items-center gap-3 mb-8">
-        <BackButton href="/profile" ariaLabel="Back to profile" />
-        <div>
-          <p className="label">Crew</p>
-          <h1 className="text-[28px] font-bold tracking-tight leading-none mt-1">
-            Train together
-          </h1>
-        </div>
+      <div className="mb-8">
+        <p className="label">Crew</p>
+        <h1 className="text-[28px] font-bold tracking-tight leading-none mt-1">
+          Train together
+        </h1>
       </div>
 
       {error && (

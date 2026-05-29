@@ -7,7 +7,7 @@ const navItems = [
   { href: "/", label: "Feed" },
   { href: "/history", label: "Log" },
   { href: "/log", label: "Train", accent: true },
-  { href: "/analytics", label: "Stats" },
+  { href: "/group", label: "Crew" },
   { href: "/profile", label: "You" },
 ];
 
@@ -38,13 +38,13 @@ function Icon({ name, active }: { name: string; active: boolean }) {
           <path d="M8 3v4M16 3v4M4 10h16" />
         </svg>
       );
-    case "/analytics":
+    case "/group":
       return (
         <svg {...common}>
-          <path d="M4 20V10" />
-          <path d="M10 20V4" />
-          <path d="M16 20v-7" />
-          <path d="M22 20H2" />
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
         </svg>
       );
     case "/profile":
