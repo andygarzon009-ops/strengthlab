@@ -11,6 +11,48 @@ function toUtcISO(d: Date): string {
   return d.toISOString();
 }
 
+/// Heart-rate-based energy expenditure (Keytel et al. 2005) — the standard
+/// formula wearables fall back to when a workout has no device-reported
+/// calories. Uses the MET-scaled estimate when sex/age are unknown, and
+/// returns null when we don't even have bodyweight. Whole kcal.
+function estimateCalories(opts: {
+  avgHr: number;
+  durationSec: number;
+  bodyweightLb: number | null;
+  sex: string | null;
+  birthDate: Date | null;
+}): number | null {
+  const { avgHr, durationSec } = opts;
+  if (durationSec <= 0 || avgHr <= 0) return null;
+  const minutes = durationSec / 60;
+  if (opts.bodyweightLb == null || opts.bodyweightLb <= 0) return null;
+  const weightKg = opts.bodyweightLb * 0.453592;
+
+  const age =
+    opts.birthDate != null
+      ? Math.floor(
+          (Date.now() - opts.birthDate.getTime()) /
+            (365.25 * 24 * 60 * 60 * 1000),
+        )
+      : null;
+
+  // Keytel needs age + sex; use it when both are present.
+  if (age != null && age > 0 && opts.sex) {
+    const female = opts.sex.trim().toLowerCase().startsWith("f");
+    const perMin = female
+      ? (-20.4022 + 0.4472 * avgHr - 0.1263 * weightKg + 0.074 * age) / 4.184
+      : (-55.0969 + 0.6309 * avgHr + 0.1988 * weightKg + 0.2017 * age) / 4.184;
+    const total = perMin * minutes;
+    if (total > 0) return Math.round(total);
+  }
+
+  // Fallback: MET-based. Avg HR scales intensity from ~3 MET (light) to
+  // ~8 MET (vigorous) across a 90-160 bpm band. kcal = MET * kg * hours.
+  const met = Math.max(3, Math.min(8, 3 + ((avgHr - 90) / 70) * 5));
+  const total = met * weightKg * (minutes / 60);
+  return total > 0 ? Math.round(total) : null;
+}
+
 export async function POST(
   _req: Request,
   ctx: { params: Promise<{ id: string }> },
@@ -53,7 +95,7 @@ export async function POST(
   //   4. date ± 30min fuzzy fallback
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { timezone: true },
+    select: { timezone: true, bodyweight: true, sex: true, birthDate: true },
   });
   const tz = user?.timezone ?? "UTC";
   const dayKey = (d: Date) =>
@@ -154,17 +196,32 @@ export async function POST(
         ? Math.round(samples.reduce((s, x) => s + x.bpm, 0) / samples.length)
         : null;
     const max = samples.length > 0 ? Math.max(...samples.map((s) => s.bpm)) : null;
-    // Only fill metrics from the matched Fitbit session when the workout
-    // doesn't already have a value — preserves anything the athlete typed
-    // in manually before the sync ran.
+    // Fill activity metrics so the workout shows in the Activity rings and
+    // weekly recap. Prefer a matched Fitbit exercise session; otherwise
+    // derive them from the HR data itself — strength sessions are usually
+    // just "watch worn," with no Fitbit-detected exercise to copy from.
+    // Never overwrite a value the athlete entered manually.
     const metricUpdates: Record<string, number> = {};
-    if (matched) {
-      if (matched.durationSec > 0 && (workout.duration == null || workout.duration === 0)) {
+
+    // Duration: matched session > actual HR sample span > derived window.
+    if (workout.duration == null || workout.duration === 0) {
+      if (matched && matched.durationSec > 0) {
         metricUpdates.duration = matched.durationSec;
+      } else if (samples.length >= 2) {
+        const spanSec = Math.round(
+          (samples[samples.length - 1].timestamp.getTime() -
+            samples[0].timestamp.getTime()) /
+            1000,
+        );
+        if (spanSec > 0) metricUpdates.duration = spanSec;
+      } else if (windowSource !== "fuzzy") {
+        const spanSec = Math.round((end.getTime() - start.getTime()) / 1000);
+        if (spanSec > 0) metricUpdates.duration = spanSec;
       }
-      if (matched.calories != null && workout.calories == null) {
-        metricUpdates.calories = matched.calories;
-      }
+    }
+
+    // Steps / zone minutes / distance only exist on a real Fitbit session.
+    if (matched) {
       if (matched.steps != null && workout.steps == null) {
         metricUpdates.steps = matched.steps;
       }
@@ -174,6 +231,24 @@ export async function POST(
       if (matched.distanceMm != null && workout.distance == null) {
         // Workout.distance is stored in kilometers; Fitbit reports mm.
         metricUpdates.distance = matched.distanceMm / 1_000_000;
+      }
+    }
+
+    // Calories: matched session value, else an HR-based estimate so the
+    // Move ring isn't stuck at 0 for strength sessions Fitbit doesn't
+    // auto-detect as an exercise.
+    if (workout.calories == null) {
+      if (matched && matched.calories != null) {
+        metricUpdates.calories = matched.calories;
+      } else if (avg != null) {
+        const est = estimateCalories({
+          avgHr: avg,
+          durationSec: metricUpdates.duration ?? workout.duration ?? 0,
+          bodyweightLb: user?.bodyweight ?? null,
+          sex: user?.sex ?? null,
+          birthDate: user?.birthDate ?? null,
+        });
+        if (est != null && est > 0) metricUpdates.calories = est;
       }
     }
     await tx.workout.update({
