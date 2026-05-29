@@ -85,12 +85,7 @@ function LiftRow({ lift }: { lift: LiftTrend }) {
 function LiftRowBody({ lift }: { lift: LiftTrend }) {
   const target = lift.target;
   const targetPct = target ? Math.min(1, target.progressPct) : 0;
-  const targetOver = target ? target.progressPct >= 1 : false;
-  const targetColor = targetOver
-    ? "var(--accent)"
-    : lift.direction === "down" && target
-      ? "#f97316"
-      : "#1dd2e6";
+  const targetMet = target ? target.progressPct >= 1 : false;
   const arrow =
     lift.direction === "up"
       ? "↑"
@@ -99,17 +94,10 @@ function LiftRowBody({ lift }: { lift: LiftTrend }) {
         : lift.direction === "flat"
           ? "→"
           : "·";
-  const color =
-    lift.direction === "up"
-      ? "var(--accent)"
-      : lift.direction === "down"
-        ? "#f97316"
-        : "var(--fg-muted)";
   const trendLabel = (() => {
     if (lift.deltaLb === null) return "first week tracked";
-    const sign = lift.deltaLb > 0 ? "+" : "";
-    const abs = Math.abs(Math.round(lift.deltaLb));
     if (lift.direction === "flat") return "flat vs 4-wk avg";
+    const sign = lift.deltaLb > 0 ? "+" : "";
     return `${sign}${Math.round(lift.deltaLb)} lb vs 4-wk avg`;
   })();
 
@@ -117,21 +105,7 @@ function LiftRowBody({ lift }: { lift: LiftTrend }) {
     <div className="px-4 py-3">
       <div className="flex items-center justify-between">
         <div className="min-w-0 flex-1 pr-3">
-          <div className="flex items-center gap-2 mb-0.5">
-            <p className="text-[14px] font-medium truncate">{lift.name}</p>
-            {target && (
-              <span
-                className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
-                style={{
-                  background: "rgba(29,210,230,0.12)",
-                  border: "1px solid rgba(29,210,230,0.35)",
-                  color: "#1dd2e6",
-                }}
-              >
-                Target
-              </span>
-            )}
-          </div>
+          <p className="text-[14px] font-medium truncate mb-0.5">{lift.name}</p>
           <p
             className="text-[11px] tabular-nums"
             style={{ color: "var(--fg-dim)" }}
@@ -146,7 +120,7 @@ function LiftRowBody({ lift }: { lift: LiftTrend }) {
             <p className="text-[16px] font-bold">
               {formatLbs(lift.currentE1rm)}
             </p>
-            <p className="text-[11px]" style={{ color }}>
+            <p className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
               {arrow} {trendLabel}
             </p>
           </div>
@@ -164,7 +138,7 @@ function LiftRowBody({ lift }: { lift: LiftTrend }) {
               className="h-full transition-all"
               style={{
                 width: `${Math.round(targetPct * 100)}%`,
-                background: targetColor,
+                background: targetMet ? "var(--accent)" : "var(--fg-muted)",
               }}
             />
           </div>
@@ -178,7 +152,7 @@ function LiftRowBody({ lift }: { lift: LiftTrend }) {
             </span>
             <span
               className="text-[10px] font-semibold"
-              style={{ color: targetColor }}
+              style={{ color: targetMet ? "var(--accent)" : "var(--fg-muted)" }}
             >
               {Math.round(target.progressPct * 100)}%
             </span>
