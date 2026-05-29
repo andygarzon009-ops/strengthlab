@@ -239,6 +239,12 @@ export default async function ConsistencyDetailPage() {
     where: { userId, completed: false, exerciseId: { not: null } },
     select: { id: true, exerciseId: true, targetValue: true, targetReps: true },
   });
+  // Exercise library for the "+ Add target" picker on the Strength card.
+  const exercises = await prisma.exercise.findMany({
+    where: { OR: [{ ownerId: null }, { ownerId: userId }] },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
   const topLifts = mergeLiftsWithTargets(liftHistory, goals);
 
   // Stub-row targets have no exercise name yet — backfill from the DB so
@@ -471,7 +477,7 @@ export default async function ConsistencyDetailPage() {
         </div>
       )}
 
-      <TopLiftsCard lifts={topLifts} />
+      <TopLiftsCard lifts={topLifts} exercises={exercises} />
 
       <div className="mt-3 space-y-3">
         <Projections items={projections} href="/strength" />

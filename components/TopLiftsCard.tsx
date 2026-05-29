@@ -5,6 +5,9 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteGoal } from "@/lib/actions/goals";
 import type { LiftTrend } from "@/lib/strengthProgression";
+import AddGoalForm from "@/components/AddGoalForm";
+
+type Exercise = { id: string; name: string };
 
 function formatLbs(n: number): string {
   return `${Math.round(n).toLocaleString()} lb`;
@@ -20,59 +23,87 @@ function relativeDate(d: Date): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export default function TopLiftsCard({ lifts }: { lifts: LiftTrend[] }) {
+export default function TopLiftsCard({
+  lifts,
+  exercises,
+}: {
+  lifts: LiftTrend[];
+  exercises: Exercise[];
+}) {
   // This card now shows targets only — top lifts without a goal are dropped.
   const targets = lifts.filter((l) => l.target);
   const [editing, setEditing] = useState(false);
-
-  if (targets.length === 0) {
-    return (
-      <div className="mt-6">
-        <h2 className="text-[15px] font-bold tracking-tight mb-3">Strength</h2>
-        <div
-          className="rounded-2xl p-5 text-center"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
-            No targets yet. Set a strength target and track your progress toward
-            it here.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const [adding, setAdding] = useState(false);
+  const router = useRouter();
 
   return (
     <div className="mt-6">
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-[15px] font-bold tracking-tight">Strength</h2>
-        <button
-          type="button"
-          onClick={() => setEditing((v) => !v)}
-          className="text-[11px] font-semibold uppercase tracking-wider"
-          style={{ color: editing ? "#f87171" : "var(--fg-dim)" }}
+        <div className="flex items-center gap-4">
+          {targets.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setEditing((v) => !v)}
+              className="text-[11px] font-semibold uppercase tracking-wider"
+              style={{ color: editing ? "#f87171" : "var(--fg-dim)" }}
+            >
+              {editing ? "Done" : "Edit"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setAdding((v) => !v)}
+            className="text-[11px] font-semibold uppercase tracking-wider"
+            style={{ color: adding ? "var(--fg-dim)" : "var(--accent)" }}
+          >
+            {adding ? "Cancel" : "+ Add"}
+          </button>
+        </div>
+      </div>
+
+      {adding && (
+        <AddGoalForm
+          exercises={exercises}
+          strengthOnly
+          onDone={() => setAdding(false)}
+          onSaved={() => router.refresh()}
+        />
+      )}
+
+      {targets.length === 0 ? (
+        !adding && (
+          <div
+            className="rounded-2xl p-5 text-center"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
+              No targets yet. Tap{" "}
+              <span style={{ color: "var(--accent)" }}>+ Add</span> to set a
+              strength target and track your progress here.
+            </p>
+          </div>
+        )
+      ) : (
+        <div
+          className="rounded-2xl divide-y"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
         >
-          {editing ? "Done" : "Edit"}
-        </button>
-      </div>
-      <div
-        className="rounded-2xl divide-y"
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        {targets.map((l) => (
-          <TargetRow
-            key={l.target?.goalId ?? l.exerciseId}
-            lift={l}
-            editing={editing}
-          />
-        ))}
-      </div>
+          {targets.map((l) => (
+            <TargetRow
+              key={l.target?.goalId ?? l.exerciseId}
+              lift={l}
+              editing={editing}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
