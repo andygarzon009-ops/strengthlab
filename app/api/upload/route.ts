@@ -26,8 +26,12 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Only images are allowed" }, { status: 400 });
   }
 
+  const kindRaw = form.get("kind");
+  const kind =
+    kindRaw === "avatar" ? "avatars" : kindRaw === "cover" ? "covers" : "posts";
+
   const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-  const key = `posts/${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const key = `${kind}/${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
   const blob = await put(key, file, {
     access: "public",

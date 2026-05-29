@@ -2,10 +2,13 @@
 
 import { updateProfile as updateProfileAction } from "@/lib/actions/workouts";
 import { useState, useTransition } from "react";
+import ImageUpload from "@/components/ImageUpload";
 
 type UserProfile = {
   name: string;
   email: string;
+  image: string | null;
+  coverImage: string | null;
   bodyweight: number | null;
   birthDate: string | null;
   sex: string | null;
@@ -38,6 +41,8 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
     hasAnyMeasurement(user)
   );
   const [saved, setSaved] = useState(false);
+  const [image, setImage] = useState<string | null>(user.image);
+  const [coverImage, setCoverImage] = useState<string | null>(user.coverImage);
 
   const [form, setForm] = useState({
     name: user.name,
@@ -70,6 +75,21 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
   const set = (key: keyof typeof form) => (v: string) =>
     setForm((s) => ({ ...s, [key]: v }));
 
+  // Photos persist immediately on upload so they feel instant — no need to
+  // hit Save. (The main Save also includes them, harmlessly.)
+  const saveImage = (next: string | null) => {
+    setImage(next);
+    startTransition(async () => {
+      await updateProfileAction({ name: form.name, image: next, coverImage });
+    });
+  };
+  const saveCover = (next: string | null) => {
+    setCoverImage(next);
+    startTransition(async () => {
+      await updateProfileAction({ name: form.name, image, coverImage: next });
+    });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSaved(false);
@@ -82,6 +102,8 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
     startTransition(async () => {
       await updateProfileAction({
         name: form.name,
+        image,
+        coverImage,
         birthDate: form.birthDate || null,
         sex: form.sex || null,
         bodyweight: form.bodyweight ? parseFloat(form.bodyweight) : undefined,
@@ -118,6 +140,27 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
 
   return (
     <>
+      {/* Photos */}
+      <div className="card p-5 mb-3">
+        <h2 className="font-semibold text-[14px] tracking-tight mb-3">Photos</h2>
+        <div className="mb-4">
+          <ImageUpload
+            kind="cover"
+            shape="wide"
+            value={coverImage}
+            name={form.name}
+            onChange={saveCover}
+          />
+        </div>
+        <ImageUpload
+          kind="avatar"
+          shape="round"
+          value={image}
+          name={form.name}
+          onChange={saveImage}
+        />
+      </div>
+
       {/* Training profile */}
       <div className="card p-5 mb-3">
         <h2 className="font-semibold text-[14px] tracking-tight mb-1">

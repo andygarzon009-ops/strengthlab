@@ -6,6 +6,7 @@ import { loadTopChallenge } from "@/lib/loadChallenges";
 import { challengeTypeLabel, formatScore, timeLeft } from "@/lib/crewChallenges";
 import GrowCrew from "@/components/GrowCrew";
 import CheerButton from "@/components/CheerButton";
+import Avatar from "@/components/Avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +18,14 @@ function ago(d: Date): string {
   return day === 1 ? "yesterday" : `${day}d ago`;
 }
 
-function relative(d: Date | null): string {
-  if (!d) return "no sessions yet";
-  const day = Math.floor((Date.now() - d.getTime()) / 86_400_000);
-  if (day <= 0) return "trained today";
-  if (day === 1) return "trained yesterday";
-  if (day < 7) return `trained ${day}d ago`;
-  return `last ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+// Story-style ring: bright gradient if trained today, soft accent within a
+// week, no ring when quiet.
+function ringFor(last: Date | null): string | undefined {
+  if (!last) return undefined;
+  const days = Math.floor((Date.now() - last.getTime()) / 86_400_000);
+  if (days <= 0) return "linear-gradient(135deg, #22c55e, #a3e635)";
+  if (days <= 7) return "rgba(34,197,94,0.45)";
+  return undefined;
 }
 
 function fmtVol(v: number): string {
@@ -45,7 +47,7 @@ export default async function CrewPage() {
   const [people, lastByUser, weekWorkouts] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: everyoneIds } },
-      select: { id: true, name: true },
+      select: { id: true, name: true, image: true },
     }),
     prisma.workout.groupBy({
       by: ["userId"],
@@ -68,6 +70,7 @@ export default async function CrewPage() {
   ]);
 
   const nameById = new Map(people.map((p) => [p.id, p.name]));
+  const imageById = new Map(people.map((p) => [p.id, p.image]));
   const lastById = new Map(
     lastByUser.map((r) => [r.userId, r._max.date ?? null]),
   );
@@ -110,6 +113,22 @@ export default async function CrewPage() {
       last: lastById.get(id) ?? null,
     }))
     .sort((a, b) => (b.last?.getTime() ?? 0) - (a.last?.getTime() ?? 0));
+
+  // Story-style circles: you first, then people you follow (most recent).
+  const circles = [
+    {
+      id: userId,
+      name: "You",
+      image: imageById.get(userId) ?? null,
+      last: lastById.get(userId) ?? null,
+    },
+    ...followingPeople.map((p) => ({
+      id: p.id,
+      name: p.name,
+      image: imageById.get(p.id) ?? null,
+      last: p.last,
+    })),
+  ];
 
   // Highlights: recent weight PRs from people you follow, each cheerable
   // (a cheer is a 🏆 reaction on the underlying workout).
@@ -167,11 +186,55 @@ export default async function CrewPage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
-      <div className="mb-6">
+      <div className="mb-5">
         <p className="label">Crew</p>
         <h1 className="text-[28px] font-bold tracking-tight leading-none mt-1">
           Train together
         </h1>
+      </div>
+
+      {/* Story-style circles */}
+      <div
+        className="flex gap-3 mb-6 overflow-x-auto -mx-4 px-4 pb-1"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {circles.map((c) => {
+          const ring = ringFor(c.last);
+          return (
+            <Link
+              key={c.id}
+              href={`/u/${c.id}`}
+              className="flex flex-col items-center gap-1.5 shrink-0"
+              style={{ width: 64 }}
+            >
+              <Avatar name={c.name} image={c.image} size={60} ring={ring} />
+              <span className="text-[11px] truncate w-full text-center">
+                {c.name === "You" ? "You" : c.name.split(" ")[0]}
+              </span>
+            </Link>
+          );
+        })}
+        <a
+          href="#grow"
+          className="flex flex-col items-center gap-1.5 shrink-0"
+          style={{ width: 64 }}
+        >
+          <span
+            className="rounded-full flex items-center justify-center text-[24px]"
+            style={{
+              width: 60,
+              height: 60,
+              background: "var(--bg-elevated)",
+              border: "1px dashed var(--border-strong)",
+              color: "var(--fg-dim)",
+            }}
+          >
+            +
+          </span>
+          <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+            Add
+          </span>
+        </a>
       </div>
 
       {/* Active challenge */}
@@ -339,40 +402,10 @@ export default async function CrewPage() {
         )}
       </div>
 
-      {/* People you follow */}
-      {followingPeople.length > 0 && (
-        <div className="mb-6">
-          <p
-            className="text-[10px] uppercase tracking-wider font-semibold mb-2"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            People
-          </p>
-          <div
-            className="rounded-2xl divide-y"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-          >
-            {followingPeople.map((p) => (
-              <Link
-                key={p.id}
-                href={`/u/${p.id}`}
-                className="flex items-center justify-between px-4 py-3 transition-colors"
-              >
-                <span className="text-[14px] font-medium truncate">{p.name}</span>
-                <span
-                  className="text-[11px] shrink-0 ml-2"
-                  style={{ color: "var(--fg-dim)" }}
-                >
-                  {relative(p.last)} ›
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Share + add (collapses once you've followed someone) */}
-      <GrowCrew userId={userId} defaultOpen={followingIds.length === 0} />
+      <div id="grow" style={{ scrollMarginTop: 16 }}>
+        <GrowCrew userId={userId} defaultOpen={followingIds.length === 0} />
+      </div>
     </div>
   );
 }

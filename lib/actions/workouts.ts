@@ -406,6 +406,8 @@ export async function addComment(workoutId: string, text: string) {
 
 export async function updateProfile(data: {
   name: string;
+  image?: string | null;
+  coverImage?: string | null;
   birthDate?: string | null;
   sex?: string | null;
   bodyweight?: number;
@@ -447,4 +449,6 @@ export async function updateProfile(data: {
     },
   });
   revalidatePath("/profile");
+  revalidatePath("/group");
+  revalidatePath(`/u/${userId}`);
 }

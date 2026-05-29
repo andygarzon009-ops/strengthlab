@@ -32,6 +32,7 @@ model User {
   email          String   @unique
   password       String
   image          String?
+  coverImage     String?
   bodyweight     Float?
   birthDate      DateTime?
   sex            String?
