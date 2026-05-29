@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { listHeartRateBetween } from "@/lib/googleHealth";
@@ -267,6 +268,13 @@ export async function POST(
       },
     });
   });
+
+  // The sync just changed this workout's HR/calories/duration, which feed
+  // the weekly recap (home) and the Activity rings. Bust their caches so
+  // they reflect the new numbers on the next visit without a hard reload.
+  revalidatePath("/");
+  revalidatePath("/activity");
+  revalidatePath(`/workout/${id}`);
 
   return Response.json({ synced: samples.length, windowSource });
 }
