@@ -3,8 +3,17 @@ import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { shapeForType } from "@/lib/exercises";
 import GrowCrew from "@/components/GrowCrew";
+import CheerButton from "@/components/CheerButton";
 
 export const dynamic = "force-dynamic";
+
+function ago(d: Date): string {
+  const s = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (s < 3600) return `${Math.max(1, Math.floor(s / 60))}m ago`;
+  if (s < 86_400) return `${Math.floor(s / 3600)}h ago`;
+  const day = Math.floor(s / 86_400);
+  return day === 1 ? "yesterday" : `${day}d ago`;
+}
 
 function relative(d: Date | null): string {
   if (!d) return "no sessions yet";
@@ -100,6 +109,58 @@ export default async function CrewPage() {
     }))
     .sort((a, b) => (b.last?.getTime() ?? 0) - (a.last?.getTime() ?? 0));
 
+  // Highlights: recent weight PRs from people you follow, each cheerable
+  // (a cheer is a 🏆 reaction on the underlying workout).
+  const prRows =
+    followingIds.length === 0
+      ? []
+      : await prisma.personalRecord.findMany({
+          where: {
+            userId: { in: followingIds },
+            type: "WEIGHT",
+            workoutId: { not: null },
+            date: { gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) },
+          },
+          orderBy: { date: "desc" },
+          take: 6,
+          select: {
+            id: true,
+            value: true,
+            reps: true,
+            date: true,
+            userId: true,
+            workoutId: true,
+            exercise: { select: { name: true } },
+          },
+        });
+  const prWorkoutIds = prRows
+    .map((p) => p.workoutId)
+    .filter((w): w is string => !!w);
+  const cheerRows =
+    prWorkoutIds.length === 0
+      ? []
+      : await prisma.reaction.findMany({
+          where: { workoutId: { in: prWorkoutIds }, type: "🏆" },
+          select: { workoutId: true, userId: true },
+        });
+  const cheerCount = new Map<string, number>();
+  const iCheered = new Set<string>();
+  for (const r of cheerRows) {
+    cheerCount.set(r.workoutId, (cheerCount.get(r.workoutId) ?? 0) + 1);
+    if (r.userId === userId) iCheered.add(r.workoutId);
+  }
+  const highlights = prRows.map((p) => ({
+    id: p.id,
+    who: nameById.get(p.userId) ?? "Athlete",
+    text: `PR'd ${p.exercise.name} ${Math.round(p.value)}${
+      p.reps ? ` × ${p.reps}` : ""
+    }`,
+    workoutId: p.workoutId as string,
+    date: p.date,
+    count: cheerCount.get(p.workoutId as string) ?? 0,
+    cheered: iCheered.has(p.workoutId as string),
+  }));
+
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
       <div className="mb-6">
@@ -108,6 +169,41 @@ export default async function CrewPage() {
           Train together
         </h1>
       </div>
+
+      {/* Highlights — recent crew PRs, cheerable */}
+      {highlights.length > 0 && (
+        <div className="mb-6">
+          <p
+            className="text-[10px] uppercase tracking-wider font-semibold mb-2"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            Highlights
+          </p>
+          <div
+            className="rounded-2xl divide-y"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+          >
+            {highlights.map((h) => (
+              <div key={h.id} className="flex items-center gap-3 px-4 py-3">
+                <span className="text-[16px] shrink-0">🏆</span>
+                <Link href={`/workout/${h.workoutId}`} className="min-w-0 flex-1">
+                  <p className="text-[13px] truncate">
+                    <span className="font-semibold">{h.who}</span> {h.text}
+                  </p>
+                  <p className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+                    {ago(h.date)}
+                  </p>
+                </Link>
+                <CheerButton
+                  workoutId={h.workoutId}
+                  initialCheered={h.cheered}
+                  initialCount={h.count}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* This-week ranking */}
       <div className="mb-6">

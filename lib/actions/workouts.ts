@@ -393,6 +393,7 @@ export async function addReaction(workoutId: string, type: string) {
     });
   }
   revalidatePath("/");
+  revalidatePath("/group");
 }
 
 export async function addComment(workoutId: string, text: string) {
