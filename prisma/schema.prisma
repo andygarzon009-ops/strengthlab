@@ -82,6 +82,42 @@ model User {
   healthAccount   HealthAccount?
   following       Follow[]              @relation("Following")
   followers       Follow[]              @relation("Followers")
+  crewChallenges       CrewChallenge[]       @relation("CrewChallengeCreator")
+  crewChallengeMembers CrewChallengeMember[]
+}
+
+/// Follow-based crew challenge (replaces the old group-scoped Challenge).
+/// Standings are computed on read from members' logged workouts in the
+/// challenge window — nothing is pre-scored, so they're always accurate.
+model CrewChallenge {
+  id          String    @id @default(cuid())
+  creatorId   String
+  name        String
+  type        String // VOLUME | SESSIONS | LIFT_RACE | STREAK
+  exerciseId  String? // LIFT_RACE: the lift being raced
+  targetValue Float? // LIFT_RACE: target weight (lb), optional
+  targetReps  Int?
+  startsAt    DateTime  @default(now())
+  endsAt      DateTime? // null = open-ended
+  createdAt   DateTime  @default(now())
+
+  creator User                  @relation("CrewChallengeCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  members CrewChallengeMember[]
+
+  @@index([creatorId])
+}
+
+model CrewChallengeMember {
+  id          String   @id @default(cuid())
+  challengeId String
+  userId      String
+  joinedAt    DateTime @default(now())
+
+  challenge CrewChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, userId])
+  @@index([userId])
 }
 
 /// Directed follow edge: `follower` follows `following`. One-way (Strava

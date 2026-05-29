@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { shapeForType } from "@/lib/exercises";
+import { loadTopChallenge } from "@/lib/loadChallenges";
+import { challengeTypeLabel, formatScore, timeLeft } from "@/lib/crewChallenges";
 import GrowCrew from "@/components/GrowCrew";
 import CheerButton from "@/components/CheerButton";
 
@@ -161,6 +163,8 @@ export default async function CrewPage() {
     cheered: iCheered.has(p.workoutId as string),
   }));
 
+  const topChallenge = await loadTopChallenge(userId);
+
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
       <div className="mb-6">
@@ -169,6 +173,73 @@ export default async function CrewPage() {
           Train together
         </h1>
       </div>
+
+      {/* Active challenge */}
+      {topChallenge ? (
+        <Link
+          href={`/group/challenges/${topChallenge.id}`}
+          className="card block p-4 mb-6 transition-colors"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(34,197,94,0.08) 0%, var(--bg-card) 70%)",
+            border: "1px solid rgba(34,197,94,0.25)",
+          }}
+        >
+          <div className="flex items-baseline justify-between mb-2">
+            <div className="min-w-0">
+              <p className="label" style={{ color: "var(--accent)" }}>
+                🏆 Active challenge
+              </p>
+              <p className="text-[15px] font-bold tracking-tight truncate mt-0.5">
+                {topChallenge.name}
+              </p>
+            </div>
+            <span className="text-[10px] shrink-0 ml-2" style={{ color: "var(--fg-dim)" }}>
+              {timeLeft(topChallenge.endsAt)}
+            </span>
+          </div>
+          <div className="space-y-1">
+            {topChallenge.standings.slice(0, 3).map((s, i) => (
+              <div
+                key={s.userId}
+                className="flex items-center justify-between text-[12px]"
+              >
+                <span
+                  className="truncate"
+                  style={{
+                    color: s.isYou ? "var(--accent)" : "var(--fg)",
+                    fontWeight: s.isYou ? 600 : 400,
+                  }}
+                >
+                  {MEDAL[i] ?? `${i + 1}`} {s.name}
+                  {s.reachedTarget ? " ✓" : ""}
+                </span>
+                <span
+                  className="tabular-nums shrink-0 ml-2"
+                  style={{ color: "var(--fg-dim)" }}
+                >
+                  {formatScore(topChallenge.type, s.score)}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] mt-2" style={{ color: "var(--fg-dim)" }}>
+            {challengeTypeLabel(topChallenge.type)} · view all challenges →
+          </p>
+        </Link>
+      ) : (
+        <Link
+          href="/group/challenges"
+          className="card block p-4 mb-6 text-center transition-colors"
+        >
+          <p className="text-[13px] font-semibold" style={{ color: "var(--accent)" }}>
+            🏆 Start a challenge
+          </p>
+          <p className="text-[11px] mt-1" style={{ color: "var(--fg-dim)" }}>
+            Volume races, session counts, lift races, streak battles.
+          </p>
+        </Link>
+      )}
 
       {/* Highlights — recent crew PRs, cheerable */}
       {highlights.length > 0 && (
