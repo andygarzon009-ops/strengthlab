@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { shapeForType, labelForType } from "@/lib/exercises";
 import { mergeLiftsWithTargets } from "@/lib/strengthProgression";
 import TopLiftsCard from "@/components/TopLiftsCard";
-import BodyScan, { type MuscleCoverage } from "@/components/BodyScan";
+import CoverageBars, { type MuscleCoverage } from "@/components/CoverageBars";
 import MomentumBars, { type MomentumStats } from "@/components/MomentumBars";
 import BackButton from "@/components/BackButton";
 
@@ -501,7 +501,7 @@ function AnalysisDashboard({
         >
           Coverage
         </p>
-        <BodyScan coverage={bodyCoverage} note={analysis.coverage.note} />
+        <CoverageBars coverage={bodyCoverage} note={analysis.coverage.note} />
       </div>
 
       {/* Momentum — visual volume comparison (no arrow) */}
