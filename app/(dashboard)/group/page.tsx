@@ -2,8 +2,7 @@ import Link from "next/link";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { shapeForType } from "@/lib/exercises";
-import ShareProfileButton from "@/components/ShareProfileButton";
-import AddFollow from "@/components/AddFollow";
+import GrowCrew from "@/components/GrowCrew";
 
 export const dynamic = "force-dynamic";
 
@@ -205,21 +204,8 @@ export default async function CrewPage() {
         </div>
       )}
 
-      {/* Share + add */}
-      <div
-        className="rounded-2xl p-4"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-      >
-        <p className="text-[13px] font-semibold mb-1">Grow your crew</p>
-        <p className="text-[12px] mb-3" style={{ color: "var(--fg-dim)" }}>
-          Share your profile so friends can follow you, or paste a friend&apos;s
-          link to follow them.
-        </p>
-        <div className="mb-3">
-          <ShareProfileButton userId={userId} />
-        </div>
-        <AddFollow />
-      </div>
+      {/* Share + add (collapses once you've followed someone) */}
+      <GrowCrew userId={userId} defaultOpen={followingIds.length === 0} />
     </div>
   );
 }
