@@ -36,6 +36,7 @@ export type LiftTrend = {
   // Populated when the lift has an active Goal record. Progress is
   // currentE1rm / targetE1rm, clamped to [0, 1.2].
   target?: {
+    goalId?: string;
     targetWeight: number;
     targetReps: number;
     targetE1rm: number;
@@ -148,6 +149,7 @@ export function computeTopLiftTrends(
 }
 
 export type GoalLike = {
+  id?: string;
   exerciseId: string | null;
   targetValue: number;
   targetReps: number | null;
@@ -188,6 +190,7 @@ export function mergeLiftsWithTargets(
     const reps = Math.max(1, goal.targetReps ?? 1);
     const targetE1 = e1rm(goal.targetValue, reps);
     const targetPayload = {
+      goalId: goal.id,
       targetWeight: goal.targetValue,
       targetReps: reps,
       targetE1rm: targetE1,

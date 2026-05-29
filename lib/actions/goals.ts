@@ -35,6 +35,7 @@ export async function createGoal(data: {
     },
   });
   revalidatePath("/analytics");
+  revalidatePath("/consistency");
 }
 
 export async function updateGoal(
@@ -61,10 +62,12 @@ export async function updateGoal(
     },
   });
   revalidatePath("/analytics");
+  revalidatePath("/consistency");
 }
 
 export async function deleteGoal(goalId: string) {
   const userId = await requireAuth();
   await prisma.goal.deleteMany({ where: { id: goalId, userId } });
   revalidatePath("/analytics");
+  revalidatePath("/consistency");
 }

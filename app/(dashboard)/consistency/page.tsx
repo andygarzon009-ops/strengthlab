@@ -237,7 +237,7 @@ export default async function ConsistencyDetailPage() {
   });
   const goals = await prisma.goal.findMany({
     where: { userId, completed: false, exerciseId: { not: null } },
-    select: { exerciseId: true, targetValue: true, targetReps: true },
+    select: { id: true, exerciseId: true, targetValue: true, targetReps: true },
   });
   const topLifts = mergeLiftsWithTargets(liftHistory, goals);
 

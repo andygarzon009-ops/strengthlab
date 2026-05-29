@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { deleteGoal } from "@/lib/actions/goals";
 import type { LiftTrend } from "@/lib/strengthProgression";
 
 function formatLbs(n: number): string {
@@ -16,12 +21,14 @@ function relativeDate(d: Date): string {
 }
 
 export default function TopLiftsCard({ lifts }: { lifts: LiftTrend[] }) {
-  if (lifts.length === 0) {
+  // This card now shows targets only — top lifts without a goal are dropped.
+  const targets = lifts.filter((l) => l.target);
+  const [editing, setEditing] = useState(false);
+
+  if (targets.length === 0) {
     return (
       <div className="mt-6">
-        <h2 className="text-[15px] font-bold tracking-tight mb-3">
-          Top lifts
-        </h2>
+        <h2 className="text-[15px] font-bold tracking-tight mb-3">Strength</h2>
         <div
           className="rounded-2xl p-5 text-center"
           style={{
@@ -30,31 +37,26 @@ export default function TopLiftsCard({ lifts }: { lifts: LiftTrend[] }) {
           }}
         >
           <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
-            Log a few strength sessions and your top lifts will appear here
-            with their projected 1-rep max trend.
+            No targets yet. Set a strength target and track your progress toward
+            it here.
           </p>
         </div>
       </div>
     );
   }
 
-  const targetCount = lifts.filter((l) => l.target).length;
-  const topCount = lifts.length - targetCount;
-  const subtitle =
-    targetCount > 0
-      ? `${targetCount} target${targetCount === 1 ? "" : "s"} · ${topCount} top lift${topCount === 1 ? "" : "s"}`
-      : "Est. 1RM · 4-wk trend";
-
   return (
     <div className="mt-6">
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-[15px] font-bold tracking-tight">Strength</h2>
-        <span
-          className="text-[10px] uppercase tracking-wider font-semibold"
-          style={{ color: "var(--fg-dim)" }}
+        <button
+          type="button"
+          onClick={() => setEditing((v) => !v)}
+          className="text-[11px] font-semibold uppercase tracking-wider"
+          style={{ color: editing ? "#f87171" : "var(--fg-dim)" }}
         >
-          {subtitle}
-        </span>
+          {editing ? "Done" : "Edit"}
+        </button>
       </div>
       <div
         className="rounded-2xl divide-y"
@@ -63,29 +65,67 @@ export default function TopLiftsCard({ lifts }: { lifts: LiftTrend[] }) {
           border: "1px solid var(--border)",
         }}
       >
-        {lifts.map((l) => (
-          <LiftRow key={l.exerciseId} lift={l} />
+        {targets.map((l) => (
+          <TargetRow
+            key={l.target?.goalId ?? l.exerciseId}
+            lift={l}
+            editing={editing}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function LiftRow({ lift }: { lift: LiftTrend }) {
+function TargetRow({ lift, editing }: { lift: LiftTrend; editing: boolean }) {
+  const goalId = lift.target?.goalId;
   return (
-    <Link
-      href={`/strength/${encodeURIComponent(lift.exerciseId)}`}
-      className="block transition-colors"
-    >
-      <LiftRowBody lift={lift} />
-    </Link>
+    <div>
+      <Link
+        href={`/strength/${encodeURIComponent(lift.exerciseId)}`}
+        className="block transition-colors"
+      >
+        <LiftRowBody lift={lift} />
+      </Link>
+      {editing && goalId && <RemoveTargetButton goalId={goalId} />}
+    </div>
+  );
+}
+
+function RemoveTargetButton({ goalId }: { goalId: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  const onRemove = () => {
+    if (!confirm("Remove this target?")) return;
+    startTransition(async () => {
+      await deleteGoal(goalId);
+      router.refresh();
+    });
+  };
+
+  return (
+    <div className="px-4 pb-3">
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={pending}
+        className="w-full text-[11px] font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50"
+        style={{
+          color: "#f87171",
+          background: "rgba(248,113,113,0.08)",
+          border: "1px solid rgba(248,113,113,0.25)",
+        }}
+      >
+        {pending ? "Removing…" : "Remove target"}
+      </button>
+    </div>
   );
 }
 
 function LiftRowBody({ lift }: { lift: LiftTrend }) {
   const target = lift.target;
   const targetPct = target ? Math.min(1, target.progressPct) : 0;
-  const targetMet = target ? target.progressPct >= 1 : false;
   const arrow =
     lift.direction === "up"
       ? "↑"
@@ -145,7 +185,7 @@ function LiftRowBody({ lift }: { lift: LiftTrend }) {
               className="h-full transition-all"
               style={{
                 width: `${Math.round(targetPct * 100)}%`,
-                background: targetMet ? "var(--accent)" : "var(--fg-muted)",
+                background: "var(--accent)",
               }}
             />
           </div>
@@ -159,7 +199,7 @@ function LiftRowBody({ lift }: { lift: LiftTrend }) {
             </span>
             <span
               className="text-[10px] font-semibold"
-              style={{ color: targetMet ? "var(--accent)" : "var(--fg-muted)" }}
+              style={{ color: "var(--accent)" }}
             >
               {Math.round(target.progressPct * 100)}%
             </span>
