@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { listHeartRateBetween } from "@/lib/googleHealth";
 import HeartRateView from "@/components/HeartRateView";
+import BackButton from "@/components/BackButton";
 
 export const dynamic = "force-dynamic";
 
@@ -69,18 +69,7 @@ export default async function HeartRatePage() {
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
       <div className="flex items-center gap-3 mb-5">
-        <Link
-          href="/"
-          className="w-9 h-9 rounded-full flex items-center justify-center"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            color: "var(--fg-muted)",
-          }}
-          aria-label="Back to feed"
-        >
-          ←
-        </Link>
+        <BackButton href="/" ariaLabel="Back to feed" />
         <h1 className="text-[22px] font-bold tracking-tight">Heart rate</h1>
       </div>
 

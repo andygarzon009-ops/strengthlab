@@ -3,18 +3,26 @@
 import { useRouter } from "next/navigation";
 
 export default function BackButton({
+  href,
   fallbackHref = "/",
   ariaLabel = "Back",
 }: {
+  // When set, always navigate here — used for pages with a fixed parent in
+  // the app hierarchy (e.g. a lift detail always belongs under the rhythm
+  // page) so back is deterministic regardless of browser history.
+  href?: string;
   fallbackHref?: string;
   ariaLabel?: string;
 }) {
   const router = useRouter();
   const handleClick = () => {
-    // If there's browser history, go back so the user returns to whichever
-    // page they came from (history calendar, feed, coach chat, etc.).
-    // Otherwise fall back to the provided href so deep-links still land
-    // somewhere useful.
+    if (href) {
+      router.push(href);
+      return;
+    }
+    // No fixed parent: return to whichever page they came from (history
+    // calendar, feed, coach chat, etc.). Fall back to the provided href so
+    // deep-links still land somewhere useful.
     if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
     } else {

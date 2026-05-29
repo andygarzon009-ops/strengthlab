@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import HealthDashboard from "@/components/HealthDashboard";
+import BackButton from "@/components/BackButton";
 
 export default async function HealthPage({
   searchParams,
@@ -16,7 +17,10 @@ export default async function HealthPage({
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
-      <h1 className="text-[22px] font-bold tracking-tight mb-1">Health</h1>
+      <div className="flex items-center gap-3 mb-3">
+        <BackButton href="/profile" ariaLabel="Back to profile" />
+        <h1 className="text-[22px] font-bold tracking-tight">Health</h1>
+      </div>
       <p
         className="text-[12px] mb-6"
         style={{ color: "var(--fg-dim)" }}

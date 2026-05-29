@@ -6,11 +6,73 @@ import { prisma } from "@/lib/db";
 import { shapeForType, labelForType } from "@/lib/exercises";
 import { mergeLiftsWithTargets } from "@/lib/strengthProgression";
 import TopLiftsCard from "@/components/TopLiftsCard";
+import BodyScan, { type MuscleCoverage } from "@/components/BodyScan";
+import MomentumBars, { type MomentumStats } from "@/components/MomentumBars";
+import BackButton from "@/components/BackButton";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 const DAY_ABBR_MON_FIRST = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// Muscle groups the body scan renders. "Lower Back" folds into Back and
+// "Other"/null are dropped — see normalizeMuscle.
+const SCAN_MUSCLES = [
+  "Chest",
+  "Back",
+  "Shoulders",
+  "Biceps",
+  "Triceps",
+  "Forearms",
+  "Core",
+  "Quads",
+  "Hamstrings",
+  "Glutes",
+  "Calves",
+] as const;
+
+function normalizeMuscle(mg: string | null | undefined): string | null {
+  if (!mg) return null;
+  if (mg === "Lower Back") return "Back";
+  if (mg === "Other") return null;
+  return mg;
+}
+
+type SetLike = { type: string };
+type ExerciseLike = {
+  exercise: { muscleGroup: string | null };
+  sets: SetLike[];
+};
+type WorkoutLikeForCoverage = { exercises: ExerciseLike[] };
+
+function workingSetCount(sets: SetLike[]): number {
+  return sets.reduce((n, s) => (s.type !== "WARMUP" ? n + 1 : n), 0);
+}
+
+// Per-muscle working-set tally across a set of sessions.
+function setsByMuscle(
+  sessions: WorkoutLikeForCoverage[],
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const w of sessions) {
+    for (const e of w.exercises) {
+      const m = normalizeMuscle(e.exercise.muscleGroup);
+      if (!m) continue;
+      const n = workingSetCount(e.sets);
+      if (n > 0) out[m] = (out[m] ?? 0) + n;
+    }
+  }
+  return out;
+}
+
+// Total working sets across sessions (every muscle, including untagged).
+function totalWorkingSets(sessions: WorkoutLikeForCoverage[]): number {
+  let total = 0;
+  for (const w of sessions) {
+    for (const e of w.exercises) total += workingSetCount(e.sets);
+  }
+  return total;
+}
 
 type SessionForAnalysis = {
   title: string;
@@ -159,7 +221,9 @@ export default async function ConsistencyDetailPage() {
       type: true,
       exercises: {
         select: {
-          exercise: { select: { id: true, name: true } },
+          exercise: {
+            select: { id: true, name: true, muscleGroup: true },
+          },
           sets: {
             select: { type: true, weight: true, reps: true },
           },
@@ -190,6 +254,39 @@ export default async function ConsistencyDetailPage() {
       }
     }
   }
+
+  // ---- Body-scan coverage + momentum (computed, not model-generated) ----
+  const thisWeekByMuscle = setsByMuscle(thisWeekSessions);
+  const lastWeekByMuscle = setsByMuscle(lastWeekSessions);
+
+  // Most-recent working set per muscle across the 12-week lift history so the
+  // scan can show "last trained" even for muscles untouched this week.
+  const lastTrainedByMuscle: Record<string, number> = {};
+  for (const w of liftHistory) {
+    const at = (w.endedAt ?? w.startedAt ?? w.date).getTime();
+    for (const e of w.exercises) {
+      const m = normalizeMuscle(e.exercise.muscleGroup);
+      if (!m) continue;
+      if (workingSetCount(e.sets) === 0) continue;
+      if (at > (lastTrainedByMuscle[m] ?? 0)) lastTrainedByMuscle[m] = at;
+    }
+  }
+
+  const bodyCoverage: MuscleCoverage[] = SCAN_MUSCLES.map((m) => ({
+    muscle: m,
+    thisWeek: thisWeekByMuscle[m] ?? 0,
+    lastWeek: lastWeekByMuscle[m] ?? 0,
+    lastTrainedIso: lastTrainedByMuscle[m]
+      ? new Date(lastTrainedByMuscle[m]).toISOString()
+      : null,
+  }));
+
+  const momentumStats: MomentumStats = {
+    thisWeekSets: totalWorkingSets(thisWeekSessions),
+    lastWeekSets: totalWorkingSets(lastWeekSessions),
+    thisWeekSessions: thisWeekSessions.length,
+    lastWeekSessions: lastWeekSessions.length,
+  };
 
   let analysis: AnalysisResult;
   const cached = user?.weeklyAnalysisCache as
@@ -229,18 +326,7 @@ export default async function ConsistencyDetailPage() {
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
       <div className="flex items-center gap-3 mb-5">
-        <Link
-          href="/"
-          className="w-9 h-9 rounded-full flex items-center justify-center"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            color: "var(--fg-muted)",
-          }}
-          aria-label="Back to feed"
-        >
-          ←
-        </Link>
+        <BackButton href="/" ariaLabel="Back to feed" />
         <div>
           <h1 className="text-[22px] font-bold tracking-tight leading-none">
             Your rhythm
@@ -256,7 +342,11 @@ export default async function ConsistencyDetailPage() {
       <WeekStrip grid={grid} />
 
       {analysis.ok ? (
-        <AnalysisDashboard analysis={analysis.analysis} />
+        <AnalysisDashboard
+          analysis={analysis.analysis}
+          bodyCoverage={bodyCoverage}
+          momentumStats={momentumStats}
+        />
       ) : (
         <div
           className="rounded-2xl p-5"
@@ -350,25 +440,21 @@ function WeekStrip({
   );
 }
 
-function AnalysisDashboard({ analysis }: { analysis: CoachAnalysis }) {
+function AnalysisDashboard({
+  analysis,
+  bodyCoverage,
+  momentumStats,
+}: {
+  analysis: CoachAnalysis;
+  bodyCoverage: MuscleCoverage[];
+  momentumStats: MomentumStats;
+}) {
   const verdictColor: Record<CoachAnalysis["rhythm"]["verdict"], string> = {
     Strong: "var(--accent)",
     Steady: "#3b82f6",
     Light: "#eab308",
     Inconsistent: "#f97316",
   };
-  const momentumColor: Record<CoachAnalysis["momentum"]["direction"], string> =
-    {
-      up: "var(--accent)",
-      flat: "var(--fg-muted)",
-      down: "#f97316",
-    };
-  const momentumArrow: Record<CoachAnalysis["momentum"]["direction"], string> =
-    {
-      up: "↑",
-      flat: "→",
-      down: "↓",
-    };
 
   return (
     <div className="space-y-3">
@@ -401,7 +487,7 @@ function AnalysisDashboard({ analysis }: { analysis: CoachAnalysis }) {
         <p className="text-[13px] leading-relaxed">{analysis.rhythm.line}</p>
       </div>
 
-      {/* Coverage */}
+      {/* Coverage — interactive body scan */}
       <div
         className="rounded-2xl p-4"
         style={{
@@ -410,72 +496,15 @@ function AnalysisDashboard({ analysis }: { analysis: CoachAnalysis }) {
         }}
       >
         <p
-          className="text-[10px] uppercase tracking-wider font-semibold mb-2"
+          className="text-[10px] uppercase tracking-wider font-semibold mb-3"
           style={{ color: "var(--fg-dim)" }}
         >
           Coverage
         </p>
-        {analysis.coverage.trained.length > 0 && (
-          <div className="mb-2">
-            <p
-              className="text-[10px] mb-1.5"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              Trained
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {analysis.coverage.trained.map((m) => (
-                <span
-                  key={m}
-                  className="text-[11px] px-2.5 py-1 rounded-full font-medium"
-                  style={{
-                    background: "rgba(34,197,94,0.15)",
-                    border: "1px solid rgba(34,197,94,0.35)",
-                    color: "var(--accent)",
-                  }}
-                >
-                  {m}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-        {analysis.coverage.missed.length > 0 && (
-          <div className="mb-2">
-            <p
-              className="text-[10px] mb-1.5"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              Missed
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {analysis.coverage.missed.map((m) => (
-                <span
-                  key={m}
-                  className="text-[11px] px-2.5 py-1 rounded-full font-medium"
-                  style={{
-                    background: "var(--bg-elevated)",
-                    border: "1px dashed var(--border)",
-                    color: "var(--fg-muted)",
-                  }}
-                >
-                  {m}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-        {analysis.coverage.note && (
-          <p
-            className="text-[12px] mt-2"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            {analysis.coverage.note}
-          </p>
-        )}
+        <BodyScan coverage={bodyCoverage} note={analysis.coverage.note} />
       </div>
 
-      {/* Momentum */}
+      {/* Momentum — visual volume comparison (no arrow) */}
       <div
         className="rounded-2xl p-4"
         style={{
@@ -483,22 +512,13 @@ function AnalysisDashboard({ analysis }: { analysis: CoachAnalysis }) {
           border: "1px solid var(--border)",
         }}
       >
-        <div className="flex items-center justify-between mb-2">
-          <p
-            className="text-[10px] uppercase tracking-wider font-semibold"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            Momentum
-          </p>
-          <span
-            className="text-[16px] font-bold tabular-nums"
-            style={{ color: momentumColor[analysis.momentum.direction] }}
-            aria-label={analysis.momentum.direction}
-          >
-            {momentumArrow[analysis.momentum.direction]}
-          </span>
-        </div>
-        <p className="text-[13px] leading-relaxed">{analysis.momentum.line}</p>
+        <p
+          className="text-[10px] uppercase tracking-wider font-semibold mb-3"
+          style={{ color: "var(--fg-dim)" }}
+        >
+          Momentum
+        </p>
+        <MomentumBars stats={momentumStats} line={analysis.momentum.line} />
       </div>
 
       {/* Next week */}

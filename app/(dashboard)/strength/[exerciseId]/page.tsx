@@ -5,6 +5,7 @@ import { e1rm } from "@/lib/strengthProgression";
 import { buildLiftCoachInsight } from "@/lib/coachInsights";
 import LiftDrilldownChart from "@/components/LiftDrilldownChart";
 import CoachInsightCard from "@/components/CoachInsightCard";
+import BackButton from "@/components/BackButton";
 
 export const dynamic = "force-dynamic";
 
@@ -117,18 +118,7 @@ export default async function LiftDrilldownPage({
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
       <div className="flex items-center gap-3 mb-5">
-        <Link
-          href="/consistency"
-          className="w-9 h-9 rounded-full flex items-center justify-center"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            color: "var(--fg-muted)",
-          }}
-          aria-label="Back to consistency"
-        >
-          ←
-        </Link>
+        <BackButton href="/consistency" ariaLabel="Back to rhythm" />
         <div className="min-w-0 flex-1">
           <h1 className="text-[20px] font-bold tracking-tight leading-snug truncate">
             {exercise.name}
