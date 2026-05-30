@@ -1,4 +1,5 @@
 import BottomNav from "@/components/BottomNav";
+import NotificationsBell from "@/components/NotificationsBell";
 import AITrainer from "@/components/AITrainer";
 import Celebrations from "@/components/Celebrations";
 import Timer from "@/components/Timer";
@@ -18,6 +19,7 @@ export default function DashboardLayout({
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
       {children}
+      <NotificationsBell />
       <BottomNav />
       <Suspense fallback={null}>
         <AITrainer />
