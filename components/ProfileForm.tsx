@@ -168,43 +168,42 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
         </div>
       </div>
 
-      {/* Training profile (collapsible) */}
-      <div className="card p-5 mb-3">
+      {/* Training profile (collapsible) — styled like the other profile cards */}
+      <div className="card mb-3 overflow-hidden">
         <button
           type="button"
           onClick={() => setShowTraining((v) => !v)}
           aria-expanded={showTraining}
-          className="w-full text-left"
+          className="w-full flex items-center justify-between px-5 py-4 text-left"
         >
-          <div className="flex items-center justify-between">
+          <div className="min-w-0">
             <h2 className="font-semibold text-[14px] tracking-tight">
               Training profile
             </h2>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--fg-muted)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{
-                transform: showTraining ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 0.2s",
-              }}
-            >
-              <path d="m6 9 6 6 6-6" />
-            </svg>
+            <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
+              Name, goals, split &amp; coaching prefs
+            </p>
           </div>
-          <p className="text-[11px] mt-1" style={{ color: "var(--fg-dim)" }}>
-            Name, body weight, goals, split &amp; coaching prefs — your coach
-            tunes itself to these.
-          </p>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--fg-muted)"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="shrink-0 ml-3"
+            style={{
+              transform: showTraining ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 0.2s",
+            }}
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
         </button>
-        <form onSubmit={handleSubmit} className="space-y-3 mt-4">
-          {showTraining && (
-            <>
+        {showTraining && (
+          <form onSubmit={handleSubmit} className="space-y-3 px-5 pb-5 pt-1">
           <Field
             label="Name"
             value={form.name}
@@ -399,10 +398,9 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
               and advice always respect it.
             </p>
           </div>
-            </>
-          )}
 
-          {/* Body measurements (collapsible) */}
+          {/* Body measurements — nested, so it only appears once Training
+              profile is expanded. */}
           <div
             className="rounded-xl overflow-hidden"
             style={{
@@ -582,7 +580,8 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
               {pending ? "Saving…" : saved ? "Saved ✓" : "Save changes"}
             </button>
           </div>
-        </form>
+          </form>
+        )}
       </div>
     </>
   );
