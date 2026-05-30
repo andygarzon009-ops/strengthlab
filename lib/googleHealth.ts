@@ -20,6 +20,25 @@ function requireEnv(name: string): string {
   return v;
 }
 
+// These calls run during the feed render. Without a timeout, a slow/unreachable
+// Google endpoint hangs the whole page. Abort after 6s so the surrounding
+// <Suspense> can fall back / the card can render its disconnected state.
+const HEALTH_FETCH_TIMEOUT_MS = 6000;
+
+async function fetchWithTimeout(
+  url: string,
+  init?: RequestInit,
+  timeoutMs = HEALTH_FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function buildAuthUrl(state: string): string {
   const params = new URLSearchParams({
     client_id: requireEnv("GOOGLE_HEALTH_CLIENT_ID"),
@@ -68,7 +87,7 @@ async function refreshAccessToken(refreshToken: string): Promise<TokenResponse> 
     client_secret: requireEnv("GOOGLE_HEALTH_CLIENT_SECRET"),
     grant_type: "refresh_token",
   });
-  const res = await fetch(GOOGLE_TOKEN_URL, {
+  const res = await fetchWithTimeout(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -107,7 +126,7 @@ async function getValidAccessToken(userId: string): Promise<string> {
 
 async function healthFetch(userId: string, path: string): Promise<unknown> {
   const token = await getValidAccessToken(userId);
-  const res = await fetch(`${HEALTH_API_BASE}${path}`, {
+  const res = await fetchWithTimeout(`${HEALTH_API_BASE}${path}`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
   if (!res.ok) {

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import Link from "next/link";
@@ -7,6 +8,7 @@ import HeartRateCard from "@/components/HeartRateCard";
 import PullToRefresh from "@/components/PullToRefresh";
 import ConsistencyCard from "@/components/ConsistencyCard";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
+import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
 
 export default async function FeedPage({
   searchParams,
@@ -17,10 +19,14 @@ export default async function FeedPage({
   const { view, user: filterUserParam } = await searchParams;
 
   // Crew = people you follow. Drives the "Crew" feed tab + per-person filter.
-  const follows = await prisma.follow.findMany({
-    where: { followerId: userId },
-    select: { following: { select: { id: true, name: true } } },
-  });
+  // These two are independent, so fetch them in parallel instead of serially.
+  const [follows, currentUser] = await Promise.all([
+    prisma.follow.findMany({
+      where: { followerId: userId },
+      select: { following: { select: { id: true, name: true } } },
+    }),
+    prisma.user.findUnique({ where: { id: userId } }),
+  ]);
   const followingPeople = follows.map((f) => f.following);
   const followingIds = followingPeople.map((p) => p.id);
 
@@ -36,23 +42,8 @@ export default async function FeedPage({
       : followingIds
     : [userId];
 
-  const workouts = await prisma.workout.findMany({
-    where: { userId: { in: scopedUserIds } },
-    include: {
-      user: true,
-      exercises: {
-        include: { exercise: true, sets: true },
-        orderBy: { order: "asc" },
-      },
-      reactions: { include: { user: true } },
-      comments: { include: { user: true }, orderBy: { createdAt: "asc" } },
-      _count: { select: { exercises: true } },
-    },
-    orderBy: { date: "desc" },
-    take: 20,
-  });
-
-  const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+  // The heavy nested workouts query now lives inside <FeedList>, wrapped in
+  // Suspense, so the page shell + tabs paint immediately instead of blocking.
 
   return (
     <PullToRefresh>
@@ -118,69 +109,118 @@ export default async function FeedPage({
 
       {!isCrew && (
         <>
-          <WeeklyRecap userId={userId} />
-          <ActivityRingsCard userId={userId} />
-          <HeartRateCard userId={userId} />
-          <ConsistencyCard
-            userId={userId}
-            trainingDaysGoal={currentUser?.trainingDays ?? null}
-          />
+          {/* Each card streams in independently. HeartRate/ActivityRings make
+              live Google Health calls — Suspense keeps them from blocking the
+              rest of the feed. */}
+          <Suspense fallback={<CardSkeleton height={132} />}>
+            <WeeklyRecap userId={userId} />
+          </Suspense>
+          <Suspense fallback={<CardSkeleton height={168} />}>
+            <ActivityRingsCard userId={userId} />
+          </Suspense>
+          <Suspense fallback={<CardSkeleton height={148} />}>
+            <HeartRateCard userId={userId} />
+          </Suspense>
+          <Suspense fallback={<CardSkeleton height={120} />}>
+            <ConsistencyCard
+              userId={userId}
+              trainingDaysGoal={currentUser?.trainingDays ?? null}
+            />
+          </Suspense>
         </>
       )}
 
-      {workouts.length === 0 ? (
-        <div className="text-center py-16 card px-6">
-          <div
-            className="w-14 h-14 mx-auto mb-5 rounded-2xl flex items-center justify-center"
-            style={{
-              background: "var(--accent-dim)",
-              border: "1px solid rgba(34,197,94,0.25)",
-            }}
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--accent)"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
-            </svg>
-          </div>
-          <h2 className="text-lg font-semibold tracking-tight mb-1.5">
-            {isCrew ? "Your crew is quiet" : "Nothing logged yet"}
-          </h2>
-          <p
-            className="text-sm mb-6"
-            style={{ color: "var(--fg-muted)" }}
-          >
-            {isCrew
-              ? "Nobody you follow has logged a session yet."
-              : "Log your first session, or follow friends on the Crew tab to see their workouts."}
-          </p>
-          <Link
-            href={isCrew ? "/group" : "/log"}
-            className="btn-accent inline-block px-6 py-3 rounded-xl text-sm"
-          >
-            {isCrew ? "Find your crew" : "Log First Session"}
-          </Link>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {workouts.map((workout) => (
-            <FeedWorkoutCard
-              key={workout.id}
-              workout={workout}
-              currentUserId={userId}
-            />
-          ))}
-        </div>
-      )}
+      <Suspense fallback={<FeedListSkeleton />}>
+        <FeedList
+          scopedUserIds={scopedUserIds}
+          currentUserId={userId}
+          isCrew={isCrew}
+        />
+      </Suspense>
     </div>
     </PullToRefresh>
+  );
+}
+
+/// The workout feed itself — the heaviest query (workouts × exercises × sets ×
+/// reactions × comments). Isolated in its own async component so it streams in
+/// behind a skeleton rather than blocking the page shell.
+async function FeedList({
+  scopedUserIds,
+  currentUserId,
+  isCrew,
+}: {
+  scopedUserIds: string[];
+  currentUserId: string;
+  isCrew: boolean;
+}) {
+  const workouts = await prisma.workout.findMany({
+    where: { userId: { in: scopedUserIds } },
+    include: {
+      user: true,
+      exercises: {
+        include: { exercise: true, sets: true },
+        orderBy: { order: "asc" },
+      },
+      reactions: { include: { user: true } },
+      comments: { include: { user: true }, orderBy: { createdAt: "asc" } },
+      _count: { select: { exercises: true } },
+    },
+    orderBy: { date: "desc" },
+    take: 20,
+  });
+
+  if (workouts.length === 0) {
+    return (
+      <div className="text-center py-16 card px-6">
+        <div
+          className="w-14 h-14 mx-auto mb-5 rounded-2xl flex items-center justify-center"
+          style={{
+            background: "var(--accent-dim)",
+            border: "1px solid rgba(34,197,94,0.25)",
+          }}
+        >
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--accent)"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
+          </svg>
+        </div>
+        <h2 className="text-lg font-semibold tracking-tight mb-1.5">
+          {isCrew ? "Your crew is quiet" : "Nothing logged yet"}
+        </h2>
+        <p className="text-sm mb-6" style={{ color: "var(--fg-muted)" }}>
+          {isCrew
+            ? "Nobody you follow has logged a session yet."
+            : "Log your first session, or follow friends on the Crew tab to see their workouts."}
+        </p>
+        <Link
+          href={isCrew ? "/group" : "/log"}
+          className="btn-accent inline-block px-6 py-3 rounded-xl text-sm"
+        >
+          {isCrew ? "Find your crew" : "Log First Session"}
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {workouts.map((workout) => (
+        <FeedWorkoutCard
+          key={workout.id}
+          workout={workout}
+          currentUserId={currentUserId}
+        />
+      ))}
+    </div>
   );
 }
 

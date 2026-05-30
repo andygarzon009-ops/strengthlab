@@ -60,11 +60,19 @@ export default async function HeartRateCard({ userId }: Props) {
 
   const now = new Date();
   const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-  const samples = await listRestingHeartRate(
-    userId,
-    fourteenDaysAgo.toISOString(),
-    now.toISOString(),
-  );
+  // Guard the live Google Health call: on timeout / API error / revoked access
+  // we degrade to the computed fallback below instead of throwing and tripping
+  // the feed's error boundary.
+  let samples: Awaited<ReturnType<typeof listRestingHeartRate>> = [];
+  try {
+    samples = await listRestingHeartRate(
+      userId,
+      fourteenDaysAgo.toISOString(),
+      now.toISOString(),
+    );
+  } catch {
+    samples = [];
+  }
 
   // Two-bucket compare: most recent reading vs the prior week's average.
   // Surfaces "you're trending down" without us having to chart anything.

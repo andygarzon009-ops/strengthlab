@@ -25,9 +25,12 @@ export default function PullToRefresh({ children }: { children: ReactNode }) {
   const refreshingRef = useRef(false);
   const pullRef = useRef(0);
 
+  const lastRefreshRef = useRef(Date.now());
+
   const fire = () => {
     if (refreshingRef.current) return;
     refreshingRef.current = true;
+    lastRefreshRef.current = Date.now();
     setRefreshing(true);
     router.refresh();
     // Hold the indicator briefly so the user gets feedback even when the
@@ -39,10 +42,16 @@ export default function PullToRefresh({ children }: { children: ReactNode }) {
     }, 1200);
   };
 
-  // Tab visibility — auto-refresh on return.
+  // Tab visibility — auto-refresh on return, but THROTTLED. Previously this
+  // re-ran every server query (incl. the live Google Health calls) on every
+  // single foreground, which made simply opening the app slow. Now we only
+  // refresh if the data is meaningfully stale.
   useEffect(() => {
+    const STALE_MS = 10 * 60 * 1000; // 10 minutes
     const onVis = () => {
-      if (document.visibilityState === "visible") fire();
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastRefreshRef.current < STALE_MS) return;
+      fire();
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
