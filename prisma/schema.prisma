@@ -88,6 +88,25 @@ model User {
   crewChallengeMembers CrewChallengeMember[]
   sentFriendRequests     FriendRequest[]    @relation("FriendRequestFrom")
   receivedFriendRequests FriendRequest[]    @relation("FriendRequestTo")
+  ambientHeartRates      AmbientHeartRateSample[]
+}
+
+/// Standalone (non-workout) heart-rate samples streamed from the StrengthLab
+/// Android app via Health Connect — ambient/background readings that aren't
+/// attached to a logged workout. Deduped per (user, timestamp) so the device
+/// can re-send overlapping windows safely.
+model AmbientHeartRateSample {
+  id         String   @id @default(cuid())
+  userId     String
+  timestamp  DateTime
+  bpm        Int
+  sourceApp  String?  // originating Health Connect package, for provenance
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, timestamp])
+  @@index([userId, timestamp])
 }
 
 /// Pending friend handshake. A friendship is mutual: accepting a request

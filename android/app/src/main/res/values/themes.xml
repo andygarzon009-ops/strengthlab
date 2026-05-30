@@ -1,0 +1,4 @@
+<resources>
+    <!-- Plain platform theme — this companion app has minimal UI. -->
+    <style name="Theme.StrengthLabHealth" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
