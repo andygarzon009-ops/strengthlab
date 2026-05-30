@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import {
@@ -120,23 +121,9 @@ export default async function HeartRateCard({ userId }: Props) {
     },
   });
 
-  // Cached (30 min) so the feed doesn't hit Google Health on every open.
-  const { restingNow, restingDelta, restingSource } =
-    await getCachedResting(userId);
-
-  // Nothing useful to show — bail rather than rendering an empty card.
-  if (!lastWorkout && restingNow === null) return null;
-
-  const trendColor =
-    restingDelta === null
-      ? "var(--fg-dim)"
-      : restingDelta < 0
-        ? "var(--accent)"
-        : restingDelta > 0
-          ? "#f97316"
-          : "var(--fg-dim)";
-  const trendArrow =
-    restingDelta === null ? "" : restingDelta < 0 ? "↓" : restingDelta > 0 ? "↑" : "·";
+  // The card renders immediately from DB data (last-session HR). The resting
+  // HR — the slow part, since it calls Google Health — streams into its own
+  // column behind a small skeleton, so it never blocks the card from showing.
 
   return (
     <Link
@@ -209,36 +196,68 @@ export default async function HeartRateCard({ userId }: Props) {
           </div>
         )}
 
-        {restingNow !== null && (
-          <div className="space-y-1">
-            <p
-              className="text-[10px] uppercase tracking-wider font-semibold"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              Resting HR
-            </p>
-            <div className="flex items-baseline gap-2 tabular-nums">
-              <span className="text-[24px] font-bold">{restingNow}</span>
-              <span
-                className="text-[10px]"
-                style={{ color: "var(--fg-dim)" }}
-              >
-                bpm
-              </span>
-            </div>
-            <p
-              className="text-[11px]"
-              style={{ color: trendColor }}
-            >
-              {restingDelta !== null && restingDelta !== 0
-                ? `${trendArrow} ${Math.abs(restingDelta)} bpm vs last week`
-                : restingSource === "computed"
-                  ? "estimated from today's HR"
-                  : "today's reading"}
-            </p>
-          </div>
-        )}
+        <Suspense fallback={<RestingHRSkeleton />}>
+          <RestingHRColumn userId={userId} />
+        </Suspense>
       </div>
     </Link>
+  );
+}
+
+/// Streams in the resting-HR figure independently so the slow Google Health
+/// call never delays the rest of the card.
+async function RestingHRColumn({ userId }: { userId: string }) {
+  const { restingNow, restingDelta, restingSource } =
+    await getCachedResting(userId);
+  if (restingNow === null) return null;
+
+  const trendColor =
+    restingDelta === null
+      ? "var(--fg-dim)"
+      : restingDelta < 0
+        ? "var(--accent)"
+        : restingDelta > 0
+          ? "#f97316"
+          : "var(--fg-dim)";
+  const trendArrow =
+    restingDelta === null ? "" : restingDelta < 0 ? "↓" : restingDelta > 0 ? "↑" : "·";
+
+  return (
+    <div className="space-y-1">
+      <p
+        className="text-[10px] uppercase tracking-wider font-semibold"
+        style={{ color: "var(--fg-dim)" }}
+      >
+        Resting HR
+      </p>
+      <div className="flex items-baseline gap-2 tabular-nums">
+        <span className="text-[24px] font-bold">{restingNow}</span>
+        <span className="text-[10px]" style={{ color: "var(--fg-dim)" }}>
+          bpm
+        </span>
+      </div>
+      <p className="text-[11px]" style={{ color: trendColor }}>
+        {restingDelta !== null && restingDelta !== 0
+          ? `${trendArrow} ${Math.abs(restingDelta)} bpm vs last week`
+          : restingSource === "computed"
+            ? "estimated from today's HR"
+            : "today's reading"}
+      </p>
+    </div>
+  );
+}
+
+function RestingHRSkeleton() {
+  return (
+    <div className="space-y-1.5">
+      <div
+        className="h-2.5 w-16 rounded animate-pulse"
+        style={{ background: "var(--bg-elevated)" }}
+      />
+      <div
+        className="h-6 w-20 rounded animate-pulse"
+        style={{ background: "var(--bg-elevated)" }}
+      />
+    </div>
   );
 }
