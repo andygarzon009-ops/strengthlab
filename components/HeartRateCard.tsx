@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import {
   listRestingHeartRate,
@@ -34,6 +35,67 @@ function formatRelative(d: Date): string {
   return `${week}w ago`;
 }
 
+type RestingResult = {
+  restingNow: number | null;
+  restingDelta: number | null;
+  restingSource: "fitbit" | "computed";
+};
+
+/// The slow part of this card: live Google Health calls (resting HR + a heavy
+/// raw-HR fallback). Cached per user for 30 min so the feed reads from cache
+/// instead of hitting Google on every open — that was the bottleneck that left
+/// the card blank for seconds. First load after expiry still streams in behind
+/// the Suspense skeleton.
+const getCachedResting = unstable_cache(
+  async (userId: string): Promise<RestingResult> => {
+    const now = new Date();
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    let samples: Awaited<ReturnType<typeof listRestingHeartRate>> = [];
+    try {
+      samples = await listRestingHeartRate(
+        userId,
+        fourteenDaysAgo.toISOString(),
+        now.toISOString(),
+      );
+    } catch {
+      samples = [];
+    }
+
+    let restingNow: number | null = null;
+    let restingDelta: number | null = null;
+    let restingSource: "fitbit" | "computed" = "fitbit";
+    if (samples.length > 0) {
+      restingNow = samples[samples.length - 1].bpm;
+      const cutoff = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+      const prior = samples.filter((s) => s.date.getTime() < cutoff);
+      if (prior.length > 0) {
+        const priorAvg =
+          prior.reduce((sum, s) => sum + s.bpm, 0) / prior.length;
+        restingDelta = restingNow - Math.round(priorAvg);
+      }
+    } else {
+      try {
+        const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const raw = await listHeartRateBetween(
+          userId,
+          dayAgo.toISOString(),
+          now.toISOString(),
+        );
+        const computed = computeRestingFromSamples(raw);
+        if (computed !== null) {
+          restingNow = computed;
+          restingSource = "computed";
+        }
+      } catch {
+        // Leave restingNow null.
+      }
+    }
+    return { restingNow, restingDelta, restingSource };
+  },
+  ["hr-resting-v1"],
+  { revalidate: 1800 },
+);
+
 export default async function HeartRateCard({ userId }: Props) {
   const account = await prisma.healthAccount.findUnique({
     where: { userId },
@@ -58,60 +120,9 @@ export default async function HeartRateCard({ userId }: Props) {
     },
   });
 
-  const now = new Date();
-  const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-  // Guard the live Google Health call: on timeout / API error / revoked access
-  // we degrade to the computed fallback below instead of throwing and tripping
-  // the feed's error boundary.
-  let samples: Awaited<ReturnType<typeof listRestingHeartRate>> = [];
-  try {
-    samples = await listRestingHeartRate(
-      userId,
-      fourteenDaysAgo.toISOString(),
-      now.toISOString(),
-    );
-  } catch {
-    samples = [];
-  }
-
-  // Two-bucket compare: most recent reading vs the prior week's average.
-  // Surfaces "you're trending down" without us having to chart anything.
-  let restingNow: number | null = null;
-  let restingDelta: number | null = null;
-  let restingSource: "fitbit" | "computed" = "fitbit";
-  if (samples.length > 0) {
-    restingNow = samples[samples.length - 1].bpm;
-    const cutoff = now.getTime() - 7 * 24 * 60 * 60 * 1000;
-    const prior = samples.filter((s) => s.date.getTime() < cutoff);
-    if (prior.length > 0) {
-      const priorAvg =
-        prior.reduce((sum, s) => sum + s.bpm, 0) / prior.length;
-      restingDelta = restingNow - Math.round(priorAvg);
-    }
-  } else {
-    // Google Health didn't return a dedicated resting-HR sample (common —
-    // depends on device and how the user wears it). Fall back to computing
-    // resting HR ourselves from the last 24h of raw HR samples: take the
-    // average of the lowest 10 readings, which approximates the watch's
-    // own resting-HR algorithm well enough for a feed card.
-    try {
-      const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      const raw = await listHeartRateBetween(
-        userId,
-        dayAgo.toISOString(),
-        now.toISOString(),
-      );
-      const computed = computeRestingFromSamples(raw);
-      if (computed !== null) {
-        restingNow = computed;
-        restingSource = "computed";
-        // Optional week-over-week: pull a prior 24h window and compute the
-        // same way. Skipped on cost grounds for now — feed should be cheap.
-      }
-    } catch {
-      // Leave restingNow null.
-    }
-  }
+  // Cached (30 min) so the feed doesn't hit Google Health on every open.
+  const { restingNow, restingDelta, restingSource } =
+    await getCachedResting(userId);
 
   // Nothing useful to show — bail rather than rendering an empty card.
   if (!lastWorkout && restingNow === null) return null;
