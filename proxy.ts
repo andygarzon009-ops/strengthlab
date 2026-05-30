@@ -20,5 +20,10 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  // Run on app routes only — skip API routes, Next internals, and any path with
+  // a file extension (sw.js, manifest.json, icons, images). Auth-gating sw.js
+  // was 307-redirecting it to /login, which prevents the service worker from
+  // registering and breaks Web Push + rest-timer notifications. Pages still
+  // enforce auth server-side via requireAuth(), so this is safe.
+  matcher: ["/((?!api|_next/static|_next/image|.*\\.).*)"],
 };
