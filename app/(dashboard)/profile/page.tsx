@@ -43,6 +43,7 @@ export default async function ProfilePage() {
         user={{
           name: user.name,
           email: user.email,
+          username: user.username,
           image: user.image,
           coverImage: user.coverImage,
           birthDate: user.birthDate ? user.birthDate.toISOString() : null,

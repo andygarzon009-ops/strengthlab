@@ -31,6 +31,7 @@ export default async function PublicProfilePage({
     select: {
       id: true,
       name: true,
+      username: true,
       image: true,
       coverImage: true,
       preferredSplit: true,
@@ -166,8 +167,13 @@ export default async function PublicProfilePage({
             <h1 className="text-[24px] font-bold tracking-tight leading-none truncate">
               {user.name}
             </h1>
+            {user.username && (
+              <p className="text-[12px] mt-1" style={{ color: "var(--fg-dim)" }}>
+                @{user.username}
+              </p>
+            )}
             {(user.preferredSplit || user.bio) && (
-              <p className="text-[12px] mt-1.5" style={{ color: "var(--fg-dim)" }}>
+              <p className="text-[12px] mt-1" style={{ color: "var(--fg-dim)" }}>
                 {user.bio || user.preferredSplit}
               </p>
             )}

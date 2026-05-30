@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { createSession, deleteSession, getSession } from "@/lib/session";
 import { DEFAULT_EXERCISES } from "@/lib/exercises";
 import { sendEmail } from "@/lib/email";
+import { normalizeUsername, validateUsername } from "@/lib/username";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { headers } from "next/headers";
@@ -31,20 +32,27 @@ export async function signup(_prev: AuthState, formData: FormData): Promise<Auth
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
+  const usernameRaw = formData.get("username") as string;
 
-  if (!name || !email || !password) {
+  if (!name || !email || !password || !usernameRaw) {
     return { error: "All fields are required" };
   }
   if (password.length < 6) {
     return { error: "Password must be at least 6 characters" };
   }
+  const usernameError = validateUsername(usernameRaw);
+  if (usernameError) return { error: usernameError };
+  const username = normalizeUsername(usernameRaw);
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return { error: "Email already in use" };
 
+  const usernameTaken = await prisma.user.findUnique({ where: { username } });
+  if (usernameTaken) return { error: "Username already taken" };
+
   const hashed = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
-    data: { name, email, password: hashed },
+    data: { name, email, username, password: hashed },
   });
 
   // Seed default exercises if none exist

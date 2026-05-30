@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import ShareProfileButton from "@/components/ShareProfileButton";
-import AddFollow from "@/components/AddFollow";
+import FriendSearch from "@/components/FriendSearch";
 
 /// Share-your-profile + paste-to-follow. Expanded by default for a brand-new
 /// user (no follows yet, so growing the crew is the priority); collapses to a
@@ -49,13 +49,13 @@ export default function GrowCrew({
       {open && (
         <div className="mt-3">
           <p className="text-[12px] mb-3" style={{ color: "var(--fg-dim)" }}>
-            Share your profile so friends can follow you, or paste a friend&apos;s
-            link to follow them.
+            Search a friend by @username to send a request, or share your
+            profile so they can add you.
           </p>
           <div className="mb-3">
-            <ShareProfileButton userId={userId} />
+            <FriendSearch />
           </div>
-          <AddFollow />
+          <ShareProfileButton userId={userId} />
         </div>
       )}
     </div>

@@ -71,6 +71,27 @@ export default function SignupPage() {
             />
           </div>
           <div>
+            <label className="label block mb-1.5">Username</label>
+            <input
+              name="username"
+              type="text"
+              required
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="andy_lifts"
+              className="w-full rounded-xl px-4 py-3.5 text-[15px] focus:outline-none"
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
+              }}
+            />
+            <p className="text-[11px] mt-1" style={{ color: "var(--fg-dim)" }}>
+              Friends find you by @username.
+            </p>
+          </div>
+          <div>
             <label className="label block mb-1.5">Email</label>
             <input
               name="email"

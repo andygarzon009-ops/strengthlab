@@ -3,10 +3,12 @@
 import { updateProfile as updateProfileAction } from "@/lib/actions/workouts";
 import { useState, useTransition } from "react";
 import ImageUpload from "@/components/ImageUpload";
+import UsernameField from "@/components/UsernameField";
 
 type UserProfile = {
   name: string;
   email: string;
+  username: string | null;
   image: string | null;
   coverImage: string | null;
   bodyweight: number | null;
@@ -159,6 +161,9 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
           name={form.name}
           onChange={saveImage}
         />
+        <div className="mt-4">
+          <UsernameField initial={user.username} />
+        </div>
       </div>
 
       {/* Training profile */}
