@@ -208,6 +208,12 @@ model HealthAccount {
   expiresAt       DateTime
   scope           String
   lastSyncedAt    DateTime?
+  // Last-known resting HR, persisted during sync so the feed reads it instantly
+  // instead of waiting on a live Google Health call.
+  restingHr       Int?
+  restingDelta    Int?
+  restingSource   String?
+  restingHrAt     DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

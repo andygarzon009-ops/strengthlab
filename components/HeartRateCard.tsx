@@ -1,26 +1,11 @@
 import Link from "next/link";
-import { Suspense } from "react";
-import { unstable_cache } from "next/cache";
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
-import {
-  listRestingHeartRate,
-  listHeartRateBetween,
-  type HeartRateSample,
-} from "@/lib/googleHealth";
+import { refreshRestingHr } from "@/lib/restingHr";
 
 type Props = {
   userId: string;
 };
-
-function computeRestingFromSamples(samples: HeartRateSample[]): number | null {
-  if (samples.length < 10) return null;
-  const sorted = [...samples].sort((a, b) => a.bpm - b.bpm);
-  // Average the lowest 10 readings — robust to a single low outlier and
-  // tracks the watch's own resting algorithm reasonably well.
-  const lowestTen = sorted.slice(0, 10);
-  const avg = lowestTen.reduce((sum, s) => sum + s.bpm, 0) / lowestTen.length;
-  return Math.round(avg);
-}
 
 function formatRelative(d: Date): string {
   const sec = Math.floor((Date.now() - d.getTime()) / 1000);
@@ -36,73 +21,29 @@ function formatRelative(d: Date): string {
   return `${week}w ago`;
 }
 
-type RestingResult = {
-  restingNow: number | null;
-  restingDelta: number | null;
-  restingSource: "fitbit" | "computed";
-};
-
-/// The slow part of this card: live Google Health calls (resting HR + a heavy
-/// raw-HR fallback). Cached per user for 30 min so the feed reads from cache
-/// instead of hitting Google on every open — that was the bottleneck that left
-/// the card blank for seconds. First load after expiry still streams in behind
-/// the Suspense skeleton.
-const getCachedResting = unstable_cache(
-  async (userId: string): Promise<RestingResult> => {
-    const now = new Date();
-    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-    let samples: Awaited<ReturnType<typeof listRestingHeartRate>> = [];
-    try {
-      samples = await listRestingHeartRate(
-        userId,
-        fourteenDaysAgo.toISOString(),
-        now.toISOString(),
-      );
-    } catch {
-      samples = [];
-    }
-
-    let restingNow: number | null = null;
-    let restingDelta: number | null = null;
-    let restingSource: "fitbit" | "computed" = "fitbit";
-    if (samples.length > 0) {
-      restingNow = samples[samples.length - 1].bpm;
-      const cutoff = now.getTime() - 7 * 24 * 60 * 60 * 1000;
-      const prior = samples.filter((s) => s.date.getTime() < cutoff);
-      if (prior.length > 0) {
-        const priorAvg =
-          prior.reduce((sum, s) => sum + s.bpm, 0) / prior.length;
-        restingDelta = restingNow - Math.round(priorAvg);
-      }
-    } else {
-      try {
-        const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        const raw = await listHeartRateBetween(
-          userId,
-          dayAgo.toISOString(),
-          now.toISOString(),
-        );
-        const computed = computeRestingFromSamples(raw);
-        if (computed !== null) {
-          restingNow = computed;
-          restingSource = "computed";
-        }
-      } catch {
-        // Leave restingNow null.
-      }
-    }
-    return { restingNow, restingDelta, restingSource };
-  },
-  ["hr-resting-v1"],
-  { revalidate: 1800 },
-);
+// Refresh the stored resting HR at most this often (background, post-response).
+const RESTING_STALE_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 export default async function HeartRateCard({ userId }: Props) {
+  // Read last-known resting HR straight from the DB — instant, no Google call.
   const account = await prisma.healthAccount.findUnique({
     where: { userId },
-    select: { id: true },
+    select: {
+      id: true,
+      restingHr: true,
+      restingDelta: true,
+      restingSource: true,
+      restingHrAt: true,
+    },
   });
   if (!account) return null;
+
+  // If it's stale, kick off a refresh AFTER the response is sent — never blocks
+  // the feed. The new value shows up on the next load / sync.
+  const stale =
+    !account.restingHrAt ||
+    Date.now() - account.restingHrAt.getTime() > RESTING_STALE_MS;
+  if (stale) after(() => refreshRestingHr(userId));
 
   const lastWorkout = await prisma.workout.findFirst({
     where: {
@@ -121,9 +62,23 @@ export default async function HeartRateCard({ userId }: Props) {
     },
   });
 
-  // The card renders immediately from DB data (last-session HR). The resting
-  // HR — the slow part, since it calls Google Health — streams into its own
-  // column behind a small skeleton, so it never blocks the card from showing.
+  const restingNow = account.restingHr;
+  const restingDelta = account.restingDelta;
+  const restingSource = account.restingSource;
+
+  // Nothing useful to show yet.
+  if (!lastWorkout && restingNow === null) return null;
+
+  const trendColor =
+    restingDelta === null
+      ? "var(--fg-dim)"
+      : restingDelta < 0
+        ? "var(--accent)"
+        : restingDelta > 0
+          ? "#f97316"
+          : "var(--fg-dim)";
+  const trendArrow =
+    restingDelta === null ? "" : restingDelta < 0 ? "↓" : restingDelta > 0 ? "↑" : "·";
 
   return (
     <Link
@@ -196,68 +151,30 @@ export default async function HeartRateCard({ userId }: Props) {
           </div>
         )}
 
-        <Suspense fallback={<RestingHRSkeleton />}>
-          <RestingHRColumn userId={userId} />
-        </Suspense>
+        {restingNow !== null && (
+          <div className="space-y-1">
+            <p
+              className="text-[10px] uppercase tracking-wider font-semibold"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              Resting HR
+            </p>
+            <div className="flex items-baseline gap-2 tabular-nums">
+              <span className="text-[24px] font-bold">{restingNow}</span>
+              <span className="text-[10px]" style={{ color: "var(--fg-dim)" }}>
+                bpm
+              </span>
+            </div>
+            <p className="text-[11px]" style={{ color: trendColor }}>
+              {restingDelta !== null && restingDelta !== 0
+                ? `${trendArrow} ${Math.abs(restingDelta)} bpm vs last week`
+                : restingSource === "computed"
+                  ? "estimated from today's HR"
+                  : "today's reading"}
+            </p>
+          </div>
+        )}
       </div>
     </Link>
-  );
-}
-
-/// Streams in the resting-HR figure independently so the slow Google Health
-/// call never delays the rest of the card.
-async function RestingHRColumn({ userId }: { userId: string }) {
-  const { restingNow, restingDelta, restingSource } =
-    await getCachedResting(userId);
-  if (restingNow === null) return null;
-
-  const trendColor =
-    restingDelta === null
-      ? "var(--fg-dim)"
-      : restingDelta < 0
-        ? "var(--accent)"
-        : restingDelta > 0
-          ? "#f97316"
-          : "var(--fg-dim)";
-  const trendArrow =
-    restingDelta === null ? "" : restingDelta < 0 ? "↓" : restingDelta > 0 ? "↑" : "·";
-
-  return (
-    <div className="space-y-1">
-      <p
-        className="text-[10px] uppercase tracking-wider font-semibold"
-        style={{ color: "var(--fg-dim)" }}
-      >
-        Resting HR
-      </p>
-      <div className="flex items-baseline gap-2 tabular-nums">
-        <span className="text-[24px] font-bold">{restingNow}</span>
-        <span className="text-[10px]" style={{ color: "var(--fg-dim)" }}>
-          bpm
-        </span>
-      </div>
-      <p className="text-[11px]" style={{ color: trendColor }}>
-        {restingDelta !== null && restingDelta !== 0
-          ? `${trendArrow} ${Math.abs(restingDelta)} bpm vs last week`
-          : restingSource === "computed"
-            ? "estimated from today's HR"
-            : "today's reading"}
-      </p>
-    </div>
-  );
-}
-
-function RestingHRSkeleton() {
-  return (
-    <div className="space-y-1.5">
-      <div
-        className="h-2.5 w-16 rounded animate-pulse"
-        style={{ background: "var(--bg-elevated)" }}
-      />
-      <div
-        className="h-6 w-20 rounded animate-pulse"
-        style={{ background: "var(--bg-elevated)" }}
-      />
-    </div>
   );
 }
