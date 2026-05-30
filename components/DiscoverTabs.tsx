@@ -21,8 +21,36 @@ export type HighlightItem = {
   cheered: boolean;
 };
 export type ChallengeItem = { id: string; name: string; subtitle: string };
+export type OnFireRow = {
+  id: string;
+  name: string;
+  image: string | null;
+  streak: number;
+  sessions: number;
+};
+export type MilestoneItem = {
+  id: string;
+  emoji: string;
+  title: string;
+  subtitle: string;
+  score: number;
+};
+export type ExploreItem = {
+  id: string;
+  name: string;
+  image: string | null;
+  mutuals: number;
+};
 
-type TabKey = "leaderboard" | "highlights" | "challenges" | "you";
+type TabKey =
+  | "leaderboard"
+  | "highlights"
+  | "challenges"
+  | "onfire"
+  | "milestones"
+  | "explore"
+  | "coach"
+  | "you";
 
 const MEDAL = ["🥇", "🥈", "🥉"];
 
@@ -31,16 +59,26 @@ export default function DiscoverTabs({
   myRankLabel,
   highlights,
   challenges,
+  onFire,
+  milestones,
+  explore,
 }: {
   ranking: RankRow[];
   myRankLabel: string | null;
   highlights: HighlightItem[];
   challenges: ChallengeItem[];
+  onFire: OnFireRow[];
+  milestones: MilestoneItem[];
+  explore: ExploreItem[];
 }) {
   const tabs: { key: TabKey; label: string }[] = [
     { key: "leaderboard", label: "Leaderboard" },
     { key: "highlights", label: "Highlights" },
     { key: "challenges", label: "Challenges" },
+    { key: "onfire", label: "On Fire 🔥" },
+    { key: "milestones", label: "Milestones" },
+    { key: "explore", label: "Explore" },
+    { key: "coach", label: "Coach" },
     { key: "you", label: "For You" },
   ];
   const [active, setActive] = useState<TabKey>("leaderboard");
@@ -83,7 +121,7 @@ export default function DiscoverTabs({
       {active === "highlights" && (
         <Grid>
           {highlights.length === 0 ? (
-            <Empty text="No PRs from your crew yet. Cheers show up here when someone hits one." />
+            <Empty text="No PRs from your crew yet. They show up here when someone hits one." />
           ) : (
             highlights.map((h) => (
               <StoryTile
@@ -127,6 +165,91 @@ export default function DiscoverTabs({
             title="Start a challenge"
             subtitle="Volume · sessions · lifts · streaks"
             cta="Create"
+          />
+        </Grid>
+      )}
+
+      {active === "onfire" && (
+        <Grid>
+          {onFire.length === 0 ? (
+            <Empty text="Nobody's on a streak yet. Log a session to light the fire." />
+          ) : (
+            onFire.map((r) => (
+              <StoryTile
+                key={r.id}
+                href={`/u/${r.id}`}
+                bgImage={r.image}
+                gradient="linear-gradient(160deg, #f97316 0%, #7c2d12 100%)"
+                badge="🔥 On fire"
+                title={r.name}
+                subtitle={
+                  r.streak > 0
+                    ? `${r.streak}-day streak · ${r.sessions} this week`
+                    : `${r.sessions} session${r.sessions === 1 ? "" : "s"} this week`
+                }
+              />
+            ))
+          )}
+        </Grid>
+      )}
+
+      {active === "milestones" && (
+        <Grid>
+          {milestones.length === 0 ? (
+            <Empty text="Milestones unlock as you and your crew rack up workouts and streaks." />
+          ) : (
+            milestones.map((m) => (
+              <StoryTile
+                key={m.id}
+                href="/consistency"
+                gradient="linear-gradient(160deg, #a3e635 0%, #14532d 100%)"
+                badge={`${m.emoji} Milestone`}
+                title={m.title}
+                subtitle={m.subtitle}
+              />
+            ))
+          )}
+        </Grid>
+      )}
+
+      {active === "explore" && (
+        <Grid>
+          {explore.length === 0 ? (
+            <Empty text="As your crew grows, people they follow will show up here to discover." />
+          ) : (
+            explore.map((e) => (
+              <StoryTile
+                key={e.id}
+                href={`/u/${e.id}`}
+                bgImage={e.image}
+                gradient="linear-gradient(160deg, #6366f1 0%, #0a0a0a 100%)"
+                badge="Discover"
+                title={e.name}
+                subtitle={`${e.mutuals} mutual${e.mutuals === 1 ? "" : "s"}`}
+                cta="View"
+              />
+            ))
+          )}
+        </Grid>
+      )}
+
+      {active === "coach" && (
+        <Grid>
+          <StoryTile
+            href="/coach"
+            gradient="linear-gradient(160deg, #0ea5e9 0%, #0a0a0a 100%)"
+            badge="🤖 Coach"
+            title="Ask your coach"
+            subtitle="AI plans, form tips & questions"
+            cta="Chat"
+          />
+          <StoryTile
+            href="/consistency"
+            gradient="linear-gradient(160deg, #3b82f6 0%, #0a0a0a 100%)"
+            badge="📋 Review"
+            title="Weekly review"
+            subtitle="Your coach's read on this week"
+            cta="View"
           />
         </Grid>
       )}

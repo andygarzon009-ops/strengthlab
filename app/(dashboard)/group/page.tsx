@@ -10,7 +10,29 @@ import DiscoverTabs, {
   type RankRow,
   type HighlightItem,
   type ChallengeItem,
+  type OnFireRow,
+  type MilestoneItem,
+  type ExploreItem,
 } from "@/components/DiscoverTabs";
+
+// Current consecutive-day streak ending today/yesterday, from ISO day keys.
+function streakFromDayKeys(dayKeys: string[]): number {
+  if (dayKeys.length === 0) return 0;
+  const days = [...new Set(dayKeys)].sort();
+  const today = new Date().toISOString().slice(0, 10);
+  const yest = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const last = days[days.length - 1];
+  if (last !== today && last !== yest) return 0;
+  let s = 1;
+  for (let i = days.length - 2; i >= 0; i--) {
+    const diff =
+      (new Date(days[i + 1]).getTime() - new Date(days[i]).getTime()) /
+      86_400_000;
+    if (Math.round(diff) === 1) s++;
+    else break;
+  }
+  return s;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -198,6 +220,99 @@ export default async function CrewPage() {
       return { id: c.id, name: c.name, subtitle: `${rank} · ${timeLeft(c.endsAt)}` };
     });
 
+  // ---- On Fire: current streaks across the crew ----
+  const streakRows = await prisma.workout.findMany({
+    where: {
+      userId: { in: everyoneIds },
+      date: { gte: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000) },
+    },
+    select: { userId: true, date: true },
+  });
+  const daysByUser = new Map<string, string[]>();
+  for (const r of streakRows) {
+    const arr = daysByUser.get(r.userId) ?? [];
+    arr.push(r.date.toISOString().slice(0, 10));
+    daysByUser.set(r.userId, arr);
+  }
+  const onFire: OnFireRow[] = everyoneIds
+    .map((id) => ({
+      id,
+      name: id === userId ? "You" : (nameById.get(id) ?? "Athlete"),
+      image: imageById.get(id) ?? null,
+      streak: streakFromDayKeys(daysByUser.get(id) ?? []),
+      sessions: stat.get(id)?.sessions ?? 0,
+    }))
+    .filter((r) => r.streak > 0 || r.sessions > 0)
+    .sort((a, b) =>
+      b.streak !== a.streak ? b.streak - a.streak : b.sessions - a.sessions,
+    );
+
+  // ---- Milestones: lifetime workout counts → level + round-number badges ----
+  const totals = await prisma.workout.groupBy({
+    by: ["userId"],
+    where: { userId: { in: everyoneIds } },
+    _count: { _all: true },
+  });
+  const totalByUser = new Map(totals.map((t) => [t.userId, t._count._all]));
+  const milestones: MilestoneItem[] = [];
+  for (const id of everyoneIds) {
+    const name = id === userId ? "You" : (nameById.get(id) ?? "Athlete");
+    const total = totalByUser.get(id) ?? 0;
+    const level = Math.floor(total / 10) + 1;
+    const streak = streakFromDayKeys(daysByUser.get(id) ?? []);
+    if (total >= 10) {
+      milestones.push({
+        id: `lvl-${id}`,
+        emoji: "⚡",
+        title: id === userId ? `You're Level ${level}` : `${name} · Level ${level}`,
+        subtitle: `${total} workouts logged`,
+        score: level * 1000 + total,
+      });
+    }
+    if (streak >= 3) {
+      milestones.push({
+        id: `streak-${id}`,
+        emoji: "🔥",
+        title: `${name} · ${streak}-day streak`,
+        subtitle: "On a roll this week",
+        score: streak,
+      });
+    }
+  }
+  milestones.sort((a, b) => b.score - a.score);
+
+  // ---- Explore: friends-of-friends you don't follow yet ----
+  let explore: ExploreItem[] = [];
+  if (followingIds.length > 0) {
+    const fof = await prisma.follow.findMany({
+      where: {
+        followerId: { in: followingIds },
+        followingId: { notIn: everyoneIds },
+      },
+      select: { followingId: true },
+    });
+    const mutualCount = new Map<string, number>();
+    for (const f of fof) {
+      mutualCount.set(f.followingId, (mutualCount.get(f.followingId) ?? 0) + 1);
+    }
+    const candidateIds = [...mutualCount.keys()];
+    if (candidateIds.length > 0) {
+      const cands = await prisma.user.findMany({
+        where: { id: { in: candidateIds } },
+        select: { id: true, name: true, image: true },
+      });
+      explore = cands
+        .map((u) => ({
+          id: u.id,
+          name: u.name,
+          image: u.image,
+          mutuals: mutualCount.get(u.id) ?? 0,
+        }))
+        .sort((a, b) => b.mutuals - a.mutuals)
+        .slice(0, 8);
+    }
+  }
+
   const ranking: RankRow[] = ranked.map((r) => ({
     id: r.id,
     name: r.name,
@@ -265,6 +380,9 @@ export default async function CrewPage() {
         myRankLabel={myRankLabel}
         highlights={highlights}
         challenges={challenges}
+        onFire={onFire}
+        milestones={milestones}
+        explore={explore}
       />
 
       {/* Share + add (collapses once you've followed someone) */}
