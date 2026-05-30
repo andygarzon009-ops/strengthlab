@@ -39,9 +39,11 @@ type UserProfile = {
 
 export default function ProfileForm({ user }: { user: UserProfile }) {
   const [pending, startTransition] = useTransition();
-  const [showMeasurements, setShowMeasurements] = useState(
-    hasAnyMeasurement(user)
-  );
+  // Both detail sections start collapsed so the profile opens clean — tap a
+  // header to expand. Form state lives in `form`, so collapsing never loses
+  // edits and Save keeps working.
+  const [showTraining, setShowTraining] = useState(false);
+  const [showMeasurements, setShowMeasurements] = useState(false);
   const [saved, setSaved] = useState(false);
   const [image, setImage] = useState<string | null>(user.image);
   const [coverImage, setCoverImage] = useState<string | null>(user.coverImage);
@@ -166,18 +168,43 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
         </div>
       </div>
 
-      {/* Training profile */}
+      {/* Training profile (collapsible) */}
       <div className="card p-5 mb-3">
-        <h2 className="font-semibold text-[14px] tracking-tight mb-1">
-          Training profile
-        </h2>
-        <p
-          className="text-[11px] mb-4"
-          style={{ color: "var(--fg-dim)" }}
+        <button
+          type="button"
+          onClick={() => setShowTraining((v) => !v)}
+          aria-expanded={showTraining}
+          className="w-full text-left"
         >
-          Your coach tunes itself to these answers.
-        </p>
-        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-[14px] tracking-tight">
+              Training profile
+            </h2>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--fg-muted)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                transform: showTraining ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 0.2s",
+              }}
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </div>
+          <p className="text-[11px] mt-1" style={{ color: "var(--fg-dim)" }}>
+            Name, body weight, goals, split &amp; coaching prefs — your coach
+            tunes itself to these.
+          </p>
+        </button>
+        <form onSubmit={handleSubmit} className="space-y-3 mt-4">
+          {showTraining && (
+            <>
           <Field
             label="Name"
             value={form.name}
@@ -372,6 +399,8 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
               and advice always respect it.
             </p>
           </div>
+            </>
+          )}
 
           {/* Body measurements (collapsible) */}
           <div
@@ -646,10 +675,6 @@ function Select({
       ))}
     </select>
   );
-}
-
-function hasAnyMeasurement(user: UserProfile): boolean {
-  return countMeasurements(user) > 0;
 }
 
 function countMeasurements(user: UserProfile): number {

@@ -4,7 +4,10 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { searchUsers, type UserSearchResult } from "@/lib/actions/users";
-import { sendFriendRequest } from "@/lib/actions/friends";
+import {
+  sendFriendRequest,
+  acceptFriendRequest,
+} from "@/lib/actions/friends";
 import Avatar from "@/components/Avatar";
 
 /// Search people by @username (or name) and send a friend request without
@@ -13,13 +16,15 @@ export default function FriendSearch() {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<UserSearchResult[]>([]);
-  // Per-user outcome label after tapping Add: "outgoing" → Requested,
-  // "friends" → Friends. Driven by the action's real return value.
-  const [outcome, setOutcome] = useState<Map<string, "outgoing" | "friends">>(
-    new Map(),
-  );
+  // Local override of a row's relationship after an action, so the button
+  // updates instantly. The base state comes from the search result itself.
+  const [override, setOverride] = useState<
+    Map<string, "none" | "outgoing" | "incoming" | "friends">
+  >(new Map());
   const [searching, startSearch] = useTransition();
   const [, startSend] = useTransition();
+
+  const stateOf = (u: UserSearchResult) => override.get(u.id) ?? u.state;
 
   const onChange = (val: string) => {
     setQ(val);
@@ -28,23 +33,25 @@ export default function FriendSearch() {
       return;
     }
     startSearch(async () => {
+      setOverride(new Map()); // fresh results carry their own current state
       setResults(await searchUsers(val));
     });
   };
 
   const add = (id: string) => {
-    setOutcome((m) => new Map(m).set(id, "outgoing")); // optimistic
+    setOverride((m) => new Map(m).set(id, "outgoing")); // optimistic
     startSend(async () => {
       const state = await sendFriendRequest(id);
-      // Trust the action's real result; only "outgoing"/"friends" are terminal
-      // success states. Anything else means it didn't take — let them retry.
-      setOutcome((m) => {
-        const next = new Map(m);
-        if (state === "friends") next.set(id, "friends");
-        else if (state === "outgoing") next.set(id, "outgoing");
-        else next.delete(id);
-        return next;
-      });
+      // Trust the action's real result so we never lie about success.
+      setOverride((m) => new Map(m).set(id, state === "self" ? "none" : state));
+      router.refresh();
+    });
+  };
+
+  const accept = (id: string) => {
+    setOverride((m) => new Map(m).set(id, "friends")); // optimistic
+    startSend(async () => {
+      await acceptFriendRequest(id);
       router.refresh();
     });
   };
@@ -94,27 +101,50 @@ export default function FriendSearch() {
                     </p>
                   )}
                 </Link>
-                <button
-                  type="button"
-                  disabled={outcome.has(u.id)}
-                  onClick={() => add(u.id)}
-                  className="px-3 py-1.5 rounded-lg text-[12px] font-semibold shrink-0 disabled:opacity-60"
-                  style={
-                    outcome.has(u.id)
-                      ? {
-                          background: "var(--bg-card)",
-                          border: "1px solid var(--border)",
-                          color: "var(--fg-dim)",
-                        }
-                      : { background: "var(--accent)", color: "#0a0a0a" }
-                  }
-                >
-                  {outcome.get(u.id) === "friends"
-                    ? "✓ Friends"
-                    : outcome.has(u.id)
-                      ? "Requested"
-                      : "Add"}
-                </button>
+                {(() => {
+                  const s = stateOf(u);
+                  const ghost = {
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--border)",
+                    color: "var(--fg-dim)",
+                  };
+                  const accent = { background: "var(--accent)", color: "#0a0a0a" };
+                  const cls =
+                    "px-3 py-1.5 rounded-lg text-[12px] font-semibold shrink-0 disabled:opacity-60";
+                  if (s === "friends")
+                    return (
+                      <span className={cls} style={ghost}>
+                        ✓ Friends
+                      </span>
+                    );
+                  if (s === "outgoing")
+                    return (
+                      <span className={cls} style={ghost}>
+                        Requested
+                      </span>
+                    );
+                  if (s === "incoming")
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => accept(u.id)}
+                        className={cls}
+                        style={accent}
+                      >
+                        Accept
+                      </button>
+                    );
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => add(u.id)}
+                      className={cls}
+                      style={accent}
+                    >
+                      Add
+                    </button>
+                  );
+                })()}
               </div>
             ))
           )}
