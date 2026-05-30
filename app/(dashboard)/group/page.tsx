@@ -3,10 +3,11 @@ import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { shapeForType } from "@/lib/exercises";
 import { loadTopChallenge } from "@/lib/loadChallenges";
-import { challengeTypeLabel, formatScore, timeLeft } from "@/lib/crewChallenges";
+import { timeLeft } from "@/lib/crewChallenges";
 import GrowCrew from "@/components/GrowCrew";
 import CheerButton from "@/components/CheerButton";
 import Avatar from "@/components/Avatar";
+import StoryTile from "@/components/StoryTile";
 
 export const dynamic = "force-dynamic";
 
@@ -173,6 +174,7 @@ export default async function CrewPage() {
   const highlights = prRows.map((p) => ({
     id: p.id,
     who: nameById.get(p.userId) ?? "Athlete",
+    image: imageById.get(p.userId) ?? null,
     text: `PR'd ${p.exercise.name} ${Math.round(p.value)}${
       p.reps ? ` × ${p.reps}` : ""
     }`,
@@ -237,107 +239,76 @@ export default async function CrewPage() {
         </a>
       </div>
 
-      {/* Active challenge */}
-      {topChallenge ? (
-        <Link
-          href={`/group/challenges/${topChallenge.id}`}
-          className="card block p-4 mb-6 transition-colors"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(34,197,94,0.08) 0%, var(--bg-card) 70%)",
-            border: "1px solid rgba(34,197,94,0.25)",
-          }}
+      {/* Discover — Snapchat-style promo tiles */}
+      <div className="mb-6">
+        <p
+          className="text-[10px] uppercase tracking-wider font-semibold mb-2"
+          style={{ color: "var(--fg-dim)" }}
         >
-          <div className="flex items-baseline justify-between mb-2">
-            <div className="min-w-0">
-              <p className="label" style={{ color: "var(--accent)" }}>
-                🏆 Active challenge
-              </p>
-              <p className="text-[15px] font-bold tracking-tight truncate mt-0.5">
-                {topChallenge.name}
-              </p>
-            </div>
-            <span className="text-[10px] shrink-0 ml-2" style={{ color: "var(--fg-dim)" }}>
-              {timeLeft(topChallenge.endsAt)}
-            </span>
-          </div>
-          <div className="space-y-1">
-            {topChallenge.standings.slice(0, 3).map((s, i) => (
-              <div
-                key={s.userId}
-                className="flex items-center justify-between text-[12px]"
-              >
-                <span
-                  className="truncate"
-                  style={{
-                    color: s.isYou ? "var(--accent)" : "var(--fg)",
-                    fontWeight: s.isYou ? 600 : 400,
-                  }}
-                >
-                  {MEDAL[i] ?? `${i + 1}`} {s.name}
-                  {s.reachedTarget ? " ✓" : ""}
-                </span>
-                <span
-                  className="tabular-nums shrink-0 ml-2"
-                  style={{ color: "var(--fg-dim)" }}
-                >
-                  {formatScore(topChallenge.type, s.score)}
-                </span>
-              </div>
-            ))}
-          </div>
-          <p className="text-[11px] mt-2" style={{ color: "var(--fg-dim)" }}>
-            {challengeTypeLabel(topChallenge.type)} · view all challenges →
-          </p>
-        </Link>
-      ) : (
-        <Link
-          href="/group/challenges"
-          className="card block p-4 mb-6 text-center transition-colors"
-        >
-          <p className="text-[13px] font-semibold" style={{ color: "var(--accent)" }}>
-            🏆 Start a challenge
-          </p>
-          <p className="text-[11px] mt-1" style={{ color: "var(--fg-dim)" }}>
-            Volume races, session counts, lift races, streak battles.
-          </p>
-        </Link>
-      )}
+          Discover
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {topChallenge ? (
+            <StoryTile
+              href={`/group/challenges/${topChallenge.id}`}
+              gradient="linear-gradient(160deg, #16a34a 0%, #052e16 100%)"
+              badge="🏆 Challenge"
+              title={topChallenge.name}
+              subtitle={(() => {
+                const i = topChallenge.standings.findIndex((s) => s.isYou);
+                const rank = i >= 0 ? `You're #${i + 1}` : `${topChallenge.memberCount} in`;
+                return `${rank} · ${timeLeft(topChallenge.endsAt)}`;
+              })()}
+              cta="View"
+            />
+          ) : (
+            <StoryTile
+              href="/group/challenges"
+              gradient="linear-gradient(160deg, #16a34a 0%, #052e16 100%)"
+              badge="🏆 Challenge"
+              title="Start a challenge"
+              subtitle="Volume · sessions · lifts · streaks"
+              cta="Create"
+            />
+          )}
 
-      {/* Highlights — recent crew PRs, cheerable */}
-      {highlights.length > 0 && (
-        <div className="mb-6">
-          <p
-            className="text-[10px] uppercase tracking-wider font-semibold mb-2"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            Highlights
-          </p>
-          <div
-            className="rounded-2xl divide-y"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-          >
-            {highlights.map((h) => (
-              <div key={h.id} className="flex items-center gap-3 px-4 py-3">
-                <span className="text-[16px] shrink-0">🏆</span>
-                <Link href={`/workout/${h.workoutId}`} className="min-w-0 flex-1">
-                  <p className="text-[13px] truncate">
-                    <span className="font-semibold">{h.who}</span> {h.text}
-                  </p>
-                  <p className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
-                    {ago(h.date)}
-                  </p>
-                </Link>
+          {highlights.map((h) => (
+            <StoryTile
+              key={h.id}
+              href={`/workout/${h.workoutId}`}
+              bgImage={h.image}
+              gradient="linear-gradient(160deg, #334155 0%, #0a0a0a 100%)"
+              badge="🏆 PR"
+              title={h.who}
+              subtitle={`${h.text} · ${ago(h.date)}`}
+              action={
                 <CheerButton
                   workoutId={h.workoutId}
                   initialCheered={h.cheered}
                   initialCount={h.count}
                 />
-              </div>
-            ))}
-          </div>
+              }
+            />
+          ))}
+
+          <StoryTile
+            href="/consistency"
+            gradient="linear-gradient(160deg, #3b82f6 0%, #0a0a0a 100%)"
+            badge="📈 You"
+            title="Your week"
+            subtitle="Progress, PRs & projections"
+            cta="View"
+          />
+          <StoryTile
+            href="#grow"
+            gradient="linear-gradient(160deg, #a3e635 0%, #14532d 100%)"
+            badge="Crew"
+            title="Grow your crew"
+            subtitle="Invite friends to train"
+            cta="Share"
+          />
         </div>
-      )}
+      </div>
 
       {/* This-week ranking */}
       <div className="mb-6">
