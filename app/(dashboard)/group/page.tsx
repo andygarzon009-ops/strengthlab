@@ -2,12 +2,15 @@ import Link from "next/link";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { shapeForType } from "@/lib/exercises";
-import { loadTopChallenge } from "@/lib/loadChallenges";
+import { loadChallengesForUser } from "@/lib/loadChallenges";
 import { timeLeft } from "@/lib/crewChallenges";
 import GrowCrew from "@/components/GrowCrew";
-import CheerButton from "@/components/CheerButton";
 import Avatar from "@/components/Avatar";
-import StoryTile from "@/components/StoryTile";
+import DiscoverTabs, {
+  type RankRow,
+  type HighlightItem,
+  type ChallengeItem,
+} from "@/components/DiscoverTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +22,10 @@ function ago(d: Date): string {
   return day === 1 ? "yesterday" : `${day}d ago`;
 }
 
+function fmtVol(v: number): string {
+  return v >= 1000 ? `${(v / 1000).toFixed(1)}k lb` : `${Math.round(v)} lb`;
+}
+
 // Story-style ring: bright gradient if trained today, soft accent within a
 // week, no ring when quiet.
 function ringFor(last: Date | null): string | undefined {
@@ -27,10 +34,6 @@ function ringFor(last: Date | null): string | undefined {
   if (days <= 0) return "linear-gradient(135deg, #22c55e, #a3e635)";
   if (days <= 7) return "rgba(34,197,94,0.45)";
   return undefined;
-}
-
-function fmtVol(v: number): string {
-  return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v));
 }
 
 const MEDAL = ["🥇", "🥈", "🥉"];
@@ -45,7 +48,7 @@ export default async function CrewPage() {
   const followingIds = follows.map((f) => f.followingId);
   const everyoneIds = [userId, ...followingIds];
 
-  const [people, lastByUser, weekWorkouts] = await Promise.all([
+  const [people, lastByUser, weekWorkouts, challengeViews] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: everyoneIds } },
       select: { id: true, name: true, image: true },
@@ -68,6 +71,7 @@ export default async function CrewPage() {
         },
       },
     }),
+    loadChallengesForUser(userId),
   ]);
 
   const nameById = new Map(people.map((p) => [p.id, p.name]));
@@ -131,8 +135,7 @@ export default async function CrewPage() {
     })),
   ];
 
-  // Highlights: recent weight PRs from people you follow, each cheerable
-  // (a cheer is a 🏆 reaction on the underlying workout).
+  // Highlights: recent weight PRs from people you follow, each cheerable.
   const prRows =
     followingIds.length === 0
       ? []
@@ -171,20 +174,41 @@ export default async function CrewPage() {
     cheerCount.set(r.workoutId, (cheerCount.get(r.workoutId) ?? 0) + 1);
     if (r.userId === userId) iCheered.add(r.workoutId);
   }
-  const highlights = prRows.map((p) => ({
-    id: p.id,
-    who: nameById.get(p.userId) ?? "Athlete",
-    image: imageById.get(p.userId) ?? null,
-    text: `PR'd ${p.exercise.name} ${Math.round(p.value)}${
-      p.reps ? ` × ${p.reps}` : ""
-    }`,
-    workoutId: p.workoutId as string,
-    date: p.date,
-    count: cheerCount.get(p.workoutId as string) ?? 0,
-    cheered: iCheered.has(p.workoutId as string),
-  }));
+  const highlights: HighlightItem[] = prRows.map((p) => {
+    const wid = p.workoutId as string;
+    return {
+      id: p.id,
+      who: nameById.get(p.userId) ?? "Athlete",
+      image: imageById.get(p.userId) ?? null,
+      subtitle: `PR'd ${p.exercise.name} ${Math.round(p.value)}${
+        p.reps ? ` × ${p.reps}` : ""
+      } · ${ago(p.date)}`,
+      workoutId: wid,
+      count: cheerCount.get(wid) ?? 0,
+      cheered: iCheered.has(wid),
+    };
+  });
 
-  const topChallenge = await loadTopChallenge(userId);
+  // Active challenges → Discover tiles.
+  const challenges: ChallengeItem[] = challengeViews
+    .filter((c) => !c.endsAt || c.endsAt.getTime() > Date.now())
+    .map((c) => {
+      const i = c.standings.findIndex((s) => s.isYou);
+      const rank = i >= 0 ? `You're #${i + 1}` : `${c.memberCount} in`;
+      return { id: c.id, name: c.name, subtitle: `${rank} · ${timeLeft(c.endsAt)}` };
+    });
+
+  const ranking: RankRow[] = ranked.map((r) => ({
+    id: r.id,
+    name: r.name,
+    isYou: r.isYou,
+    sessions: r.sessions,
+    volumeLabel: fmtVol(r.volume),
+  }));
+  const myRankLabel =
+    anyActivity && myRank > 0
+      ? `You're #${myRank}${myRank <= 3 ? ` ${MEDAL[myRank - 1]}` : ""}`
+      : null;
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
@@ -200,22 +224,19 @@ export default async function CrewPage() {
         className="flex gap-3 mb-6 overflow-x-auto -mx-4 px-4 pb-1"
         style={{ scrollbarWidth: "none" }}
       >
-        {circles.map((c) => {
-          const ring = ringFor(c.last);
-          return (
-            <Link
-              key={c.id}
-              href={`/u/${c.id}`}
-              className="flex flex-col items-center gap-1.5 shrink-0"
-              style={{ width: 64 }}
-            >
-              <Avatar name={c.name} image={c.image} size={60} ring={ring} />
-              <span className="text-[11px] truncate w-full text-center">
-                {c.name === "You" ? "You" : c.name.split(" ")[0]}
-              </span>
-            </Link>
-          );
-        })}
+        {circles.map((c) => (
+          <Link
+            key={c.id}
+            href={`/u/${c.id}`}
+            className="flex flex-col items-center gap-1.5 shrink-0"
+            style={{ width: 64 }}
+          >
+            <Avatar name={c.name} image={c.image} size={60} ring={ringFor(c.last)} />
+            <span className="text-[11px] truncate w-full text-center">
+              {c.name === "You" ? "You" : c.name.split(" ")[0]}
+            </span>
+          </Link>
+        ))}
         <a
           href="#grow"
           className="flex flex-col items-center gap-1.5 shrink-0"
@@ -239,139 +260,12 @@ export default async function CrewPage() {
         </a>
       </div>
 
-      {/* Discover — Snapchat-style promo tiles */}
-      <div className="mb-6">
-        <p
-          className="text-[10px] uppercase tracking-wider font-semibold mb-2"
-          style={{ color: "var(--fg-dim)" }}
-        >
-          Discover
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          {topChallenge ? (
-            <StoryTile
-              href={`/group/challenges/${topChallenge.id}`}
-              gradient="linear-gradient(160deg, #16a34a 0%, #052e16 100%)"
-              badge="🏆 Challenge"
-              title={topChallenge.name}
-              subtitle={(() => {
-                const i = topChallenge.standings.findIndex((s) => s.isYou);
-                const rank = i >= 0 ? `You're #${i + 1}` : `${topChallenge.memberCount} in`;
-                return `${rank} · ${timeLeft(topChallenge.endsAt)}`;
-              })()}
-              cta="View"
-            />
-          ) : (
-            <StoryTile
-              href="/group/challenges"
-              gradient="linear-gradient(160deg, #16a34a 0%, #052e16 100%)"
-              badge="🏆 Challenge"
-              title="Start a challenge"
-              subtitle="Volume · sessions · lifts · streaks"
-              cta="Create"
-            />
-          )}
-
-          {highlights.map((h) => (
-            <StoryTile
-              key={h.id}
-              href={`/workout/${h.workoutId}`}
-              bgImage={h.image}
-              gradient="linear-gradient(160deg, #334155 0%, #0a0a0a 100%)"
-              badge="🏆 PR"
-              title={h.who}
-              subtitle={`${h.text} · ${ago(h.date)}`}
-              action={
-                <CheerButton
-                  workoutId={h.workoutId}
-                  initialCheered={h.cheered}
-                  initialCount={h.count}
-                />
-              }
-            />
-          ))}
-
-          <StoryTile
-            href="/consistency"
-            gradient="linear-gradient(160deg, #3b82f6 0%, #0a0a0a 100%)"
-            badge="📈 You"
-            title="Your week"
-            subtitle="Progress, PRs & projections"
-            cta="View"
-          />
-          <StoryTile
-            href="#grow"
-            gradient="linear-gradient(160deg, #a3e635 0%, #14532d 100%)"
-            badge="Crew"
-            title="Grow your crew"
-            subtitle="Invite friends to train"
-            cta="Share"
-          />
-        </div>
-      </div>
-
-      {/* This-week ranking */}
-      <div className="mb-6">
-        <div className="flex items-baseline justify-between mb-2">
-          <p
-            className="text-[10px] uppercase tracking-wider font-semibold"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            This week
-          </p>
-          {anyActivity && myRank > 0 && (
-            <p className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
-              you&apos;re #{myRank}
-              {myRank <= 3 ? ` ${MEDAL[myRank - 1]}` : ""}
-            </p>
-          )}
-        </div>
-        {!anyActivity ? (
-          <div
-            className="rounded-2xl p-5 text-center"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-          >
-            <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
-              {followingIds.length === 0
-                ? "Follow some friends and your weekly ranking shows up here."
-                : "Nobody has logged this week yet. Be first."}
-            </p>
-          </div>
-        ) : (
-          <div
-            className="rounded-2xl divide-y"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-          >
-            {ranked.map((r, i) => (
-              <Link
-                key={r.id}
-                href={`/u/${r.id}`}
-                className="flex items-center gap-3 px-4 py-3 transition-colors"
-                style={r.isYou ? { background: "var(--accent-dim)" } : undefined}
-              >
-                <span
-                  className="w-6 text-center text-[13px] font-bold tabular-nums shrink-0"
-                  style={{ color: i < 3 ? "var(--fg)" : "var(--fg-dim)" }}
-                >
-                  {i < 3 ? MEDAL[i] : i + 1}
-                </span>
-                <span className="flex-1 min-w-0 text-[14px] font-medium truncate">
-                  {r.name}
-                </span>
-                <span className="text-right tabular-nums shrink-0">
-                  <span className="text-[14px] font-bold">{r.sessions}</span>
-                  <span
-                    className="text-[11px] ml-1"
-                    style={{ color: "var(--fg-dim)" }}
-                  >
-                    {r.sessions === 1 ? "session" : "sessions"} · {fmtVol(r.volume)} lb
-                  </span>
-                </span>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+      <DiscoverTabs
+        ranking={ranking}
+        myRankLabel={myRankLabel}
+        highlights={highlights}
+        challenges={challenges}
+      />
 
       {/* Share + add (collapses once you've followed someone) */}
       <div id="grow" style={{ scrollMarginTop: 16 }}>
