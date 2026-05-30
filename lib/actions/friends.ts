@@ -6,11 +6,15 @@ import { revalidatePath } from "next/cache";
 import { sendPushToUser } from "@/lib/push";
 
 async function actorName(userId: string): Promise<string> {
-  const u = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { name: true },
-  });
-  return u?.name ?? "Someone";
+  try {
+    const u = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+    return u?.name ?? "Someone";
+  } catch {
+    return "Someone";
+  }
 }
 
 export type FriendState =
