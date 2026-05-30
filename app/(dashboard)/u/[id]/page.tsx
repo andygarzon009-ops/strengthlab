@@ -5,8 +5,9 @@ import { e1rm } from "@/lib/strengthProgression";
 import { isMachineExercise } from "@/lib/exercises";
 import { normalizeExerciseName } from "@/lib/exerciseIdentity";
 import BackButton from "@/components/BackButton";
-import FollowButton from "@/components/FollowButton";
+import FriendButton from "@/components/FriendButton";
 import ShareProfileButton from "@/components/ShareProfileButton";
+import { getFriendState } from "@/lib/actions/friends";
 import Avatar from "@/components/Avatar";
 
 export const dynamic = "force-dynamic";
@@ -39,14 +40,7 @@ export default async function PublicProfilePage({
   if (!user) notFound();
 
   const isSelf = user.id === viewerId;
-  const following = isSelf
-    ? false
-    : (await prisma.follow.findUnique({
-        where: {
-          followerId_followingId: { followerId: viewerId, followingId: user.id },
-        },
-        select: { id: true },
-      })) !== null;
+  const friendState = await getFriendState(viewerId, user.id);
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -182,7 +176,7 @@ export default async function PublicProfilePage({
             {isSelf ? (
               <ShareProfileButton userId={user.id} />
             ) : (
-              <FollowButton targetUserId={user.id} initialFollowing={following} />
+              <FriendButton targetUserId={user.id} initialState={friendState} />
             )}
           </div>
         </div>

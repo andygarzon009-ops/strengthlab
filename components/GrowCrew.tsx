@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ShareProfileButton from "@/components/ShareProfileButton";
 import AddFollow from "@/components/AddFollow";
 
@@ -15,6 +15,17 @@ export default function GrowCrew({
   defaultOpen: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+
+  // Open automatically when the "+ Add" circle (which links to #grow) is
+  // tapped, including repeat taps via the hashchange event.
+  useEffect(() => {
+    const openIfTargeted = () => {
+      if (window.location.hash === "#grow") setOpen(true);
+    };
+    openIfTargeted();
+    window.addEventListener("hashchange", openIfTargeted);
+    return () => window.removeEventListener("hashchange", openIfTargeted);
+  }, []);
 
   return (
     <div

@@ -6,6 +6,7 @@ import { loadChallengesForUser } from "@/lib/loadChallenges";
 import { timeLeft } from "@/lib/crewChallenges";
 import GrowCrew from "@/components/GrowCrew";
 import Avatar from "@/components/Avatar";
+import FriendRequests, { type IncomingRequest } from "@/components/FriendRequests";
 import DiscoverTabs, {
   type RankRow,
   type HighlightItem,
@@ -140,6 +141,18 @@ export default async function CrewPage() {
       last: lastById.get(id) ?? null,
     }))
     .sort((a, b) => (b.last?.getTime() ?? 0) - (a.last?.getTime() ?? 0));
+
+  // Incoming friend requests (pending) → inbox.
+  const incomingRaw = await prisma.friendRequest.findMany({
+    where: { toUserId: userId, status: "PENDING" },
+    orderBy: { createdAt: "desc" },
+    select: { from: { select: { id: true, name: true, image: true } } },
+  });
+  const incoming: IncomingRequest[] = incomingRaw.map((r) => ({
+    fromUserId: r.from.id,
+    name: r.from.name,
+    image: r.from.image,
+  }));
 
   // Story-style circles: you first, then people you follow (most recent).
   const circles = [
@@ -374,6 +387,8 @@ export default async function CrewPage() {
           </span>
         </a>
       </div>
+
+      <FriendRequests requests={incoming} />
 
       <DiscoverTabs
         ranking={ranking}

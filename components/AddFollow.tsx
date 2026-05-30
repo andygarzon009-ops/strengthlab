@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { followUser } from "@/lib/actions/follow";
+import { sendFriendRequest } from "@/lib/actions/friends";
 
-/// Paste a friend's profile link (or id) to follow them without leaving the
-/// Crew page. The usual path is opening their shared /u/<id> link and tapping
-/// Follow — this is the manual fallback.
+/// Paste a friend's profile link (or id) to send them a friend request
+/// without leaving the Crew page. The usual path is opening their shared
+/// /u/<id> link and tapping Add friend — this is the manual fallback.
 export default function AddFollow() {
   const router = useRouter();
   const [val, setVal] = useState("");
@@ -21,11 +21,11 @@ export default function AddFollow() {
       : raw;
     if (!id) return;
     startTransition(async () => {
-      await followUser(id);
+      await sendFriendRequest(id);
       setVal("");
       setDone(true);
       router.refresh();
-      setTimeout(() => setDone(false), 1600);
+      setTimeout(() => setDone(false), 1800);
     });
   };
 
@@ -52,7 +52,7 @@ export default function AddFollow() {
         className="px-4 rounded-xl text-[13px] font-semibold disabled:opacity-50"
         style={{ background: "var(--accent)", color: "#0a0a0a" }}
       >
-        {pending ? "…" : done ? "✓" : "Follow"}
+        {pending ? "…" : done ? "Sent ✓" : "Add"}
       </button>
     </div>
   );

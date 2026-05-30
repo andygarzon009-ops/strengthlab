@@ -85,6 +85,28 @@ model User {
   followers       Follow[]              @relation("Followers")
   crewChallenges       CrewChallenge[]       @relation("CrewChallengeCreator")
   crewChallengeMembers CrewChallengeMember[]
+  sentFriendRequests     FriendRequest[]    @relation("FriendRequestFrom")
+  receivedFriendRequests FriendRequest[]    @relation("FriendRequestTo")
+}
+
+/// Pending friend handshake. A friendship is mutual: accepting a request
+/// creates Follow edges in both directions, so all the follow-based queries
+/// (feed, crew ranking, highlights, explore) keep working unchanged. Rows
+/// are kept after accept/decline as a history + to gate re-requests.
+model FriendRequest {
+  id         String   @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  status     String   @default("PENDING") // PENDING | ACCEPTED | DECLINED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  from User @relation("FriendRequestFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  to   User @relation("FriendRequestTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@unique([fromUserId, toUserId])
+  @@index([toUserId])
+  @@index([fromUserId])
 }
 
 /// Follow-based crew challenge (replaces the old group-scoped Challenge).
