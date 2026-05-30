@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import StoryTile from "@/components/StoryTile";
 import CheerButton from "@/components/CheerButton";
 
@@ -63,13 +64,41 @@ export default function DiscoverTabs({
   milestones: MilestoneItem[];
   explore: ExploreItem[];
 }) {
+  // Highlights leads — it's the most visual, aesthetic page.
   const tabs: { key: TabKey; label: string }[] = [
-    { key: "leaderboard", label: "Leaderboard" },
     { key: "highlights", label: "Highlights" },
+    { key: "leaderboard", label: "Leaderboard" },
     { key: "challenges", label: "Challenges" },
     { key: "you", label: "For You" },
   ];
-  const [active, setActive] = useState<TabKey>("leaderboard");
+
+  // Restore the active tab from the URL (?tab=) so returning here via a back
+  // button lands on the SAME tab the user left from, not a reset default.
+  const searchParams = useSearchParams();
+  const validKeys = tabs.map((t) => t.key);
+  const urlTab = searchParams.get("tab") as TabKey | null;
+  const [active, setActive] = useState<TabKey>(
+    urlTab && validKeys.includes(urlTab) ? urlTab : "highlights",
+  );
+
+  const selectTab = (key: TabKey) => {
+    setActive(key);
+    // Reflect the tab in the URL without a navigation/scroll jump.
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", key);
+      window.history.replaceState(null, "", url.toString());
+    }
+  };
+
+  // Append the current Crew tab as the return target so any tile we open knows
+  // where "back" should go (handled by BackButton's ?from support).
+  const backTo = `/group?tab=${active}`;
+  const withFrom = (href: string) => {
+    if (href.startsWith("#")) return href; // same-page anchors
+    const sep = href.includes("?") ? "&" : "?";
+    return `${href}${sep}from=${encodeURIComponent(backTo)}`;
+  };
 
   // Highlights tab also surfaces on-fire streaks + milestones as cards.
   const highlightsEmpty =
@@ -88,7 +117,7 @@ export default function DiscoverTabs({
             <button
               key={t.key}
               type="button"
-              onClick={() => setActive(t.key)}
+              onClick={() => selectTab(t.key)}
               className="text-[13px] px-3.5 py-1.5 rounded-full whitespace-nowrap shrink-0 font-semibold transition-colors"
               style={
                 on
@@ -122,7 +151,7 @@ export default function DiscoverTabs({
                 .map((r) => (
                   <StoryTile
                     key={`fire-${r.id}`}
-                    href={`/u/${r.id}`}
+                    href={withFrom(`/u/${r.id}`)}
                     bgImage={r.image}
                     gradient="linear-gradient(160deg, #f97316 0%, #7c2d12 100%)"
                     badge="🔥 On fire"
@@ -135,7 +164,7 @@ export default function DiscoverTabs({
               {highlights.map((h) => (
                 <StoryTile
                   key={h.id}
-                  href={`/workout/${h.workoutId}`}
+                  href={withFrom(`/workout/${h.workoutId}`)}
                   bgImage={h.image}
                   gradient="linear-gradient(160deg, #334155 0%, #0a0a0a 100%)"
                   badge="🏆 PR"
@@ -155,7 +184,7 @@ export default function DiscoverTabs({
               {milestones.map((m) => (
                 <StoryTile
                   key={m.id}
-                  href="/consistency"
+                  href={withFrom("/consistency")}
                   gradient="linear-gradient(160deg, #a3e635 0%, #14532d 100%)"
                   badge={`${m.emoji} Milestone`}
                   title={m.title}
@@ -172,7 +201,7 @@ export default function DiscoverTabs({
           {challenges.map((c) => (
             <StoryTile
               key={c.id}
-              href={`/group/challenges/${c.id}`}
+              href={withFrom(`/group/challenges/${c.id}`)}
               gradient="linear-gradient(160deg, #16a34a 0%, #052e16 100%)"
               badge="🏆 Challenge"
               title={c.name}
@@ -181,7 +210,7 @@ export default function DiscoverTabs({
             />
           ))}
           <StoryTile
-            href="/group/challenges"
+            href={withFrom("/group/challenges")}
             gradient="linear-gradient(160deg, #16a34a 0%, #052e16 100%)"
             badge="🏆 Challenge"
             title="Start a challenge"
@@ -194,7 +223,7 @@ export default function DiscoverTabs({
       {active === "you" && (
         <Grid>
           <StoryTile
-            href="/consistency"
+            href={withFrom("/consistency")}
             gradient="linear-gradient(160deg, #3b82f6 0%, #0a0a0a 100%)"
             badge="📈 You"
             title="Your week"
@@ -202,15 +231,17 @@ export default function DiscoverTabs({
             cta="View"
           />
           <StoryTile
-            href="/strength"
+            href={withFrom("/strength")}
             gradient="linear-gradient(160deg, #8b5cf6 0%, #0a0a0a 100%)"
             badge="💪 Strength"
             title="Strength trend"
             subtitle="Your overall strength over time"
             cta="View"
           />
+          {/* Opens the AI coach in-place (no /coach route exists). Stays on the
+              Crew page and preserves the active tab. */}
           <StoryTile
-            href="/coach"
+            href={`/group?coach=1&tab=${active}`}
             gradient="linear-gradient(160deg, #0ea5e9 0%, #0a0a0a 100%)"
             badge="🤖 Coach"
             title="Ask your coach"
@@ -221,7 +252,7 @@ export default function DiscoverTabs({
           {explore.map((e) => (
             <StoryTile
               key={e.id}
-              href={`/u/${e.id}`}
+              href={withFrom(`/u/${e.id}`)}
               bgImage={e.image}
               gradient="linear-gradient(160deg, #6366f1 0%, #0a0a0a 100%)"
               badge="Discover"

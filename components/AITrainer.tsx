@@ -300,6 +300,19 @@ export default function AITrainer() {
     setOpen(false);
   }, [pathname]);
 
+  // Open the coach when launched via ?coach=1 (e.g. the Crew "Ask your coach"
+  // tile, since there's no standalone /coach route). Strip the param afterward
+  // so a refresh or back doesn't reopen it.
+  useEffect(() => {
+    if (search.get("coach") !== "1") return;
+    setOpen(true);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("coach");
+      window.history.replaceState(null, "", url.toString());
+    }
+  }, [search]);
+
   // Lock background scroll while the modal is open so the underlying
   // page can't bleed in at the bottom when the mobile keyboard opens.
   useEffect(() => {

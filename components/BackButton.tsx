@@ -16,6 +16,18 @@ export default function BackButton({
 }) {
   const router = useRouter();
   const handleClick = () => {
+    // An explicit ?from= (set by the Crew Discover tiles) wins over everything:
+    // it returns the user to the exact tab/page they opened the item from,
+    // instead of a hardcoded parent that feels like a jump to a different page.
+    // Read it from the URL at click time to avoid needing a Suspense boundary
+    // around useSearchParams on statically-renderable pages.
+    if (typeof window !== "undefined") {
+      const from = new URLSearchParams(window.location.search).get("from");
+      if (from) {
+        router.push(from);
+        return;
+      }
+    }
     if (href) {
       router.push(href);
       return;

@@ -31,15 +31,13 @@ export default async function LogWorkoutPage({
     });
 
     if (source) {
+      // You can clone your own workout, or any workout from someone you follow
+      // (your crew) — the same people whose workouts surface in your feed and
+      // Crew Highlights. (The old group-membership check is dead.)
       const canSee =
         source.userId === userId ||
-        (await prisma.groupMember.count({
-          where: {
-            userId,
-            group: {
-              members: { some: { userId: source.userId } },
-            },
-          },
+        (await prisma.follow.count({
+          where: { followerId: userId, followingId: source.userId },
         })) > 0;
 
       if (canSee) {

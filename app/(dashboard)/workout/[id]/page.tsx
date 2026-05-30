@@ -187,6 +187,30 @@ export default async function WorkoutDetailPage({
         )}
       </div>
 
+      {/* Do this workout — clones the structure into a fresh session. Useful
+          for repeating a crew member's session (or your own). */}
+      {shape === "STRENGTH" && workout.exercises.length > 0 && (
+        <Link
+          href={`/log?clone=${id}`}
+          className="flex items-center justify-center gap-2 w-full rounded-xl py-3 mb-6 text-[14px] font-semibold active:scale-[0.99] transition-transform"
+          style={{ background: "var(--accent)", color: "#0a0a0a" }}
+        >
+          <svg
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M5 12h14M12 5v14" />
+          </svg>
+          {isOwn ? "Do this workout again" : "Do this workout"}
+        </Link>
+      )}
+
       <StatsGrid
         stats={
           shape === "STRENGTH"
