@@ -32,6 +32,18 @@ export default function FriendButton({
     });
   };
 
+  // Sending returns the TRUE resulting state (e.g. auto-accepted to "friends",
+  // or "friends" if already connected) so the button can't show a fake
+  // "Requested" when the request didn't actually go through.
+  const send = () => {
+    setState("outgoing");
+    startTransition(async () => {
+      const result = await sendFriendRequest(targetUserId);
+      setState(result);
+      router.refresh();
+    });
+  };
+
   if (state === "self") return null;
 
   const base =
@@ -101,7 +113,7 @@ export default function FriendButton({
       className={base}
       style={accent}
       disabled={pending}
-      onClick={() => run("outgoing", () => sendFriendRequest(targetUserId))}
+      onClick={send}
     >
       Add friend
     </button>

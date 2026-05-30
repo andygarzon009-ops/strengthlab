@@ -13,7 +13,11 @@ export default function FriendSearch() {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<UserSearchResult[]>([]);
-  const [requested, setRequested] = useState<Set<string>>(new Set());
+  // Per-user outcome label after tapping Add: "outgoing" → Requested,
+  // "friends" → Friends. Driven by the action's real return value.
+  const [outcome, setOutcome] = useState<Map<string, "outgoing" | "friends">>(
+    new Map(),
+  );
   const [searching, startSearch] = useTransition();
   const [, startSend] = useTransition();
 
@@ -29,9 +33,18 @@ export default function FriendSearch() {
   };
 
   const add = (id: string) => {
-    setRequested((s) => new Set(s).add(id));
+    setOutcome((m) => new Map(m).set(id, "outgoing")); // optimistic
     startSend(async () => {
-      await sendFriendRequest(id);
+      const state = await sendFriendRequest(id);
+      // Trust the action's real result; only "outgoing"/"friends" are terminal
+      // success states. Anything else means it didn't take — let them retry.
+      setOutcome((m) => {
+        const next = new Map(m);
+        if (state === "friends") next.set(id, "friends");
+        else if (state === "outgoing") next.set(id, "outgoing");
+        else next.delete(id);
+        return next;
+      });
       router.refresh();
     });
   };
@@ -83,11 +96,11 @@ export default function FriendSearch() {
                 </Link>
                 <button
                   type="button"
-                  disabled={requested.has(u.id)}
+                  disabled={outcome.has(u.id)}
                   onClick={() => add(u.id)}
                   className="px-3 py-1.5 rounded-lg text-[12px] font-semibold shrink-0 disabled:opacity-60"
                   style={
-                    requested.has(u.id)
+                    outcome.has(u.id)
                       ? {
                           background: "var(--bg-card)",
                           border: "1px solid var(--border)",
@@ -96,7 +109,11 @@ export default function FriendSearch() {
                       : { background: "var(--accent)", color: "#0a0a0a" }
                   }
                 >
-                  {requested.has(u.id) ? "Requested" : "Add"}
+                  {outcome.get(u.id) === "friends"
+                    ? "✓ Friends"
+                    : outcome.has(u.id)
+                      ? "Requested"
+                      : "Add"}
                 </button>
               </div>
             ))

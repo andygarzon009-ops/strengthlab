@@ -68,8 +68,8 @@ on server-side de-dupe). For efficient incremental sync, switch to a persisted
 
 ## Notes / gotchas
 
-- `connect-client` is pinned to `1.1.0-rc02` (background read + new
-  `Metadata.activelyRecorded` factories). Bump to the latest **stable** before release.
+- `connect-client` is pinned to stable **`1.1.0`** (2025-10-08) — includes
+  background read + the `Metadata.activelyRecorded` factories.
 - Background health read is a **sensitive scope** — Google requires a Health
   Connect declaration form + demo video before public Play Store release.
 - The bearer JWT is the same 7-day token the web session uses; on `401` the

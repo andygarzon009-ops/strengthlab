@@ -17,20 +17,35 @@ function revalidateAll(otherId: string) {
   revalidatePath(`/u/${otherId}`);
 }
 
+/// Does a directed follow edge a→b exist?
+async function followEdge(aId: string, bId: string): Promise<boolean> {
+  const f = await prisma.follow.findUnique({
+    where: { followerId_followingId: { followerId: aId, followingId: bId } },
+    select: { id: true },
+  });
+  return f !== null;
+}
+
+/// Are two users actually friends? Friendship is MUTUAL — both follow edges
+/// must exist. A lone edge is a legacy one-way follow from the old Strava-style
+/// system and must NOT count as friends, or it silently blocks new requests.
+async function areMutualFriends(aId: string, bId: string): Promise<boolean> {
+  const [out, back] = await Promise.all([
+    followEdge(aId, bId),
+    followEdge(bId, aId),
+  ]);
+  return out && back;
+}
+
 /// Resolve the relationship between the viewer and another user.
 export async function getFriendState(
   viewerId: string,
   otherId: string,
 ): Promise<FriendState> {
   if (viewerId === otherId) return "self";
-  // Friends = a follow edge from viewer → other (created mutually on accept).
-  const follow = await prisma.follow.findUnique({
-    where: {
-      followerId_followingId: { followerId: viewerId, followingId: otherId },
-    },
-    select: { id: true },
-  });
-  if (follow) return "friends";
+  // Friends require a MUTUAL follow (both edges). A legacy one-way follow does
+  // not make you friends — fall through so a real request can still be sent.
+  if (await areMutualFriends(viewerId, otherId)) return "friends";
 
   const reqs = await prisma.friendRequest.findMany({
     where: {
@@ -64,25 +79,23 @@ async function makeFriends(aId: string, bId: string) {
 }
 
 /// Send a friend request. If the other person already has a pending request
-/// to you, this auto-accepts (both wanted it). Idempotent.
-export async function sendFriendRequest(toUserId: string) {
+/// to you, this auto-accepts (both wanted it). Idempotent. Returns the
+/// resulting relationship so the UI reflects what actually happened instead of
+/// assuming success.
+export async function sendFriendRequest(toUserId: string): Promise<FriendState> {
   const userId = await requireAuth();
-  if (!toUserId || toUserId === userId) return;
+  if (!toUserId || toUserId === userId) return "self";
 
   const target = await prisma.user.findUnique({
     where: { id: toUserId },
     select: { id: true },
   });
-  if (!target) return;
+  if (!target) return "none";
 
-  // Already friends?
-  const already = await prisma.follow.findUnique({
-    where: {
-      followerId_followingId: { followerId: userId, followingId: toUserId },
-    },
-    select: { id: true },
-  });
-  if (already) return;
+  // Only skip when they're ALREADY mutual friends. A legacy one-way follow
+  // (e.g. you followed them under the old system) must NOT short-circuit here,
+  // or the request silently never gets created.
+  if (await areMutualFriends(userId, toUserId)) return "friends";
 
   // They already invited me → accept instead of creating a reverse request.
   const reverse = await prisma.friendRequest.findUnique({
@@ -96,7 +109,7 @@ export async function sendFriendRequest(toUserId: string) {
       data: { status: "ACCEPTED" },
     });
     revalidateAll(toUserId);
-    return;
+    return "friends";
   }
 
   await prisma.friendRequest.upsert({
@@ -105,6 +118,7 @@ export async function sendFriendRequest(toUserId: string) {
     update: { status: "PENDING" },
   });
   revalidateAll(toUserId);
+  return "outgoing";
 }
 
 /// Accept a pending incoming request (by the requester's id).

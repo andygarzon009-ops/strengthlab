@@ -43,8 +43,9 @@ android {
 }
 
 dependencies {
-    // Health Connect — pin to the latest stable 1.1.x (background read + new Metadata factories)
-    implementation("androidx.health.connect:connect-client:1.1.0-rc02")
+    // Health Connect — stable 1.1.0 (2025-10-08): includes READ_HEALTH_DATA_IN_BACKGROUND
+    // and the Metadata.activelyRecorded(...) factories used by the tracking service.
+    implementation("androidx.health.connect:connect-client:1.1.0")
 
     // Background work
     implementation("androidx.work:work-runtime-ktx:2.10.0")

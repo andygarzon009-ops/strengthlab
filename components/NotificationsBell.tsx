@@ -12,6 +12,8 @@ export default function NotificationsBell() {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
+    // Only poll on the Crew page, where the bell is actually shown.
+    if (pathname !== "/group") return;
     let alive = true;
 
     const load = async () => {
@@ -39,8 +41,9 @@ export default function NotificationsBell() {
     };
   }, [pathname]);
 
-  // The bell lives on its own page, so hide it there to avoid redundancy.
-  if (pathname === "/notifications") return null;
+  // Only surface the bell on the Crew page — that's the social hub, and it
+  // keeps notifications out of the way everywhere else.
+  if (pathname !== "/group") return null;
 
   const active = count > 0;
 
