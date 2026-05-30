@@ -89,6 +89,22 @@ model User {
   sentFriendRequests     FriendRequest[]    @relation("FriendRequestFrom")
   receivedFriendRequests FriendRequest[]    @relation("FriendRequestTo")
   ambientHeartRates      AmbientHeartRateSample[]
+  pushSubscriptions      PushSubscription[]
+}
+
+/// A Web Push subscription for a user's device/browser. One row per
+/// device+browser (keyed by endpoint). Used to notify on friend requests etc.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 /// Standalone (non-workout) heart-rate samples streamed from the StrengthLab

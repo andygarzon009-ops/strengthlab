@@ -1,6 +1,7 @@
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import BackButton from "@/components/BackButton";
+import EnablePushButton from "@/components/EnablePushButton";
 import FriendRequests, {
   type IncomingRequest,
 } from "@/components/FriendRequests";
@@ -32,6 +33,8 @@ export default async function NotificationsPage() {
           </h1>
         </div>
       </div>
+
+      <EnablePushButton />
 
       {incoming.length > 0 ? (
         <FriendRequests requests={incoming} />

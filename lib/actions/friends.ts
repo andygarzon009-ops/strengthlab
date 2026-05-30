@@ -3,6 +3,15 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { revalidatePath } from "next/cache";
+import { sendPushToUser } from "@/lib/push";
+
+async function actorName(userId: string): Promise<string> {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true },
+  });
+  return u?.name ?? "Someone";
+}
 
 export type FriendState =
   | "self"
@@ -109,6 +118,14 @@ export async function sendFriendRequest(toUserId: string): Promise<FriendState> 
       data: { status: "ACCEPTED" },
     });
     revalidateAll(toUserId);
+    // They invited me and I just reciprocated — tell them we're now crew.
+    const name = await actorName(userId);
+    await sendPushToUser(toUserId, {
+      title: "You're now crew 💪",
+      body: `${name} added you back`,
+      url: "/group",
+      tag: "friend-accept",
+    });
     return "friends";
   }
 
@@ -118,6 +135,13 @@ export async function sendFriendRequest(toUserId: string): Promise<FriendState> 
     update: { status: "PENDING" },
   });
   revalidateAll(toUserId);
+  const name = await actorName(userId);
+  await sendPushToUser(toUserId, {
+    title: "New crew request",
+    body: `${name} invited you to join their workout crew`,
+    url: "/notifications",
+    tag: "friend-request",
+  });
   return "outgoing";
 }
 
@@ -135,6 +159,14 @@ export async function acceptFriendRequest(fromUserId: string) {
     data: { status: "ACCEPTED" },
   });
   revalidateAll(fromUserId);
+  // Let the requester know they got in.
+  const name = await actorName(userId);
+  await sendPushToUser(fromUserId, {
+    title: "You're now crew 💪",
+    body: `${name} accepted your crew request`,
+    url: "/group",
+    tag: "friend-accept",
+  });
 }
 
 /// Decline an incoming request.

@@ -62,7 +62,12 @@ export default function FriendButton({
         style={ghost}
         disabled={pending}
         onClick={() => {
-          if (!confirm("Remove friend?")) return;
+          if (
+            !confirm(
+              "Remove from your crew? You'll stop seeing each other's workouts. You can add them again later.",
+            )
+          )
+            return;
           run("none", () => unfriend(targetUserId));
         }}
       >
