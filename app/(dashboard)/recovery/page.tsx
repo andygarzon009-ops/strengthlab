@@ -2,6 +2,9 @@ import Link from "next/link";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import BackButton from "@/components/BackButton";
+import SleepHistoryChart, {
+  type SleepNightHistory,
+} from "@/components/SleepHistoryChart";
 
 export const dynamic = "force-dynamic";
 
@@ -54,8 +57,11 @@ export default async function RecoveryPage() {
       restingHr: true,
       restingBaselineHr: true,
       sleepSummary: true,
+      sleepHistory: true,
     },
   });
+  const sleepHistory =
+    (account?.sleepHistory as SleepNightHistory[] | null) ?? [];
 
   const trendDays = (
     await prisma.recoveryDay.findMany({
@@ -142,6 +148,10 @@ export default async function RecoveryPage() {
           </div>
 
           {sleep && <SleepSection sleep={sleep} />}
+
+          {sleepHistory.length >= 2 && (
+            <SleepHistoryChart history={sleepHistory} />
+          )}
 
           {/* Coach nudge */}
           <Link

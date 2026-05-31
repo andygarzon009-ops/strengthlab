@@ -140,6 +140,40 @@ export async function refreshRecovery(userId: string): Promise<void> {
         .toISOString()
         .slice(0, 10);
     }
+    // 30-night history for the weekly/monthly chart (one entry per local night,
+    // longest sleep wins on the rare night with multiple sessions).
+    if (sleep.length) {
+      const hist = new Map<
+        string,
+        {
+          date: string;
+          asleepMin: number;
+          deepMin: number;
+          remMin: number;
+          lightMin: number;
+          awakeMin: number;
+        }
+      >();
+      for (const n of sleep) {
+        const date = new Date(n.end.getTime() + n.offsetSec * 1000)
+          .toISOString()
+          .slice(0, 10);
+        const prev = hist.get(date);
+        if (!prev || n.asleepMin > prev.asleepMin) {
+          hist.set(date, {
+            date,
+            asleepMin: n.asleepMin,
+            deepMin: n.deepMin,
+            remMin: n.remMin,
+            lightMin: n.lightMin,
+            awakeMin: n.awakeMin,
+          });
+        }
+      }
+      data.sleepHistory = [...hist.values()].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
+    }
     if (recoveryScore !== null) {
       data.recoveryScore = recoveryScore;
       data.recoveryBand = band;

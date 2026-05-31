@@ -247,6 +247,9 @@ model HealthAccount {
   // awakeMin, startUtc, endUtc, offsetSec }. nightKey = local date of wake.
   sleepSummary      Json?
   sleepNightKey     String?
+  // Last ~30 nights for the weekly/monthly sleep chart:
+  // [{ date:"YYYY-MM-DD", asleepMin, deepMin, remMin, lightMin, awakeMin }]
+  sleepHistory      Json?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
