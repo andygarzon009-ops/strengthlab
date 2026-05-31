@@ -119,6 +119,9 @@ export default async function FeedPage({
           <Suspense fallback={<CardSkeleton height={168} />}>
             <ActivityRingsCard userId={userId} />
           </Suspense>
+          <Suspense fallback={null}>
+            <RecoveryCard userId={userId} />
+          </Suspense>
           <Suspense fallback={<CardSkeleton height={148} />}>
             <HeartRateCard userId={userId} />
           </Suspense>
@@ -127,9 +130,6 @@ export default async function FeedPage({
               userId={userId}
               trainingDaysGoal={currentUser?.trainingDays ?? null}
             />
-          </Suspense>
-          <Suspense fallback={null}>
-            <RecoveryCard userId={userId} />
           </Suspense>
         </>
       )}
