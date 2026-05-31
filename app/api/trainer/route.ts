@@ -156,7 +156,8 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "AI trainer not configured" }, { status: 500 });
     }
 
-    const [user, workouts, prs, history, goals] = await Promise.all([
+    const [user, workouts, prs, history, goals, healthAccount] =
+      await Promise.all([
       prisma.user.findUnique({ where: { id: userId } }),
       prisma.workout.findMany({
         where: { userId },
@@ -183,6 +184,19 @@ export async function POST(req: NextRequest) {
         where: { userId, completed: false },
         include: { exercise: true },
         orderBy: { createdAt: "desc" },
+      }),
+      prisma.healthAccount.findUnique({
+        where: { userId },
+        select: {
+          recoveryScore: true,
+          recoveryBand: true,
+          recoveryAt: true,
+          hrvMs: true,
+          hrvBaselineMs: true,
+          restingHr: true,
+          restingBaselineHr: true,
+          sleepSummary: true,
+        },
       }),
     ]);
 
@@ -404,6 +418,46 @@ ATHLETE'S PREFERRED WARM-UPS (by split)
 (When you prescribe a session whose split matches a key below, use these items as the warmup block instead of inventing one. Emit them in the workout-plan "warmup":{"items":[...]} payload, preserving kind/durationSec/reps. You may drop an item that doesn't fit the day, but do not invent unrelated items when the athlete has set their preference.)
 ━━━━━━━━━━━━━━━━━━━━━━━━
 ${lines.join("\n\n")}`;
+    })();
+
+    const recoveryContext = (() => {
+      const ha = healthAccount;
+      if (!ha || ha.recoveryScore == null) {
+        return "RECOVERY & SLEEP (Fitbit / Google Health): not available — no wearable connected, or no overnight data yet. Don't assume sleep or recovery quality; ask the athlete if it's relevant.";
+      }
+      const sleep = ha.sleepSummary as {
+        asleepMin?: number;
+        inBedMin?: number;
+        deepMin?: number;
+        remMin?: number;
+        lightMin?: number;
+        awakeMin?: number;
+      } | null;
+      const ls: string[] = [];
+      ls.push(`- Recovery score: ${ha.recoveryScore}/100 (${ha.recoveryBand ?? "?"})`);
+      if (sleep?.asleepMin != null) {
+        const h = Math.floor(sleep.asleepMin / 60);
+        const m = sleep.asleepMin % 60;
+        const eff = sleep.inBedMin
+          ? Math.round((sleep.asleepMin / sleep.inBedMin) * 100)
+          : null;
+        ls.push(
+          `- Last night's sleep: ${h}h ${m}m asleep${eff != null ? ` (${eff}% efficiency)` : ""} — Deep ${sleep.deepMin ?? 0}m, REM ${sleep.remMin ?? 0}m, Light ${sleep.lightMin ?? 0}m, Awake ${sleep.awakeMin ?? 0}m`,
+        );
+      }
+      if (ha.hrvMs != null) {
+        ls.push(
+          `- Overnight HRV: ${Math.round(ha.hrvMs)}ms${ha.hrvBaselineMs != null ? ` (baseline ${Math.round(ha.hrvBaselineMs)}ms — ${ha.hrvMs >= ha.hrvBaselineMs ? "at/above" : "below"} normal)` : ""}`,
+        );
+      }
+      if (ha.restingHr != null) {
+        ls.push(
+          `- Resting HR: ${ha.restingHr}bpm${ha.restingBaselineHr != null ? ` (baseline ${ha.restingBaselineHr}bpm — ${ha.restingHr <= ha.restingBaselineHr ? "at/below" : "above"} normal)` : ""}`,
+        );
+      }
+      return `RECOVERY & SLEEP (from the athlete's Fitbit via Google Health — last night; a HARD INPUT into today's recommendation):
+${ls.join("\n")}
+Calibrate today's intensity and volume to this: a low recovery score, short or poor sleep, suppressed HRV, or elevated resting HR means pull back load, add rest, or suggest a lighter / mobility / deload day — and say so explicitly. A high score with good sleep green-lights harder work. Don't over-react to a single night, and remember sleep/recovery only update on nights the watch is worn.`;
     })();
 
     const systemPrompt = `You are an elite strength, hypertrophy, and performance coach chatbot.
@@ -659,6 +713,8 @@ BODY METRICS (inches unless noted, optional — may be blank):
 - Neck: ${user?.neck ?? "—"} | Shoulders: ${user?.shoulders ?? "—"} | Chest: ${user?.chest ?? "—"}
 - Arm: ${user?.arm ?? "—"} | Forearm: ${user?.forearm ?? "—"} | Waist: ${user?.waist ?? "—"}
 - Hips: ${user?.hips ?? "—"} | Thigh: ${user?.thigh ?? "—"} | Calf: ${user?.calf ?? "—"}
+
+${recoveryContext}
 
 ACTIVE GOALS (explicit targets the athlete is chasing):
 ${
