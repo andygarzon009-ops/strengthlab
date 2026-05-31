@@ -221,6 +221,10 @@ model HealthAccount {
   hrvMs             Float?    // latest night RMSSD
   hrvBaselineMs     Float?    // trailing baseline RMSSD
   recoveryAt        DateTime?
+  // Last night's sleep: { asleepMin, inBedMin, deepMin, remMin, lightMin,
+  // awakeMin, startUtc, endUtc, offsetSec }. nightKey = local date of wake.
+  sleepSummary      Json?
+  sleepNightKey     String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

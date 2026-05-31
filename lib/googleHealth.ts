@@ -313,6 +313,93 @@ export async function listDailyHrv(
   }
 }
 
+export type SleepNight = {
+  start: Date; // UTC bedtime
+  end: Date; // UTC wake
+  offsetSec: number; // local utc offset, e.g. -21600
+  asleepMin: number;
+  inBedMin: number;
+  deepMin: number;
+  remMin: number;
+  lightMin: number;
+  awakeMin: number;
+};
+
+/// Sleep sessions from Google Health (needs the sleep scope). Returns full
+/// (non-nap) nights, newest first, within [start, end). Each Fitbit sleep
+/// point carries a pre-computed `summary` with minutes asleep / in bed and a
+/// per-stage breakdown, so we don't have to sum stages ourselves. Naps
+/// (metadata.nap === true) are excluded. [] if unavailable / no scope.
+export async function listSleep(
+  userId: string,
+  startISO: string,
+  endISO: string,
+): Promise<SleepNight[]> {
+  const path = "/users/me/dataTypes/sleep/dataPoints?pageSize=30";
+  try {
+    const data = (await healthFetch(userId, path)) as {
+      dataPoints?: {
+        sleep?: {
+          interval?: {
+            startTime?: string;
+            endTime?: string;
+            startUtcOffset?: string;
+          };
+          metadata?: { nap?: boolean };
+          summary?: {
+            minutesAsleep?: string | number;
+            minutesInSleepPeriod?: string | number;
+            stagesSummary?: { type?: string; minutes?: string | number }[];
+          };
+        };
+      }[];
+    };
+
+    const num = (x: unknown) => {
+      const n = Number(x);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const startMs = Date.parse(startISO);
+    const endMs = Date.parse(endISO);
+    const out: SleepNight[] = [];
+    for (const p of data.dataPoints ?? []) {
+      const s = p.sleep;
+      const sum = s?.summary;
+      const iv = s?.interval;
+      if (!sum || !iv?.startTime || !iv?.endTime) continue;
+      if (s?.metadata?.nap === true) continue; // skip naps
+      const start = new Date(iv.startTime);
+      const end = new Date(iv.endTime);
+      const t = end.getTime();
+      if (t < startMs || t >= endMs) continue;
+
+      const stages = { deep: 0, rem: 0, light: 0, awake: 0 };
+      for (const st of sum.stagesSummary ?? []) {
+        const m = num(st.minutes);
+        if (st.type === "DEEP") stages.deep = m;
+        else if (st.type === "REM") stages.rem = m;
+        else if (st.type === "LIGHT") stages.light = m;
+        else if (st.type === "AWAKE") stages.awake = m;
+      }
+      out.push({
+        start,
+        end,
+        offsetSec: parseInt(iv.startUtcOffset ?? "0", 10) || 0,
+        asleepMin: num(sum.minutesAsleep),
+        inBedMin: num(sum.minutesInSleepPeriod),
+        deepMin: stages.deep,
+        remMin: stages.rem,
+        lightMin: stages.light,
+        awakeMin: stages.awake,
+      });
+    }
+    out.sort((a, b) => b.end.getTime() - a.end.getTime());
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 export async function listHeartRateBetween(
   userId: string,
   startISO: string,

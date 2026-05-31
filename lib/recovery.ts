@@ -1,6 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { listRestingHeartRate, listDailyHrv } from "@/lib/googleHealth";
+import {
+  listRestingHeartRate,
+  listDailyHrv,
+  listSleep,
+  type SleepNight,
+} from "@/lib/googleHealth";
 
 export type RecoveryBand = "low" | "moderate" | "primed";
 
@@ -26,6 +31,16 @@ function hrvScore(today: number, baseline: number): number {
 // +8 or higher = 0. Elevated resting HR = worse recovery.
 function rhrScore(deltaBpm: number): number {
   return clamp(50 - (deltaBpm / 8) * 50, 0, 100);
+}
+
+// Sleep → 0–100: mostly duration, nudged by quality (deep+REM share).
+// Duration: 3h(180m)=0 … 8h(480m)+=100. Quality: 20% deep+REM=0 … 50%+=100.
+function sleepScore(night: SleepNight): number {
+  const duration = clamp(((night.asleepMin - 180) / (480 - 180)) * 100, 0, 100);
+  const denom = night.asleepMin || 1;
+  const deepRemPct = ((night.deepMin + night.remMin) / denom) * 100;
+  const quality = clamp(((deepRemPct - 20) / (50 - 20)) * 100, 0, 100);
+  return 0.65 * duration + 0.35 * quality;
 }
 
 // Average of all-but-the-latest reading — "your normal", excluding today.
@@ -59,22 +74,27 @@ export async function refreshRecovery(userId: string): Promise<void> {
     ).toISOString();
     const nowISO = now.toISOString();
 
-    const [rhr, hrv] = await Promise.all([
+    const [rhr, hrv, sleep] = await Promise.all([
       listRestingHeartRate(userId, sinceISO, nowISO).catch(() => []),
       listDailyHrv(userId, sinceISO, nowISO).catch(() => []),
+      listSleep(userId, sinceISO, nowISO).catch(() => []),
     ]);
 
     const rhrNow = rhr.length ? rhr[rhr.length - 1].bpm : null;
     const rhrBaseline = baselineExcludingLast(rhr.map((s) => s.bpm));
     const hrvNow = hrv.length ? hrv[hrv.length - 1].rmssd : null;
     const hrvBaseline = baselineExcludingLast(hrv.map((s) => s.rmssd));
+    const lastNight: SleepNight | null = sleep.length ? sleep[0] : null;
 
-    // Weighted blend of whatever signals are present.
+    // Weighted blend of whatever signals are present. Sleep is the heaviest
+    // when available; missing components renormalize the rest (so HRV+RHR only
+    // collapses back to the Phase-1 0.55/0.45 split).
     const comps: { score: number; weight: number }[] = [];
+    if (lastNight) comps.push({ score: sleepScore(lastNight), weight: 0.45 });
     if (hrvNow !== null && hrvBaseline !== null)
-      comps.push({ score: hrvScore(hrvNow, hrvBaseline), weight: 0.55 });
+      comps.push({ score: hrvScore(hrvNow, hrvBaseline), weight: 0.3 });
     if (rhrNow !== null && rhrBaseline !== null)
-      comps.push({ score: rhrScore(rhrNow - rhrBaseline), weight: 0.45 });
+      comps.push({ score: rhrScore(rhrNow - rhrBaseline), weight: 0.25 });
 
     let recoveryScore: number | null = null;
     let band: RecoveryBand | null = null;
@@ -100,6 +120,25 @@ export async function refreshRecovery(userId: string): Promise<void> {
     if (hrvNow !== null) {
       data.hrvMs = round1(hrvNow);
       if (hrvBaseline !== null) data.hrvBaselineMs = round1(hrvBaseline);
+    }
+    if (lastNight) {
+      data.sleepSummary = {
+        asleepMin: lastNight.asleepMin,
+        inBedMin: lastNight.inBedMin,
+        deepMin: lastNight.deepMin,
+        remMin: lastNight.remMin,
+        lightMin: lastNight.lightMin,
+        awakeMin: lastNight.awakeMin,
+        startUtc: lastNight.start.toISOString(),
+        endUtc: lastNight.end.toISOString(),
+        offsetSec: lastNight.offsetSec,
+      };
+      // Local calendar date of the wake — identifies which night this is.
+      data.sleepNightKey = new Date(
+        lastNight.end.getTime() + lastNight.offsetSec * 1000,
+      )
+        .toISOString()
+        .slice(0, 10);
     }
     if (recoveryScore !== null) {
       data.recoveryScore = recoveryScore;

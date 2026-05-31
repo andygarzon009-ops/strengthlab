@@ -29,6 +29,18 @@ function ago(d: Date): string {
   return day === 1 ? "yesterday" : `${day}d ago`;
 }
 
+type SleepSummary = {
+  asleepMin: number;
+  inBedMin: number;
+  deepMin: number;
+  remMin: number;
+  lightMin: number;
+  awakeMin: number;
+  startUtc: string;
+  endUtc: string;
+  offsetSec: number;
+};
+
 export default async function RecoveryPage() {
   const userId = await requireAuth();
   const account = await prisma.healthAccount.findUnique({
@@ -41,12 +53,14 @@ export default async function RecoveryPage() {
       hrvBaselineMs: true,
       restingHr: true,
       restingBaselineHr: true,
+      sleepSummary: true,
     },
   });
 
   const score = account?.recoveryScore ?? null;
   const band = account?.recoveryBand ?? null;
   const color = band ? (BAND_COLOR[band] ?? "var(--accent)") : "var(--fg-dim)";
+  const sleep = (account?.sleepSummary as SleepSummary | null) ?? null;
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
@@ -116,6 +130,8 @@ export default async function RecoveryPage() {
             />
           </div>
 
+          {sleep && <SleepSection sleep={sleep} />}
+
           {/* Coach nudge */}
           <Link
             href="/group?coach=1"
@@ -129,9 +145,9 @@ export default async function RecoveryPage() {
             className="text-[11px] mt-4 leading-snug"
             style={{ color: "var(--fg-dim)" }}
           >
-            Recovery blends your overnight HRV and resting heart rate against
-            your own baseline. Wear your tracker to bed for the most accurate
-            score. Sleep stages are coming soon.
+            Recovery blends last night&apos;s sleep, your overnight HRV, and
+            resting heart rate against your own baseline. Wear your tracker to
+            bed for the most accurate score.
           </p>
         </>
       )}
@@ -212,6 +228,102 @@ function DriverRow({
         </p>
       </div>
       <span className="text-[16px] font-bold tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+const STAGE_META: { key: keyof SleepSummary; label: string; color: string }[] = [
+  { key: "deepMin", label: "Deep", color: "#4338ca" },
+  { key: "remMin", label: "REM", color: "#7c3aed" },
+  { key: "lightMin", label: "Light", color: "#0ea5e9" },
+  { key: "awakeMin", label: "Awake", color: "#52525b" },
+];
+
+function fmtClock(iso: string, offsetSec: number): string {
+  const d = new Date(Date.parse(iso) + offsetSec * 1000);
+  let h = d.getUTCHours();
+  const m = d.getUTCMinutes();
+  const ampm = h >= 12 ? "pm" : "am";
+  h = h % 12 || 12;
+  return `${h}:${String(m).padStart(2, "0")}${ampm}`;
+}
+
+function SleepSection({ sleep }: { sleep: SleepSummary }) {
+  const h = Math.floor(sleep.asleepMin / 60);
+  const m = sleep.asleepMin % 60;
+  const totalStages =
+    sleep.deepMin + sleep.remMin + sleep.lightMin + sleep.awakeMin || 1;
+  const efficiency =
+    sleep.inBedMin > 0
+      ? Math.round((sleep.asleepMin / sleep.inBedMin) * 100)
+      : null;
+
+  return (
+    <div className="mb-5">
+      <p className="label mb-2">Last night</p>
+      <div
+        className="rounded-xl p-4"
+        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+      >
+        <div className="flex items-baseline justify-between mb-3">
+          <p className="text-[22px] font-bold tabular-nums">
+            {h}h {m}m
+            <span
+              className="text-[12px] ml-2 font-normal"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              asleep
+            </span>
+          </p>
+          <p className="text-[12px] tabular-nums" style={{ color: "var(--fg-dim)" }}>
+            {fmtClock(sleep.startUtc, sleep.offsetSec)} →{" "}
+            {fmtClock(sleep.endUtc, sleep.offsetSec)}
+          </p>
+        </div>
+
+        {/* Stage bar */}
+        <div className="flex h-2.5 rounded-full overflow-hidden mb-2">
+          {STAGE_META.map((s) => {
+            const min = sleep[s.key] as number;
+            const pct = (min / totalStages) * 100;
+            if (pct <= 0) return null;
+            return (
+              <div
+                key={s.key}
+                style={{ width: `${pct}%`, background: s.color }}
+                title={`${s.label} ${min}m`}
+              />
+            );
+          })}
+        </div>
+
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          {STAGE_META.map((s) => {
+            const min = sleep[s.key] as number;
+            return (
+              <span
+                key={s.key}
+                className="text-[10px] tabular-nums"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                <span
+                  className="inline-block w-2 h-2 rounded-sm mr-1 align-middle"
+                  style={{ background: s.color }}
+                />
+                {s.label} {Math.floor(min / 60)}h {min % 60}m
+              </span>
+            );
+          })}
+          {efficiency != null && (
+            <span
+              className="text-[10px] tabular-nums ml-auto"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              {efficiency}% efficiency
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

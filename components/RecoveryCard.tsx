@@ -30,6 +30,7 @@ export default async function RecoveryCard({ userId }: { userId: string }) {
       hrvMs: true,
       restingHr: true,
       restingDelta: true,
+      sleepSummary: true,
     },
   });
   if (!account || account.recoveryScore === null || !account.recoveryBand) {
@@ -45,7 +46,10 @@ export default async function RecoveryCard({ userId }: { userId: string }) {
   const c = 2 * Math.PI * r;
   const filled = (Math.max(0, Math.min(100, score)) / 100) * c;
 
+  const sleep = account.sleepSummary as { asleepMin?: number } | null;
   const drivers: string[] = [];
+  if (sleep?.asleepMin != null)
+    drivers.push(`${Math.floor(sleep.asleepMin / 60)}h ${sleep.asleepMin % 60}m sleep`);
   if (account.hrvMs != null) drivers.push(`HRV ${Math.round(account.hrvMs)}ms`);
   if (account.restingHr != null) {
     const d = account.restingDelta;
