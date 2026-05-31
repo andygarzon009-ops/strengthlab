@@ -12,6 +12,9 @@ const HEALTH_API_BASE = "https://health.googleapis.com/v4";
 export const HEALTH_SCOPES = [
   "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
   "https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly",
+  // Sleep (recovery Phase 2). Restricted scope — fine for Testing-mode test
+  // users without full verification. Existing users must reconnect to grant it.
+  "https://www.googleapis.com/auth/googlehealth.sleep.readonly",
 ];
 
 function requireEnv(name: string): string {
