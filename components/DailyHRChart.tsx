@@ -50,13 +50,40 @@ export default function DailyHRChart({
   useEffect(() => {
     if (range !== "D") return;
     let cancelled = false;
+    const storageKey = `sl:hr-daily:${initial.dateKey}`;
+
+    // Paint instantly from the last-seen data for today (survives going back and
+    // reopening the page), so there's no blank-then-load on every visit.
+    let hasData = data.samples.length > 0;
+    if (!hasData && typeof window !== "undefined") {
+      try {
+        const cached = sessionStorage.getItem(storageKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.samples?.length) {
+            setData(parsed);
+            hasData = true;
+          }
+        }
+      } catch {
+        // ignore bad cache
+      }
+    }
+
     const load = async (showLoading: boolean) => {
       if (showLoading) setLoading(true);
       try {
         const res = await fetch("/api/health/daily-hr", { cache: "no-store" });
         if (res.ok) {
           const body = await res.json();
-          if (!cancelled) setData(body);
+          if (!cancelled) {
+            setData(body);
+            try {
+              sessionStorage.setItem(storageKey, JSON.stringify(body));
+            } catch {
+              // storage full / unavailable — fine
+            }
+          }
         }
       } catch {
         // keep whatever we have
@@ -64,9 +91,8 @@ export default function DailyHRChart({
         if (showLoading && !cancelled) setLoading(false);
       }
     };
-    // Only show the spinner if we don't already have samples (avoids a flash
-    // when toggling back to D with data still in state).
-    load(data.samples.length === 0);
+    // Spinner only when there's truly nothing to show yet.
+    load(!hasData);
     const id = setInterval(() => load(false), 60_000);
     return () => {
       cancelled = true;

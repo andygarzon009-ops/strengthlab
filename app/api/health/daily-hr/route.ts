@@ -1,9 +1,36 @@
 import { NextRequest } from "next/server";
+import { unstable_cache } from "next/cache";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { listHeartRateBetween } from "@/lib/googleHealth";
 
 export const maxDuration = 30;
+
+type DaySample = { t: string; bpm: number };
+
+/// Cache the (slow) Google Health pull per user+day for 2 minutes, so
+/// reopening the page returns instantly instead of re-fetching every time.
+/// The key is [userId, dateKey, startISO] — stable for the day — so within the
+/// window every request hits the cache. `end` is computed inside at run time.
+const getCachedDailySamples = unstable_cache(
+  async (
+    userId: string,
+    _dateKey: string,
+    startISO: string,
+  ): Promise<DaySample[]> => {
+    const startUtc = new Date(startISO);
+    const endUtc = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000);
+    const realEnd = endUtc.getTime() > Date.now() ? new Date() : endUtc;
+    const samples = await listHeartRateBetween(
+      userId,
+      startUtc.toISOString(),
+      realEnd.toISOString(),
+    );
+    return samples.map((s) => ({ t: s.timestamp.toISOString(), bpm: s.bpm }));
+  },
+  ["daily-hr-v1"],
+  { revalidate: 120 },
+);
 
 /// Returns all heart-rate samples for a single calendar day in the user's
 /// timezone, pulled from Google Health. Used by the /heart-rate page to
@@ -43,25 +70,14 @@ export async function GET(req: NextRequest) {
   // shifted by the offset implied by Intl.DateTimeFormat parts.
   const offsetMin = tzOffsetMinutes(tz, new Date(Date.UTC(y, m - 1, d)));
   const startUtc = new Date(Date.UTC(y, m - 1, d) - offsetMin * 60 * 1000);
-  const endUtc = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000);
-  // Don't query past "now" — Google rejects future windows.
-  const realEnd = endUtc.getTime() > Date.now() ? new Date() : endUtc;
 
   try {
-    const samples = await listHeartRateBetween(
+    const samples = await getCachedDailySamples(
       userId,
-      startUtc.toISOString(),
-      realEnd.toISOString(),
-    );
-    return Response.json({
-      connected: true,
       dateKey,
-      tz,
-      samples: samples.map((s) => ({
-        t: s.timestamp.toISOString(),
-        bpm: s.bpm,
-      })),
-    });
+      startUtc.toISOString(),
+    );
+    return Response.json({ connected: true, dateKey, tz, samples });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return Response.json({ error: msg }, { status: 502 });
