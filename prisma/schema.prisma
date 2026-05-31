@@ -210,10 +210,17 @@ model HealthAccount {
   lastSyncedAt    DateTime?
   // Last-known resting HR, persisted during sync so the feed reads it instantly
   // instead of waiting on a live Google Health call.
-  restingHr       Int?
-  restingDelta    Int?
-  restingSource   String?
-  restingHrAt     DateTime?
+  restingHr         Int?
+  restingDelta      Int?
+  restingSource     String?
+  restingBaselineHr Int?
+  restingHrAt       DateTime?
+  // Recovery snapshot (HRV + RHR based; sleep added later). Computed on sync.
+  recoveryScore     Int?      // 0–100
+  recoveryBand      String?   // low | moderate | primed
+  hrvMs             Float?    // latest night RMSSD
+  hrvBaselineMs     Float?    // trailing baseline RMSSD
+  recoveryAt        DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

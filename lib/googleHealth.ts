@@ -247,6 +247,69 @@ export async function listRestingHeartRate(
   }
 }
 
+export type DailyHrvSample = {
+  date: Date; // calendar day (UTC midnight key)
+  rmssd: number; // avg RMSSD in ms for that night
+};
+
+/// Per-night heart-rate variability (RMSSD, ms) from Google Health. Available
+/// under the activity_and_fitness scope (no extra consent). Fitbit emits many
+/// readings overnight; we average the valid (>0) ones per calendar day. Needs
+/// the device worn to sleep, so nights without wear are simply absent. Sorted
+/// oldest → newest; [] if unavailable.
+export async function listDailyHrv(
+  userId: string,
+  startISO: string,
+  endISO: string,
+): Promise<DailyHrvSample[]> {
+  const toUtc = (s: string) => (s.endsWith("Z") ? s : `${s}Z`);
+  const filter =
+    `heart_rate_variability.sample_time.physical_time >= "${toUtc(startISO)}"` +
+    ` AND heart_rate_variability.sample_time.physical_time < "${toUtc(endISO)}"`;
+  const path =
+    "/users/me/dataTypes/heart-rate-variability/dataPoints?pageSize=500&filter=" +
+    encodeURIComponent(filter);
+
+  try {
+    const data = (await healthFetch(userId, path)) as {
+      dataPoints?: {
+        heartRateVariability?: {
+          sampleTime?: { physicalTime?: string };
+          rootMeanSquareOfSuccessiveDifferencesMilliseconds?: number;
+        };
+      }[];
+    };
+
+    const byDay = new Map<string, { sum: number; n: number; date: Date }>();
+    for (const p of data.dataPoints ?? []) {
+      const ts = p.heartRateVariability?.sampleTime?.physicalTime;
+      const rmssd =
+        p.heartRateVariability?.rootMeanSquareOfSuccessiveDifferencesMilliseconds;
+      if (!ts || typeof rmssd !== "number" || !Number.isFinite(rmssd) || rmssd <= 0)
+        continue;
+      const dt = new Date(ts);
+      const key = dt.toISOString().slice(0, 10);
+      const cur = byDay.get(key);
+      if (cur) {
+        cur.sum += rmssd;
+        cur.n += 1;
+      } else {
+        byDay.set(key, {
+          sum: rmssd,
+          n: 1,
+          date: new Date(`${key}T00:00:00Z`),
+        });
+      }
+    }
+
+    return [...byDay.values()]
+      .map(({ sum, n, date }) => ({ date, rmssd: sum / n }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  } catch {
+    return [];
+  }
+}
+
 export async function listHeartRateBetween(
   userId: string,
   startISO: string,

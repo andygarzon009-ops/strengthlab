@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { after } from "next/server";
 import { prisma } from "@/lib/db";
-import { refreshRestingHr } from "@/lib/restingHr";
+import { refreshRecovery } from "@/lib/recovery";
 
 type Props = {
   userId: string;
@@ -43,7 +43,7 @@ export default async function HeartRateCard({ userId }: Props) {
   const stale =
     !account.restingHrAt ||
     Date.now() - account.restingHrAt.getTime() > RESTING_STALE_MS;
-  if (stale) after(() => refreshRestingHr(userId));
+  if (stale) after(() => refreshRecovery(userId));
 
   const lastWorkout = await prisma.workout.findFirst({
     where: {

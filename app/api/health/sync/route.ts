@@ -2,7 +2,7 @@ import { after } from "next/server";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { getCachedSessions } from "@/lib/fitbitDetect";
-import { refreshRestingHr } from "@/lib/restingHr";
+import { refreshRecovery } from "@/lib/recovery";
 
 /// Returns the user's recent Fitbit exercise sessions from Supabase cache.
 /// `?refresh=1` forces a pull from Google Health; otherwise the cache is
@@ -22,8 +22,8 @@ export async function GET(req: Request) {
       forceRefresh,
     });
     // When we actually pulled fresh data from Google, also refresh the stored
-    // resting HR (post-response, so it doesn't slow the sync down).
-    if (refreshed) after(() => refreshRestingHr(userId));
+    // recovery snapshot (post-response, so it doesn't slow the sync down).
+    if (refreshed) after(() => refreshRecovery(userId));
     return Response.json({
       connected: true,
       exercise: sessions.map((s) => ({
