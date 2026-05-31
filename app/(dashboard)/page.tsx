@@ -7,6 +7,7 @@ import ActivityRingsCard from "@/components/ActivityRingsCard";
 import HeartRateCard from "@/components/HeartRateCard";
 import PullToRefresh from "@/components/PullToRefresh";
 import ConsistencyCard from "@/components/ConsistencyCard";
+import RecoveryCard from "@/components/RecoveryCard";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
 
@@ -126,6 +127,9 @@ export default async function FeedPage({
               userId={userId}
               trainingDaysGoal={currentUser?.trainingDays ?? null}
             />
+          </Suspense>
+          <Suspense fallback={null}>
+            <RecoveryCard userId={userId} />
           </Suspense>
         </>
       )}
