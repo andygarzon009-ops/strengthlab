@@ -47,9 +47,13 @@ export default async function RecoveryCard({ userId }: { userId: string }) {
   const filled = (Math.max(0, Math.min(100, score)) / 100) * c;
 
   const sleep = account.sleepSummary as { asleepMin?: number } | null;
+  const sleepLabel =
+    sleep?.asleepMin != null
+      ? `${Math.floor(sleep.asleepMin / 60)}h ${sleep.asleepMin % 60}m`
+      : null;
+
+  // HRV/RHR stay as the small secondary line; sleep gets its own prominent row.
   const drivers: string[] = [];
-  if (sleep?.asleepMin != null)
-    drivers.push(`${Math.floor(sleep.asleepMin / 60)}h ${sleep.asleepMin % 60}m sleep`);
   if (account.hrvMs != null) drivers.push(`HRV ${Math.round(account.hrvMs)}ms`);
   if (account.restingHr != null) {
     const d = account.restingDelta;
@@ -104,9 +108,29 @@ export default async function RecoveryCard({ userId }: { userId: string }) {
           <p className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
             {BAND_SUB[band] ?? ""}
           </p>
+          {sleepLabel && (
+            <p className="text-[13px] font-semibold mt-1.5 flex items-center gap-1 tabular-nums">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#818cf8"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+              </svg>
+              {sleepLabel}
+              <span className="font-normal" style={{ color: "var(--fg-dim)" }}>
+                sleep
+              </span>
+            </p>
+          )}
           {drivers.length > 0 && (
             <p
-              className="text-[11px] mt-1.5 tabular-nums"
+              className="text-[11px] mt-1 tabular-nums"
               style={{ color: "var(--fg-dim)" }}
             >
               {drivers.join(" · ")}
