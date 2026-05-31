@@ -149,6 +149,32 @@ export async function refreshRecovery(userId: string): Promise<void> {
     if (Object.keys(data).length > 0) {
       await prisma.healthAccount.update({ where: { userId }, data });
     }
+
+    // Record one row per local day for the 7-day trend (latest wins per day).
+    if (recoveryScore !== null) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { timezone: true },
+      });
+      const dateKey = new Intl.DateTimeFormat("en-CA", {
+        timeZone: user?.timezone ?? "UTC",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(now);
+      const dayData = {
+        score: recoveryScore,
+        band,
+        sleepMin: lastNight?.asleepMin ?? null,
+        hrvMs: hrvNow !== null ? round1(hrvNow) : null,
+        restingHr: rhrNow,
+      };
+      await prisma.recoveryDay.upsert({
+        where: { userId_dateKey: { userId, dateKey } },
+        create: { userId, dateKey, ...dayData },
+        update: dayData,
+      });
+    }
   } catch {
     // Best-effort; never surface errors to the caller.
   }

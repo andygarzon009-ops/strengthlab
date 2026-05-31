@@ -57,6 +57,15 @@ export default async function RecoveryPage() {
     },
   });
 
+  const trendDays = (
+    await prisma.recoveryDay.findMany({
+      where: { userId },
+      orderBy: { dateKey: "desc" },
+      take: 7,
+      select: { dateKey: true, score: true, band: true },
+    })
+  ).reverse(); // oldest → newest
+
   const score = account?.recoveryScore ?? null;
   const band = account?.recoveryBand ?? null;
   const color = band ? (BAND_COLOR[band] ?? "var(--accent)") : "var(--fg-dim)";
@@ -94,6 +103,8 @@ export default async function RecoveryPage() {
               </p>
             )}
           </div>
+
+          {trendDays.length >= 2 && <RecoveryTrend days={trendDays} />}
 
           {/* What's driving it */}
           <p className="label mb-2">What&apos;s driving it</p>
@@ -228,6 +239,59 @@ function DriverRow({
         </p>
       </div>
       <span className="text-[16px] font-bold tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+function RecoveryTrend({
+  days,
+}: {
+  days: { dateKey: string; score: number; band: string | null }[];
+}) {
+  const DOW = ["S", "M", "T", "W", "T", "F", "S"];
+  return (
+    <div className="mb-5">
+      <p className="label mb-2">Last {days.length} days</p>
+      <div
+        className="rounded-xl px-4 py-4 flex items-end justify-between"
+        style={{
+          background: "var(--bg-card)",
+          border: "1px solid var(--border)",
+          height: 110,
+        }}
+      >
+        {days.map((d, i) => {
+          const color = d.band
+            ? (BAND_COLOR[d.band] ?? "var(--fg-dim)")
+            : "var(--fg-dim)";
+          const h = Math.max(6, (Math.min(100, d.score) / 100) * 64);
+          // dateKey is YYYY-MM-DD; parse as UTC noon to get a stable weekday.
+          const dow = DOW[new Date(`${d.dateKey}T12:00:00Z`).getUTCDay()];
+          const isLast = i === days.length - 1;
+          return (
+            <div key={d.dateKey} className="flex flex-col items-center gap-1.5">
+              <span
+                className="text-[10px] font-bold tabular-nums"
+                style={{ color: isLast ? color : "var(--fg-dim)" }}
+              >
+                {d.score}
+              </span>
+              <div
+                className="rounded-full"
+                style={{
+                  width: 8,
+                  height: h,
+                  background: color,
+                  opacity: isLast ? 1 : 0.65,
+                }}
+              />
+              <span className="text-[10px]" style={{ color: "var(--fg-dim)" }}>
+                {dow}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

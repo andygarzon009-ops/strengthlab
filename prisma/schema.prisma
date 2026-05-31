@@ -90,6 +90,28 @@ model User {
   receivedFriendRequests FriendRequest[]    @relation("FriendRequestTo")
   ambientHeartRates      AmbientHeartRateSample[]
   pushSubscriptions      PushSubscription[]
+  recoveryDays           RecoveryDay[]
+}
+
+/// One recovery score per user per local day, upserted on sync. Powers the
+/// 7-day recovery trend on /recovery (the HealthAccount snapshot only holds the
+/// latest).
+model RecoveryDay {
+  id        String   @id @default(cuid())
+  userId    String
+  dateKey   String   // local YYYY-MM-DD
+  score     Int
+  band      String?
+  sleepMin  Int?
+  hrvMs     Float?
+  restingHr Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dateKey])
+  @@index([userId, dateKey])
 }
 
 /// A Web Push subscription for a user's device/browser. One row per
