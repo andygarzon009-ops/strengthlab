@@ -1,6 +1,5 @@
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { listHeartRateBetween } from "@/lib/googleHealth";
 import HeartRateView from "@/components/HeartRateView";
 import BackButton from "@/components/BackButton";
 
@@ -22,28 +21,10 @@ export default async function HeartRatePage() {
     day: "2-digit",
   }).format(new Date());
 
-  // Compute today's [start, now) in the user's tz and pull samples server-side
-  // so the initial paint isn't blank.
-  let initialSamples: { t: string; bpm: number }[] = [];
-  if (account) {
-    const [y, m, d] = dateKey.split("-").map(Number);
-    const offsetMin = tzOffsetMinutes(tz, new Date(Date.UTC(y, m - 1, d)));
-    const startUtc = new Date(Date.UTC(y, m - 1, d) - offsetMin * 60 * 1000);
-    const endUtc = new Date();
-    try {
-      const samples = await listHeartRateBetween(
-        userId,
-        startUtc.toISOString(),
-        endUtc.toISOString(),
-      );
-      initialSamples = samples.map((s) => ({
-        t: s.timestamp.toISOString(),
-        bpm: s.bpm,
-      }));
-    } catch {
-      // Fall through with empty samples; chart shows "no samples yet today".
-    }
-  }
+  // Samples are now fetched client-side by DailyHRChart (/api/health/daily-hr),
+  // so the page never blocks on a slow Google Health call. The chart shows its
+  // own loading state and fills in once the fetch returns.
+  const initialSamples: { t: string; bpm: number }[] = [];
 
   // All workouts with HR data in the last year — filtered client-side by
   // the active range chip (D / W / M / Y). One query covers all four views.
@@ -92,27 +73,4 @@ export default async function HeartRatePage() {
       />
     </div>
   );
-}
-
-function tzOffsetMinutes(tz: string, atUtc: Date): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).formatToParts(atUtc);
-  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
-  const asUtc = Date.UTC(
-    get("year"),
-    get("month") - 1,
-    get("day"),
-    get("hour") === 24 ? 0 : get("hour"),
-    get("minute"),
-    get("second"),
-  );
-  return Math.round((asUtc - atUtc.getTime()) / 60000);
 }

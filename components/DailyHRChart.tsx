@@ -45,23 +45,34 @@ export default function DailyHRChart({
   const [hourWindow, setHourWindow] = useState<{ start: string; end: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Day-view auto-refresh: re-pull samples once a minute so the chart
-  // fills in live. Only runs while range === "D".
+  // Day-view: fetch immediately on mount (the page no longer blocks to provide
+  // initial samples), then re-pull once a minute so the chart fills in live.
   useEffect(() => {
     if (range !== "D") return;
     let cancelled = false;
-    const id = setInterval(async () => {
+    const load = async (showLoading: boolean) => {
+      if (showLoading) setLoading(true);
       try {
         const res = await fetch("/api/health/daily-hr", { cache: "no-store" });
-        if (!res.ok) return;
-        const body = await res.json();
-        if (!cancelled) setData(body);
-      } catch {}
-    }, 60_000);
+        if (res.ok) {
+          const body = await res.json();
+          if (!cancelled) setData(body);
+        }
+      } catch {
+        // keep whatever we have
+      } finally {
+        if (showLoading && !cancelled) setLoading(false);
+      }
+    };
+    // Only show the spinner if we don't already have samples (avoids a flash
+    // when toggling back to D with data still in state).
+    load(data.samples.length === 0);
+    const id = setInterval(() => load(false), 60_000);
     return () => {
       cancelled = true;
       clearInterval(id);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range]);
 
   // Hour-view fetch + tight 20s poll so the chart tracks an active workout.
