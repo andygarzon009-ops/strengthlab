@@ -186,45 +186,63 @@ export type RestingHeartRateSample = {
   bpm: number;
 };
 
-/// Daily resting heart-rate samples from Google Health. Fitbit emits one
-/// reading per day, typically computed overnight. Returns sorted oldest →
-/// newest. Returns an empty array if the data type isn't available on the
-/// connected account (e.g. user wears the watch only during workouts).
+/// Daily resting heart-rate from Google Health. The correct data type is
+/// `daily-resting-heart-rate` (the older `resting-heart-rate` ID is rejected by
+/// the API — that bug is why this used to always return empty). Each point is a
+/// per-day value keyed by a civil date, with no sample_time filtering, so we
+/// pull recent points and filter to [start, end) in code. A day can have
+/// multiple sources (Fitbit + Apple HealthKit) — we keep one per day, preferring
+/// the Fitbit sleep-based reading. Returns sorted oldest → newest, or [] if the
+/// account has no data.
 export async function listRestingHeartRate(
   userId: string,
   startISO: string,
   endISO: string,
 ): Promise<RestingHeartRateSample[]> {
-  const toUtc = (s: string) => (s.endsWith("Z") ? s : `${s}Z`);
-  const filter =
-    `resting_heart_rate.sample_time.physical_time >= "${toUtc(startISO)}"` +
-    ` AND resting_heart_rate.sample_time.physical_time < "${toUtc(endISO)}"`;
   const path =
-    "/users/me/dataTypes/resting-heart-rate/dataPoints?pageSize=200&filter=" +
-    encodeURIComponent(filter);
+    "/users/me/dataTypes/daily-resting-heart-rate/dataPoints?pageSize=60";
 
   try {
     const data = (await healthFetch(userId, path)) as {
       dataPoints?: {
-        restingHeartRate?: {
-          sampleTime?: { physicalTime?: string };
+        dataSource?: { platform?: string };
+        dailyRestingHeartRate?: {
+          date?: { year: number; month: number; day: number };
           beatsPerMinute?: string | number;
+          dailyRestingHeartRateMetadata?: { calculationMethod?: string };
         };
       }[];
     };
-    const out: RestingHeartRateSample[] = [];
+
+    const start = new Date(startISO).getTime();
+    const end = new Date(endISO).getTime();
+    // Keep the best reading per calendar day (Fitbit sleep-based wins).
+    const byDay = new Map<string, { date: Date; bpm: number; score: number }>();
     for (const p of data.dataPoints ?? []) {
-      const ts = p.restingHeartRate?.sampleTime?.physicalTime;
-      const raw = p.restingHeartRate?.beatsPerMinute;
+      const d = p.dailyRestingHeartRate?.date;
+      const raw = p.dailyRestingHeartRate?.beatsPerMinute;
       const bpm = typeof raw === "string" ? Number(raw) : raw;
-      if (!ts || typeof bpm !== "number" || !Number.isFinite(bpm) || bpm <= 0)
+      if (!d || typeof bpm !== "number" || !Number.isFinite(bpm) || bpm <= 0)
         continue;
-      out.push({ date: new Date(ts), bpm: Math.round(bpm) });
+      const date = new Date(Date.UTC(d.year, d.month - 1, d.day));
+      const t = date.getTime();
+      if (t < start || t >= end) continue;
+      const platform = p.dataSource?.platform;
+      const method =
+        p.dailyRestingHeartRate?.dailyRestingHeartRateMetadata?.calculationMethod;
+      const score =
+        (platform === "FITBIT" ? 2 : 0) + (method === "WITH_SLEEP" ? 1 : 0);
+      const key = `${d.year}-${d.month}-${d.day}`;
+      const prev = byDay.get(key);
+      if (!prev || score > prev.score)
+        byDay.set(key, { date, bpm: Math.round(bpm), score });
     }
-    out.sort((a, b) => a.date.getTime() - b.date.getTime());
-    return out;
+
+    return [...byDay.values()]
+      .map(({ date, bpm }) => ({ date, bpm }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
   } catch {
-    // Some accounts/devices don't expose this data type — degrade silently.
+    // Account/device doesn't expose this data type — degrade silently.
     return [];
   }
 }
