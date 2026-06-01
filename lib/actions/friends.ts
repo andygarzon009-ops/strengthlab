@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 import { sendPushToUser } from "@/lib/push";
+import { createNotification } from "@/lib/notifications";
 
 async function actorName(userId: string): Promise<string> {
   try {
@@ -124,6 +125,13 @@ export async function sendFriendRequest(toUserId: string): Promise<FriendState> 
     revalidateAll(toUserId);
     // They invited me and I just reciprocated — tell them we're now crew.
     const name = await actorName(userId);
+    await createNotification({
+      userId: toUserId,
+      type: "FRIEND_ACCEPT",
+      actorId: userId,
+      body: `${name} added you back — you're now crew`,
+      url: `/u/${userId}`,
+    });
     await sendPushToUser(toUserId, {
       title: "You're now crew 💪",
       body: `${name} added you back`,
@@ -165,6 +173,13 @@ export async function acceptFriendRequest(fromUserId: string) {
   revalidateAll(fromUserId);
   // Let the requester know they got in.
   const name = await actorName(userId);
+  await createNotification({
+    userId: fromUserId,
+    type: "FRIEND_ACCEPT",
+    actorId: userId,
+    body: `${name} accepted your crew request`,
+    url: `/u/${userId}`,
+  });
   await sendPushToUser(fromUserId, {
     title: "You're now crew 💪",
     body: `${name} accepted your crew request`,

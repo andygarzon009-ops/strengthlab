@@ -91,6 +91,28 @@ model User {
   ambientHeartRates      AmbientHeartRateSample[]
   pushSubscriptions      PushSubscription[]
   recoveryDays           RecoveryDay[]
+  notifications          Notification[]        @relation("NotificationRecipient")
+  notificationsActed     Notification[]        @relation("NotificationActor")
+}
+
+/// Persistent in-app notification (the inbox). Survives even when a Web Push
+/// is missed or push was never enabled. Created e.g. when someone accepts your
+/// crew request. `read` flips once the recipient opens /notifications.
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   // recipient
+  type      String   // FRIEND_ACCEPT (extensible)
+  actorId   String?  // who triggered it (for avatar/name)
+  body      String
+  url       String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user  User  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor User? @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
 }
 
 /// One recovery score per user per local day, upserted on sync. Powers the

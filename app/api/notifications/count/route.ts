@@ -7,9 +7,14 @@ export async function GET() {
   const session = await getSession();
   if (!session?.userId) return Response.json({ count: 0 });
 
-  const count = await prisma.friendRequest.count({
-    where: { toUserId: session.userId, status: "PENDING" },
-  });
+  const [pendingRequests, unreadActivity] = await Promise.all([
+    prisma.friendRequest.count({
+      where: { toUserId: session.userId, status: "PENDING" },
+    }),
+    prisma.notification.count({
+      where: { userId: session.userId, read: false },
+    }),
+  ]);
 
-  return Response.json({ count });
+  return Response.json({ count: pendingRequests + unreadActivity });
 }
