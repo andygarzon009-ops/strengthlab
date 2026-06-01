@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { e1rm } from "@/lib/strengthProgression";
 import { isMachineExercise } from "@/lib/exercises";
 import { normalizeExerciseName } from "@/lib/exerciseIdentity";
+import Link from "next/link";
 import BackButton from "@/components/BackButton";
 import FriendButton from "@/components/FriendButton";
 import ShareProfileButton from "@/components/ShareProfileButton";
@@ -82,10 +83,14 @@ export default async function PublicProfilePage({
   // Level from lifetime workouts.
   const level = Math.floor(totalWorkouts / 10) + 1;
 
-  // Trained-day set for the current month's calendar.
-  const trainedDays = new Set(
-    monthWorkouts.map((w) => new Date(w.date).getDate()),
-  );
+  // Map each trained day in the current month to a workout id so the
+  // calendar cell can link straight to that session. monthWorkouts is
+  // date-desc, so the first hit per day is the most recent one.
+  const workoutByDay = new Map<number, string>();
+  for (const w of monthWorkouts) {
+    const d = new Date(w.date).getDate();
+    if (!workoutByDay.has(d)) workoutByDay.set(d, w.id);
+  }
   const daysInMonth = new Date(
     now.getFullYear(),
     now.getMonth() + 1,
@@ -213,26 +218,35 @@ export default async function PublicProfilePage({
                 {d}
               </div>
             ))}
-            {cells.map((day, i) => (
-              <div key={i} className="flex items-center justify-center aspect-square">
-                {day !== null && (
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-[12px]"
-                    style={
-                      trainedDays.has(day)
-                        ? {
-                            border: "1.5px solid #a3e635",
-                            color: "var(--fg)",
-                            fontWeight: 600,
-                          }
-                        : { color: "var(--fg-dim)" }
-                    }
-                  >
-                    {day}
-                  </div>
-                )}
-              </div>
-            ))}
+            {cells.map((day, i) => {
+              const workoutId = day !== null ? workoutByDay.get(day) : undefined;
+              return (
+                <div key={i} className="flex items-center justify-center aspect-square">
+                  {day !== null &&
+                    (workoutId ? (
+                      <Link
+                        href={`/workout/${workoutId}`}
+                        aria-label={`View workout on ${MONTHS[now.getMonth()]} ${day}`}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] active:scale-95 transition-transform"
+                        style={{
+                          border: "1.5px solid #a3e635",
+                          color: "var(--fg)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {day}
+                      </Link>
+                    ) : (
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-[12px]"
+                        style={{ color: "var(--fg-dim)" }}
+                      >
+                        {day}
+                      </div>
+                    ))}
+                </div>
+              );
+            })}
           </div>
         </div>
 
