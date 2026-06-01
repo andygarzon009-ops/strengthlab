@@ -194,6 +194,31 @@ export default function ExerciseLogger({
       .then(setAllExercises);
   }, []);
 
+  // Backfill the "last top set" hint for every exercise already in the list —
+  // including ones the coach prescribed (which arrive pre-populated and never
+  // went through addExercise). Manual adds fetch it directly; this catches the
+  // rest. requestedPrev guards against duplicate requests.
+  const requestedPrev = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    let cancelled = false;
+    for (const ex of exercises) {
+      const id = ex.exerciseId;
+      if (!id || requestedPrev.current.has(id) || previousData[id]) continue;
+      requestedPrev.current.add(id);
+      fetch(`/api/exercises/${id}/previous`)
+        .then((r) => r.json())
+        .then((prev: PreviousData | null) => {
+          if (!cancelled && prev?.lastWeight) {
+            setPreviousData((p) => ({ ...p, [id]: prev }));
+          }
+        })
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [exercises, previousData]);
+
   const filtered = allExercises
     .filter((e) => matchesSearch(e.name, search))
     .sort((a, b) => {
@@ -216,6 +241,7 @@ export default function ExerciseLogger({
       }, []);
 
   const addExercise = async (ex: Exercise) => {
+    requestedPrev.current.add(ex.id);
     const res = await fetch(`/api/exercises/${ex.id}/previous`);
     const prev: PreviousData = await res.json();
 
