@@ -72,7 +72,24 @@ export default async function CrewPage() {
   const followingIds = follows.map((f) => f.followingId);
   const everyoneIds = [userId, ...followingIds];
 
-  const [people, lastByUser, weekWorkouts, challengeViews] = await Promise.all([
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  const fiveWeeksAgo = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000);
+
+  // One parallel batch for every query that only depends on the follow graph.
+  // These previously ran as ~6 sequential round-trips, which dominated this
+  // page's latency on the Supabase pooler.
+  const [
+    people,
+    lastByUser,
+    weekWorkouts,
+    challengeViews,
+    incomingRaw,
+    prRows,
+    streakRows,
+    totals,
+    fofRows,
+  ] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: everyoneIds } },
       select: { id: true, name: true, image: true },
@@ -85,7 +102,7 @@ export default async function CrewPage() {
     prisma.workout.findMany({
       where: {
         userId: { in: everyoneIds },
-        date: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        date: { gte: weekAgo },
       },
       select: {
         userId: true,
@@ -96,6 +113,53 @@ export default async function CrewPage() {
       },
     }),
     loadChallengesForUser(userId),
+    prisma.friendRequest.findMany({
+      where: { toUserId: userId, status: "PENDING" },
+      orderBy: { createdAt: "desc" },
+      select: { from: { select: { id: true, name: true, image: true } } },
+    }),
+    followingIds.length === 0
+      ? Promise.resolve([])
+      : prisma.personalRecord.findMany({
+          where: {
+            userId: { in: followingIds },
+            type: "WEIGHT",
+            workoutId: { not: null },
+            date: { gte: twoWeeksAgo },
+          },
+          orderBy: { date: "desc" },
+          take: 6,
+          select: {
+            id: true,
+            value: true,
+            reps: true,
+            date: true,
+            userId: true,
+            workoutId: true,
+            exercise: { select: { name: true } },
+          },
+        }),
+    prisma.workout.findMany({
+      where: {
+        userId: { in: everyoneIds },
+        date: { gte: fiveWeeksAgo },
+      },
+      select: { userId: true, date: true },
+    }),
+    prisma.workout.groupBy({
+      by: ["userId"],
+      where: { userId: { in: everyoneIds } },
+      _count: { _all: true },
+    }),
+    followingIds.length === 0
+      ? Promise.resolve([])
+      : prisma.follow.findMany({
+          where: {
+            followerId: { in: followingIds },
+            followingId: { notIn: everyoneIds },
+          },
+          select: { followingId: true },
+        }),
   ]);
 
   const nameById = new Map(people.map((p) => [p.id, p.name]));
@@ -143,12 +207,7 @@ export default async function CrewPage() {
     }))
     .sort((a, b) => (b.last?.getTime() ?? 0) - (a.last?.getTime() ?? 0));
 
-  // Incoming friend requests (pending) → inbox.
-  const incomingRaw = await prisma.friendRequest.findMany({
-    where: { toUserId: userId, status: "PENDING" },
-    orderBy: { createdAt: "desc" },
-    select: { from: { select: { id: true, name: true, image: true } } },
-  });
+  // Incoming friend requests (pending) → inbox. (incomingRaw from batch 1)
   const incoming: IncomingRequest[] = incomingRaw.map((r) => ({
     fromUserId: r.from.id,
     name: r.from.name,
@@ -171,39 +230,34 @@ export default async function CrewPage() {
     })),
   ];
 
-  // Highlights: recent weight PRs from people you follow, each cheerable.
-  const prRows =
-    followingIds.length === 0
-      ? []
-      : await prisma.personalRecord.findMany({
-          where: {
-            userId: { in: followingIds },
-            type: "WEIGHT",
-            workoutId: { not: null },
-            date: { gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) },
-          },
-          orderBy: { date: "desc" },
-          take: 6,
-          select: {
-            id: true,
-            value: true,
-            reps: true,
-            date: true,
-            userId: true,
-            workoutId: true,
-            exercise: { select: { name: true } },
-          },
-        });
+  // prRows + fofRows came from the parallel batch above. The only queries that
+  // depend on earlier results — cheers on those PRs, and the explore candidate
+  // profiles — run together as one more batch.
   const prWorkoutIds = prRows
     .map((p) => p.workoutId)
     .filter((w): w is string => !!w);
-  const cheerRows =
+  const mutualCount = new Map<string, number>();
+  for (const f of fofRows) {
+    mutualCount.set(f.followingId, (mutualCount.get(f.followingId) ?? 0) + 1);
+  }
+  const candidateIds = [...mutualCount.keys()];
+
+  const [cheerRows, fofUsers] = await Promise.all([
     prWorkoutIds.length === 0
-      ? []
-      : await prisma.reaction.findMany({
+      ? Promise.resolve([])
+      : prisma.reaction.findMany({
           where: { workoutId: { in: prWorkoutIds }, type: "🏆" },
           select: { workoutId: true, userId: true },
-        });
+        }),
+    candidateIds.length === 0
+      ? Promise.resolve([])
+      : prisma.user.findMany({
+          where: { id: { in: candidateIds } },
+          select: { id: true, name: true, image: true },
+        }),
+  ]);
+
+  // Highlights: recent weight PRs from people you follow, each cheerable.
   const cheerCount = new Map<string, number>();
   const iCheered = new Set<string>();
   for (const r of cheerRows) {
@@ -234,14 +288,7 @@ export default async function CrewPage() {
       return { id: c.id, name: c.name, subtitle: `${rank} · ${timeLeft(c.endsAt)}` };
     });
 
-  // ---- On Fire: current streaks across the crew ----
-  const streakRows = await prisma.workout.findMany({
-    where: {
-      userId: { in: everyoneIds },
-      date: { gte: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000) },
-    },
-    select: { userId: true, date: true },
-  });
+  // ---- On Fire: current streaks across the crew (streakRows from batch 1) ----
   const daysByUser = new Map<string, string[]>();
   for (const r of streakRows) {
     const arr = daysByUser.get(r.userId) ?? [];
@@ -262,11 +309,7 @@ export default async function CrewPage() {
     );
 
   // ---- Milestones: lifetime workout counts → level + round-number badges ----
-  const totals = await prisma.workout.groupBy({
-    by: ["userId"],
-    where: { userId: { in: everyoneIds } },
-    _count: { _all: true },
-  });
+  // (totals from batch 1)
   const totalByUser = new Map(totals.map((t) => [t.userId, t._count._all]));
   const milestones: MilestoneItem[] = [];
   for (const id of everyoneIds) {
@@ -296,36 +339,16 @@ export default async function CrewPage() {
   milestones.sort((a, b) => b.score - a.score);
 
   // ---- Explore: friends-of-friends you don't follow yet ----
-  let explore: ExploreItem[] = [];
-  if (followingIds.length > 0) {
-    const fof = await prisma.follow.findMany({
-      where: {
-        followerId: { in: followingIds },
-        followingId: { notIn: everyoneIds },
-      },
-      select: { followingId: true },
-    });
-    const mutualCount = new Map<string, number>();
-    for (const f of fof) {
-      mutualCount.set(f.followingId, (mutualCount.get(f.followingId) ?? 0) + 1);
-    }
-    const candidateIds = [...mutualCount.keys()];
-    if (candidateIds.length > 0) {
-      const cands = await prisma.user.findMany({
-        where: { id: { in: candidateIds } },
-        select: { id: true, name: true, image: true },
-      });
-      explore = cands
-        .map((u) => ({
-          id: u.id,
-          name: u.name,
-          image: u.image,
-          mutuals: mutualCount.get(u.id) ?? 0,
-        }))
-        .sort((a, b) => b.mutuals - a.mutuals)
-        .slice(0, 8);
-    }
-  }
+  // fofUsers + mutualCount were resolved in the batch above.
+  const explore: ExploreItem[] = fofUsers
+    .map((u) => ({
+      id: u.id,
+      name: u.name,
+      image: u.image,
+      mutuals: mutualCount.get(u.id) ?? 0,
+    }))
+    .sort((a, b) => b.mutuals - a.mutuals)
+    .slice(0, 8);
 
   const ranking: RankRow[] = ranked.map((r) => ({
     id: r.id,

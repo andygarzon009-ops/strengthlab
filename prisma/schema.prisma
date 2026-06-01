@@ -368,6 +368,10 @@ model Workout {
   reactions      Reaction[]
   posts          GroupPost[]
   heartRateSamples WorkoutHeartRateSample[]
+
+  // Nearly every feed/crew/profile/challenge query filters by user and a date
+  // window ordered by date — without this it's a full table scan.
+  @@index([userId, date])
 }
 
 /// Heart-rate samples captured during a workout, pulled from Google Health.
@@ -409,6 +413,9 @@ model WorkoutExercise {
   workout  Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exercise Exercise @relation(fields: [exerciseId], references: [id])
   sets     Set[]
+
+  @@index([workoutId])
+  @@index([exerciseId])
 }
 
 model Set {
@@ -423,6 +430,8 @@ model Set {
   loggedAt          DateTime?
 
   workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+
+  @@index([workoutExerciseId])
 }
 
 model PersonalRecord {
@@ -437,6 +446,9 @@ model PersonalRecord {
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   exercise Exercise @relation(fields: [exerciseId], references: [id])
+
+  @@index([userId, date])
+  @@index([workoutId])
 }
 
 model Group {
@@ -548,6 +560,8 @@ model Comment {
 
   workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workoutId])
 }
 
 model Reaction {

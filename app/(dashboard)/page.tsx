@@ -26,7 +26,10 @@ export default async function FeedPage({
       where: { followerId: userId },
       select: { following: { select: { id: true, name: true } } },
     }),
-    prisma.user.findUnique({ where: { id: userId } }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, trainingDays: true },
+    }),
   ]);
   const followingPeople = follows.map((f) => f.following);
   const followingIds = followingPeople.map((p) => p.id);
