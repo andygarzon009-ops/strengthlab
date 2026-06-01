@@ -20,9 +20,10 @@ type Payload = {
   days: RangeDay[];
 };
 
-const MOVE_COLOR = "#fa114f";
-const EXERCISE_COLOR = "#a4f803";
-const SESSION_COLOR = "#1dd2e6";
+// Matches the feed Activity card — warmer, non-Apple palette.
+const MOVE_COLOR = "#f97316";
+const EXERCISE_COLOR = "#22c55e";
+const SESSION_COLOR = "#38bdf8";
 
 const RANGE_LABELS: { value: ActivityRange; label: string }[] = [
   { value: "D", label: "D" },
@@ -201,17 +202,10 @@ function DayCard({
       >
         Today
       </p>
-      <div className="flex items-center gap-5">
-        <BigRings
-          move={{ value: move, goal: moveGoal }}
-          exercise={{ value: ex, goal: exerciseGoal }}
-          session={{ value: sess, goal: sessionGoal }}
-        />
-        <div className="flex-1 space-y-3 min-w-0">
-          <BigStat label="Move" value={move} goal={moveGoal} unit="cal" color={MOVE_COLOR} />
-          <BigStat label="Exercise" value={ex} goal={exerciseGoal} unit="min" color={EXERCISE_COLOR} />
-          <BigStat label="Sessions" value={sess} goal={sessionGoal} unit="" color={SESSION_COLOR} />
-        </div>
+      <div className="space-y-4 mt-3">
+        <DayBar label="Move" value={move} goal={moveGoal} unit="cal" color={MOVE_COLOR} />
+        <DayBar label="Exercise" value={ex} goal={exerciseGoal} unit="min" color={EXERCISE_COLOR} />
+        <DayBar label="Sessions" value={sess} goal={sessionGoal} unit="" color={SESSION_COLOR} />
       </div>
     </div>
   );
@@ -316,98 +310,7 @@ function RangeCard({
   );
 }
 
-function BigRings({
-  move,
-  exercise,
-  session,
-}: {
-  move: { value: number; goal: number };
-  exercise: { value: number; goal: number };
-  session: { value: number; goal: number };
-}) {
-  const size = 150;
-  const cx = size / 2;
-  const cy = size / 2;
-  const stroke = 14;
-  const gap = 3;
-  const rOuter = cx - stroke / 2;
-  const rMiddle = rOuter - stroke - gap;
-  const rInner = rMiddle - stroke - gap;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <Ring
-        cx={cx}
-        cy={cy}
-        r={rOuter}
-        stroke={stroke}
-        color={MOVE_COLOR}
-        pct={Math.min(1, move.value / move.goal)}
-      />
-      <Ring
-        cx={cx}
-        cy={cy}
-        r={rMiddle}
-        stroke={stroke}
-        color={EXERCISE_COLOR}
-        pct={Math.min(1, exercise.value / exercise.goal)}
-      />
-      <Ring
-        cx={cx}
-        cy={cy}
-        r={rInner}
-        stroke={stroke}
-        color={SESSION_COLOR}
-        pct={Math.min(1, session.value / session.goal)}
-      />
-    </svg>
-  );
-}
-
-function Ring({
-  cx,
-  cy,
-  r,
-  stroke,
-  color,
-  pct,
-}: {
-  cx: number;
-  cy: number;
-  r: number;
-  stroke: number;
-  color: string;
-  pct: number;
-}) {
-  const circ = 2 * Math.PI * r;
-  const dash = circ * pct;
-  return (
-    <g transform={`rotate(-90 ${cx} ${cy})`}>
-      <circle
-        cx={cx}
-        cy={cy}
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeOpacity={0.18}
-        strokeWidth={stroke}
-      />
-      {pct > 0 && (
-        <circle
-          cx={cx}
-          cy={cy}
-          r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={`${dash} ${circ - dash}`}
-        />
-      )}
-    </g>
-  );
-}
-
-function BigStat({
+function DayBar({
   label,
   value,
   goal,
@@ -420,24 +323,47 @@ function BigStat({
   unit: string;
   color: string;
 }) {
+  const pct = Math.min(1, goal > 0 ? value / goal : 0);
+  const done = value >= goal && goal > 0;
   return (
     <div>
-      <p
-        className="text-[10px] uppercase tracking-wider font-semibold"
-        style={{ color: "var(--fg-dim)" }}
-      >
-        {label}
-      </p>
-      <p className="text-[18px] font-bold tabular-nums" style={{ color }}>
-        {value.toLocaleString()}
+      <div className="flex items-baseline justify-between mb-1.5">
         <span
-          className="text-[10px] ml-1"
+          className="text-[11px] uppercase tracking-wider font-semibold"
           style={{ color: "var(--fg-dim)" }}
         >
-          /{goal.toLocaleString()}
-          {unit ? ` ${unit}` : ""}
+          {label}
         </span>
-      </p>
+        <span className="tabular-nums">
+          <span className="text-[18px] font-bold" style={{ color }}>
+            {value.toLocaleString()}
+          </span>
+          <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
+            {" "}
+            / {goal.toLocaleString()}
+            {unit ? ` ${unit}` : ""}
+          </span>
+          {done && (
+            <span className="text-[14px] font-bold" style={{ color }}>
+              {" "}
+              ✓
+            </span>
+          )}
+        </span>
+      </div>
+      <div
+        className="h-2.5 rounded-full overflow-hidden"
+        style={{ background: "var(--bg-elevated)" }}
+      >
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: `${pct * 100}%`,
+            background: color,
+            boxShadow: pct > 0 ? `0 0 8px ${color}66` : undefined,
+          }}
+        />
+      </div>
     </div>
   );
 }
