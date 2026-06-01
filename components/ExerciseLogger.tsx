@@ -200,24 +200,23 @@ export default function ExerciseLogger({
   // rest. requestedPrev guards against duplicate requests.
   const requestedPrev = useRef<Set<string>>(new Set());
   useEffect(() => {
-    let cancelled = false;
+    // Fire one request per not-yet-requested exercise. Dedupe via the ref (not
+    // previousData) and DON'T cancel on re-render — otherwise the first fetch
+    // resolving would re-run this effect and abort all the others mid-flight.
     for (const ex of exercises) {
       const id = ex.exerciseId;
-      if (!id || requestedPrev.current.has(id) || previousData[id]) continue;
+      if (!id || requestedPrev.current.has(id)) continue;
       requestedPrev.current.add(id);
       fetch(`/api/exercises/${id}/previous`)
         .then((r) => r.json())
         .then((prev: PreviousData | null) => {
-          if (!cancelled && prev?.lastWeight) {
+          if (prev?.lastWeight) {
             setPreviousData((p) => ({ ...p, [id]: prev }));
           }
         })
         .catch(() => {});
     }
-    return () => {
-      cancelled = true;
-    };
-  }, [exercises, previousData]);
+  }, [exercises]);
 
   const filtered = allExercises
     .filter((e) => matchesSearch(e.name, search))
