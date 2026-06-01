@@ -184,18 +184,92 @@ export async function refreshRecovery(userId: string): Promise<void> {
       await prisma.healthAccount.update({ where: { userId }, data });
     }
 
-    // Record one row per local day for the 7-day trend (latest wins per day).
-    if (recoveryScore !== null) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { timezone: true },
-      });
-      const dateKey = new Intl.DateTimeFormat("en-CA", {
-        timeZone: user?.timezone ?? "UTC",
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { timezone: true },
+    });
+    const tz = user?.timezone ?? "UTC";
+    const localKey = (dt: Date) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz,
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
-      }).format(now);
+      }).format(dt);
+    const todayKey = localKey(now);
+
+    // Backfill prior days so the trend has depth immediately — compute a score
+    // per day from the same 30-day series we just fetched, using a rolling
+    // baseline (each day vs the days before it). Today is written from the
+    // headline score below, so we skip it here.
+    const dayKey = (dt: Date) => dt.toISOString().slice(0, 10);
+    const rhrByKey = new Map<string, number>();
+    for (const s of rhr) rhrByKey.set(dayKey(s.date), s.bpm);
+    const hrvByKey = new Map<string, number>();
+    for (const s of hrv) hrvByKey.set(dayKey(s.date), s.rmssd);
+    const sleepByKey = new Map<string, SleepNight>();
+    for (const n of sleep) {
+      const k = dayKey(new Date(n.end.getTime() + n.offsetSec * 1000));
+      const prev = sleepByKey.get(k);
+      if (!prev || n.asleepMin > prev.asleepMin) sleepByKey.set(k, n);
+    }
+    const rhrSeries = [...rhrByKey.entries()].sort((a, b) =>
+      a[0].localeCompare(b[0]),
+    );
+    const hrvSeries = [...hrvByKey.entries()].sort((a, b) =>
+      a[0].localeCompare(b[0]),
+    );
+    const baselineBefore = (series: [string, number][], k: string) => {
+      const prior = series.filter(([key]) => key < k).map(([, v]) => v);
+      return prior.length
+        ? prior.reduce((s, v) => s + v, 0) / prior.length
+        : null;
+    };
+
+    const cutoff = dayKey(new Date(now.getTime() - 13 * 24 * 60 * 60 * 1000));
+    const candidateKeys = [
+      ...new Set([
+        ...rhrByKey.keys(),
+        ...hrvByKey.keys(),
+        ...sleepByKey.keys(),
+      ]),
+    ]
+      .filter((k) => k >= cutoff && k !== todayKey)
+      .sort();
+
+    for (const k of candidateKeys) {
+      const rhrV = rhrByKey.get(k) ?? null;
+      const hrvV = hrvByKey.get(k) ?? null;
+      const night = sleepByKey.get(k) ?? null;
+      const rhrB = baselineBefore(rhrSeries, k);
+      const hrvB = baselineBefore(hrvSeries, k);
+      const dc: { score: number; weight: number }[] = [];
+      if (night) dc.push({ score: sleepScore(night), weight: 0.45 });
+      if (hrvV !== null && hrvB !== null)
+        dc.push({ score: hrvScore(hrvV, hrvB), weight: 0.3 });
+      if (rhrV !== null && rhrB !== null)
+        dc.push({ score: rhrScore(rhrV - rhrB), weight: 0.25 });
+      if (!dc.length) continue;
+      const ws = dc.reduce((s, c) => s + c.weight, 0);
+      const sc = Math.round(
+        dc.reduce((s, c) => s + c.score * c.weight, 0) / ws,
+      );
+      const dd = {
+        score: sc,
+        band: recoveryBand(sc),
+        sleepMin: night?.asleepMin ?? null,
+        hrvMs: hrvV !== null ? round1(hrvV) : null,
+        restingHr: rhrV,
+      };
+      await prisma.recoveryDay.upsert({
+        where: { userId_dateKey: { userId, dateKey: k } },
+        create: { userId, dateKey: k, ...dd },
+        update: dd,
+      });
+    }
+
+    // Today's row from the exact headline score (overrides any approximation).
+    if (recoveryScore !== null) {
       const dayData = {
         score: recoveryScore,
         band,
@@ -204,8 +278,8 @@ export async function refreshRecovery(userId: string): Promise<void> {
         restingHr: rhrNow,
       };
       await prisma.recoveryDay.upsert({
-        where: { userId_dateKey: { userId, dateKey } },
-        create: { userId, dateKey, ...dayData },
+        where: { userId_dateKey: { userId, dateKey: todayKey } },
+        create: { userId, dateKey: todayKey, ...dayData },
         update: dayData,
       });
     }
