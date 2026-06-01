@@ -5,6 +5,7 @@ import { shapeForType } from "@/lib/exercises";
 import { loadChallengesForUser } from "@/lib/loadChallenges";
 import { timeLeft } from "@/lib/crewChallenges";
 import GrowCrew from "@/components/GrowCrew";
+import RefreshButton from "@/components/RefreshButton";
 import Avatar from "@/components/Avatar";
 import FriendRequests, { type IncomingRequest } from "@/components/FriendRequests";
 import DiscoverTabs, {
@@ -340,11 +341,14 @@ export default async function CrewPage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
-      <div className="mb-5">
-        <p className="label">Crew</p>
-        <h1 className="text-[28px] font-bold tracking-tight leading-none mt-1">
-          Train together
-        </h1>
+      <div className="mb-5 flex items-start justify-between gap-3">
+        <div>
+          <p className="label">Crew</p>
+          <h1 className="text-[28px] font-bold tracking-tight leading-none mt-1">
+            Train together
+          </h1>
+        </div>
+        <RefreshButton ariaLabel="Refresh crew" />
       </div>
 
       {/* Story-style circles */}
