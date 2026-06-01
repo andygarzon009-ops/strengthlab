@@ -5,7 +5,7 @@ import { shapeForType } from "@/lib/exercises";
 import { loadChallengesForUser } from "@/lib/loadChallenges";
 import { timeLeft } from "@/lib/crewChallenges";
 import GrowCrew from "@/components/GrowCrew";
-import RefreshButton from "@/components/RefreshButton";
+import PullToRefresh from "@/components/PullToRefresh";
 import Avatar from "@/components/Avatar";
 import FriendRequests, { type IncomingRequest } from "@/components/FriendRequests";
 import DiscoverTabs, {
@@ -340,15 +340,13 @@ export default async function CrewPage() {
       : null;
 
   return (
+    <PullToRefresh>
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
-      <div className="mb-5 flex items-start justify-between gap-3">
-        <div>
-          <p className="label">Crew</p>
-          <h1 className="text-[28px] font-bold tracking-tight leading-none mt-1">
-            Train together
-          </h1>
-        </div>
-        <RefreshButton ariaLabel="Refresh crew" />
+      <div className="mb-5">
+        <p className="label">Crew</p>
+        <h1 className="text-[28px] font-bold tracking-tight leading-none mt-1">
+          Train together
+        </h1>
       </div>
 
       {/* Story-style circles */}
@@ -409,5 +407,6 @@ export default async function CrewPage() {
         <GrowCrew userId={userId} defaultOpen={followingIds.length === 0} />
       </div>
     </div>
+    </PullToRefresh>
   );
 }
