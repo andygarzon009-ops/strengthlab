@@ -9,9 +9,10 @@ const MOVE_GOAL_DEFAULT = 500; // kcal
 const EXERCISE_GOAL_DEFAULT = 30; // exercise minutes
 const SESSION_GOAL = 1; // workouts logged today
 
-const MOVE_COLOR = "#fa114f";
-const EXERCISE_COLOR = "#a4f803";
-const SESSION_COLOR = "#1dd2e6";
+// Deliberately not Apple's red/lime/cyan — warmer, on-brand palette.
+const MOVE_COLOR = "#f97316"; // orange (burn)
+const EXERCISE_COLOR = "#22c55e"; // app accent green
+const SESSION_COLOR = "#38bdf8"; // sky
 
 export default async function ActivityRingsCard({ userId }: Props) {
   const user = await prisma.user.findUnique({
@@ -60,6 +61,30 @@ export default async function ActivityRingsCard({ userId }: Props) {
   );
   const sessionCount = workouts.length;
 
+  const rows = [
+    {
+      label: "Move",
+      value: moveKcal,
+      goal: moveGoal,
+      unit: "cal",
+      color: MOVE_COLOR,
+    },
+    {
+      label: "Exercise",
+      value: exerciseMin,
+      goal: exerciseGoal,
+      unit: "min",
+      color: EXERCISE_COLOR,
+    },
+    {
+      label: "Sessions",
+      value: sessionCount,
+      goal: SESSION_GOAL,
+      unit: "",
+      color: SESSION_COLOR,
+    },
+  ];
+
   return (
     <Link
       href="/activity"
@@ -69,176 +94,68 @@ export default async function ActivityRingsCard({ userId }: Props) {
         border: "1px solid var(--border)",
       }}
     >
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-4">
         <h3 className="text-[14px] font-bold tracking-tight">Activity</h3>
         <span style={{ color: "var(--fg-dim)" }}>→</span>
       </div>
 
-      <div className="flex items-center gap-4">
-        <Rings
-          move={{ value: moveKcal, goal: moveGoal, color: MOVE_COLOR }}
-          exercise={{
-            value: exerciseMin,
-            goal: exerciseGoal,
-            color: EXERCISE_COLOR,
-          }}
-          session={{
-            value: sessionCount,
-            goal: SESSION_GOAL,
-            color: SESSION_COLOR,
-          }}
-        />
-        <div className="flex-1 space-y-2 min-w-0">
-          <Stat
-            label="Move"
-            value={`${moveKcal}/${moveGoal}`}
-            unit="CAL"
-            color={MOVE_COLOR}
-          />
-          <Stat
-            label="Exercise"
-            value={`${exerciseMin}/${exerciseGoal}`}
-            unit="MIN"
-            color={EXERCISE_COLOR}
-          />
-          <Stat
-            label="Sessions"
-            value={`${sessionCount}/${SESSION_GOAL}`}
-            unit=""
-            color={SESSION_COLOR}
-          />
-        </div>
+      <div className="space-y-3.5">
+        {rows.map((r) => (
+          <Bar key={r.label} {...r} />
+        ))}
       </div>
     </Link>
   );
 }
 
-function Stat({
+function Bar({
   label,
   value,
+  goal,
   unit,
   color,
 }: {
   label: string;
-  value: string;
+  value: number;
+  goal: number;
   unit: string;
   color: string;
 }) {
+  const pct = Math.min(1, goal > 0 ? value / goal : 0);
+  const done = value >= goal && goal > 0;
   return (
     <div>
-      <p
-        className="text-[10px] uppercase tracking-wider font-semibold"
-        style={{ color: "var(--fg-dim)" }}
-      >
-        {label}
-      </p>
-      <p className="text-[15px] font-bold tabular-nums" style={{ color }}>
-        {value}
-        {unit ? (
-          <span
-            className="text-[10px] ml-1"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            {unit}
+      <div className="flex items-baseline justify-between mb-1.5">
+        <span
+          className="text-[11px] uppercase tracking-wider font-semibold"
+          style={{ color: "var(--fg-dim)" }}
+        >
+          {label}
+        </span>
+        <span className="text-[12px] font-bold tabular-nums">
+          <span style={{ color }}>{value}</span>
+          <span style={{ color: "var(--fg-dim)" }}>
+            {" "}
+            / {goal}
+            {unit ? ` ${unit}` : ""}
           </span>
-        ) : null}
-      </p>
-    </div>
-  );
-}
-
-function Rings({
-  move,
-  exercise,
-  session,
-}: {
-  move: { value: number; goal: number; color: string };
-  exercise: { value: number; goal: number; color: string };
-  session: { value: number; goal: number; color: string };
-}) {
-  const size = 120;
-  const cx = size / 2;
-  const cy = size / 2;
-  const stroke = 12;
-  const gap = 2;
-  // Three rings, outer → inner. Outer radius leaves room for stroke.
-  const rOuter = cx - stroke / 2;
-  const rMiddle = rOuter - stroke - gap;
-  const rInner = rMiddle - stroke - gap;
-
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <Ring
-        cx={cx}
-        cy={cy}
-        r={rOuter}
-        stroke={stroke}
-        color={move.color}
-        pct={Math.min(1, move.value / move.goal)}
-      />
-      <Ring
-        cx={cx}
-        cy={cy}
-        r={rMiddle}
-        stroke={stroke}
-        color={exercise.color}
-        pct={Math.min(1, exercise.value / exercise.goal)}
-      />
-      <Ring
-        cx={cx}
-        cy={cy}
-        r={rInner}
-        stroke={stroke}
-        color={session.color}
-        pct={Math.min(1, session.value / session.goal)}
-      />
-    </svg>
-  );
-}
-
-function Ring({
-  cx,
-  cy,
-  r,
-  stroke,
-  color,
-  pct,
-}: {
-  cx: number;
-  cy: number;
-  r: number;
-  stroke: number;
-  color: string;
-  pct: number;
-}) {
-  const circ = 2 * Math.PI * r;
-  // Track is the dimmed full ring; fg is the filled arc. Both rotated so the
-  // arc starts at 12 o'clock and sweeps clockwise.
-  const dash = circ * pct;
-  return (
-    <g transform={`rotate(-90 ${cx} ${cy})`}>
-      <circle
-        cx={cx}
-        cy={cy}
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeOpacity={0.18}
-        strokeWidth={stroke}
-      />
-      {pct > 0 && (
-        <circle
-          cx={cx}
-          cy={cy}
-          r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={`${dash} ${circ - dash}`}
+          {done && <span style={{ color }}> ✓</span>}
+        </span>
+      </div>
+      <div
+        className="h-2 rounded-full overflow-hidden"
+        style={{ background: "var(--bg-elevated)" }}
+      >
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: `${pct * 100}%`,
+            background: color,
+            boxShadow: pct > 0 ? `0 0 8px ${color}66` : undefined,
+          }}
         />
-      )}
-    </g>
+      </div>
+    </div>
   );
 }
 
