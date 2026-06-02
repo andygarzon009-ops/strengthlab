@@ -77,10 +77,6 @@ export default async function ProfilePage() {
       <div className="space-y-2">
         <TutorialLauncher />
 
-        <FriendWorkoutNotifyToggle
-          initialEnabled={user.notifyFriendWorkouts}
-        />
-
         <Link
           href="/exercises"
           className="card flex items-center justify-between px-4 py-4 transition-colors"
@@ -196,6 +192,10 @@ export default async function ProfilePage() {
           </div>
           <span style={{ color: "var(--fg-dim)" }}>→</span>
         </Link>
+
+        <FriendWorkoutNotifyToggle
+          initialEnabled={user.notifyFriendWorkouts}
+        />
 
         <ChangePasswordCard />
 
