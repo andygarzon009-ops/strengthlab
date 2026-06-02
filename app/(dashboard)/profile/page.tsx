@@ -5,6 +5,7 @@ import Link from "next/link";
 import ProfileForm from "@/components/ProfileForm";
 import TutorialLauncher from "@/components/TutorialLauncher";
 import ChangePasswordCard from "@/components/ChangePasswordCard";
+import FriendWorkoutNotifyToggle from "@/components/FriendWorkoutNotifyToggle";
 
 export default async function ProfilePage() {
   const userId = await requireAuth();
@@ -75,6 +76,10 @@ export default async function ProfilePage() {
 
       <div className="space-y-2">
         <TutorialLauncher />
+
+        <FriendWorkoutNotifyToggle
+          initialEnabled={user.notifyFriendWorkouts}
+        />
 
         <Link
           href="/exercises"

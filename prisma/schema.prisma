@@ -50,6 +50,7 @@ model User {
   preferredWarmups Json?
   moveGoalKcal     Int?
   exerciseGoalMin  Int?
+  notifyFriendWorkouts Boolean @default(true)
   weeklyAnalysisCache Json?
   height         Float?
   bodyFat        Float?

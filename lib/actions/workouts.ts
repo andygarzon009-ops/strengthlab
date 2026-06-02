@@ -5,6 +5,8 @@ import { requireAuth } from "@/lib/session";
 import { similarExerciseIds } from "@/lib/exerciseIdentity";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { sendPushToUser } from "@/lib/push";
+import { createNotification } from "@/lib/notifications";
 
 type SetInput = {
   type: string;
@@ -139,6 +141,10 @@ export async function createWorkout(data: CreateWorkoutInput) {
       })),
     });
   }
+
+  // Ping crew friends who want to be motivated when someone trains.
+  // Fully best-effort: any failure here must never break logging a workout.
+  await notifyFriendsOfWorkout(userId, workout.id, workout.title, prs.length > 0);
 
   // Clear the server-side draft now that the workout is committed.
   // Failures here are non-fatal — the draft will get overwritten next
@@ -451,4 +457,72 @@ export async function updateProfile(data: {
   revalidatePath("/profile");
   revalidatePath("/group");
   revalidatePath(`/u/${userId}`);
+}
+
+/// Toggle whether the signed-in user gets pinged when a crew friend logs a
+/// workout. Defaults on; this is the opt-out switch surfaced in the profile.
+export async function setNotifyFriendWorkouts(enabled: boolean) {
+  const userId = await requireAuth();
+  await prisma.user.update({
+    where: { id: userId },
+    data: { notifyFriendWorkouts: enabled },
+  });
+  revalidatePath("/profile");
+}
+
+/// Notify a logger's mutual-friend crew that they just trained — an in-app
+/// inbox entry plus a best-effort Web Push, so friends can hype each other up.
+/// Only friends who have NOT opted out (notifyFriendWorkouts = true) are told.
+/// Defensive throughout: this must never throw into createWorkout.
+async function notifyFriendsOfWorkout(
+  loggerId: string,
+  workoutId: string,
+  title: string,
+  isPr: boolean,
+): Promise<void> {
+  try {
+    const logger = await prisma.user.findUnique({
+      where: { id: loggerId },
+      select: { name: true },
+    });
+    const name = logger?.name ?? "Someone";
+
+    // Mutual friends (both follow edges exist) who still want these pings.
+    const friends = await prisma.user.findMany({
+      where: {
+        notifyFriendWorkouts: true,
+        following: { some: { followingId: loggerId } }, // friend → logger
+        followers: { some: { followerId: loggerId } }, // logger → friend
+      },
+      select: { id: true },
+    });
+    if (friends.length === 0) return;
+
+    const cleanTitle = title?.trim();
+    const verb = isPr ? "just hit a PR" : "just logged a workout";
+    const body = cleanTitle ? `${name} ${verb}: ${cleanTitle}` : `${name} ${verb}`;
+    const url = `/u/${loggerId}`;
+
+    await Promise.all(
+      friends.map(async (f) => {
+        await createNotification({
+          userId: f.id,
+          type: "FRIEND_WORKOUT",
+          actorId: loggerId,
+          body,
+          url,
+        });
+        await sendPushToUser(f.id, {
+          title: isPr ? "Crew PR 🏆" : "Crew just trained 💪",
+          body,
+          url,
+          // Per-logger tag so multiple friends' pings don't collapse into one,
+          // but a logger's rapid re-logs replace rather than stack.
+          tag: `friend-workout-${loggerId}`,
+        });
+      }),
+    );
+  } catch {
+    // Swallow — motivating the crew must never block logging a workout.
+  }
 }
