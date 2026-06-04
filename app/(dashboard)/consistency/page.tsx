@@ -211,7 +211,9 @@ export default async function ConsistencyDetailPage() {
     (max, w) => Math.max(max, w.updatedAt.getTime()),
     0,
   );
-  const fingerprint = `${weekKey}|${thisWeekSessions.length}|${latestUpdate}`;
+  // `v2` bump: momentum now reflects the computed working-set delta (matching
+  // the bars), so older cached analyses must regenerate.
+  const fingerprint = `${weekKey}|${thisWeekSessions.length}|${latestUpdate}|v2`;
 
   // Top lifts need a longer lookback to compute the 4-week baseline. Pull
   // the last 12 weeks of strength workouts in one query.
@@ -391,6 +393,8 @@ export default async function ConsistencyDetailPage() {
         sessions: g.sessions as unknown as SessionForAnalysis[],
       })),
       lastWeekSessionCount: lastWeekSessions.length,
+      thisWeekSets: momentumStats.thisWeekSets,
+      lastWeekSets: momentumStats.lastWeekSets,
     });
     if (analysis.ok) {
       // Persist so next visit is free. Failures aren't cached — we'll retry.
@@ -677,6 +681,8 @@ async function generateAnalysis(args: {
     sessions: SessionForAnalysis[];
   }[];
   lastWeekSessionCount: number;
+  thisWeekSets: number;
+  lastWeekSets: number;
 }): Promise<AnalysisResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     return { ok: false, error: "ANTHROPIC_API_KEY not configured" };
@@ -721,6 +727,12 @@ async function generateAnalysis(args: {
     }
   }
 
+  // The momentum bar the user sees is driven by the working-set delta. Hand
+  // the model the exact numbers + trend so its momentum line can't contradict
+  // the bar sitting right next to it.
+  const setDelta = args.thisWeekSets - args.lastWeekSets;
+  const setTrend = setDelta > 0 ? "up" : setDelta < 0 ? "down" : "flat";
+
   const profile = [
     args.experienceLevel ? `experience ${args.experienceLevel}` : null,
     args.primaryFocus ? `focus ${args.primaryFocus}` : null,
@@ -736,6 +748,7 @@ ATHLETE: ${args.name}
 PROFILE: ${profile || "n/a"}
 DAYS TRAINED THIS WEEK: ${args.trainedDays}${args.goalDays ? ` (goal ${args.goalDays})` : ""}
 SESSIONS LAST WEEK (for momentum): ${args.lastWeekSessionCount}
+WORKING SETS — THIS WEEK vs LAST WEEK: ${args.thisWeekSets} vs ${args.lastWeekSets} (${setDelta >= 0 ? "+" : ""}${setDelta} sets, trend ${setTrend}). This is the exact momentum bar the athlete sees.
 
 THIS WEEK (Mon → Sun, only days up to today):
 ${sessionLines.join("\n")}
@@ -752,8 +765,8 @@ Return JSON exactly in this shape (no markdown fence, no prose):
     "note": "ONE sentence ≤ 18 words explaining the imbalance or confirming balance. Empty string if nothing notable."
   },
   "momentum": {
-    "direction": "up" | "flat" | "down",  // vs. last week's volume + frequency
-    "line": "ONE sentence ≤ 22 words explaining the trend."
+    "direction": "up" | "flat" | "down",  // MUST equal the working-sets trend given above (${setTrend}) — never contradict the bar
+    "line": "ONE sentence ≤ 22 words explaining the trend. Stay consistent with the ${setDelta >= 0 ? "+" : ""}${setDelta}-set change vs last week — do not claim the opposite direction."
   },
   "nextWeek": [
     "ONE concrete bullet ≤ 20 words — name a specific day or session type, not generic advice.",
@@ -765,6 +778,7 @@ Rules:
 - Be specific. Reference weekdays and session titles from the data.
 - Do not invent sessions. If the week is sparse, say so and recommend the right next step.
 - Verdicts: Strong = hit goal + variety; Steady = on track but unremarkable; Light = under goal or recovery week; Inconsistent = scattered or skipping common muscles.
+- Momentum MUST match the working-set numbers given (trend ${setTrend}). The athlete sees those two bars; never say volume rose if the trend is down, or vice versa.
 - Output valid JSON only. No commentary.`;
 
   let raw = "";

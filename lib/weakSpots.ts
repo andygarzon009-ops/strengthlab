@@ -117,7 +117,7 @@ export function computeWeakSpots(
         id: "missed-muscle-groups",
         kind: "missed-muscles",
         severity: missed.length >= 3 ? "high" : "medium",
-        title: `${missed.length} muscle group${missed.length === 1 ? "" : "s"} missed this week`,
+        title: `${missed.length} muscle group${missed.length === 1 ? "" : "s"} missed in the last 7 days`,
         detail: `No working sets for: ${missed.join(", ")}.`,
         items: [...missed],
       });
@@ -190,7 +190,7 @@ export function computeWeakSpots(
       severity:
         user.trainingDays - last7.length >= 2 ? "high" : "medium",
       title: `Under your weekly target`,
-      detail: `${last7.length} of ${user.trainingDays} sessions this week. ${user.trainingDays - last7.length} more to stay on pace.`,
+      detail: `${last7.length} of ${user.trainingDays} sessions in the last 7 days. ${user.trainingDays - last7.length} more to stay on pace.`,
     });
   }
 
@@ -209,7 +209,7 @@ export function computeWeakSpots(
       kind: "volume-drop",
       severity: dropPct >= 40 ? "high" : "medium",
       title: `Volume down ${dropPct}% vs 4-wk avg`,
-      detail: `${fmtVol(thisWeekVolume)} kg this week vs ${fmtVol(avgWeeklyVolumePrior4)} kg average. Add a set or push the weight up next session.`,
+      detail: `${fmtVol(thisWeekVolume)} lb in the last 7 days vs ${fmtVol(avgWeeklyVolumePrior4)} lb average. Add a set or push the weight up next session.`,
     });
   }
 

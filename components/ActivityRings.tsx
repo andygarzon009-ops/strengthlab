@@ -51,7 +51,7 @@ export default function ActivityRings({
       label: "Volume",
       value: volume,
       goal: Math.max(1, volumeGoal),
-      unit: "kg vs 4-wk avg",
+      unit: "lb vs 4-wk avg",
       color: "#f97316",
       format: fmtVolume,
     },
