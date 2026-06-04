@@ -304,6 +304,12 @@ export default async function WorkoutDetailPage({
           chips.push({ label: "Steps", value: workout.steps.toLocaleString() });
         if (workout.elevation)
           chips.push({ label: "Elevation", value: workout.elevation, suffix: "m" });
+        if (workout.speed)
+          chips.push({ label: "Speed", value: workout.speed, suffix: "km/h" });
+        if (workout.incline)
+          chips.push({ label: "Incline", value: workout.incline, suffix: "%" });
+        if (workout.level)
+          chips.push({ label: "Level", value: workout.level });
         if (chips.length === 0) return null;
         return (
           <div className="grid grid-cols-2 gap-2 mb-6">

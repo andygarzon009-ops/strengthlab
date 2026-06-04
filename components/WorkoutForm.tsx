@@ -76,6 +76,9 @@ export type WorkoutFormInitial = {
   maxHeartRate: number | null;
   rounds: number | null;
   elevation: number | null;
+  incline: number | null;
+  speed: number | null;
+  level: number | null;
   rpe: number | null;
   startedAt?: string | null;
   endedAt?: string | null;
@@ -98,6 +101,15 @@ function toDateInput(iso: string) {
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
+
+// Indoor machines that log a generic resistance / intensity level instead of
+// elevation (bike) or rounds (stair/other machine).
+const MACHINE_LEVEL_TYPES = new Set([
+  "SPIN",
+  "ELLIPTICAL",
+  "STAIR_CLIMBER",
+  "CARDIO_MACHINE",
+]);
 
 function titleFor(type: string, split?: string) {
   if (type === "WEIGHT_TRAINING" || type === "CALISTHENICS") {
@@ -190,6 +202,11 @@ export default function WorkoutForm({
   const [elevation, setElevation] = useState(
     initial?.elevation?.toString() ?? ""
   );
+  // Indoor cardio machine settings: treadmill incline % + speed (km/h), and a
+  // generic resistance/intensity level for bike / elliptical / stair.
+  const [incline, setIncline] = useState(initial?.incline?.toString() ?? "");
+  const [speed, setSpeed] = useState(initial?.speed?.toString() ?? "");
+  const [level, setLevel] = useState(initial?.level?.toString() ?? "");
   const [rpe, setRpe] = useState(initial?.rpe?.toString() ?? "");
 
   // Draft persistence (create mode only). Hydrates whatever the user had in
@@ -217,6 +234,9 @@ export default function WorkoutForm({
     if (typeof d.maxHR === "string") setMaxHR(d.maxHR);
     if (typeof d.rounds === "string") setRounds(d.rounds);
     if (typeof d.elevation === "string") setElevation(d.elevation);
+    if (typeof d.incline === "string") setIncline(d.incline);
+    if (typeof d.speed === "string") setSpeed(d.speed);
+    if (typeof d.level === "string") setLevel(d.level);
     if (typeof d.rpe === "string") setRpe(d.rpe);
     if (typeof d.startedAt === "string") setStartedAt(new Date(d.startedAt));
   };
@@ -283,6 +303,9 @@ export default function WorkoutForm({
     setMaxHR("");
     setRounds("");
     setElevation("");
+    setIncline("");
+    setSpeed("");
+    setLevel("");
     setRpe("");
     setStep("type");
     baselineRef.current = null;
@@ -313,6 +336,9 @@ export default function WorkoutForm({
       maxHR,
       rounds,
       elevation,
+      incline,
+      speed,
+      level,
       rpe,
       startedAt: startedAt ? startedAt.toISOString() : null,
     };
@@ -380,6 +406,9 @@ export default function WorkoutForm({
     maxHR,
     rounds,
     elevation,
+    incline,
+    speed,
+    level,
     rpe,
     startedAt,
   ]);
@@ -476,6 +505,12 @@ export default function WorkoutForm({
       rounds: shape === "DURATION" && rounds ? parseInt(rounds) : null,
       elevation:
         shape === "DISTANCE" && elevation ? parseInt(elevation) : null,
+      // Treadmill-only settings; resistance level applies to the indoor
+      // machines. Gated by type so values don't linger when switching types.
+      incline:
+        workoutType === "TREADMILL" && incline ? parseFloat(incline) : null,
+      speed: workoutType === "TREADMILL" && speed ? parseFloat(speed) : null,
+      level: MACHINE_LEVEL_TYPES.has(workoutType) && level ? parseInt(level) : null,
       rpe: rpe ? parseInt(rpe) : null,
       startedAt: startedAt ? startedAt.toISOString() : null,
       endedAt: startedAt ? new Date().toISOString() : null,
@@ -967,6 +1002,7 @@ export default function WorkoutForm({
         {/* Shape-specific metrics */}
         {shape === "DISTANCE" && (
           <DistanceMetrics
+            workoutType={workoutType}
             distance={distance}
             setDistance={setDistance}
             durationMin={durationMin}
@@ -977,6 +1013,12 @@ export default function WorkoutForm({
             setPace={setPace}
             elevation={elevation}
             setElevation={setElevation}
+            incline={incline}
+            setIncline={setIncline}
+            speed={speed}
+            setSpeed={setSpeed}
+            level={level}
+            setLevel={setLevel}
             avgHR={avgHR}
             setAvgHR={setAvgHR}
             maxHR={maxHR}
@@ -994,6 +1036,8 @@ export default function WorkoutForm({
             setRounds={setRounds}
             rpe={rpe}
             setRpe={setRpe}
+            level={level}
+            setLevel={setLevel}
             avgHR={avgHR}
             setAvgHR={setAvgHR}
             maxHR={maxHR}
@@ -1001,6 +1045,7 @@ export default function WorkoutForm({
             showRounds={
               workoutType === "HIIT" || workoutType === "COMBAT"
             }
+            showLevel={MACHINE_LEVEL_TYPES.has(workoutType)}
           />
         )}
 
@@ -1119,6 +1164,7 @@ export default function WorkoutForm({
 /* ---------------- Shape: Distance ---------------- */
 
 function DistanceMetrics(props: {
+  workoutType: string;
   distance: string;
   setDistance: (v: string) => void;
   durationMin: string;
@@ -1129,11 +1175,20 @@ function DistanceMetrics(props: {
   setPace: (v: string) => void;
   elevation: string;
   setElevation: (v: string) => void;
+  incline: string;
+  setIncline: (v: string) => void;
+  speed: string;
+  setSpeed: (v: string) => void;
+  level: string;
+  setLevel: (v: string) => void;
   avgHR: string;
   setAvgHR: (v: string) => void;
   maxHR: string;
   setMaxHR: (v: string) => void;
 }) {
+  const isTreadmill = props.workoutType === "TREADMILL";
+  const isLevelMachine =
+    props.workoutType === "SPIN" || props.workoutType === "ELLIPTICAL";
   return (
     <div className="card p-4 space-y-3">
       <div className="grid grid-cols-2 gap-2.5">
@@ -1154,21 +1209,58 @@ function DistanceMetrics(props: {
         />
       </div>
       <div className="grid grid-cols-2 gap-2.5">
-        <LabeledInput
-          label="Pace"
-          suffix="/km"
-          value={props.pace}
-          onChange={props.setPace}
-          placeholder="5:30"
-        />
-        <LabeledInput
-          label="Elevation"
-          suffix="m"
-          type="number"
-          value={props.elevation}
-          onChange={props.setElevation}
-          placeholder="120"
-        />
+        {/* Treadmill logs speed + incline; outdoor logs pace; bike/elliptical
+            log a resistance level. */}
+        {isTreadmill ? (
+          <>
+            <LabeledInput
+              label="Speed"
+              suffix="km/h"
+              type="number"
+              inputMode="decimal"
+              value={props.speed}
+              onChange={props.setSpeed}
+              placeholder="9.5"
+            />
+            <LabeledInput
+              label="Incline"
+              suffix="%"
+              type="number"
+              inputMode="decimal"
+              value={props.incline}
+              onChange={props.setIncline}
+              placeholder="3.0"
+            />
+          </>
+        ) : (
+          <>
+            <LabeledInput
+              label="Pace"
+              suffix="/km"
+              value={props.pace}
+              onChange={props.setPace}
+              placeholder="5:30"
+            />
+            {isLevelMachine ? (
+              <LabeledInput
+                label="Level"
+                type="number"
+                value={props.level}
+                onChange={props.setLevel}
+                placeholder="8"
+              />
+            ) : (
+              <LabeledInput
+                label="Elevation"
+                suffix="m"
+                type="number"
+                value={props.elevation}
+                onChange={props.setElevation}
+                placeholder="120"
+              />
+            )}
+          </>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-2.5">
         <LabeledInput
@@ -1203,11 +1295,14 @@ function DurationMetrics(props: {
   setRounds: (v: string) => void;
   rpe: string;
   setRpe: (v: string) => void;
+  level: string;
+  setLevel: (v: string) => void;
   avgHR: string;
   setAvgHR: (v: string) => void;
   maxHR: string;
   setMaxHR: (v: string) => void;
   showRounds: boolean;
+  showLevel: boolean;
 }) {
   return (
     <div className="card p-4 space-y-3">
@@ -1226,6 +1321,14 @@ function DurationMetrics(props: {
             onChange={props.setRounds}
             placeholder="8"
           />
+        ) : props.showLevel ? (
+          <LabeledInput
+            label="Level"
+            type="number"
+            value={props.level}
+            onChange={props.setLevel}
+            placeholder="10"
+          />
         ) : (
           <LabeledInput
             label="RPE"
@@ -1237,7 +1340,7 @@ function DurationMetrics(props: {
           />
         )}
       </div>
-      {props.showRounds && (
+      {(props.showRounds || props.showLevel) && (
         <LabeledInput
           label="RPE"
           suffix="/10"
@@ -1514,6 +1617,42 @@ function TypeIcon({ type }: { type: string }) {
         <svg {...common}>
           <circle cx="12" cy="12" r="9" />
           <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+        </svg>
+      );
+    case "TREADMILL":
+      return (
+        <svg {...common}>
+          <path d="M3 18h14l3-9M5 18l1-7h9" />
+          <circle cx="13" cy="5" r="1.5" />
+          <path d="M11 8l2 1 2-1" />
+        </svg>
+      );
+    case "SPIN":
+      return (
+        <svg {...common}>
+          <circle cx="6" cy="17" r="3" />
+          <path d="M9 17h6l2-7M11 10h5M13 7l-1 3M6 17l4-7" />
+        </svg>
+      );
+    case "ELLIPTICAL":
+      return (
+        <svg {...common}>
+          <ellipse cx="12" cy="17" rx="8" ry="3" />
+          <path d="M7 16l4-9 3 2" />
+          <circle cx="14" cy="9" r="1.5" />
+        </svg>
+      );
+    case "STAIR_CLIMBER":
+      return (
+        <svg {...common}>
+          <path d="M3 20h4v-4h4v-4h4V8h4V4" />
+        </svg>
+      );
+    case "CARDIO_MACHINE":
+      return (
+        <svg {...common}>
+          <rect x="4" y="4" width="16" height="12" rx="2" />
+          <path d="M8 20h8M12 16v4M8 8l2 4 2-4 2 4" />
         </svg>
       );
     default:

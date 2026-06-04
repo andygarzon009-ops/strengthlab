@@ -45,6 +45,9 @@ type WorkoutMetrics = {
   maxHeartRate?: number | null;
   rounds?: number | null;
   elevation?: number | null;
+  incline?: number | null;
+  speed?: number | null;
+  level?: number | null;
   calories?: number | null;
   rpe?: number | null;
   startedAt?: string | null;
@@ -82,6 +85,9 @@ export async function createWorkout(data: CreateWorkoutInput) {
       maxHeartRate: data.maxHeartRate ?? null,
       rounds: data.rounds ?? null,
       elevation: data.elevation ?? null,
+      incline: data.incline ?? null,
+      speed: data.speed ?? null,
+      level: data.level ?? null,
       calories: data.calories ?? null,
       rpe: data.rpe ?? null,
       startedAt: data.startedAt ? new Date(data.startedAt) : null,
@@ -333,6 +339,9 @@ export async function updateWorkout(
         maxHeartRate: data.maxHeartRate ?? null,
         rounds: data.rounds ?? null,
         elevation: data.elevation ?? null,
+        incline: data.incline ?? null,
+        speed: data.speed ?? null,
+        level: data.level ?? null,
         calories: data.calories ?? null,
         rpe: data.rpe ?? null,
         startedAt: data.startedAt ? new Date(data.startedAt) : null,

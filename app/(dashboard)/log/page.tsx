@@ -71,6 +71,9 @@ export default async function LogWorkoutPage({
           maxHeartRate: source.maxHeartRate,
           rounds: source.rounds,
           elevation: source.elevation,
+          incline: source.incline,
+          speed: source.speed,
+          level: source.level,
           rpe: source.rpe,
         };
       }

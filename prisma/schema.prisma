@@ -352,6 +352,9 @@ model Workout {
   maxHeartRate Int?
   rounds       Int?
   elevation    Int?
+  incline      Float?   // treadmill incline %
+  speed        Float?   // treadmill speed (km/h)
+  level        Int?     // indoor machine resistance / intensity level (bike, elliptical, stair)
   calories     Int?
   steps        Int?
   activeZoneMin Int?

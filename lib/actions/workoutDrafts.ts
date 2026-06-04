@@ -21,6 +21,9 @@ export type WorkoutDraftPayload = {
   maxHR: string;
   rounds: string;
   elevation: string;
+  incline: string;
+  speed: string;
+  level: string;
   rpe: string;
 };
 

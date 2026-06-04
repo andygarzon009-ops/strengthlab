@@ -201,6 +201,9 @@ Output ONLY the JSON object. No prose, no markdown, no code fences.`;
       maxHeartRate: parsed.maxHeartRate ?? null,
       rounds: parsed.rounds ?? null,
       elevation: parsed.elevation ?? null,
+      incline: null,
+      speed: null,
+      level: null,
       rpe: parsed.rpe ?? null,
     };
 
