@@ -5,6 +5,7 @@ import BackButton from "@/components/BackButton";
 import SleepHistoryChart, {
   type SleepNightHistory,
 } from "@/components/SleepHistoryChart";
+import Spo2Card from "@/components/Spo2Card";
 
 export const dynamic = "force-dynamic";
 
@@ -148,6 +149,8 @@ export default async function RecoveryPage() {
           </div>
 
           {sleep && <SleepSection sleep={sleep} />}
+
+          <Spo2Card />
 
           {sleepHistory.length >= 2 && (
             <SleepHistoryChart history={sleepHistory} />

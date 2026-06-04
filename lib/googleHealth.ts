@@ -400,6 +400,77 @@ export async function listSleep(
   }
 }
 
+export type DailySpo2Sample = {
+  date: Date; // UTC midnight of the night's calendar day
+  avgPct: number; // mean overnight SpO2 % for that day
+  minPct: number; // lowest single reading that day
+};
+
+/// Per-night blood-oxygen (SpO2, %) from Google Health. Data type
+/// `oxygen-saturation` lives under the health_metrics_and_measurements scope
+/// (already granted — no reconnect). Fitbit samples SpO2 across the night while
+/// the tracker is worn; we keep the mean and the min per calendar day. A
+/// resting average sits ~95–99%; sustained dips can flag illness or poor
+/// recovery. Sorted oldest → newest; [] if unavailable / tracker not worn.
+/// Field shape verified against the v4 discovery doc:
+/// dataPoint.oxygenSaturation.{ sampleTime.physicalTime, percentage:number }.
+export async function listOxygenSaturation(
+  userId: string,
+  startISO: string,
+  endISO: string,
+): Promise<DailySpo2Sample[]> {
+  const toUtc = (s: string) => (s.endsWith("Z") ? s : `${s}Z`);
+  const filter =
+    `oxygen_saturation.sample_time.physical_time >= "${toUtc(startISO)}"` +
+    ` AND oxygen_saturation.sample_time.physical_time < "${toUtc(endISO)}"`;
+  const path =
+    "/users/me/dataTypes/oxygen-saturation/dataPoints?pageSize=1000&filter=" +
+    encodeURIComponent(filter);
+
+  try {
+    const data = (await healthFetch(userId, path)) as {
+      dataPoints?: {
+        oxygenSaturation?: {
+          sampleTime?: { physicalTime?: string };
+          percentage?: number;
+        };
+      }[];
+    };
+
+    const byDay = new Map<
+      string,
+      { sum: number; n: number; min: number; date: Date }
+    >();
+    for (const p of data.dataPoints ?? []) {
+      const ts = p.oxygenSaturation?.sampleTime?.physicalTime;
+      const pct = p.oxygenSaturation?.percentage;
+      // Guard the physiological range — drops obviously bad readings.
+      if (!ts || typeof pct !== "number" || !Number.isFinite(pct) || pct < 50 || pct > 100)
+        continue;
+      const key = new Date(ts).toISOString().slice(0, 10);
+      const cur = byDay.get(key);
+      if (cur) {
+        cur.sum += pct;
+        cur.n += 1;
+        if (pct < cur.min) cur.min = pct;
+      } else {
+        byDay.set(key, {
+          sum: pct,
+          n: 1,
+          min: pct,
+          date: new Date(`${key}T00:00:00Z`),
+        });
+      }
+    }
+
+    return [...byDay.values()]
+      .map(({ sum, n, min, date }) => ({ date, avgPct: sum / n, minPct: min }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  } catch {
+    return [];
+  }
+}
+
 export async function listHeartRateBetween(
   userId: string,
   startISO: string,
