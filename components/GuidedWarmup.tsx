@@ -88,12 +88,16 @@ export default function GuidedWarmup({
   const [mode, setMode] = useState<Mode>("idle");
   const [idx, setIdx] = useState(0);
   const [remaining, setRemaining] = useState(items[0]?.durationSec ?? 0);
+  // A timed item's countdown only runs once the athlete taps Start — gives
+  // them time to set up equipment before the clock moves. Reset to false on
+  // every new item so the next one waits too.
+  const [counting, setCounting] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Tick the countdown for timed items. Reps items wait for the user to
   // press Next manually — no auto-advance, so they're not surprised mid-rep.
   useEffect(() => {
-    if (mode !== "running") return;
+    if (mode !== "running" || !counting) return;
     const current = items[idx];
     if (!current || !current.durationSec) return;
     intervalRef.current = setInterval(() => {
@@ -102,23 +106,30 @@ export default function GuidedWarmup({
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [mode, idx, items]);
+  }, [mode, idx, items, counting]);
 
   useEffect(() => {
-    if (mode !== "running") return;
+    if (mode !== "running" || !counting) return;
     if (remaining > 0) return;
     const current = items[idx];
     if (!current?.durationSec) return;
-    // Timer hit zero — auto-advance to next item
+    // Timer hit zero — auto-advance to the next item, which waits on its own
+    // Start tap (advance resets counting), so there's no rush to set up.
     advance();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remaining]);
+  }, [remaining, counting]);
 
   function start() {
     onStart?.();
     setMode("running");
     setIdx(0);
     setRemaining(items[0]?.durationSec ?? 0);
+    setCounting(false);
+  }
+
+  // Begin the current timed item's countdown (its own Start button).
+  function beginCountdown() {
+    setCounting(true);
   }
 
   function advance() {
@@ -129,6 +140,7 @@ export default function GuidedWarmup({
     }
     setIdx(next);
     setRemaining(items[next].durationSec ?? 0);
+    setCounting(false);
   }
 
   function skipAll() {
@@ -142,6 +154,7 @@ export default function GuidedWarmup({
     setMode("idle");
     setIdx(0);
     setRemaining(items[0]?.durationSec ?? 0);
+    setCounting(false);
   }
 
   if (mode === "idle") {
@@ -284,18 +297,32 @@ export default function GuidedWarmup({
           className="text-[12px] pb-1"
           style={{ color: "var(--fg-dim)" }}
         >
-          {isTimed ? "remaining" : "reps"}
+          {isTimed ? (counting ? "remaining" : "ready") : "reps"}
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={advance}
-        className="w-full rounded-xl py-2.5 text-[13px] font-semibold"
-        style={{ background: "var(--accent)", color: "#000" }}
-      >
-        {idx === items.length - 1 ? "Done" : "Next"}
-      </button>
+      {isTimed && !counting ? (
+        <button
+          type="button"
+          onClick={beginCountdown}
+          className="w-full rounded-xl py-2.5 text-[13px] font-semibold flex items-center justify-center gap-2"
+          style={{ background: "var(--accent)", color: "#000" }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          Start {formatTime(remaining)}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={advance}
+          className="w-full rounded-xl py-2.5 text-[13px] font-semibold"
+          style={{ background: "var(--accent)", color: "#000" }}
+        >
+          {idx === items.length - 1 ? "Done" : "Next"}
+        </button>
+      )}
     </div>
   );
 }
