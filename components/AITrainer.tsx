@@ -820,7 +820,7 @@ export default function AITrainer() {
                           disabled={loading}
                           onClick={() =>
                             send(
-                              `Give me one short form cue for each of today's lifts: ${m
+                              `Give me in-depth form cues for each of today's lifts: ${m
                                 .plan!.exercises.map((e) => e.name)
                                 .join(", ")}.`,
                             )
