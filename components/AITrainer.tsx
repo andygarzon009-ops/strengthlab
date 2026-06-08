@@ -807,13 +807,35 @@ export default function AITrainer() {
                       </ReactMarkdown>
                     </div>
                     {m.plan && (
-                      <LogPlanButton
-                        plan={m.plan}
-                        onNavigate={() => {
-                          setOpen(false);
-                          router.push("/log?voice=1");
-                        }}
-                      />
+                      <>
+                        <LogPlanButton
+                          plan={m.plan}
+                          onNavigate={() => {
+                            setOpen(false);
+                            router.push("/log?voice=1");
+                          }}
+                        />
+                        <button
+                          type="button"
+                          disabled={loading}
+                          onClick={() =>
+                            send(
+                              `Give me one short form cue for each of today's lifts: ${m
+                                .plan!.exercises.map((e) => e.name)
+                                .join(", ")}.`,
+                            )
+                          }
+                          className="w-full rounded-xl px-4 py-2.5 text-[13px] font-medium flex items-center justify-center gap-1.5 active:scale-[0.99] transition-transform disabled:opacity-50"
+                          style={{
+                            background: "var(--bg-elevated)",
+                            border: "1px solid var(--border-strong)",
+                            color: "var(--fg-muted)",
+                          }}
+                        >
+                          <span>💡</span>
+                          Cues for these lifts
+                        </button>
+                      </>
                     )}
                   </div>
                 )}
