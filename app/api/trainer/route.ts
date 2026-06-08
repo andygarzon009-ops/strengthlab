@@ -148,9 +148,16 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const userId = await requireAuth();
-    const { message } = await req.json();
+    const { message, clearedAt } = await req.json();
 
     if (!message?.trim()) return Response.json({ error: "Empty message" }, { status: 400 });
+
+    // "Clear chat" sends the timestamp it was cleared at. Honor it so the
+    // coach's context starts fresh from that point — otherwise it keeps
+    // seeing (and staying consistent with) older replies the athlete
+    // already dismissed, including any it got wrong.
+    const sinceClear =
+      typeof clearedAt === "number" && clearedAt > 0 ? new Date(clearedAt) : null;
 
     if (!process.env.GEMINI_API_KEY) {
       return Response.json({ error: "AI trainer not configured" }, { status: 500 });
@@ -176,7 +183,10 @@ export async function POST(req: NextRequest) {
         orderBy: { value: "desc" },
       }),
       prisma.trainerMessage.findMany({
-        where: { userId },
+        where: {
+          userId,
+          ...(sinceClear ? { createdAt: { gt: sinceClear } } : {}),
+        },
         orderBy: { createdAt: "desc" },
         take: 12,
       }).then((rows) => rows.reverse()),
@@ -565,6 +575,8 @@ YOU MUST BE GOOD AT: building workouts on the spot, adjusting sets/reps/weights 
 
 HONOR THE ATHLETE'S EXPLICIT REQUEST:
 When the athlete names the session they want — "plan my push workout", "give me a leg day", "I want to train pull tomorrow" — prescribe THAT session. Do NOT override it with your own split rotation or a weekday-based schedule, and never tell them "tomorrow is X day so we're doing Y instead." This app does not run a fixed weekday→split schedule; the athlete trains what they choose, when they choose. If their recent history suggests a muscle group is under-recovered or recently hammered, you may add ONE short caution line — but still give the session they asked for. Only suggest a different focus when they ask an open question ("what should I train?") with no stated preference.
+
+You do NOT have a fixed program calendar. NEVER announce a recurring weekly schedule ("your next Push Day is …") or state specific dates for past/future sessions that aren't grounded in the date block above or the RECENT SESSIONS data. Don't claim a given weekday "is" a certain split.
 
 WORKOUT RESPONSE FORMAT (KEEP PRESCRIPTIONS SHORT AND STRAIGHT TO THE POINT):
 When the athlete asks for a workout, be brief and direct. The structured plan block at the end renders a "Do this workout" button that already carries every set, rep, load, and rest — so the prose is a quick brief, NOT a textbook. The long, multi-section format below is BANNED for prescriptions. The ENTIRE reply must be just these three pieces, in this exact order, and nothing else:

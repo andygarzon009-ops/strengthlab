@@ -478,7 +478,7 @@ export default function AITrainer() {
       const res = await fetch("/api/trainer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, clearedAt }),
       });
 
       if (!res.body) throw new Error("No response body");
