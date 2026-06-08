@@ -2,7 +2,10 @@ import { NextRequest } from "next/server";
 import { unstable_cache } from "next/cache";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { listHeartRateBetween } from "@/lib/googleHealth";
+import {
+  HealthReauthRequiredError,
+  listHeartRateBetween,
+} from "@/lib/googleHealth";
 
 export const maxDuration = 30;
 
@@ -79,6 +82,9 @@ export async function GET(req: NextRequest) {
     );
     return Response.json({ connected: true, dateKey, tz, samples });
   } catch (e) {
+    if (e instanceof HealthReauthRequiredError) {
+      return Response.json({ connected: true, needsReconnect: true, dateKey, tz, samples: [] });
+    }
     const msg = e instanceof Error ? e.message : String(e);
     return Response.json({ error: msg }, { status: 502 });
   }

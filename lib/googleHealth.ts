@@ -17,6 +17,19 @@ export const HEALTH_SCOPES = [
   "https://www.googleapis.com/auth/googlehealth.sleep.readonly",
 ];
 
+/// Thrown when Google rejects the stored refresh token (400 invalid_grant) —
+/// the only fix is for the user to re-run the OAuth consent flow. Because our
+/// consent screen is in "Testing" publishing status, Google expires refresh
+/// tokens 7 days after consent, so this recurs roughly weekly until the app is
+/// verified/published. Callers translate this into a "reconnect" prompt rather
+/// than a generic error.
+export class HealthReauthRequiredError extends Error {
+  constructor() {
+    super("Health re-authentication required");
+    this.name = "HealthReauthRequiredError";
+  }
+}
+
 function requireEnv(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`Missing required env var ${name}`);
@@ -96,7 +109,14 @@ async function refreshAccessToken(refreshToken: string): Promise<TokenResponse> 
     body,
   });
   if (!res.ok) {
-    throw new Error(`Refresh failed: ${res.status} ${await res.text()}`);
+    const text = await res.text();
+    // invalid_grant means the refresh token is dead (expired under Testing-mode
+    // 7-day limit, or revoked by the user). Surface it as a typed error so the
+    // UI can prompt a reconnect instead of showing a meaningless 502.
+    if (res.status === 400 && text.includes("invalid_grant")) {
+      throw new HealthReauthRequiredError();
+    }
+    throw new Error(`Refresh failed: ${res.status} ${text}`);
   }
   return (await res.json()) as TokenResponse;
 }
@@ -125,6 +145,25 @@ async function getValidAccessToken(userId: string): Promise<string> {
     },
   });
   return refreshed.access_token;
+}
+
+/// Lightweight auth probe for the reconnect banner. Reports whether the user
+/// has a connected Health account and, if so, whether the stored token still
+/// works (needsReconnect === true → the refresh token is dead and they must
+/// re-consent). Refreshing succeeds as a side effect when the token is merely
+/// stale, so a healthy account returns fast. Transient network failures are
+/// treated as "still connected" so a blip doesn't nag the user to reconnect.
+export async function checkHealthAuth(
+  userId: string,
+): Promise<{ connected: boolean; needsReconnect: boolean }> {
+  const account = await prisma.healthAccount.findUnique({ where: { userId } });
+  if (!account) return { connected: false, needsReconnect: false };
+  try {
+    await getValidAccessToken(userId);
+    return { connected: true, needsReconnect: false };
+  } catch (e) {
+    return { connected: true, needsReconnect: e instanceof HealthReauthRequiredError };
+  }
 }
 
 async function healthFetch(userId: string, path: string): Promise<unknown> {

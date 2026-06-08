@@ -1,6 +1,7 @@
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import HeartRateView from "@/components/HeartRateView";
+import HealthReconnectBanner from "@/components/HealthReconnectBanner";
 import BackButton from "@/components/BackButton";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +54,8 @@ export default async function HeartRatePage() {
         <BackButton href="/" ariaLabel="Back to feed" />
         <h1 className="text-[22px] font-bold tracking-tight">Heart rate</h1>
       </div>
+
+      <HealthReconnectBanner />
 
       <HeartRateView
         initial={{

@@ -1,6 +1,9 @@
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { listHeartRateBetween } from "@/lib/googleHealth";
+import {
+  HealthReauthRequiredError,
+  listHeartRateBetween,
+} from "@/lib/googleHealth";
 
 /// Returns the most recent heart-rate sample from the last 5 minutes, fetched
 /// live from Google Health. Used by the logger's live HR widget — accuracy is
@@ -29,6 +32,9 @@ export async function GET() {
       at: latest.timestamp.toISOString(),
     });
   } catch (e) {
+    if (e instanceof HealthReauthRequiredError) {
+      return Response.json({ connected: true, needsReconnect: true, bpm: null, at: null });
+    }
     const msg = e instanceof Error ? e.message : String(e);
     return Response.json({ connected: true, error: msg }, { status: 502 });
   }

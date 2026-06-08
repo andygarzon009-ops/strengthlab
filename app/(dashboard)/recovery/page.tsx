@@ -6,6 +6,7 @@ import SleepHistoryChart, {
   type SleepNightHistory,
 } from "@/components/SleepHistoryChart";
 import Spo2Card from "@/components/Spo2Card";
+import HealthReconnectBanner from "@/components/HealthReconnectBanner";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,8 @@ export default async function RecoveryPage() {
         <BackButton href="/" ariaLabel="Back to feed" />
         <h1 className="text-[22px] font-bold tracking-tight">Recovery</h1>
       </div>
+
+      <HealthReconnectBanner />
 
       {score === null || !band ? (
         <EmptyState connected={!!account} />
