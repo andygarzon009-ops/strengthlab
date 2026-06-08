@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
-import { format, subDays, differenceInDays } from "date-fns";
+import { format, subDays, addDays, differenceInDays } from "date-fns";
 import { NextRequest } from "next/server";
 import { shapeForType, labelForType, formatDuration } from "@/lib/exercises";
 import { normalizeExerciseName } from "@/lib/exerciseIdentity";
@@ -372,6 +372,11 @@ export async function POST(req: NextRequest) {
 
     const todayStr = fmtLong(now);
     const isoToday = fmtIso(now);
+    // Explicit relative days so the model NEVER has to compute a weekday
+    // itself (LLMs reliably get "today + 1 day → which weekday" wrong).
+    const tomorrowStr = fmtLong(addDays(now, 1));
+    const tomorrowIso = fmtIso(addDays(now, 1));
+    const yesterdayStr = fmtLong(subDays(now, 1));
     const twoWeeksAgoStr = fmtLong(subDays(now, 14));
     const oneWeekAgoStr = fmtLong(subDays(now, 7));
     const thirtyDaysAgoStr = fmtLong(subDays(now, 30));
@@ -465,12 +470,16 @@ Calibrate today's intensity and volume to this: a low recovery score, short or p
 ━━━━━━━━━━━━━━━━━━━━━━━━
 CURRENT DATE (real-time, authoritative — use this for ALL date math)
 ━━━━━━━━━━━━━━━━━━━━━━━━
+- Yesterday: ${yesterdayStr}
 - Today: ${todayStr} (${isoToday})
+- Tomorrow: ${tomorrowStr} (${tomorrowIso})
 - 1 week ago: ${oneWeekAgoStr}
 - 2 weeks ago: ${twoWeeksAgoStr}
 - 30 days ago: ${thirtyDaysAgoStr}
 
-Every recent session above is tagged with "Xd ago" relative to today. When the athlete says "two weeks ago", "last Tuesday", "earlier this month", resolve it against the date above and locate the matching session in the RECENT SESSIONS data. Never guess the date — anchor every time-based reference to this block.
+CRITICAL — NEVER compute a weekday or calendar date yourself; you get them wrong. Use ONLY the exact values above. If the athlete says "tomorrow", it is literally "${tomorrowStr}" — do not recompute it. If they reference a day you can't resolve from this block, ask them to confirm the date rather than guessing.
+
+Every recent session above is tagged with "Xd ago" relative to today. When the athlete says "two weeks ago", "last Tuesday", "earlier this month", resolve it against the dates above and locate the matching session in the RECENT SESSIONS data. Never guess the date — anchor every time-based reference to this block.
 
 
 LIVE LOGGING CAPABILITY (IMPORTANT — DO NOT DENY THIS):
@@ -553,6 +562,9 @@ TRAINING PHILOSOPHY:
 - tell the athlete when to push and when to hold back
 
 YOU MUST BE GOOD AT: building workouts on the spot, adjusting sets/reps/weights live, interpreting workout logs, spotting PRs and progress, comparing current performance to previous sessions, telling whether strength is up/down/stable/masked by fatigue, recommending deloads, structuring weekly splits, balancing squat/bench/pull/hypertrophy/recovery, working with athletes focused on hypertrophy, strength, powerbuilding, athletic performance, body composition, or general consistency.
+
+HONOR THE ATHLETE'S EXPLICIT REQUEST:
+When the athlete names the session they want — "plan my push workout", "give me a leg day", "I want to train pull tomorrow" — prescribe THAT session. Do NOT override it with your own split rotation or a weekday-based schedule, and never tell them "tomorrow is X day so we're doing Y instead." This app does not run a fixed weekday→split schedule; the athlete trains what they choose, when they choose. If their recent history suggests a muscle group is under-recovered or recently hammered, you may add ONE short caution line — but still give the session they asked for. Only suggest a different focus when they ask an open question ("what should I train?") with no stated preference.
 
 WORKOUT RESPONSE FORMAT (KEEP PRESCRIPTIONS SHORT AND STRAIGHT TO THE POINT):
 When the athlete asks for a workout, be brief and direct. The structured plan block at the end renders a "Do this workout" button that already carries every set, rep, load, and rest — so the prose is a quick brief, NOT a textbook. The long, multi-section format below is BANNED for prescriptions. The ENTIRE reply must be just these three pieces, in this exact order, and nothing else:
