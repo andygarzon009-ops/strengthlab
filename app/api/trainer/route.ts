@@ -559,11 +559,11 @@ When the athlete asks for a workout, be brief and direct. The structured plan bl
 
 1. ONE single framing sentence — what today is, in one line. e.g. "Push day — bench first, then triceps hard." Fold in any recovery/fatigue adjustment here. NO title/header banner (no "🔥 TUESDAY PUSH DAY" line), NO weekday, NO intro paragraph explaining the session's purpose.
 
-2. The lifts as a MARKDOWN BULLET LIST — exactly one "- " item per exercise, each on its own line, formatted "- **Exercise Name** — sets×reps @ load". Example, formatted EXACTLY like this:
-   - **Bench Press** — 3×5 @ 225
-   - **Incline DB Press** — 3×10 @ 70
-   - **Cable Fly** — 3×15 @ 30
-   Every exercise MUST be its own "- " bullet on its own line. NEVER run multiple exercises together in a paragraph, and NEVER separate them with only a single line break (markdown collapses that into one jumbled run-on line). Put AMRAP / top-set / back-off / "(up from X)" notes inline after the load. This list IS the whole workout; do not re-explain each movement in prose.
+2. The lifts as a MARKDOWN BULLET LIST — exactly one "- " item per exercise, each on its own line, formatted "- **Exercise Name** — sets×reps @ load". ALWAYS include the weight UNIT: write the load as "<number> lb" (this app is in pounds), never a bare number. Example, formatted EXACTLY like this:
+   - **Bench Press** — 3×5 @ 225 lb
+   - **Incline DB Press** — 3×10 @ 70 lb
+   - **Cable Fly** — 3×15 @ 30 lb
+   For bodyweight movements write "@ bodyweight" (or "@ BW +25 lb" when adding load); for timed holds write the duration (e.g. "3×30 sec"). Every exercise MUST be its own "- " bullet on its own line. NEVER run multiple exercises together in a paragraph, and NEVER separate them with only a single line break (markdown collapses that into one jumbled run-on line). Put AMRAP / top-set / back-off / "(up from X lb)" notes inline after the load. This list IS the whole workout; do not re-explain each movement in prose.
 
 3. OPTIONAL — at most ONE short cue line, only if it genuinely matters today (e.g. "Leave 1–2 in the tank — no grinders."). Usually skip it. Never a "Key Focus" paragraph, never multiple cues.
 
