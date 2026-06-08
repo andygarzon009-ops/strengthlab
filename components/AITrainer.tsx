@@ -529,9 +529,11 @@ export default function AITrainer() {
         onClick={() => setOpen(true)}
         className="fixed bottom-24 right-4 z-40 w-12 h-12 rounded-full flex items-center justify-center active:scale-95 transition-transform"
         style={{
-          background: "var(--bg-elevated)",
-          border: "1px solid var(--border-strong)",
-          boxShadow: "0 6px 20px -6px rgba(0,0,0,0.6)",
+          background:
+            "linear-gradient(150deg, var(--bg-elevated), #0d0d0d)",
+          border: "1px solid var(--accent-ring)",
+          boxShadow:
+            "0 8px 24px -8px rgba(0,0,0,0.7), 0 0 18px -6px var(--accent-ring), inset 0 1px 0 rgba(255,255,255,0.04)",
         }}
         aria-label="Open Personalized Coach"
       >
@@ -561,12 +563,25 @@ export default function AITrainer() {
             maxHeight: "100dvh",
           }}
         >
+          <style>{`
+            @keyframes coachBubbleIn {
+              from { opacity: 0; transform: translateY(6px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+            .coach-bubble-in { animation: coachBubbleIn 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+            @keyframes coachStatusPulse {
+              0%, 100% { box-shadow: 0 0 0 0 var(--accent-ring); }
+              50% { box-shadow: 0 0 0 4px rgba(34,197,94,0); }
+            }
+          `}</style>
           <div
             className="flex items-center gap-2 px-3 pb-3"
             style={{
               paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)",
               borderBottom: "1px solid var(--border)",
-              background: "var(--bg-card)",
+              background: "rgba(17,17,17,0.82)",
+              backdropFilter: "blur(16px) saturate(1.4)",
+              WebkitBackdropFilter: "blur(16px) saturate(1.4)",
             }}
           >
             <button
@@ -592,18 +607,52 @@ export default function AITrainer() {
                 <path d="M18 6 6 18M6 6l12 12" />
               </svg>
             </button>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-[15px] font-semibold tracking-tight leading-none">
-                Coach
-              </h2>
-              <p
-                className="text-[10px] label mt-0.5"
-                style={{ color: "var(--fg-dim)" }}
-              >
-                {visibleMessages.length === 0
-                  ? "Fresh conversation"
-                  : `${visibleMessages.length} message${visibleMessages.length === 1 ? "" : "s"}`}
-              </p>
+            <div className="flex-1 min-w-0 flex items-center gap-2.5">
+              <div className="relative shrink-0">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{
+                    background:
+                      "linear-gradient(145deg, var(--accent-dim), rgba(34,197,94,0.03))",
+                    border: "1px solid var(--accent-ring)",
+                    boxShadow: "0 0 18px -4px var(--accent-ring)",
+                  }}
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--accent)"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
+                  </svg>
+                </div>
+                <span
+                  className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full"
+                  style={{
+                    background: "var(--accent)",
+                    border: "2px solid var(--bg-card)",
+                    animation: "coachStatusPulse 2.4s ease-in-out infinite",
+                  }}
+                />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-[15px] font-semibold tracking-tight leading-none">
+                  Coach
+                </h2>
+                <p
+                  className="text-[10px] label mt-1"
+                  style={{ color: "var(--fg-dim)" }}
+                >
+                  {visibleMessages.length === 0
+                    ? "Online · ready when you are"
+                    : `${visibleMessages.length} message${visibleMessages.length === 1 ? "" : "s"}`}
+                </p>
+              </div>
             </div>
             {visibleMessages.length > 0 && (
               <button
@@ -712,12 +761,14 @@ export default function AITrainer() {
                 >
                 {m.role === "user" ? (
                   <div
-                    className="max-w-[85%] rounded-2xl px-4 py-3 text-[15px] leading-[1.5] whitespace-pre-wrap"
+                    className="coach-bubble-in max-w-[85%] rounded-[20px] px-4 py-3 text-[15px] leading-[1.5] whitespace-pre-wrap"
                     style={{
-                      background: "var(--accent)",
-                      color: "#0a0a0a",
-                      borderBottomRightRadius: "6px",
+                      background:
+                        "linear-gradient(160deg, var(--accent-hover), var(--accent))",
+                      color: "#06140b",
+                      borderBottomRightRadius: "7px",
                       fontWeight: 500,
+                      boxShadow: "0 10px 22px -12px var(--accent-ring)",
                     }}
                   >
                     {m.content}
@@ -737,12 +788,15 @@ export default function AITrainer() {
                       />
                     )}
                     <div
-                      className="rounded-2xl px-4 py-3.5"
+                      className="coach-bubble-in rounded-[20px] px-4 py-3.5"
                       style={{
-                        background: "var(--bg-card)",
-                        border: "1px solid var(--border)",
+                        background:
+                          "linear-gradient(180deg, var(--bg-elevated), var(--bg-card))",
+                        border: "1px solid var(--border-strong)",
                         color: "var(--fg)",
-                        borderBottomLeftRadius: "6px",
+                        borderBottomLeftRadius: "7px",
+                        boxShadow:
+                          "inset 0 1px 0 rgba(255,255,255,0.025), 0 10px 28px -18px rgba(0,0,0,0.95)",
                       }}
                     >
                       <ReactMarkdown
@@ -770,11 +824,14 @@ export default function AITrainer() {
             {streaming && (
               <div className="flex justify-start">
                 <div
-                  className="max-w-[92%] rounded-2xl px-4 py-3.5"
+                  className="max-w-[92%] rounded-[20px] px-4 py-3.5"
                   style={{
-                    background: "var(--bg-card)",
-                    border: "1px solid var(--border)",
-                    borderBottomLeftRadius: "6px",
+                    background:
+                      "linear-gradient(180deg, var(--bg-elevated), var(--bg-card))",
+                    border: "1px solid var(--border-strong)",
+                    borderBottomLeftRadius: "7px",
+                    boxShadow:
+                      "inset 0 1px 0 rgba(255,255,255,0.025), 0 10px 28px -18px rgba(0,0,0,0.95)",
                   }}
                 >
                   <ReactMarkdown
@@ -842,14 +899,18 @@ export default function AITrainer() {
             style={{
               paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)",
               borderTop: "1px solid var(--border)",
-              background: "var(--bg-card)",
+              background: "rgba(17,17,17,0.82)",
+              backdropFilter: "blur(16px) saturate(1.4)",
+              WebkitBackdropFilter: "blur(16px) saturate(1.4)",
             }}
           >
             <div
-              className="flex items-end gap-0 rounded-2xl overflow-hidden pr-1.5"
+              className="flex items-end gap-0 rounded-[18px] overflow-hidden pr-1.5"
               style={{
                 background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
+                border: "1px solid var(--border-strong)",
+                boxShadow:
+                  "inset 0 1px 0 rgba(255,255,255,0.03), 0 6px 18px -12px rgba(0,0,0,0.9)",
               }}
             >
               <input
