@@ -4,6 +4,7 @@ import {
   HealthReauthRequiredError,
   listHeartRateBetween,
 } from "@/lib/googleHealth";
+import { ageFromBirthDate, estimateMaxHr, hrZone } from "@/lib/hrZones";
 
 /// Returns the most recent heart-rate sample from the last 5 minutes, fetched
 /// live from Google Health. Used by the logger's live HR widget — accuracy is
@@ -26,10 +27,35 @@ export async function GET() {
       return Response.json({ connected: true, bpm: null, at: null });
     }
     const latest = samples[samples.length - 1];
+
+    // Resolve the athlete's max HR (age estimate, bumped by observed peak) so
+    // the widget can show live intensity zones. Done only when there's a
+    // reading to classify.
+    const [user, agg] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { birthDate: true },
+      }),
+      prisma.workout.aggregate({
+        where: { userId, maxHeartRate: { not: null } },
+        _max: { maxHeartRate: true },
+      }),
+    ]);
+    const maxHr = estimateMaxHr(
+      ageFromBirthDate(user?.birthDate),
+      agg._max.maxHeartRate ?? null,
+    );
+    const z = hrZone(latest.bpm, maxHr);
+
     return Response.json({
       connected: true,
       bpm: latest.bpm,
       at: latest.timestamp.toISOString(),
+      maxHr,
+      zone: z.zone,
+      zoneLabel: z.label,
+      zoneColor: z.color,
+      pctMax: z.pctMax,
     });
   } catch (e) {
     if (e instanceof HealthReauthRequiredError) {
