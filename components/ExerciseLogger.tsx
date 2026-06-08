@@ -137,6 +137,8 @@ type Exercise = {
 type PreviousData = {
   lastWeight?: number;
   lastReps?: number;
+  topWeight?: number;
+  topReps?: number;
   daysAgo?: number;
 };
 
@@ -497,15 +499,15 @@ export default function ExerciseLogger({
                         fontFamily: "var(--font-geist-mono)",
                       }}
                     >
-                      Last:{" "}
+                      Top:{" "}
                       {usesPlates(ex.exerciseName)
-                        ? `${(prev.lastWeight ?? 0) / (PLATE_WEIGHT_LB * plateSides(ex.exerciseName))} plates`
+                        ? `${(prev.topWeight ?? 0) / (PLATE_WEIGHT_LB * plateSides(ex.exerciseName))} plates`
                         : isBodyweightCapable(ex.exerciseName)
-                          ? (prev.lastWeight ?? 0) > 0
-                            ? `+${prev.lastWeight}lb`
+                          ? (prev.topWeight ?? 0) > 0
+                            ? `+${prev.topWeight}lb`
                             : "BW"
-                          : `${prev.lastWeight}lb`}{" "}
-                      × {prev.lastReps} · {prev.daysAgo}d ago
+                          : `${prev.topWeight}lb`}{" "}
+                      × {prev.topReps} · {prev.daysAgo}d ago
                     </p>
                   )}
                 </div>
