@@ -76,7 +76,15 @@ export function WarmupSummary({ items }: { items: Item[] }) {
   );
 }
 
-export default function GuidedWarmup({ items }: { items: Item[] }) {
+export default function GuidedWarmup({
+  items,
+  onStart,
+}: {
+  items: Item[];
+  // Fired the moment the athlete begins (Start or Skip) so the parent can
+  // kick off the workout session timer — no separate "Begin workout" step.
+  onStart?: () => void;
+}) {
   const [mode, setMode] = useState<Mode>("idle");
   const [idx, setIdx] = useState(0);
   const [remaining, setRemaining] = useState(items[0]?.durationSec ?? 0);
@@ -107,6 +115,7 @@ export default function GuidedWarmup({ items }: { items: Item[] }) {
   }, [remaining]);
 
   function start() {
+    onStart?.();
     setMode("running");
     setIdx(0);
     setRemaining(items[0]?.durationSec ?? 0);
@@ -123,6 +132,9 @@ export default function GuidedWarmup({ items }: { items: Item[] }) {
   }
 
   function skipAll() {
+    // Skipping the warm-up still means "I'm starting now" — begin the session
+    // timer so there's no dead-end where the workout can't be started.
+    onStart?.();
     setMode("done");
   }
 

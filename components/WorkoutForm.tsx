@@ -876,16 +876,26 @@ export default function WorkoutForm({
       </div>
 
       {step === "log" && warmup && warmup.items.length > 0 && (
-        <GuidedWarmup items={warmup.items} />
-      )}
-
-      {step === "log" && (
-        <WorkoutTimerStrip
-          startedAt={startedAt}
-          onBegin={() => setStartedAt(new Date())}
-          onCancel={() => setStartedAt(null)}
+        <GuidedWarmup
+          items={warmup.items}
+          // Beginning the warm-up starts the session clock — no separate
+          // "Begin workout" tap. Guard so replaying the warm-up doesn't
+          // reset an already-running timer.
+          onStart={() => setStartedAt((cur) => cur ?? new Date())}
         />
       )}
+
+      {/* The timer strip's own "Begin workout" button is only needed when there
+          is no warm-up to start the clock for us. Once running, always show the
+          live timer. */}
+      {step === "log" &&
+        (startedAt || !(warmup && warmup.items.length > 0)) && (
+          <WorkoutTimerStrip
+            startedAt={startedAt}
+            onBegin={() => setStartedAt(new Date())}
+            onCancel={() => setStartedAt(null)}
+          />
+        )}
 
       {step === "log" && startedAt && <LiveHRWidget />}
 
