@@ -15,6 +15,10 @@ export const HEALTH_SCOPES = [
   // Sleep (recovery Phase 2). Restricted scope — fine for Testing-mode test
   // users without full verification. Existing users must reconnect to grant it.
   "https://www.googleapis.com/auth/googlehealth.sleep.readonly",
+  // Nutrition (calorie/protein intake from Google Health's food logging:
+  // food, nutrition-log, hydration-log). Restricted scope; existing users must
+  // reconnect to grant it. Feeds daily intake to the AI coach.
+  "https://www.googleapis.com/auth/googlehealth.nutrition.readonly",
 ];
 
 /// Thrown when Google rejects the stored refresh token (400 invalid_grant) —
