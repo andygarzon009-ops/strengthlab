@@ -204,21 +204,21 @@ export async function POST(
     // Never overwrite a value the athlete entered manually.
     const metricUpdates: Record<string, number> = {};
 
-    // Duration: matched session > actual HR sample span > derived window.
-    if (workout.duration == null || workout.duration === 0) {
-      if (matched && matched.durationSec > 0) {
-        metricUpdates.duration = matched.durationSec;
-      } else if (samples.length >= 2) {
-        const spanSec = Math.round(
-          (samples[samples.length - 1].timestamp.getTime() -
-            samples[0].timestamp.getTime()) /
-            1000,
-        );
-        if (spanSec > 0) metricUpdates.duration = spanSec;
-      } else if (windowSource !== "fuzzy") {
-        const spanSec = Math.round((end.getTime() - start.getTime()) / 1000);
-        if (spanSec > 0) metricUpdates.duration = spanSec;
-      }
+    // Duration = the session window [start, end], never a session's
+    // self-reported activeDuration (seen at ~2x the real span). We use the
+    // interval rather than the HR sample span on purpose: low-intensity
+    // activities (golf, walking) often log only a sparse slice of HR, so the
+    // sample span understates the true length. A matched Google Health session
+    // is the truth source (we also overwrite startedAt/endedAt from it below),
+    // so its window is authoritative and corrects any existing duration.
+    // Otherwise only *fill* a missing value so we never clobber a duration the
+    // athlete entered by hand.
+    const intervalSec = Math.round((end.getTime() - start.getTime()) / 1000);
+    if (windowSource === "matched-session") {
+      if (intervalSec > 0) metricUpdates.duration = intervalSec;
+    } else if (workout.duration == null || workout.duration === 0) {
+      if (windowSource !== "fuzzy" && intervalSec > 0)
+        metricUpdates.duration = intervalSec;
     }
 
     // Steps / zone minutes / distance only exist on a real Fitbit session.

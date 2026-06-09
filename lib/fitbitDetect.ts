@@ -45,6 +45,27 @@ function durationFromActiveDuration(s?: string): number {
   return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
+/// The session's length. `activeDuration` (moving time) can never exceed the
+/// wall-clock interval, yet Google/Fitbit has been observed reporting it at
+/// ~2x the real span — which then leaks into the workout's displayed duration.
+/// The interval is authoritative and lines up with the HR sample window, so we
+/// prefer it, clamp activeDuration to it, and only fall back to activeDuration
+/// when the interval is missing.
+function sessionDurationSec(
+  startTime: string,
+  endTime: string,
+  activeDuration?: string,
+): number {
+  const intervalSec = Math.round(
+    (new Date(endTime).getTime() - new Date(startTime).getTime()) / 1000,
+  );
+  const activeSec = durationFromActiveDuration(activeDuration);
+  if (intervalSec > 0) {
+    return activeSec > 0 ? Math.min(activeSec, intervalSec) : intervalSec;
+  }
+  return activeSec;
+}
+
 function parsePoint(p: ExercisePoint): Omit<DetectedSession, "importedWorkoutId"> {
   const m = p.exercise.metricsSummary ?? {};
   return {
@@ -54,7 +75,11 @@ function parsePoint(p: ExercisePoint): Omit<DetectedSession, "importedWorkoutId"
     displayName:
       p.exercise.displayName ?? p.exercise.exerciseType ?? "Activity",
     exerciseType: p.exercise.exerciseType,
-    durationSec: durationFromActiveDuration(p.exercise.activeDuration),
+    durationSec: sessionDurationSec(
+      p.exercise.interval.startTime,
+      p.exercise.interval.endTime,
+      p.exercise.activeDuration,
+    ),
     calories: m.caloriesKcal,
     steps: m.steps ? Number(m.steps) : undefined,
     avgHR: m.averageHeartRateBeatsPerMinute
