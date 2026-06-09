@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import HealthDashboard from "@/components/HealthDashboard";
 import HealthReconnectBanner from "@/components/HealthReconnectBanner";
+import NutritionScoreCard from "@/components/NutritionScoreCard";
 import BackButton from "@/components/BackButton";
 
 export default async function HealthPage({
@@ -47,6 +48,8 @@ export default async function HealthPage({
       )}
 
       <HealthReconnectBanner />
+
+      <NutritionScoreCard />
 
       <HealthDashboard connected={!!account} connectedAt={account?.createdAt ?? null} />
     </div>

@@ -514,6 +514,138 @@ export async function listOxygenSaturation(
   }
 }
 
+function civilDayKey(d?: {
+  year?: number;
+  month?: number;
+  day?: number;
+}): string | null {
+  if (!d?.year || !d?.month || !d?.day) return null;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.year}-${p(d.month)}-${p(d.day)}`;
+}
+
+export type DailyNutrition = {
+  date: string; // local civil calendar day, YYYY-MM-DD
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  entries: number;
+  byMeal: Record<string, number>; // mealType (BREAKFAST/LUNCH/DINNER/SNACK/…) → kcal
+};
+
+type NutritionLogPoint = {
+  nutritionLog?: {
+    interval?: { civilStartTime?: { date?: { year?: number; month?: number; day?: number } } };
+    nutrients?: { quantity?: { grams?: number }; nutrient?: string }[];
+    energy?: { kcal?: number };
+    totalCarbohydrate?: { grams?: number };
+    totalFat?: { grams?: number };
+    mealType?: string;
+  };
+};
+
+/// Logged food intake per local calendar day from Google Health `nutrition-log`
+/// (the meals you log via Google Health's AI-image / barcode tools). Needs the
+/// nutrition scope. Calories from energy.kcal, protein from the nutrients list,
+/// carbs/fat from the top-level totals; grouped by the entry's civil (local)
+/// day. Sorted oldest → newest; [] if no scope / nothing logged.
+export async function getDailyNutrition(
+  userId: string,
+  sinceCivil: string,
+): Promise<DailyNutrition[]> {
+  const filter = `nutrition_log.interval.civil_start_time >= "${sinceCivil}"`;
+  const base =
+    "/users/me/dataTypes/nutrition-log/dataPoints?pageSize=1000&filter=" +
+    encodeURIComponent(filter);
+  try {
+    const byDay = new Map<string, DailyNutrition>();
+    let pageToken: string | undefined;
+    do {
+      const path: string = pageToken
+        ? `${base}&pageToken=${encodeURIComponent(pageToken)}`
+        : base;
+      const data = (await healthFetch(userId, path)) as {
+        dataPoints?: NutritionLogPoint[];
+        nextPageToken?: string;
+      };
+      for (const dp of data.dataPoints ?? []) {
+        const n = dp.nutritionLog;
+        const key = civilDayKey(n?.interval?.civilStartTime?.date);
+        if (!n || !key) continue;
+        const meal = (n.mealType ?? "OTHER").toUpperCase();
+        const kcal = Math.max(0, Math.round(n.energy?.kcal ?? 0));
+        const cur =
+          byDay.get(key) ??
+          { date: key, kcal: 0, proteinG: 0, carbsG: 0, fatG: 0, entries: 0, byMeal: {} };
+        cur.kcal += kcal;
+        cur.proteinG += n.nutrients?.find((x) => x.nutrient === "PROTEIN")?.quantity?.grams ?? 0;
+        cur.carbsG += n.totalCarbohydrate?.grams ?? 0;
+        cur.fatG += n.totalFat?.grams ?? 0;
+        cur.entries += 1;
+        cur.byMeal[meal] = (cur.byMeal[meal] ?? 0) + kcal;
+        byDay.set(key, cur);
+      }
+      pageToken = data.nextPageToken;
+    } while (pageToken);
+    return [...byDay.values()]
+      .map((d) => ({
+        ...d,
+        proteinG: Math.round(d.proteinG),
+        carbsG: Math.round(d.carbsG),
+        fatG: Math.round(d.fatG),
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    return [];
+  }
+}
+
+type ActiveEnergyPoint = {
+  activeEnergyBurned?: {
+    interval?: { civilStartTime?: { date?: { year?: number; month?: number; day?: number } } };
+    kcal?: number;
+  };
+};
+
+/// Active energy burned (kcal) per local calendar day from Google Health
+/// `active-energy-burned` (activity_and_fitness scope). Emitted per-minute, so
+/// we page through and sum by civil day. Used as the "movement on top of BMR"
+/// term when estimating maintenance calories. {} if unavailable.
+export async function getActiveEnergyByDay(
+  userId: string,
+  sinceCivil: string,
+): Promise<Record<string, number>> {
+  const filter = `active_energy_burned.interval.civil_start_time >= "${sinceCivil}"`;
+  const base =
+    "/users/me/dataTypes/active-energy-burned/dataPoints?pageSize=1000&filter=" +
+    encodeURIComponent(filter);
+  const byDay: Record<string, number> = {};
+  try {
+    let pageToken: string | undefined;
+    do {
+      const path: string = pageToken
+        ? `${base}&pageToken=${encodeURIComponent(pageToken)}`
+        : base;
+      const data = (await healthFetch(userId, path)) as {
+        dataPoints?: ActiveEnergyPoint[];
+        nextPageToken?: string;
+      };
+      for (const dp of data.dataPoints ?? []) {
+        const a = dp.activeEnergyBurned;
+        const key = civilDayKey(a?.interval?.civilStartTime?.date);
+        if (!a || !key) continue;
+        byDay[key] = (byDay[key] ?? 0) + Math.max(0, a.kcal ?? 0);
+      }
+      pageToken = data.nextPageToken;
+    } while (pageToken);
+    for (const k of Object.keys(byDay)) byDay[k] = Math.round(byDay[k]);
+    return byDay;
+  } catch {
+    return {};
+  }
+}
+
 export async function listHeartRateBetween(
   userId: string,
   startISO: string,

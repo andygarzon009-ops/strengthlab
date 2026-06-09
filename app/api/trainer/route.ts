@@ -9,6 +9,7 @@ import { normalizeExerciseName } from "@/lib/exerciseIdentity";
 import { parseLiveLog } from "@/lib/parseLiveLog";
 import { computeWeakSpots, formatWeakSpotsForPrompt } from "@/lib/weakSpots";
 import { hasValidPlan } from "@/lib/workoutPlan";
+import { getTodayFuel } from "@/lib/nutritionToday";
 
 export const maxDuration = 60;
 
@@ -475,6 +476,32 @@ ${ls.join("\n")}
 Calibrate today's intensity and volume to this: a low recovery score, short or poor sleep, suppressed HRV, or elevated resting HR means pull back load, add rest, or suggest a lighter / mobility / deload day — and say so explicitly. A high score with good sleep green-lights harder work. Don't over-react to a single night, and remember sleep/recovery only update on nights the watch is worn.`;
     })();
 
+    // Today's nutrition (live from Google Health) as a hard input. Best-effort:
+    // any failure degrades to a "not available" note rather than breaking chat.
+    const nutritionContext = await (async () => {
+      try {
+        const f = await getTodayFuel(userId);
+        if (f.state === "no-account" || f.state === "reconnect")
+          return "NUTRITION (intake): not available — Google Health nutrition not connected. Don't assume calorie or protein intake; ask if it's relevant.";
+        if (f.state === "no-profile")
+          return "NUTRITION (intake): bodyweight not set, so no intake targets. If diet comes up, tell the athlete to add bodyweight + training phase in their profile.";
+        if (!f.loggedToday)
+          return `NUTRITION (today, from Google Health — a HARD INPUT alongside training):
+- Nothing logged yet today.
+- Targets for ${f.targets.phaseLabel}: ${f.targets.proteinTargetG}g protein, ~${f.targets.calorieTargetKcal} kcal (maintenance ~${f.targets.maintenanceKcal}).
+If diet/recovery comes up, nudge the athlete to log meals so you can coach intake.`;
+        const i = f.intake;
+        return `NUTRITION (today, from Google Health — a HARD INPUT alongside training):
+- Phase: ${f.targets.phaseLabel}. Fuel Score ${f.score.score}/100 (${f.score.rating}).
+- Protein: ${i.proteinG}g / ${f.targets.proteinTargetG}g target.
+- Calories: ${i.kcal} / ${f.targets.calorieTargetKcal} target — net ${f.score.netKcal >= 0 ? "+" : "−"}${Math.abs(f.score.netKcal)} kcal vs ~${f.targets.maintenanceKcal} burned (${f.score.direction}).
+- Carbs ${i.carbsG}g, fat ${i.fatG}g.
+Use this: protein short of target undercuts muscle retention (cut) or growth (bulk) — call it out and give a concrete fix (a shake, leaner protein at the next meal). Calories drifting the wrong way for the phase (surplus on a cut, deficit on a bulk) is worth flagging. Intake only reflects what's been logged so far today, so don't assume under-eating if it's early.`;
+      } catch {
+        return "NUTRITION (intake): temporarily unavailable.";
+      }
+    })();
+
     const systemPrompt = `You are an elite strength, hypertrophy, and performance coach chatbot.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
@@ -748,6 +775,8 @@ BODY METRICS (inches unless noted, optional — may be blank):
 - Hips: ${user?.hips ?? "—"} | Thigh: ${user?.thigh ?? "—"} | Calf: ${user?.calf ?? "—"}
 
 ${recoveryContext}
+
+${nutritionContext}
 
 ACTIVE GOALS (explicit targets the athlete is chasing):
 ${
