@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/session";
 import Link from "next/link";
 import WeeklyRecap from "@/components/WeeklyRecap";
 import ActivityRingsCard from "@/components/ActivityRingsCard";
+import NutritionScoreCard from "@/components/NutritionScoreCard";
 import HeartRateCard from "@/components/HeartRateCard";
 import PullToRefresh from "@/components/PullToRefresh";
 import ConsistencyCard from "@/components/ConsistencyCard";
@@ -122,6 +123,8 @@ export default async function FeedPage({
           <Suspense fallback={<CardSkeleton height={168} />}>
             <ActivityRingsCard userId={userId} />
           </Suspense>
+          {/* Self-fetching client card — sits right under the activity rings. */}
+          <NutritionScoreCard />
           <Suspense fallback={null}>
             <RecoveryCard userId={userId} />
           </Suspense>

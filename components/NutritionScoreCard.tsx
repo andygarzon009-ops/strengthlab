@@ -52,6 +52,8 @@ const MEAL_META: { key: string; icon: string; label: string }[] = [
   { key: "OTHER", icon: "🍴", label: "Other" },
 ];
 
+const COLLAPSE_KEY = "fuelScoreCollapsed";
+
 function Ring({ score, color }: { score: number; color: string }) {
   const r = 42;
   const circ = 2 * Math.PI * r;
@@ -92,12 +94,32 @@ function Bar({ pct, color }: { pct: number; color: string }) {
   );
 }
 
-/// Goal-aware daily "Fuel Score" on the Health page. Pulls today's logged food
-/// from Google Health and scores it against the athlete's trainingPhase
-/// (protein target + calorie direction). Renders nothing when Health isn't
-/// connected so the page stays clean for un-synced users.
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="var(--fg-dim)"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ transform: open ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s" }}
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+/// Goal-aware daily "Fuel Score" card for the home feed (under the activity
+/// card). Pulls today's logged food from Google Health and scores it against
+/// the athlete's trainingPhase. Collapsible — collapsed state persists in
+/// localStorage, and a score badge stays visible when collapsed. Renders
+/// nothing when Health isn't connected so the feed stays clean.
 export default function NutritionScoreCard() {
   const [data, setData] = useState<NutritionResponse | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -110,116 +132,144 @@ export default function NutritionScoreCard() {
     };
   }, []);
 
+  // Restore collapsed preference after mount (avoids SSR hydration mismatch).
+  useEffect(() => {
+    if (typeof window !== "undefined" && localStorage.getItem(COLLAPSE_KEY) === "1")
+      setCollapsed(true);
+  }, []);
+
+  const toggle = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      } catch {}
+      return next;
+    });
+  };
+
   if (!data || !data.connected || data.needsReconnect) return null;
 
-  if (data.needsProfile) {
-    return (
-      <div className="mb-5">
-        <p className="label mb-2">Nutrition</p>
-        <div
-          className="rounded-xl p-4 text-[13px]"
-          style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--fg-dim)" }}
-        >
-          Add your bodyweight and training phase in your profile to unlock the
-          Fuel Score — your goal-based calorie and protein targets.
-        </div>
-      </div>
-    );
-  }
-
-  const t = data.targets!;
-  const s = data.score!;
-  const i = data.intake!;
-  const color = RATING_COLOR[s.rating];
-  const meals = MEAL_META.filter((m) => (i.byMeal[m.key] ?? 0) > 0);
+  const hasScore = !data.needsProfile && !!data.score && !!data.loggedToday;
+  const t = data.targets;
+  const s = data.score;
+  const i = data.intake;
+  const color = s ? RATING_COLOR[s.rating] : "var(--fg-dim)";
 
   return (
     <div className="mb-5">
-      <div className="flex items-center justify-between mb-2">
-        <p className="label">Fuel Score</p>
-        <span
-          className="text-[11px] px-2 py-0.5 rounded-full"
-          style={{ background: "var(--accent-dim)", color: "var(--accent)" }}
-        >
-          🎯 {t.phaseLabel}
-        </span>
-      </div>
-
-      <div
-        className="rounded-xl p-4"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+      <button
+        type="button"
+        onClick={toggle}
+        className="w-full flex items-center justify-between mb-2"
+        aria-expanded={!collapsed}
       >
-        {!data.loggedToday ? (
-          <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
-            No food logged in Google Health yet today. Your target is{" "}
-            <span style={{ color: "var(--fg)" }}>{t.proteinTargetG}g protein</span> and{" "}
-            <span style={{ color: "var(--fg)" }}>~{t.calorieTargetKcal.toLocaleString()} kcal</span>.
-          </p>
-        ) : (
-          <>
-            <div className="flex items-center gap-4">
-              <Ring score={s.score} color={color} />
-              <div className="flex-1 min-w-0">
-                <p className="text-[15px] font-semibold" style={{ color }}>
-                  {s.rating}
-                </p>
-                <p className="text-[12px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
-                  {s.direction}
-                </p>
-              </div>
-            </div>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="label">Fuel Score</span>
+          {collapsed && hasScore && s && (
+            <span
+              className="text-[12px] font-bold tabular-nums px-1.5 py-0.5 rounded-md"
+              style={{ color, background: "var(--bg-card)", border: "1px solid var(--border)" }}
+            >
+              {s.score} · {s.rating}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {t && (
+            <span
+              className="text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap"
+              style={{ background: "var(--accent-dim)", color: "var(--accent)" }}
+            >
+              🎯 {t.phaseLabel}
+            </span>
+          )}
+          <Chevron open={!collapsed} />
+        </div>
+      </button>
 
-            <div className="mt-4 space-y-3">
-              <div>
-                <div className="flex items-baseline justify-between text-[13px]">
-                  <span style={{ color: "var(--fg-dim)" }}>Protein</span>
-                  <span className="tabular-nums">
-                    <span style={{ color: "var(--fg)", fontWeight: 600 }}>{i.proteinG}</span>
-                    <span style={{ color: "var(--fg-dim)" }}> / {t.proteinTargetG}g</span>
-                  </span>
+      {!collapsed && (
+        <div
+          className="rounded-xl p-4"
+          style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+        >
+          {data.needsProfile ? (
+            <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
+              Add your bodyweight and training phase in your profile to unlock the
+              Fuel Score — your goal-based calorie and protein targets.
+            </p>
+          ) : !data.loggedToday ? (
+            <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
+              No food logged in Google Health yet today. Your target is{" "}
+              <span style={{ color: "var(--fg)" }}>{t!.proteinTargetG}g protein</span> and{" "}
+              <span style={{ color: "var(--fg)" }}>~{t!.calorieTargetKcal.toLocaleString()} kcal</span>.
+            </p>
+          ) : (
+            <>
+              <div className="flex items-center gap-4">
+                <Ring score={s!.score} color={color} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-semibold" style={{ color }}>
+                    {s!.rating}
+                  </p>
+                  <p className="text-[12px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
+                    {s!.direction}
+                  </p>
                 </div>
-                <Bar pct={s.proteinPct} color={color} />
               </div>
 
-              <div>
-                <div className="flex items-baseline justify-between text-[13px]">
-                  <span style={{ color: "var(--fg-dim)" }}>Calories</span>
-                  <span className="tabular-nums">
-                    <span style={{ color: "var(--fg)", fontWeight: 600 }}>
-                      {i.kcal.toLocaleString()}
+              <div className="mt-4 space-y-3">
+                <div>
+                  <div className="flex items-baseline justify-between text-[13px]">
+                    <span style={{ color: "var(--fg-dim)" }}>Protein</span>
+                    <span className="tabular-nums">
+                      <span style={{ color: "var(--fg)", fontWeight: 600 }}>{i!.proteinG}</span>
+                      <span style={{ color: "var(--fg-dim)" }}> / {t!.proteinTargetG}g</span>
                     </span>
-                    <span style={{ color: "var(--fg-dim)" }}>
-                      {" "}/ {t.calorieTargetKcal.toLocaleString()} kcal
-                    </span>
-                  </span>
+                  </div>
+                  <Bar pct={s!.proteinPct} color={color} />
                 </div>
-                <Bar pct={s.caloriePct} color={color} />
-                <p className="text-[11px] mt-1 tabular-nums" style={{ color: "var(--fg-dim)" }}>
-                  {s.netKcal >= 0 ? "+" : "−"}
-                  {Math.abs(s.netKcal).toLocaleString()} kcal vs ~
-                  {t.maintenanceKcal.toLocaleString()} burned · carbs {i.carbsG}g · fat {i.fatG}g
-                </p>
-              </div>
-            </div>
 
-            {meals.length > 0 && (
-              <div
-                className="mt-3 pt-3 flex flex-wrap gap-x-4 gap-y-1.5"
-                style={{ borderTop: "1px solid var(--border)" }}
-              >
-                {meals.map((m) => (
-                  <span key={m.key} className="text-[12px] tabular-nums">
-                    {m.icon} {m.label}{" "}
-                    <span style={{ color: "var(--fg-dim)" }}>
-                      {Math.round(i.byMeal[m.key]).toLocaleString()}
+                <div>
+                  <div className="flex items-baseline justify-between text-[13px]">
+                    <span style={{ color: "var(--fg-dim)" }}>Calories</span>
+                    <span className="tabular-nums">
+                      <span style={{ color: "var(--fg)", fontWeight: 600 }}>
+                        {i!.kcal.toLocaleString()}
+                      </span>
+                      <span style={{ color: "var(--fg-dim)" }}>
+                        {" "}/ {t!.calorieTargetKcal.toLocaleString()} kcal
+                      </span>
                     </span>
-                  </span>
-                ))}
+                  </div>
+                  <Bar pct={s!.caloriePct} color={color} />
+                  <p className="text-[11px] mt-1 tabular-nums" style={{ color: "var(--fg-dim)" }}>
+                    {s!.netKcal >= 0 ? "+" : "−"}
+                    {Math.abs(s!.netKcal).toLocaleString()} kcal vs ~
+                    {t!.maintenanceKcal.toLocaleString()} burned · carbs {i!.carbsG}g · fat {i!.fatG}g
+                  </p>
+                </div>
               </div>
-            )}
-          </>
-        )}
-      </div>
+
+              {MEAL_META.filter((m) => (i!.byMeal[m.key] ?? 0) > 0).length > 0 && (
+                <div
+                  className="mt-3 pt-3 flex flex-wrap gap-x-4 gap-y-1.5"
+                  style={{ borderTop: "1px solid var(--border)" }}
+                >
+                  {MEAL_META.filter((m) => (i!.byMeal[m.key] ?? 0) > 0).map((m) => (
+                    <span key={m.key} className="text-[12px] tabular-nums">
+                      {m.icon} {m.label}{" "}
+                      <span style={{ color: "var(--fg-dim)" }}>
+                        {Math.round(i!.byMeal[m.key]).toLocaleString()}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
