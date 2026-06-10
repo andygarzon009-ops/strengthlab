@@ -242,7 +242,12 @@ export default function NutritionScoreCard() {
                       </span>
                     </span>
                   </div>
-                  <Bar pct={s!.caloriePct} color={color} />
+                  {/* Progress toward the calorie target (like the protein bar),
+                      not the internal fit score — color carries good/bad. */}
+                  <Bar
+                    pct={Math.min(100, Math.round((i!.kcal / Math.max(1, t!.calorieTargetKcal)) * 100))}
+                    color={color}
+                  />
                   <p className="text-[11px] mt-1 tabular-nums" style={{ color: "var(--fg-dim)" }}>
                     {s!.netKcal >= 0 ? "+" : "−"}
                     {Math.abs(s!.netKcal).toLocaleString()} kcal vs ~
