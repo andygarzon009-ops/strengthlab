@@ -182,14 +182,39 @@ export default function DailyGlance({
   activity: ActivityGlance | null;
 }) {
   const [fuel, setFuel] = useState<NutritionResponse | null>(null);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<Section | null>(null);
 
+  // Stale-while-revalidate: paint the last cached Fuel value instantly (the
+  // live Google Health call is slow, so re-fetching on every page open made
+  // this ring lag/pop-in), then refresh in the background. The cache read is
+  // deferred to a microtask so it isn't a synchronous in-effect setState (and
+  // so SSR/first paint stays consistent — no hydration flash).
   useEffect(() => {
     let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      try {
+        const raw = localStorage.getItem("fuelGlanceCache");
+        if (raw) {
+          setFuel(JSON.parse(raw) as NutritionResponse);
+          setLoading(false);
+        }
+      } catch {}
+    });
     fetch("/api/health/nutrition", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: NutritionResponse | null) => active && setFuel(d))
-      .catch(() => {});
+      .then((d: NutritionResponse | null) => {
+        if (!active) return;
+        setLoading(false);
+        if (d) {
+          setFuel(d);
+          try {
+            localStorage.setItem("fuelGlanceCache", JSON.stringify(d));
+          } catch {}
+        }
+      })
+      .catch(() => active && setLoading(false));
     return () => {
       active = false;
     };
@@ -199,6 +224,8 @@ export default function DailyGlance({
 
   // Fuel ring presentation across its states.
   const fuelRing = (() => {
+    if (loading && !fuel)
+      return { value: "·", color: "var(--fg-dim)", sub: "loading…" };
     if (!fuel || !fuel.connected || fuel.needsReconnect)
       return { value: "—", color: "var(--fg-dim)", sub: "not connected" };
     if (fuel.needsProfile) return { value: "—", color: "var(--fg-dim)", sub: "set profile" };
