@@ -3,12 +3,10 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import Link from "next/link";
 import WeeklyRecap from "@/components/WeeklyRecap";
-import ActivityRingsCard from "@/components/ActivityRingsCard";
-import NutritionScoreCard from "@/components/NutritionScoreCard";
+import DailyGlanceCard from "@/components/DailyGlanceCard";
 import HeartRateCard from "@/components/HeartRateCard";
 import PullToRefresh from "@/components/PullToRefresh";
 import ConsistencyCard from "@/components/ConsistencyCard";
-import RecoveryCard from "@/components/RecoveryCard";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
 
@@ -120,13 +118,10 @@ export default async function FeedPage({
           <Suspense fallback={<CardSkeleton height={132} />}>
             <WeeklyRecap userId={userId} />
           </Suspense>
-          <Suspense fallback={<CardSkeleton height={168} />}>
-            <ActivityRingsCard userId={userId} />
-          </Suspense>
-          {/* Self-fetching client card — sits right under the activity rings. */}
-          <NutritionScoreCard />
-          <Suspense fallback={null}>
-            <RecoveryCard userId={userId} />
+          {/* Direction A: Recovery + Fuel + Activity consolidated into one
+              glance ring-row, each expanding inline on tap. */}
+          <Suspense fallback={<CardSkeleton height={132} />}>
+            <DailyGlanceCard userId={userId} />
           </Suspense>
           <Suspense fallback={<CardSkeleton height={148} />}>
             <HeartRateCard userId={userId} />
