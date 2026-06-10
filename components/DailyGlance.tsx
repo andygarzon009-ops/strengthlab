@@ -1,11 +1,48 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import FuelDetail, {
-  RATING_COLOR,
-  type NutritionResponse,
-} from "@/components/FuelDetail";
+import FuelDetail, { type NutritionResponse } from "@/components/FuelDetail";
+
+/// Continuous performance color: red (0) → amber (50) → green (100). Used for
+/// the glance rings so the hue itself signals how well you're doing.
+function scoreColor(pct: number): string {
+  const p = Math.max(0, Math.min(100, pct));
+  return `hsl(${Math.round((p / 100) * 120)}, 80%, 48%)`;
+}
+
+const ICON_PROPS = {
+  width: 15,
+  height: 15,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+};
+function BatteryIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <rect x="2" y="7" width="16" height="10" rx="2" />
+      <path d="M22 11v2" />
+    </svg>
+  );
+}
+function FlameIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+    </svg>
+  );
+}
+function ZapIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />
+    </svg>
+  );
+}
 
 export type RecoveryGlance = {
   score: number;
@@ -66,6 +103,7 @@ function Tile({
   ringValue,
   ringColor,
   label,
+  icon,
   sub,
   active,
   onClick,
@@ -73,6 +111,7 @@ function Tile({
   ringValue: string;
   ringColor: string;
   label: string;
+  icon: ReactNode;
   sub: string;
   active: boolean;
   onClick: () => void;
@@ -91,6 +130,7 @@ function Tile({
       >
         {label}
       </span>
+      <span style={{ color: ringColor }}>{icon}</span>
       <span
         className="text-[11px] leading-tight text-center px-1"
         style={{ color: active ? "var(--fg)" : "var(--fg-dim)" }}
@@ -164,7 +204,7 @@ export default function DailyGlance({
     if (fuel.needsProfile) return { value: "—", color: "var(--fg-dim)", sub: "set profile" };
     if (!fuel.loggedToday) return { value: "—", color: "var(--fg-dim)", sub: "not logged" };
     const s = fuel.score!;
-    return { value: String(s.score), color: RATING_COLOR[s.rating], sub: s.rating };
+    return { value: String(s.score), color: scoreColor(s.score), sub: s.rating };
   })();
 
   const fuelInteractive =
@@ -179,8 +219,9 @@ export default function DailyGlance({
         {recovery && (
           <Tile
             ringValue={String(recovery.score)}
-            ringColor={recovery.color}
+            ringColor={scoreColor(recovery.score)}
             label="Recovery"
+            icon={<BatteryIcon />}
             sub={recovery.label}
             active={open === "recovery"}
             onClick={() => toggle("recovery")}
@@ -190,6 +231,7 @@ export default function DailyGlance({
           ringValue={fuelRing.value}
           ringColor={fuelRing.color}
           label="Fuel"
+          icon={<FlameIcon />}
           sub={fuelRing.sub}
           active={open === "fuel"}
           onClick={() => fuelInteractive && toggle("fuel")}
@@ -197,8 +239,9 @@ export default function DailyGlance({
         {activity && (
           <Tile
             ringValue={`${activity.pct}%`}
-            ringColor={activity.color}
+            ringColor={scoreColor(activity.pct)}
             label="Activity"
+            icon={<ZapIcon />}
             sub={`${activity.moveCal.toLocaleString()} cal`}
             active={open === "activity"}
             onClick={() => toggle("activity")}
@@ -211,7 +254,7 @@ export default function DailyGlance({
           {open === "recovery" && recovery && (
             <div>
               <div className="flex items-center justify-between">
-                <p className="text-[15px] font-semibold" style={{ color: recovery.color }}>
+                <p className="text-[15px] font-semibold" style={{ color: scoreColor(recovery.score) }}>
                   {recovery.label}
                 </p>
                 <Link href="/recovery" className="text-[12px]" style={{ color: "var(--accent)" }}>
