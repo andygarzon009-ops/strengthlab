@@ -22,9 +22,69 @@ export type WorkoutPlan = {
   }[];
 };
 
+// Coerce a weight/reps field (number, "225", "225 lb") into a number.
+function toNum(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string") {
+    const n = parseFloat(v.replace(/[^0-9.]/g, ""));
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+// True for the session's main compound BARBELL lift — the movement that
+// earns a ramp-up warm-up set. Deliberately excludes dumbbell, machine,
+// cable, Smith, and single-leg variants (those don't get an auto warm-up),
+// matching the coach prompt's "first heavy compound barbell lift" rule.
+const NOT_BARBELL =
+  /\b(dumbbell|db|machine|smith|cable|goblet|split|bulgarian|pistol|sissy|hack|landmine|arnold|kettlebell|kb|single[- ]?leg|leg press|chest[- ]?supported|seated)\b/;
+
+export function isMainCompoundLift(name: string): boolean {
+  const n = (name || "").toLowerCase();
+  if (!n || NOT_BARBELL.test(n)) return false;
+  if (/\bbench press\b/.test(n)) return true;
+  if (/\bsquat\b/.test(n)) return true;
+  if (/\bdeadlift\b/.test(n) || /\brdl\b/.test(n)) return true;
+  if (/\b(overhead|military|shoulder|strict|push)\s+press\b/.test(n)) return true;
+  if (/\bohp\b/.test(n)) return true;
+  if (/\b(barbell|bent[- ]?over|pendlay|t[- ]?bar)\b[\s\S]*\brow\b/.test(n))
+    return true;
+  return false;
+}
+
+// Deterministic safeguard for the coach's ramp-up warm-up set. The system
+// prompt asks the model to prepend ONE WARMUP set to the session's main
+// compound barbell lift, but the model emits it inconsistently — so we
+// guarantee it here, in the single parser every consumer (the "Do this
+// workout" button, the pushed log, history hydration) flows through. Only
+// the first qualifying barbell lift gets it, never accessories, and never
+// when the coach already supplied a warm-up or the lift is unloaded.
+export function ensureRampUpWarmup(plan: WorkoutPlan): WorkoutPlan {
+  if (!plan || !Array.isArray(plan.exercises)) return plan;
+  for (const ex of plan.exercises) {
+    if (!ex || !Array.isArray(ex.sets)) continue;
+    if (!isMainCompoundLift(ex.name)) continue;
+    // Coach already put a warm-up on the main lift — respect it.
+    if (ex.sets.some((s) => s?.type === "WARMUP")) return plan;
+    const firstWorking = ex.sets.find((s) => s?.type !== "WARMUP");
+    if (!firstWorking) return plan;
+    const w = toNum(firstWorking.weight);
+    // Bodyweight / unloaded / non-numeric load — no barbell ramp-up to add.
+    if (!w || w <= 0) return plan;
+    // ~50% of the working load, rounded to the nearest 5 lb, floored to the
+    // empty 45 lb bar.
+    const warmupWeight = Math.max(45, Math.round((w * 0.5) / 5) * 5);
+    ex.sets = [{ type: "WARMUP", weight: warmupWeight, reps: 8 }, ...ex.sets];
+    return plan; // only the first main compound lift earns it
+  }
+  return plan;
+}
+
 // Parse a JSON string into a WorkoutPlan, tolerating the most common model
 // glitches (trailing commas before } or ]). Returns null unless the result
-// is plan-shaped (object with a non-empty exercises array).
+// is plan-shaped (object with a non-empty exercises array). A valid plan is
+// passed through ensureRampUpWarmup so the main lift always carries its
+// ramp-up set, regardless of whether the model remembered to emit one.
 export function tryParsePlan(jsonRaw: string): WorkoutPlan | null {
   if (!jsonRaw) return null;
   const cleaned = jsonRaw.replace(/,(\s*[}\]])/g, "$1");
@@ -36,7 +96,7 @@ export function tryParsePlan(jsonRaw: string): WorkoutPlan | null {
         Array.isArray(parsed.exercises) &&
         parsed.exercises.length > 0
       ) {
-        return parsed;
+        return ensureRampUpWarmup(parsed);
       }
     } catch {
       // try next candidate
