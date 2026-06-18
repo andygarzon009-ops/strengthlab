@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 type Item = {
   kind?: "cardio" | "mobility" | "activation";
@@ -87,73 +87,96 @@ export default function GuidedWarmup({
 }) {
   const [mode, setMode] = useState<Mode>("idle");
   const [idx, setIdx] = useState(0);
-  const [remaining, setRemaining] = useState(items[0]?.durationSec ?? 0);
   // A timed item's countdown only runs once the athlete taps Start — gives
   // them time to set up equipment before the clock moves. Reset to false on
   // every new item so the next one waits too.
   const [counting, setCounting] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Wall-clock anchor for the running countdown. Decrementing a counter on a
+  // 1s setInterval freezes the moment the app is backgrounded (browsers
+  // throttle/pause timers), so the warm-up "paused" when the user switched
+  // apps. Instead we pin the end time and derive remaining from real elapsed
+  // time — switching away and back keeps the clock honest.
+  const [endsAt, setEndsAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
-  // Tick the countdown for timed items. Reps items wait for the user to
-  // press Next manually — no auto-advance, so they're not surprised mid-rep.
+  const current = items[idx];
+  const fullDur = current?.durationSec ?? 0;
+  const remaining =
+    counting && endsAt !== null
+      ? Math.max(0, Math.ceil((endsAt - now) / 1000))
+      : fullDur;
+
+  // Drive the displayed countdown from the wall clock, and re-sync the
+  // instant the app returns to the foreground so a background stint doesn't
+  // leave a stale number on screen.
   useEffect(() => {
-    if (mode !== "running" || !counting) return;
-    const current = items[idx];
-    if (!current || !current.durationSec) return;
-    intervalRef.current = setInterval(() => {
-      setRemaining((r) => r - 1);
-    }, 1000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+    if (mode !== "running" || !counting || endsAt === null) return;
+    const tick = () => setNow(Date.now());
+    tick();
+    const id = setInterval(tick, 250);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
     };
-  }, [mode, idx, items, counting]);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [mode, counting, endsAt]);
 
+  // Reps items wait for the user to press Next manually — no auto-advance, so
+  // they're not surprised mid-rep. Timed items auto-advance at zero.
   useEffect(() => {
-    if (mode !== "running" || !counting) return;
+    if (mode !== "running" || !counting || endsAt === null) return;
     if (remaining > 0) return;
-    const current = items[idx];
-    if (!current?.durationSec) return;
     // Timer hit zero — auto-advance to the next item, which waits on its own
     // Start tap (advance resets counting), so there's no rush to set up.
     advance();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remaining, counting]);
+  }, [remaining, counting, mode, endsAt]);
 
   function start() {
     onStart?.();
     setMode("running");
     setIdx(0);
-    setRemaining(items[0]?.durationSec ?? 0);
+    setEndsAt(null);
     setCounting(false);
   }
 
   // Begin the current timed item's countdown (its own Start button).
   function beginCountdown() {
+    const dur = items[idx]?.durationSec ?? 0;
+    setNow(Date.now());
+    setEndsAt(Date.now() + dur * 1000);
     setCounting(true);
   }
 
   function advance() {
     const next = idx + 1;
+    setEndsAt(null);
+    setCounting(false);
     if (next >= items.length) {
       setMode("done");
       return;
     }
     setIdx(next);
-    setRemaining(items[next].durationSec ?? 0);
-    setCounting(false);
   }
 
   function skipAll() {
     // Skipping the warm-up still means "I'm starting now" — begin the session
     // timer so there's no dead-end where the workout can't be started.
     onStart?.();
+    setEndsAt(null);
+    setCounting(false);
     setMode("done");
   }
 
   function reset() {
     setMode("idle");
     setIdx(0);
-    setRemaining(items[0]?.durationSec ?? 0);
+    setEndsAt(null);
     setCounting(false);
   }
 
@@ -244,8 +267,7 @@ export default function GuidedWarmup({
     );
   }
 
-  const current = items[idx];
-  const isTimed = !!current.durationSec;
+  const isTimed = !!current?.durationSec;
   return (
     <div
       className="mb-4 rounded-2xl p-4"
