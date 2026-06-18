@@ -80,24 +80,48 @@ export function ensureRampUpWarmup(plan: WorkoutPlan): WorkoutPlan {
   return plan;
 }
 
+// Sanitize a parsed plan into a shape every consumer can trust. The model
+// drifts most when EDITING a prescription — asked to swap, remove, or
+// reorder a lift it may leave a null hole in the exercises array, drop the
+// sets key, or emit sets as a string ("3x5") instead of an array. Any of
+// those crashes the render math (ex.sets.reduce / e.name) and white-screens
+// the app. We drop non-object / nameless exercises and coerce sets to an
+// array of set objects, so a botched edit degrades gracefully instead of
+// taking down the chat. Returns null if nothing usable survives.
+function normalizePlan(parsed: WorkoutPlan | null): WorkoutPlan | null {
+  if (!parsed || !Array.isArray(parsed.exercises)) return null;
+  const exercises = [];
+  for (const ex of parsed.exercises) {
+    if (!ex || typeof ex !== "object") continue;
+    const name = typeof ex.name === "string" ? ex.name.trim() : "";
+    if (!name) continue;
+    const rawSets = Array.isArray(ex.sets) ? ex.sets : [];
+    const sets = rawSets.filter(
+      (s): s is WorkoutPlanSet => !!s && typeof s === "object"
+    );
+    exercises.push({
+      name,
+      ...(typeof ex.restSeconds === "number" ? { restSeconds: ex.restSeconds } : {}),
+      sets,
+    });
+  }
+  if (exercises.length === 0) return null;
+  return { ...parsed, exercises };
+}
+
 // Parse a JSON string into a WorkoutPlan, tolerating the most common model
 // glitches (trailing commas before } or ]). Returns null unless the result
 // is plan-shaped (object with a non-empty exercises array). A valid plan is
-// passed through ensureRampUpWarmup so the main lift always carries its
-// ramp-up set, regardless of whether the model remembered to emit one.
+// normalized (drop malformed exercises/sets) and passed through
+// ensureRampUpWarmup so the main lift always carries its ramp-up set,
+// regardless of whether the model remembered to emit one.
 export function tryParsePlan(jsonRaw: string): WorkoutPlan | null {
   if (!jsonRaw) return null;
   const cleaned = jsonRaw.replace(/,(\s*[}\]])/g, "$1");
   for (const candidate of [jsonRaw, cleaned]) {
     try {
-      const parsed = JSON.parse(candidate) as WorkoutPlan;
-      if (
-        parsed &&
-        Array.isArray(parsed.exercises) &&
-        parsed.exercises.length > 0
-      ) {
-        return ensureRampUpWarmup(parsed);
-      }
+      const normalized = normalizePlan(JSON.parse(candidate) as WorkoutPlan);
+      if (normalized) return ensureRampUpWarmup(normalized);
     } catch {
       // try next candidate
     }
