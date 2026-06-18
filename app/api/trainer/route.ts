@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "AI trainer not configured" }, { status: 500 });
     }
 
-    const [user, workouts, prs, history, goals, healthAccount] =
+    const [user, workouts, prs, history, goals, healthAccount, fuel] =
       await Promise.all([
       prisma.user.findUnique({ where: { id: userId } }),
       prisma.workout.findMany({
@@ -209,6 +209,10 @@ export async function POST(req: NextRequest) {
           sleepSummary: true,
         },
       }),
+      // Live Google Health intake — fetched in parallel with the DB reads
+      // (not serially after) so it never adds latency before the coach can
+      // start streaming. Degrades to null on any failure.
+      getTodayFuel(userId).catch(() => null),
     ]);
 
     const formatSet = (s: {
@@ -478,9 +482,11 @@ Calibrate today's intensity and volume to this: a low recovery score, short or p
 
     // Today's nutrition (live from Google Health) as a hard input. Best-effort:
     // any failure degrades to a "not available" note rather than breaking chat.
-    const nutritionContext = await (async () => {
+    // `fuel` was fetched in parallel above, so this is now pure formatting.
+    const nutritionContext = (() => {
       try {
-        const f = await getTodayFuel(userId);
+        const f = fuel;
+        if (!f) return "NUTRITION (intake): temporarily unavailable.";
         if (f.state === "no-account" || f.state === "reconnect")
           return "NUTRITION (intake): not available — Google Health nutrition not connected. Don't assume calorie or protein intake; ask if it's relevant.";
         if (f.state === "no-profile")
@@ -579,6 +585,15 @@ STYLE RULES:
 4. Sound natural and human. Use phrases like: "Good.", "Perfect.", "That's exactly what we want.", "This is the right move.", "Here's the play.", "That tells me a lot.", "Now we adjust.", "Let's break this down.", "This is a big win.", "This is not regression.", "That's a strong session.", "We don't need to force it.", "No grinders today.", "This is how you keep progressing."
 
 5. Never sound fake, cheesy, or like a motivational poster. Avoid excessive hype without reasoning, empty praise, unrealistic guarantees, or generic gym-bro clichés without actual coaching value.
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+PRE-FLIGHT — RUN THIS BEFORE EVERY SUGGESTION, PRESCRIPTION, OR EDIT (non-negotiable)
+━━━━━━━━━━━━━━━━━━━━━━━━
+Before you recommend, prescribe, or modify ANY workout, silently review the live data blocks further down this prompt — in this order:
+1. RECOVERY & SLEEP — if recovery / HRV / resting-HR / sleep data is present, let it set today's intensity ceiling: low recovery, poor or short sleep, suppressed HRV, or elevated resting HR ⇒ pull load back, trim volume, or steer toward a lighter / mobility day — and say so in one line. If it reads "not available," don't assume anything about rest; proceed on the training data alone.
+2. RECENT SESSIONS + PER-EXERCISE PROGRESSION — pull the athlete's actual last 2–3 sessions for the muscles and lifts in play. Anchor every prescribed load to their real most-recent top set, never a generic number or made-up 1RM percentage.
+3. WEAK SPOTS + CURRENT TRAINING PHASE — cross-check the plan against both before emitting it.
+Never prescribe or edit a workout "blind." If you're about to hand over numbers without having looked at the data above, stop and look first. Keep the review silent — surface only the one or two data points that actually shaped the call, not a recap of everything you read.
 
 CORE COACHING BEHAVIOR:
 Coach based on: recent performance, workout frequency, fatigue level, progression trend, exercise order, stated goals, injury history or pain, context from prior sessions.
@@ -885,8 +900,15 @@ ${user.coachPrompt.trim()}`
     const encoder = new TextEncoder();
     let fullResponse = "";
 
-    const PRIMARY_MODEL = "gemini-2.5-pro";
-    const FALLBACK_MODEL = "gemini-2.5-flash";
+    // Flash leads for speed — it follows this heavily-specified prompt well
+    // and streams its first token far faster than Pro (which spends seconds
+    // "thinking" before replying). Pro stays as the quality fallback if Flash
+    // errors; Claude Haiku is the final backstop.
+    const PRIMARY_MODEL = "gemini-2.5-flash";
+    const FALLBACK_MODEL = "gemini-2.5-pro";
+    // Plan-fence rescue is a simple JSON extraction — always use a fast model
+    // regardless of which model wrote the prose, so it never adds Pro latency.
+    const SYNTH_MODEL = "gemini-2.5-flash";
 
     let liveMessage = message;
     if (pendingParsed.length > 0) {
@@ -1138,7 +1160,7 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
               try {
                 const block = await synthesizePlanBlock(
                   genAI,
-                  FALLBACK_MODEL,
+                  SYNTH_MODEL,
                   fullResponse
                 );
                 if (block) {
