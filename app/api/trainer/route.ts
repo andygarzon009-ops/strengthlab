@@ -941,6 +941,23 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
 
     const stream = new ReadableStream({
       async start(controller) {
+        // The client disconnects when the athlete backgrounds or closes the
+        // app while the coach is still generating (a long prescription can
+        // take many seconds). Once that happens controller.enqueue throws —
+        // but we must NOT abort generation, or the reply gets truncated and
+        // the athlete returns to a broken/half-written chat. safeEnqueue
+        // swallows post-disconnect writes while the loop keeps running, so
+        // the FULL reply still finishes and gets persisted for when they
+        // come back and re-sync.
+        let clientGone = false;
+        const safeEnqueue = (bytes: Uint8Array) => {
+          if (clientGone) return;
+          try {
+            controller.enqueue(bytes);
+          } catch {
+            clientGone = true;
+          }
+        };
         // Prepend a machine-readable marker line so the client can render
         // a pending-confirm chip above the coach's reply. The athlete has
         // to tap ✓ to actually log — guards against accidental logging
@@ -948,7 +965,7 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
         // \x1e (RS) sentinel delimits the marker from coach prose.
         if (pendingParsed.length > 0) {
           const payload = JSON.stringify({ parsed: pendingParsed });
-          controller.enqueue(encoder.encode(`[PENDING_LOG]${payload}\x1e`));
+          safeEnqueue(encoder.encode(`[PENDING_LOG]${payload}\x1e`));
         }
         const drainStream = async (
           result: Awaited<ReturnType<typeof tryStream>>
@@ -957,14 +974,14 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
             const text = chunk.text();
             if (text) {
               fullResponse += text;
-              controller.enqueue(encoder.encode(text));
+              safeEnqueue(encoder.encode(text));
             }
           }
         };
 
         const onStreamFailMidReply = () => {
           if (fullResponse.length > 0) {
-            controller.enqueue(encoder.encode("[RESET]\x1e"));
+            safeEnqueue(encoder.encode("[RESET]\x1e"));
             fullResponse = "";
           }
         };
@@ -1034,7 +1051,7 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
                 const text = event.delta.text;
                 if (text) {
                   fullResponse += text;
-                  controller.enqueue(encoder.encode(text));
+                  safeEnqueue(encoder.encode(text));
                 }
               }
             }
@@ -1114,7 +1131,7 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
             if (wrapped && wrapped !== fullResponse) {
               const delta = wrapped.slice(fullResponse.length);
               if (delta) {
-                controller.enqueue(encoder.encode(delta));
+                safeEnqueue(encoder.encode(delta));
               }
               fullResponse = wrapped;
             } else {
@@ -1126,7 +1143,7 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
                 );
                 if (block) {
                   const appended = `\n\n${block}`;
-                  controller.enqueue(encoder.encode(appended));
+                  safeEnqueue(encoder.encode(appended));
                   fullResponse += appended;
                 }
               } catch (synthErr) {
@@ -1139,7 +1156,11 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
             data: { userId, role: "assistant", content: fullResponse },
           });
 
-          controller.close();
+          try {
+            controller.close();
+          } catch {
+            // Client already gone — the full reply is persisted regardless.
+          }
         } catch (err) {
           console.error("Trainer stream error:", err);
           const rawMsg = err instanceof Error ? err.message : String(err);
@@ -1158,7 +1179,7 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
           const errText =
             prefix +
             `⚠️ Coach connection dropped. ${hint}\n\n_Detail: ${rawMsg.slice(0, 200)}_`;
-          controller.enqueue(encoder.encode(errText));
+          safeEnqueue(encoder.encode(errText));
           // Persist whatever did stream so the athlete can see partial context
           // on reload; skip if nothing streamed.
           if (fullResponse.trim().length > 0) {
@@ -1174,7 +1195,11 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
               console.error("Trainer partial persist failed:", persistErr);
             }
           }
-          controller.close();
+          try {
+            controller.close();
+          } catch {
+            // Client already gone — nothing left to flush.
+          }
         }
       },
     });

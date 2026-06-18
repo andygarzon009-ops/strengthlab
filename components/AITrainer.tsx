@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -199,6 +199,18 @@ export default function AITrainer() {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const lastUserAnchorRef = useRef<HTMLDivElement>(null);
   const lastUserIdRef = useRef<string | null>(null);
+  // Recovery plumbing for "coach is slow → user backgrounds the app → comes
+  // back". The streaming socket is killed while backgrounded, so we abort the
+  // dead reader on return and re-sync from the server (which durably persists
+  // both the user message and the coach reply). pollRef waits for a reply
+  // that's still being generated server-side when we return.
+  const abortRef = useRef<AbortController | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // True only between a real background→foreground cycle, with the in-flight
+  // state captured at hide time. Gating on an actual hide (not a mere window
+  // blur) keeps us from aborting a healthy foreground stream.
+  const wasHiddenRef = useRef(false);
+  const wasLoadingRef = useRef(false);
 
   const [listening, setListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -362,32 +374,88 @@ export default function AITrainer() {
     (m) => new Date(m.createdAt).getTime() > clearedAt
   );
 
-  useEffect(() => {
-    if (open && messages.length === 0) {
-      fetch("/api/trainer")
-        .then((r) => r.json())
-        .then((data) => {
-          if (!Array.isArray(data)) return;
-          // Past assistant messages were persisted with the raw plan
-          // fence baked into content — strip it and surface the parsed
-          // plan so the "Log this workout" button still works on
-          // reload, not just for the streaming reply.
-          const hydrated: Message[] = data.map((m: Message) => {
-            if (m.role !== "assistant") return m;
-            const { text, plan } = extractPlan(m.content ?? "");
-            return { ...m, content: text, plan: plan ?? undefined };
-          });
-          setMessages(hydrated);
-          // Jump to the latest message once the history is in. Without
-          // this the scroller stays pinned to the top of the (long)
-          // transcript and the athlete has to scroll all the way down
-          // to find the most recent exchange.
+  // Pull the durable transcript from the server and adopt it as the source
+  // of truth. Past assistant messages were persisted with the raw plan fence
+  // baked into content — strip it and surface the parsed plan so the "Do this
+  // workout" button still works on reload, not just for the live stream.
+  const hydrateHistory = useCallback(
+    async (scroll = false): Promise<Message[]> => {
+      try {
+        const r = await fetch("/api/trainer");
+        const data = await r.json();
+        if (!Array.isArray(data)) return [];
+        const hydrated: Message[] = data.map((m: Message) => {
+          if (m.role !== "assistant") return m;
+          const { text, plan } = extractPlan(m.content ?? "");
+          return { ...m, content: text, plan: plan ?? undefined };
+        });
+        setMessages(hydrated);
+        if (scroll) {
           requestAnimationFrame(() => {
             const scroller = scrollerRef.current;
             if (scroller) scroller.scrollTop = scroller.scrollHeight;
           });
-        });
-    }
+        }
+        return hydrated;
+      } catch {
+        return [];
+      }
+    },
+    []
+  );
+
+  // When we return mid-prescription and the coach reply hasn't been persisted
+  // yet (generation still running server-side, up to ~60s), poll the
+  // transcript until it lands instead of leaving the chat stuck "thinking".
+  const pollForReply = useCallback(() => {
+    if (pollRef.current) return;
+    let tries = 0;
+    pollRef.current = setInterval(async () => {
+      tries += 1;
+      const hydrated = await hydrateHistory(true);
+      const last = hydrated[hydrated.length - 1];
+      if ((last && last.role === "assistant") || tries >= 30) {
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+        setLoading(false);
+        setStreaming("");
+      }
+    }, 2000);
+  }, [hydrateHistory]);
+
+  // Recover after the app returns to the foreground. The background socket is
+  // dead, so abort the stale reader, then re-sync from the server. If a reply
+  // was in flight but isn't persisted yet, keep waiting via the poll.
+  const resyncFromServer = useCallback(
+    async (wasInFlight: boolean) => {
+      if (abortRef.current) {
+        try {
+          abortRef.current.abort();
+        } catch {
+          // already settled
+        }
+        abortRef.current = null;
+      }
+      const hydrated = await hydrateHistory(true);
+      const last = hydrated[hydrated.length - 1];
+      if (wasInFlight && last && last.role === "user") {
+        setStreaming("");
+        setLoading(true);
+        pollForReply();
+      } else {
+        setLoading(false);
+        setStreaming("");
+      }
+    },
+    [hydrateHistory, pollForReply]
+  );
+
+  useEffect(() => {
+    // hydrateHistory only sets state after an awaited fetch, not synchronously.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (open && messages.length === 0) hydrateHistory(true);
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 100);
       // Reopening with cached messages still mounts a fresh scroller at
@@ -397,7 +465,40 @@ export default function AITrainer() {
         if (scroller) scroller.scrollTop = scroller.scrollHeight;
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Re-sync when the app comes back from the background (app switch, screen
+  // unlock, returning to the PWA). We act ONLY on a real hide→show cycle —
+  // not a desktop window blur — so a healthy foreground stream is never
+  // disturbed. The in-flight state is captured at hide time so we know
+  // whether to wait for a reply that's still generating.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        wasHiddenRef.current = true;
+        wasLoadingRef.current = loading;
+        return;
+      }
+      if (!wasHiddenRef.current) return;
+      wasHiddenRef.current = false;
+      if (open) resyncFromServer(wasLoadingRef.current);
+      wasLoadingRef.current = false;
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [open, loading, resyncFromServer]);
+
+  // Stop any pending reply-poll on unmount.
+  useEffect(
+    () => () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    },
+    []
+  );
 
   // Anchor-on-user-message scroll: when a new user message lands, pin it
   // to the top of the scroll area so the coach's reply reads from the top.
@@ -474,11 +575,15 @@ export default function AITrainer() {
     };
     setMessages((prev) => [...prev, userMsg]);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const res = await fetch("/api/trainer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, clearedAt }),
+        signal: controller.signal,
       });
 
       if (!res.body) throw new Error("No response body");
@@ -514,9 +619,22 @@ export default function AITrainer() {
       setMessages((prev) => [...prev, assistantMsg]);
       setStreaming("");
     } catch (err) {
+      // A resync (return-from-background) aborted this stale stream on
+      // purpose — it owns the recovery + loading state, so bail quietly.
+      if (controller.signal.aborted) return;
       console.error(err);
+      // The stream broke for another reason (flaky network, dropped
+      // connection). The coach reply is persisted server-side, so reconcile
+      // from the durable transcript instead of stranding a half-rendered
+      // preview — this is what previously looked like a "crash".
+      await hydrateHistory(true);
     } finally {
-      setLoading(false);
+      if (abortRef.current === controller) abortRef.current = null;
+      // Don't stomp loading if a resync took ownership (aborted this read).
+      if (!controller.signal.aborted) {
+        setLoading(false);
+        setStreaming("");
+      }
     }
   };
 
