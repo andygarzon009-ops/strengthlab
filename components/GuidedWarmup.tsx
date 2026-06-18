@@ -1,6 +1,72 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+// --- Audio cues (mirrors components/Timer.tsx) ---------------------------
+// Web Audio beeps for the timed warm-up countdown. The context is created
+// lazily and resumed on every access: browsers start it "suspended" and
+// auto-suspend it on tab-switch / screen-lock, after which tones are silent
+// until a gesture resumes it. ensureAudio() runs from the Start tap so audio
+// unlocks reliably.
+type AudioBag = { ctx: AudioContext };
+let audioBag: AudioBag | null = null;
+
+function ensureAudio(): AudioBag | null {
+  if (typeof window === "undefined") return null;
+  if (audioBag) {
+    if (audioBag.ctx.state === "suspended") void audioBag.ctx.resume();
+    return audioBag;
+  }
+  try {
+    type W = Window & { webkitAudioContext?: typeof AudioContext };
+    const AC = window.AudioContext ?? (window as W).webkitAudioContext;
+    if (!AC) return null;
+    const ctx = new AC();
+    if (ctx.state === "suspended") void ctx.resume();
+    audioBag = { ctx };
+    return audioBag;
+  } catch {
+    return null;
+  }
+}
+
+function tone(freq: number, durationMs: number, gainPeak = 0.22) {
+  const bag = ensureAudio();
+  if (!bag) return;
+  const { ctx } = bag;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.value = freq;
+  const now = ctx.currentTime;
+  const dur = durationMs / 1000;
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(gainPeak, now + 0.01);
+  gain.gain.linearRampToValueAtTime(0, now + dur);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + dur + 0.05);
+}
+
+// 3-2-1 countdown tick before a timed item ends.
+const cueCountdown = () => tone(660, 120, 0.18);
+// Rising two-note "next item" cue when a timed item completes.
+const cueAdvance = () => {
+  tone(880, 160);
+  setTimeout(() => tone(1175, 240), 160);
+};
+// Resolved low tone when the whole warm-up finishes.
+const cueDone = () => tone(440, 280, 0.2);
+
+const vibrate = (pattern: number | number[]) => {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    try {
+      navigator.vibrate?.(pattern);
+    } catch {
+      // ignore — unsupported or blocked
+    }
+  }
+};
 
 type Item = {
   kind?: "cardio" | "mobility" | "activation";
@@ -98,6 +164,9 @@ export default function GuidedWarmup({
   // time — switching away and back keeps the clock honest.
   const [endsAt, setEndsAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // Tracks the last whole-second we beeped so the 3-2-1 countdown fires once
+  // per second, not on every 250ms tick.
+  const lastBeepRef = useRef<number | null>(null);
 
   const current = items[idx];
   const fullDur = current?.durationSec ?? 0;
@@ -115,7 +184,10 @@ export default function GuidedWarmup({
     tick();
     const id = setInterval(tick, 250);
     const onVisible = () => {
-      if (document.visibilityState === "visible") tick();
+      if (document.visibilityState === "visible") {
+        ensureAudio();
+        tick();
+      }
     };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
@@ -126,19 +198,40 @@ export default function GuidedWarmup({
     };
   }, [mode, counting, endsAt]);
 
+  // Audible 3-2-1 countdown in the final seconds of a timed item.
+  useEffect(() => {
+    if (mode !== "running" || !counting || endsAt === null) return;
+    const sec = Math.ceil(remaining);
+    if (sec > 0 && sec <= 3 && lastBeepRef.current !== sec) {
+      lastBeepRef.current = sec;
+      cueCountdown();
+      vibrate(50);
+    }
+  }, [remaining, mode, counting, endsAt]);
+
   // Reps items wait for the user to press Next manually — no auto-advance, so
   // they're not surprised mid-rep. Timed items auto-advance at zero.
   useEffect(() => {
     if (mode !== "running" || !counting || endsAt === null) return;
     if (remaining > 0) return;
-    // Timer hit zero — auto-advance to the next item, which waits on its own
-    // Start tap (advance resets counting), so there's no rush to set up.
+    // Timer hit zero — sound the completion cue (a resolved chime on the last
+    // item, a rising "next" cue otherwise) and auto-advance. The next item
+    // waits on its own Start tap, so there's no rush to set up.
+    const isLast = idx + 1 >= items.length;
+    if (isLast) {
+      cueDone();
+      vibrate([200, 100, 200]);
+    } else {
+      cueAdvance();
+      vibrate([120, 60, 120]);
+    }
     advance();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining, counting, mode, endsAt]);
 
   function start() {
     onStart?.();
+    ensureAudio(); // unlock audio within the Start gesture
     setMode("running");
     setIdx(0);
     setEndsAt(null);
@@ -147,7 +240,9 @@ export default function GuidedWarmup({
 
   // Begin the current timed item's countdown (its own Start button).
   function beginCountdown() {
+    ensureAudio(); // unlock audio within the Start gesture
     const dur = items[idx]?.durationSec ?? 0;
+    lastBeepRef.current = null;
     setNow(Date.now());
     setEndsAt(Date.now() + dur * 1000);
     setCounting(true);
