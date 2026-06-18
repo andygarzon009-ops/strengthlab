@@ -52,13 +52,39 @@ export function isMainCompoundLift(name: string): boolean {
   return false;
 }
 
-// Deterministic safeguard for the coach's ramp-up warm-up set. The system
-// prompt asks the model to prepend ONE WARMUP set to the session's main
-// compound barbell lift, but the model emits it inconsistently — so we
-// guarantee it here, in the single parser every consumer (the "Do this
-// workout" button, the pushed log, history hydration) flows through. Only
-// the first qualifying barbell lift gets it, never accessories, and never
-// when the coach already supplied a warm-up or the lift is unloaded.
+// Build a proper multi-set ramp-up to a barbell working weight — an empty-bar
+// set, then progressively heavier singles/doubles/triples climbing toward
+// (but never reaching) the working load, with descending reps. Mirrors how a
+// real lifter ramps a main compound: e.g. to 275 → 45×10, 150×5, 190×3,
+// 235×2, 255×1. Returns [] for loads too light to ramp.
+function buildRampUpSets(working: number): WorkoutPlanSet[] {
+  const round5 = (n: number) => Math.round(n / 5) * 5;
+  const BAR = 45;
+  const steps: { weight: number; reps: number }[] = [
+    { weight: BAR, reps: 10 }, // empty bar
+    { weight: round5(working * 0.55), reps: 5 },
+    { weight: round5(working * 0.7), reps: 3 },
+    { weight: round5(working * 0.85), reps: 2 },
+    { weight: round5(working * 0.92), reps: 1 },
+  ];
+  const out: WorkoutPlanSet[] = [];
+  let prev = 0;
+  for (const s of steps) {
+    // Strictly increasing, and every warm-up stays below the working weight.
+    if (s.weight <= prev || s.weight >= working) continue;
+    out.push({ type: "WARMUP", weight: s.weight, reps: s.reps });
+    prev = s.weight;
+  }
+  return out;
+}
+
+// Deterministic safeguard for the coach's ramp-up warm-up. The system prompt
+// asks the model to prepend a ramp to the session's main compound barbell
+// lift, but the model emits it inconsistently — so we guarantee it here, in
+// the single parser every consumer (the "Do this workout" button, the pushed
+// log, history hydration) flows through. Only the first qualifying barbell
+// lift gets it, never accessories, and never when the coach already supplied
+// a warm-up or the lift is unloaded.
 export function ensureRampUpWarmup(plan: WorkoutPlan): WorkoutPlan {
   if (!plan || !Array.isArray(plan.exercises)) return plan;
   for (const ex of plan.exercises) {
@@ -71,10 +97,9 @@ export function ensureRampUpWarmup(plan: WorkoutPlan): WorkoutPlan {
     const w = toNum(firstWorking.weight);
     // Bodyweight / unloaded / non-numeric load — no barbell ramp-up to add.
     if (!w || w <= 0) return plan;
-    // ~50% of the working load, rounded to the nearest 5 lb, floored to the
-    // empty 45 lb bar.
-    const warmupWeight = Math.max(45, Math.round((w * 0.5) / 5) * 5);
-    ex.sets = [{ type: "WARMUP", weight: warmupWeight, reps: 8 }, ...ex.sets];
+    const ramp = buildRampUpSets(w);
+    if (ramp.length === 0) return plan; // too light to ramp
+    ex.sets = [...ramp, ...ex.sets];
     return plan; // only the first main compound lift earns it
   }
   return plan;
