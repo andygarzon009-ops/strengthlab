@@ -42,13 +42,24 @@ type AudioBag = { ctx: AudioContext };
 let audioBag: AudioBag | null = null;
 
 function ensureAudio(): AudioBag | null {
-  if (audioBag) return audioBag;
+  if (audioBag) {
+    // A context created during one gesture gets auto-suspended by the
+    // browser whenever the tab backgrounds or the screen locks (constant on
+    // iOS). While suspended every tone is silent, so resume it on each
+    // access — when called from a user gesture (start/skip tap) this
+    // reliably unlocks audio again.
+    if (audioBag.ctx.state === "suspended") void audioBag.ctx.resume();
+    return audioBag;
+  }
   try {
     type W = Window & { webkitAudioContext?: typeof AudioContext };
     const w = window as W;
     const AC = window.AudioContext ?? w.webkitAudioContext;
     if (!AC) return null;
-    audioBag = { ctx: new AC() };
+    const ctx = new AC();
+    // New contexts start "suspended" until a user gesture resumes them.
+    if (ctx.state === "suspended") void ctx.resume();
+    audioBag = { ctx };
     return audioBag;
   } catch {
     return null;
@@ -274,6 +285,30 @@ export default function Timer() {
     const id = setInterval(() => setNow(Date.now()), swRunning ? 50 : 100);
     return () => clearInterval(id);
   }, [anyRunning, swRunning]);
+
+  // Keep the audio context alive. The phase cues (3-2-1 countdown,
+  // work/rest transitions) fire automatically with no user gesture, so once
+  // the browser suspends the context on a screen lock or tab switch they go
+  // silent until the next tap. Prime it on the first interaction and resume
+  // it whenever the page comes back to the foreground while a timer runs.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const unlock = () => ensureAudio();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") ensureAudio();
+    };
+    // `once` so the priming listeners detach themselves after first use.
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, []);
 
   // ---------- INTERVAL ----------
   const intervalRemaining = (() => {
