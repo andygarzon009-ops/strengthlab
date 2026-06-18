@@ -563,6 +563,12 @@ export default function AITrainer() {
   const send = async (text: string) => {
     if (!text.trim() || loading) return;
     if (listening) stopVoice();
+    // Cancel any background-recovery poll so its hydrate can't clobber the
+    // optimistic message we're about to add with stale server state.
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
     setInput("");
     setLoading(true);
     setStreaming("");
