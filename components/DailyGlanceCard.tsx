@@ -1,4 +1,6 @@
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
+import { maybeRefreshRecovery } from "@/lib/recovery";
 import DailyGlance, {
   type RecoveryGlance,
   type ActivityGlance,
@@ -55,6 +57,13 @@ function tzOffsetMinutes(tz: string, atUtc: Date): number {
 /// client DailyGlance, which fetches Fuel itself. Replaces the standalone
 /// Recovery + Activity + Fuel cards on the feed.
 export default async function DailyGlanceCard({ userId }: { userId: string }) {
+  // The home feed is the most-opened surface, so use it to keep recovery/sleep
+  // fresh: pull from Google Health post-response when the stored snapshot is
+  // stale. Gated + non-blocking, so it never slows the feed — and it feeds both
+  // this ring and the coach (both read the same stored snapshot), so sleep
+  // updates on normal app use instead of only when the Health page is opened.
+  after(() => maybeRefreshRecovery(userId));
+
   const [user, account] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },

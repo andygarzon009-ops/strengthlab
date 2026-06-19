@@ -62,6 +62,37 @@ export type RecoverySnapshot = {
   hrvBaselineMs: number | null;
 };
 
+// How stale the stored recovery snapshot can get before we re-pull from
+// Google Health. Sleep/HRV/RHR only change once a day, but Fitbit often syncs
+// last night's sleep mid-morning — well after the first app open — so we keep
+// the window short enough that a second visit picks it up promptly.
+const RECOVERY_STALE_MS = 30 * 60 * 1000; // 30 min
+
+/// Refresh the recovery snapshot ONLY if it's stale (or never computed) and the
+/// user actually has a connected health account. Cheap to call from any entry
+/// point (home feed, sync, coach) — it short-circuits when fresh and is fully
+/// non-throwing. This is what decouples sleep/recovery freshness from the
+/// exercise-session cache so it updates on normal app use, not just the Health
+/// page. Call it inside `after()` so it never blocks the response.
+export async function maybeRefreshRecovery(userId: string): Promise<void> {
+  try {
+    const acct = await prisma.healthAccount.findUnique({
+      where: { userId },
+      select: { recoveryAt: true },
+    });
+    if (!acct) return; // not connected — nothing to pull
+    if (
+      acct.recoveryAt &&
+      Date.now() - acct.recoveryAt.getTime() < RECOVERY_STALE_MS
+    ) {
+      return; // still fresh
+    }
+    await refreshRecovery(userId);
+  } catch {
+    // best-effort; never surface
+  }
+}
+
 /// Pull HRV + resting HR from Google Health, compute the recovery score, and
 /// persist the snapshot on the user's HealthAccount. Runs on sync / post-
 /// response (never on the feed render path). Fully non-throwing, and only
