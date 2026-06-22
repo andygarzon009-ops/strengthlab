@@ -88,10 +88,11 @@ export async function POST(
   }
 
   // Derive the sync window. Priority:
-  //   1. A Google Health exercise session on the same local-tz date as the
-  //      workout — most authoritative, and corrects bad startedAt values
-  //      that prior syncs may have backfilled from a fuzzy fallback.
-  //   2. startedAt/endedAt from the live logger
+  //   1. A precise [startedAt, endedAt] window from the live logger — the
+  //      athlete's own timer is the truth for THIS workout. A same-day Google
+  //      Health session only extends it (when it overlaps), never shrinks it.
+  //   2. A Google Health exercise session on the same local-tz date — used
+  //      when there's no live timer (manual log) to recover the real window.
   //   3. date + duration (manual logging without the timer)
   //   4. date ± 30min fuzzy fallback
   const user = await prisma.user.findUnique({
@@ -144,10 +145,36 @@ export async function POST(
     // Fall through to fallback windows.
   }
 
+  // A live-logged session carries a precise [startedAt, endedAt] timer window
+  // set the moment the athlete hit stop — that is the truth for THIS workout
+  // and must win over a same-day Google Health exercise session. Google Health
+  // only auto-detects the high-intensity slice (often ~30 min of an 80-min
+  // lift), so letting it drive the window truncates the HR pull.
+  const hasLoggerWindow =
+    workout.startedAt != null &&
+    workout.endedAt != null &&
+    workout.endedAt.getTime() > workout.startedAt.getTime();
+
   let start: Date;
   let end: Date;
   let windowSource: string;
-  if (matched) {
+  if (hasLoggerWindow) {
+    start = workout.startedAt!;
+    end = workout.endedAt!;
+    windowSource = "logger";
+    // Extend (never shrink) to cover a matched session that overlaps the
+    // timer — picks up HR the watch logged just before/after the timer ran.
+    if (matched) {
+      const ms = new Date(matched.startTime);
+      const me = new Date(matched.endTime);
+      const overlaps =
+        ms.getTime() < end.getTime() && me.getTime() > start.getTime();
+      if (overlaps) {
+        if (ms.getTime() < start.getTime()) start = ms;
+        if (me.getTime() > end.getTime()) end = me;
+      }
+    }
+  } else if (matched) {
     start = new Date(matched.startTime);
     end = new Date(matched.endTime);
     windowSource = "matched-session";
@@ -239,7 +266,15 @@ export async function POST(
     // Move ring isn't stuck at 0 for strength sessions Fitbit doesn't
     // auto-detect as an exercise.
     if (workout.calories == null) {
-      if (matched && matched.calories != null) {
+      // Only trust a matched session's calorie figure when that session *is*
+      // the workout window. With a live timer the session may cover just a
+      // slice of the workout (understated calories), so the HR-based estimate
+      // over the full timer span is more accurate.
+      if (
+        windowSource === "matched-session" &&
+        matched &&
+        matched.calories != null
+      ) {
         metricUpdates.calories = matched.calories;
       } else if (avg != null) {
         const est = estimateCalories({
@@ -262,7 +297,8 @@ export async function POST(
         // matched Google Health session (truth source); otherwise only
         // fill in when startedAt is missing so we don't clobber precise
         // timer values from a live-logged session.
-        ...(windowSource === "matched-session" || !workout.startedAt
+        ...(windowSource === "matched-session" ||
+        (windowSource !== "fuzzy" && !workout.startedAt)
           ? { startedAt: start, endedAt: end }
           : {}),
       },
