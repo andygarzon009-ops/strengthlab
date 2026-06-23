@@ -505,14 +505,26 @@ export default function ExerciseLogger({
                       }}
                     >
                       Top:{" "}
-                      {usesPlates(ex.exerciseName)
-                        ? `${(prev.topWeight ?? 0) / (PLATE_WEIGHT_LB * plateSides(ex.exerciseName))} plates`
-                        : isBodyweightCapable(ex.exerciseName)
-                          ? (prev.topWeight ?? 0) > 0
-                            ? `+${prev.topWeight}lb`
-                            : "BW"
-                          : `${prev.topWeight}lb`}{" "}
-                      × {prev.topReps} · {prev.daysAgo}d ago
+                      {isTimedExercise(ex.exerciseName)
+                        ? // Timed holds store seconds in reps and added load in
+                          // weight — show "45s" (+load) rather than "× reps".
+                          `${prev.topReps}s${
+                            (prev.topWeight ?? 0) > 0
+                              ? ` +${prev.topWeight}lb`
+                              : ""
+                          } · ${prev.daysAgo}d ago`
+                        : (
+                          <>
+                            {usesPlates(ex.exerciseName)
+                              ? `${(prev.topWeight ?? 0) / (PLATE_WEIGHT_LB * plateSides(ex.exerciseName))} plates`
+                              : isBodyweightCapable(ex.exerciseName)
+                                ? (prev.topWeight ?? 0) > 0
+                                  ? `+${prev.topWeight}lb`
+                                  : "BW"
+                                : `${prev.topWeight}lb`}{" "}
+                            × {prev.topReps} · {prev.daysAgo}d ago
+                          </>
+                        )}
                     </p>
                   )}
                 </div>
