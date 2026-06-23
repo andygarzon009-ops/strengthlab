@@ -83,11 +83,15 @@ const ALIAS_GROUPS: { canonical: string; synonyms: string[] }[] = [
       "bb row",
     ],
   },
-  // NOTE: no squat alias on purpose. Bar position matters and must be logged
-  // explicitly — the only back-squat lifts are "Back Squat (High Bar)" and
-  // "Back Squat (Low Bar)". We deliberately do NOT collapse a generic "Back
-  // Squat" into either, so a high-bar session never silently lands on low-bar
-  // history or vice-versa.
+  {
+    // Bar position is its own lift ("Back Squat (High Bar)" vs "(Low Bar)"),
+    // but a bare/generic "back squat" must still resolve to ONE real lift
+    // rather than minting a third generic row. It maps to Low Bar (this
+    // athlete's default). High Bar stays separate and is only used when the
+    // athlete explicitly picks it.
+    canonical: "Back Squat (Low Bar)",
+    synonyms: ["squat", "back squat", "barbell squat", "barbell back squat", "low bar squat"],
+  },
 ];
 
 // normalized synonym (and canonical) → canonical normalized name
