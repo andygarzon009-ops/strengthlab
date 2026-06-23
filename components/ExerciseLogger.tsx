@@ -212,7 +212,10 @@ export default function ExerciseLogger({
       fetch(`/api/exercises/${id}/previous`)
         .then((r) => r.json())
         .then((prev: PreviousData | null) => {
-          if (prev?.lastWeight) {
+          // /previous returns null when there's no history. Gate on that —
+          // not on lastWeight being truthy, which drops bodyweight / 0-load
+          // lifts (pull-ups, dips, ab work) that have a real top set to show.
+          if (prev) {
             setPreviousData((p) => ({ ...p, [id]: prev }));
           }
         })
@@ -244,9 +247,11 @@ export default function ExerciseLogger({
   const addExercise = async (ex: Exercise) => {
     requestedPrev.current.add(ex.id);
     const res = await fetch(`/api/exercises/${ex.id}/previous`);
-    const prev: PreviousData = await res.json();
+    const prev: PreviousData | null = await res.json();
 
-    if (prev?.lastWeight) {
+    // Null means no prior history. Any non-null result has a top set worth
+    // showing — including bodyweight lifts where lastWeight is 0/null.
+    if (prev) {
       setPreviousData((p) => ({ ...p, [ex.id]: prev }));
     }
 
