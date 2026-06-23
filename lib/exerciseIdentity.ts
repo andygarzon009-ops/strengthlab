@@ -12,6 +12,105 @@ export function normalizeExerciseName(raw: string): string {
     .replace(/s$/, ""); // strip trailing plural 's'
 }
 
+// Implied-equipment & common-synonym aliases.
+//
+// The canonical library names carry an explicit equipment qualifier
+// ("Flat Barbell Bench Press"), but coaches and athletes habitually speak the
+// bare default form ("flat bench press", "bench press", "deadlift", "squat").
+// exerciseNamesMatch() deliberately treats a qualifier word like "barbell" as
+// a DISTINCT lift — that's what keeps "Flat Dumbbell Bench Press" and "Smith
+// Machine Flat Bench Press" from collapsing into the same row. The side effect
+// is that the bare barbell-default form no longer matches its canonical, so a
+// coach prescription ("Flat Bench Press") spawns a duplicate Exercise row and
+// splits the athlete's history, PRs, and progression.
+//
+// This table pins each well-known bare/synonym form to the one canonical
+// library name it should resolve to. Authored canonical → synonyms for
+// readability; flattened into a normalized lookup at module load. ONLY the
+// listed forms are remapped — anything carrying a real distinguishing
+// qualifier (dumbbell, smith, machine, close-grip, incline-vs-flat, etc.)
+// falls through untouched and stays its own lift.
+const ALIAS_GROUPS: { canonical: string; synonyms: string[] }[] = [
+  {
+    canonical: "Flat Barbell Bench Press",
+    synonyms: [
+      "bench press",
+      "flat bench press",
+      "barbell bench press",
+      "bb bench press",
+      "flat bb bench press",
+    ],
+  },
+  {
+    canonical: "Incline Barbell Bench Press",
+    synonyms: ["incline bench press", "incline barbell bench", "incline bb bench press"],
+  },
+  {
+    canonical: "Decline Barbell Bench Press",
+    synonyms: ["decline bench press", "decline barbell bench"],
+  },
+  {
+    canonical: "Overhead Press (Barbell)",
+    synonyms: [
+      "overhead press",
+      "barbell overhead press",
+      "ohp",
+      "military press",
+      "shoulder press",
+      "barbell shoulder press",
+      "standing overhead press",
+      "standing barbell overhead press",
+      "standing barbell shoulder press",
+    ],
+  },
+  {
+    canonical: "Conventional Deadlift",
+    synonyms: ["deadlift", "barbell deadlift", "conventional barbell deadlift"],
+  },
+  {
+    canonical: "Romanian Deadlift (Barbell)",
+    synonyms: ["romanian deadlift", "rdl", "barbell rdl", "barbell romanian deadlift"],
+  },
+  {
+    canonical: "Barbell Row",
+    synonyms: [
+      "bent over row",
+      "bent-over row",
+      "barbell bent over row",
+      "barbell bent-over row",
+      "bent over barbell row",
+      "bent-over barbell row",
+      "bb row",
+    ],
+  },
+  {
+    // Bare "squat"/"back squat" → the high-bar back squat, the conventional
+    // default when no bar position is named. Low-bar lifters who log the
+    // explicit "(Low Bar)" entry stay separate, as intended.
+    canonical: "Back Squat (High Bar)",
+    synonyms: ["squat", "back squat", "barbell squat", "barbell back squat", "high bar squat"],
+  },
+];
+
+// normalized synonym (and canonical) → canonical normalized name
+const ALIAS_LOOKUP: Map<string, string> = (() => {
+  const m = new Map<string, string>();
+  for (const { canonical, synonyms } of ALIAS_GROUPS) {
+    const canonNorm = normalizeExerciseName(canonical);
+    m.set(canonNorm, canonNorm); // canonical resolves to itself
+    for (const syn of synonyms) m.set(normalizeExerciseName(syn), canonNorm);
+  }
+  return m;
+})();
+
+// Resolve a name to its canonical *normalized* identity. Known bare/synonym
+// forms map to their qualified canonical; everything else falls back to its
+// own normalized form, so non-aliased names behave exactly as before.
+export function canonicalExerciseKey(raw: string): string {
+  const norm = normalizeExerciseName(raw);
+  return ALIAS_LOOKUP.get(norm) ?? norm;
+}
+
 // Split a name into normalized word tokens (lowercased, accent-stripped,
 // per-word de-pluralized). Used for word-set comparison so that a name
 // carrying an extra meaningful qualifier — "Smith machine hip thrust" vs
@@ -65,6 +164,12 @@ export function exerciseNamesMatch(a: string, b: string): boolean {
   const nb = normalizeExerciseName(b);
   if (!na || !nb) return false;
   if (na === nb) return true;
+
+  // Implied-equipment aliases: a bare barbell-default form ("flat bench
+  // press") and its qualified canonical ("Flat Barbell Bench Press") share a
+  // canonical key and are the same lift. Only names listed in ALIAS_GROUPS
+  // are remapped, so this never collapses genuinely distinct variants.
+  if (canonicalExerciseKey(a) === canonicalExerciseKey(b)) return true;
 
   const ta = tokenizeExerciseName(a);
   const tb = tokenizeExerciseName(b);
@@ -164,8 +269,11 @@ export function findExistingExerciseByName<
 >(name: string, pool: T[]): T | null {
   const norm = normalizeExerciseName(name);
   if (!norm) return null;
-  // Prefer exact normalized match
-  const exact = pool.find((ex) => normalizeExerciseName(ex.name) === norm);
+  // Prefer an exact canonical match — this resolves alias forms (e.g. the
+  // coach's "Flat Bench Press") onto their qualified library row ("Flat
+  // Barbell Bench Press") and still covers plain identical-normalized names.
+  const canon = canonicalExerciseKey(name);
+  const exact = pool.find((ex) => canonicalExerciseKey(ex.name) === canon);
   if (exact) return exact;
   for (const ex of pool) {
     if (exerciseNamesMatch(ex.name, name)) return ex;
