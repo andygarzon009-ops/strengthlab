@@ -1,12 +1,10 @@
-// Server-rendered "Last night" sleep card for the recovery page. Renders a
-// detailed view from the persisted sleepSummary: a quality verdict, the
-// bed→wake window, a stacked-lane hypnogram timeline (when per-stage segments
-// are available), and a per-stage breakdown graded against healthy reference
-// ranges. No client interactivity needed, so this stays a server component.
+// Server-rendered "Last night" sleep card for the recovery page. Shows a
+// quality verdict and the bed→wake window, then hands the per-stage segments
+// to the interactive <SleepHypnogram> client component (stacked-lane timeline
+// with finger-scrubbing + restlessness). Nights synced before segments were
+// captured fall back to a static composition bar + graded breakdown.
 
-type SleepStageType = "deep" | "rem" | "light" | "awake";
-
-type StageSeg = { type: SleepStageType; startMs: number; endMs: number };
+import SleepHypnogram, { type StageSeg } from "@/components/SleepHypnogram";
 
 export type SleepSummary = {
   asleepMin: number;
@@ -21,22 +19,16 @@ export type SleepSummary = {
   stages?: StageSeg[]; // present on nights synced after the hypnogram change
 };
 
-const STAGE: Record<
-  SleepStageType,
-  { label: string; color: string; min: keyof SleepSummary }
-> = {
+type LaneType = "deep" | "rem" | "light" | "awake";
+
+const STAGE: Record<LaneType, { label: string; color: string; min: keyof SleepSummary }> = {
   awake: { label: "Awake", color: "#ef5a6f", min: "awakeMin" },
   rem: { label: "REM", color: "#38bdf8", min: "remMin" },
   light: { label: "Light", color: "#3b82f6", min: "lightMin" },
   deep: { label: "Deep", color: "#4338ca", min: "deepMin" },
 };
 
-// Top→bottom lane order, matching common sleep-app hypnograms.
-const LANES: SleepStageType[] = ["awake", "rem", "light", "deep"];
-
-// Healthy share of total sleep, per stage (rough adult references). Used to
-// grade each stage with an in-range pill — null means we don't grade it.
-const TARGET: Record<SleepStageType, [number, number] | null> = {
+const TARGET: Record<LaneType, [number, number] | null> = {
   deep: [13, 23],
   rem: [20, 25],
   light: [45, 60],
@@ -58,37 +50,11 @@ function fmtClock(iso: string, offsetSec: number): string {
   return `${h}:${String(m).padStart(2, "0")}${ampm}`;
 }
 
-function fmtClockMs(ms: number, offsetSec: number): string {
-  const d = new Date(ms + offsetSec * 1000);
-  let h = d.getUTCHours();
-  const m = d.getUTCMinutes();
-  const ampm = h >= 12 ? "pm" : "am";
-  h = h % 12 || 12;
-  return `${h}:${String(m).padStart(2, "0")}${ampm}`;
-}
-
 function verdict(score: number): { label: string; color: string } {
   if (score >= 80) return { label: "Excellent", color: "#22c55e" };
   if (score >= 60) return { label: "Good", color: "#22c55e" };
   if (score >= 40) return { label: "Fair", color: "#f59e0b" };
   return { label: "Poor", color: "#ef4444" };
-}
-
-function rangePill(stage: SleepStageType, pctOfSleep: number) {
-  const target = TARGET[stage];
-  if (!target) return null;
-  const inRange = pctOfSleep >= target[0] && pctOfSleep <= target[1];
-  const below = pctOfSleep < target[0];
-  const color = inRange ? "#22c55e" : "#f59e0b";
-  const text = inRange ? "In range" : below ? "Low" : "High";
-  return (
-    <span
-      className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0"
-      style={{ color, background: `${color}1f` }}
-    >
-      {text}
-    </span>
-  );
 }
 
 function MoonIcon() {
@@ -116,92 +82,6 @@ function SunIcon() {
   );
 }
 
-/// Stacked-lane hypnogram: one horizontal track per stage, with each segment
-/// drawn at its true position across the night and a shared time axis below.
-function Hypnogram({
-  sleep,
-  totalSleep,
-}: {
-  sleep: SleepSummary;
-  totalSleep: number;
-}) {
-  const segs = sleep.stages ?? [];
-  // Span the night from bedtime to wake, widened to cover any stray segment.
-  const spanStart = Math.min(
-    Date.parse(sleep.startUtc),
-    ...segs.map((s) => s.startMs),
-  );
-  const spanEnd = Math.max(
-    Date.parse(sleep.endUtc),
-    ...segs.map((s) => s.endMs),
-  );
-  const span = Math.max(1, spanEnd - spanStart);
-  const midMs = spanStart + span / 2;
-
-  return (
-    <div className="mb-5">
-      <div className="space-y-3">
-        {LANES.map((lane) => {
-          const meta = STAGE[lane];
-          const min = sleep[meta.min] as number;
-          const pctOfSleep = totalSleep > 0 ? (min / totalSleep) * 100 : 0;
-          const laneSegs = segs.filter((s) => s.type === lane);
-          return (
-            <div key={lane}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[13px]">
-                  <span className="font-semibold">{meta.label}</span>
-                  <span
-                    className="ml-1.5 tabular-nums"
-                    style={{ color: "var(--fg-muted)" }}
-                  >
-                    {fmtDur(min)}
-                  </span>
-                </span>
-                {rangePill(lane, pctOfSleep)}
-              </div>
-              <div
-                className="relative w-full rounded-md overflow-hidden"
-                style={{ height: 22, background: "var(--bg-elevated)" }}
-              >
-                {laneSegs.map((s, i) => {
-                  const left = ((s.startMs - spanStart) / span) * 100;
-                  const width = ((s.endMs - s.startMs) / span) * 100;
-                  return (
-                    <div
-                      key={i}
-                      className="absolute top-0 bottom-0 rounded-md"
-                      style={{
-                        left: `${left}%`,
-                        width: `${width}%`,
-                        minWidth: 3,
-                        background: meta.color,
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* shared time axis */}
-      <div className="flex justify-between mt-2">
-        {[spanStart, midMs, spanEnd].map((ms, i) => (
-          <span
-            key={i}
-            className="text-[10px] tabular-nums"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            {fmtClockMs(ms, sleep.offsetSec)}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /// Fallback for nights stored before segments were captured: a single stacked
 /// composition bar plus a graded per-stage breakdown.
 function CompositionFallback({
@@ -212,7 +92,7 @@ function CompositionFallback({
   totalSleep: number;
 }) {
   const totalWithAwake = totalSleep + sleep.awakeMin || 1;
-  const order: SleepStageType[] = ["deep", "rem", "light", "awake"];
+  const order: LaneType[] = ["deep", "rem", "light", "awake"];
   return (
     <>
       <div className="flex h-3 rounded-full overflow-hidden mb-5">
@@ -233,9 +113,7 @@ function CompositionFallback({
           const min = sleep[STAGE[k].min] as number;
           const pct = totalSleep > 0 ? (min / totalSleep) * 100 : 0;
           const target = TARGET[k];
-          const inRange = target
-            ? pct >= target[0] && pct <= target[1]
-            : null;
+          const inRange = target ? pct >= target[0] && pct <= target[1] : null;
           const below = target ? pct < target[0] : false;
           const hintColor =
             inRange === null
@@ -388,7 +266,17 @@ export default function SleepDetail({
         </div>
 
         {hasTimeline ? (
-          <Hypnogram sleep={sleep} totalSleep={totalSleep} />
+          <SleepHypnogram
+            stages={sleep.stages!}
+            startUtc={sleep.startUtc}
+            endUtc={sleep.endUtc}
+            offsetSec={sleep.offsetSec}
+            deepMin={sleep.deepMin}
+            remMin={sleep.remMin}
+            lightMin={sleep.lightMin}
+            awakeMin={sleep.awakeMin}
+            totalSleep={totalSleep}
+          />
         ) : (
           <CompositionFallback sleep={sleep} totalSleep={totalSleep} />
         )}

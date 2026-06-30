@@ -356,7 +356,7 @@ export async function listDailyHrv(
   }
 }
 
-export type SleepStageType = "deep" | "rem" | "light" | "awake";
+export type SleepStageType = "deep" | "rem" | "light" | "awake" | "restless";
 
 export type SleepStageSeg = {
   type: SleepStageType;
@@ -414,15 +414,15 @@ export async function listSleep(
       }[];
     };
 
-    // Provider stage names → our four lanes. ASLEEP (ungranular) reads as light;
-    // RESTLESS as awake — both keep the timeline continuous.
+    // Provider stage names → our lanes. ASLEEP (ungranular) reads as light;
+    // RESTLESS is kept distinct so the UI can surface restlessness separately.
     const STAGE_MAP: Record<string, SleepStageType> = {
       DEEP: "deep",
       REM: "rem",
       LIGHT: "light",
       AWAKE: "awake",
       ASLEEP: "light",
-      RESTLESS: "awake",
+      RESTLESS: "restless",
     };
 
     const num = (x: unknown) => {
