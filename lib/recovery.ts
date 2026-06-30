@@ -35,12 +35,22 @@ function rhrScore(deltaBpm: number): number {
 
 // Sleep → 0–100: mostly duration, nudged by quality (deep+REM share).
 // Duration: 3h(180m)=0 … 8h(480m)+=100. Quality: 20% deep+REM=0 … 50%+=100.
-function sleepScore(night: SleepNight): number {
-  const duration = clamp(((night.asleepMin - 180) / (480 - 180)) * 100, 0, 100);
-  const denom = night.asleepMin || 1;
-  const deepRemPct = ((night.deepMin + night.remMin) / denom) * 100;
+// Exported so the recovery page can label last night's sleep with the same
+// number the recovery blend uses, instead of re-deriving its own.
+export function sleepQualityScore(
+  asleepMin: number,
+  deepMin: number,
+  remMin: number,
+): number {
+  const duration = clamp(((asleepMin - 180) / (480 - 180)) * 100, 0, 100);
+  const denom = asleepMin || 1;
+  const deepRemPct = ((deepMin + remMin) / denom) * 100;
   const quality = clamp(((deepRemPct - 20) / (50 - 20)) * 100, 0, 100);
   return 0.65 * duration + 0.35 * quality;
+}
+
+function sleepScore(night: SleepNight): number {
+  return sleepQualityScore(night.asleepMin, night.deepMin, night.remMin);
 }
 
 // Average of all-but-the-latest reading — "your normal", excluding today.
@@ -179,10 +189,14 @@ export async function refreshRecovery(userId: string): Promise<void> {
         {
           date: string;
           asleepMin: number;
+          inBedMin: number;
           deepMin: number;
           remMin: number;
           lightMin: number;
           awakeMin: number;
+          startUtc: string;
+          endUtc: string;
+          offsetSec: number;
         }
       >();
       for (const n of sleep) {
@@ -194,10 +208,14 @@ export async function refreshRecovery(userId: string): Promise<void> {
           hist.set(date, {
             date,
             asleepMin: n.asleepMin,
+            inBedMin: n.inBedMin,
             deepMin: n.deepMin,
             remMin: n.remMin,
             lightMin: n.lightMin,
             awakeMin: n.awakeMin,
+            startUtc: n.start.toISOString(),
+            endUtc: n.end.toISOString(),
+            offsetSec: n.offsetSec,
           });
         }
       }

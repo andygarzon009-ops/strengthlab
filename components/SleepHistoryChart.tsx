@@ -9,7 +9,35 @@ export type SleepNightHistory = {
   remMin: number;
   lightMin: number;
   awakeMin: number;
+  // Added later — only present on nights synced after the schema bump. Used for
+  // the average bedtime/wake schedule summary; guarded everywhere it's read.
+  startUtc?: string;
+  endUtc?: string;
+  offsetSec?: number;
 };
+
+// Average a set of local clock times (in minutes past midnight), tolerant of
+// the evening→after-midnight wrap. `evening` shifts pre-noon times forward a
+// day first, so bedtimes near midnight average correctly instead of cancelling.
+function avgClock(minutes: number[], evening: boolean): number | null {
+  if (minutes.length === 0) return null;
+  const adj = minutes.map((m) => (evening && m < 12 * 60 ? m + 1440 : m));
+  const mean = adj.reduce((s, m) => s + m, 0) / adj.length;
+  return Math.round(mean) % 1440;
+}
+
+function fmtClockMin(min: number): string {
+  let h = Math.floor(min / 60) % 24;
+  const m = min % 60;
+  const ampm = h >= 12 ? "pm" : "am";
+  h = h % 12 || 12;
+  return `${h}:${String(m).padStart(2, "0")}${ampm}`;
+}
+
+function localMinutes(iso: string, offsetSec: number): number {
+  const d = new Date(Date.parse(iso) + offsetSec * 1000);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
 
 type Range = "W" | "M";
 
@@ -54,6 +82,24 @@ export default function SleepHistoryChart({
     days.length > 0
       ? Math.round(days.reduce((s, d) => s + d.asleepMin, 0) / days.length)
       : 0;
+
+  // Average bed/wake schedule — only from nights that carry start/end times.
+  const schedule = useMemo(() => {
+    const timed = days.filter(
+      (d) => d.startUtc && d.endUtc && d.offsetSec != null,
+    );
+    if (timed.length < 3) return null;
+    const bed = avgClock(
+      timed.map((d) => localMinutes(d.startUtc!, d.offsetSec!)),
+      true,
+    );
+    const wake = avgClock(
+      timed.map((d) => localMinutes(d.endUtc!, d.offsetSec!)),
+      false,
+    );
+    if (bed == null || wake == null) return null;
+    return { bed, wake };
+  }, [days]);
   // Scale so the 8h line sits ~60% up and tall nights still fit.
   const maxMin = Math.max(540, ...days.map((d) => d.asleepMin));
   const targetPct = (480 / maxMin) * 100;
@@ -187,6 +233,30 @@ export default function SleepHistoryChart({
                 </span>
               ))}
             </div>
+
+            {schedule && (
+              <div
+                className="flex items-center justify-around mt-4 pt-3"
+                style={{ borderTop: "1px solid var(--border)" }}
+              >
+                <div className="text-center">
+                  <p className="text-[10px]" style={{ color: "var(--fg-dim)" }}>
+                    Avg bedtime
+                  </p>
+                  <p className="text-[14px] font-bold tabular-nums mt-0.5">
+                    {fmtClockMin(schedule.bed)}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px]" style={{ color: "var(--fg-dim)" }}>
+                    Avg wake
+                  </p>
+                  <p className="text-[14px] font-bold tabular-nums mt-0.5">
+                    {fmtClockMin(schedule.wake)}
+                  </p>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

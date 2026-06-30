@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
+import { sleepQualityScore } from "@/lib/recovery";
 import BackButton from "@/components/BackButton";
+import SleepDetail, { type SleepSummary } from "@/components/SleepDetail";
 import SleepHistoryChart, {
   type SleepNightHistory,
 } from "@/components/SleepHistoryChart";
@@ -33,18 +35,6 @@ function ago(d: Date): string {
   const day = Math.floor(h / 24);
   return day === 1 ? "yesterday" : `${day}d ago`;
 }
-
-type SleepSummary = {
-  asleepMin: number;
-  inBedMin: number;
-  deepMin: number;
-  remMin: number;
-  lightMin: number;
-  awakeMin: number;
-  startUtc: string;
-  endUtc: string;
-  offsetSec: number;
-};
 
 export default async function RecoveryPage() {
   const userId = await requireAuth();
@@ -78,6 +68,9 @@ export default async function RecoveryPage() {
   const band = account?.recoveryBand ?? null;
   const color = band ? (BAND_COLOR[band] ?? "var(--accent)") : "var(--fg-dim)";
   const sleep = (account?.sleepSummary as SleepSummary | null) ?? null;
+  const sleepQuality = sleep
+    ? sleepQualityScore(sleep.asleepMin, sleep.deepMin, sleep.remMin)
+    : null;
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
@@ -94,9 +87,22 @@ export default async function RecoveryPage() {
         <>
           {/* Hero score */}
           <div
-            className="rounded-2xl p-6 mb-4 flex flex-col items-center text-center"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+            className="relative rounded-2xl p-6 mb-4 flex flex-col items-center text-center overflow-hidden"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+            }}
           >
+            {/* soft band-tinted glow behind the ring */}
+            <div
+              aria-hidden
+              className="absolute -top-16 left-1/2 -translate-x-1/2 pointer-events-none"
+              style={{
+                width: 220,
+                height: 220,
+                background: `radial-gradient(circle, ${color}22 0%, transparent 70%)`,
+              }}
+            />
             <Ring score={score} color={color} />
             <p className="text-[18px] font-bold mt-3" style={{ color }}>
               {BAND_LABEL[band]}
@@ -116,42 +122,39 @@ export default async function RecoveryPage() {
 
           {trendDays.length >= 2 && <RecoveryTrend days={trendDays} />}
 
-          {/* What's driving it */}
-          <p className="label mb-2">What&apos;s driving it</p>
-          <div className="space-y-2 mb-5">
-            <DriverRow
-              label="HRV (last night)"
-              value={account?.hrvMs != null ? `${Math.round(account.hrvMs)} ms` : "—"}
+          {/* Sleep — the centerpiece */}
+          {sleep && sleepQuality != null && (
+            <SleepDetail sleep={sleep} qualityScore={sleepQuality} />
+          )}
+
+          {/* Overnight vitals */}
+          <p className="label mb-2">Overnight vitals</p>
+          <div className="grid grid-cols-2 gap-2 mb-5">
+            <VitalTile
+              label="HRV"
+              value={
+                account?.hrvMs != null ? `${Math.round(account.hrvMs)}` : "—"
+              }
+              unit="ms"
               baseline={
                 account?.hrvBaselineMs != null
-                  ? `${Math.round(account.hrvBaselineMs)} ms`
+                  ? Math.round(account.hrvBaselineMs)
                   : null
               }
-              good={
-                account?.hrvMs != null && account?.hrvBaselineMs != null
-                  ? account.hrvMs >= account.hrvBaselineMs
-                  : null
+              current={
+                account?.hrvMs != null ? Math.round(account.hrvMs) : null
               }
               higherIsBetter
             />
-            <DriverRow
+            <VitalTile
               label="Resting HR"
-              value={account?.restingHr != null ? `${account.restingHr} bpm` : "—"}
-              baseline={
-                account?.restingBaselineHr != null
-                  ? `${account.restingBaselineHr} bpm`
-                  : null
-              }
-              good={
-                account?.restingHr != null && account?.restingBaselineHr != null
-                  ? account.restingHr <= account.restingBaselineHr
-                  : null
-              }
+              value={account?.restingHr != null ? `${account.restingHr}` : "—"}
+              unit="bpm"
+              baseline={account?.restingBaselineHr ?? null}
+              current={account?.restingHr ?? null}
               higherIsBetter={false}
             />
           </div>
-
-          {sleep && <SleepSection sleep={sleep} />}
 
           <Spo2Card />
 
@@ -189,7 +192,14 @@ function Ring({ score, color }: { score: number; color: string }) {
   return (
     <div className="relative" style={{ width: 132, height: 132 }}>
       <svg width="132" height="132" viewBox="0 0 132 132">
-        <circle cx="66" cy="66" r={r} fill="none" stroke="var(--bg-elevated)" strokeWidth="10" />
+        <circle
+          cx="66"
+          cy="66"
+          r={r}
+          fill="none"
+          stroke="var(--bg-elevated)"
+          strokeWidth="10"
+        />
         <circle
           cx="66"
           cy="66"
@@ -214,47 +224,67 @@ function Ring({ score, color }: { score: number; color: string }) {
   );
 }
 
-function DriverRow({
+function VitalTile({
   label,
   value,
+  unit,
   baseline,
-  good,
+  current,
   higherIsBetter,
 }: {
   label: string;
   value: string;
-  baseline: string | null;
-  good: boolean | null;
+  unit: string;
+  baseline: number | null;
+  current: number | null;
   higherIsBetter: boolean;
 }) {
+  const good =
+    current != null && baseline != null
+      ? higherIsBetter
+        ? current >= baseline
+        : current <= baseline
+      : null;
   const tint =
     good === null ? "var(--fg-dim)" : good ? "var(--accent)" : "#f97316";
+  // Arrow shows the value's direction vs baseline (up if current is higher).
+  const arrow =
+    current != null && baseline != null
+      ? current === baseline
+        ? ""
+        : current > baseline
+          ? "↑"
+          : "↓"
+      : "";
   const note =
-    good === null
-      ? baseline
-        ? `baseline ${baseline}`
-        : "building baseline"
-      : `${good ? "better" : "worse"} than your ${baseline} baseline`;
+    baseline == null
+      ? "building baseline"
+      : `baseline ${baseline} ${unit}`;
+
   return (
     <div
-      className="rounded-xl px-4 py-3 flex items-center justify-between"
+      className="rounded-xl px-4 py-3"
       style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
     >
-      <div className="min-w-0">
-        <p className="text-[13px] font-medium">{label}</p>
-        <p className="text-[11px] mt-0.5" style={{ color: tint }}>
-          {note}
-          {good !== null && (
-            <span aria-hidden>
-              {" "}
-              {/* arrow shows the value's direction vs baseline: for HRV,
-                  good=higher=↑; for RHR, good=lower=↓ */}
-              {(higherIsBetter ? good : !good) ? "↑" : "↓"}
-            </span>
-          )}
-        </p>
-      </div>
-      <span className="text-[16px] font-bold tabular-nums">{value}</span>
+      <p className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+        {label}
+      </p>
+      <p className="mt-1">
+        <span className="text-[22px] font-bold tabular-nums" style={{ color: tint }}>
+          {value}
+        </span>
+        <span className="text-[11px] ml-1" style={{ color: "var(--fg-dim)" }}>
+          {unit}
+        </span>
+        {arrow && (
+          <span className="text-[13px] ml-1" style={{ color: tint }} aria-hidden>
+            {arrow}
+          </span>
+        )}
+      </p>
+      <p className="text-[10px] mt-1" style={{ color: "var(--fg-dim)" }}>
+        {note}
+      </p>
     </div>
   );
 }
@@ -277,7 +307,7 @@ function RecoveryTrend({
         }}
       >
         {days.map((d, i) => {
-          const color = d.band
+          const c = d.band
             ? (BAND_COLOR[d.band] ?? "var(--fg-dim)")
             : "var(--fg-dim)";
           const h = Math.max(6, (Math.min(100, d.score) / 100) * 64);
@@ -288,7 +318,7 @@ function RecoveryTrend({
             <div key={d.dateKey} className="flex flex-col items-center gap-1.5">
               <span
                 className="text-[10px] font-bold tabular-nums"
-                style={{ color: isLast ? color : "var(--fg-dim)" }}
+                style={{ color: isLast ? c : "var(--fg-dim)" }}
               >
                 {d.score}
               </span>
@@ -297,7 +327,7 @@ function RecoveryTrend({
                 style={{
                   width: 8,
                   height: h,
-                  background: color,
+                  background: c,
                   opacity: isLast ? 1 : 0.65,
                 }}
               />
@@ -307,102 +337,6 @@ function RecoveryTrend({
             </div>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-const STAGE_META: { key: keyof SleepSummary; label: string; color: string }[] = [
-  { key: "deepMin", label: "Deep", color: "#4338ca" },
-  { key: "remMin", label: "REM", color: "#7c3aed" },
-  { key: "lightMin", label: "Light", color: "#0ea5e9" },
-  { key: "awakeMin", label: "Awake", color: "#52525b" },
-];
-
-function fmtClock(iso: string, offsetSec: number): string {
-  const d = new Date(Date.parse(iso) + offsetSec * 1000);
-  let h = d.getUTCHours();
-  const m = d.getUTCMinutes();
-  const ampm = h >= 12 ? "pm" : "am";
-  h = h % 12 || 12;
-  return `${h}:${String(m).padStart(2, "0")}${ampm}`;
-}
-
-function SleepSection({ sleep }: { sleep: SleepSummary }) {
-  const h = Math.floor(sleep.asleepMin / 60);
-  const m = sleep.asleepMin % 60;
-  const totalStages =
-    sleep.deepMin + sleep.remMin + sleep.lightMin + sleep.awakeMin || 1;
-  const efficiency =
-    sleep.inBedMin > 0
-      ? Math.round((sleep.asleepMin / sleep.inBedMin) * 100)
-      : null;
-
-  return (
-    <div className="mb-5">
-      <p className="label mb-2">Last night</p>
-      <div
-        className="rounded-xl p-4"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-      >
-        <div className="flex items-baseline justify-between mb-3">
-          <p className="text-[22px] font-bold tabular-nums">
-            {h}h {m}m
-            <span
-              className="text-[12px] ml-2 font-normal"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              asleep
-            </span>
-          </p>
-          <p className="text-[12px] tabular-nums" style={{ color: "var(--fg-dim)" }}>
-            {fmtClock(sleep.startUtc, sleep.offsetSec)} →{" "}
-            {fmtClock(sleep.endUtc, sleep.offsetSec)}
-          </p>
-        </div>
-
-        {/* Stage bar */}
-        <div className="flex h-2.5 rounded-full overflow-hidden mb-2">
-          {STAGE_META.map((s) => {
-            const min = sleep[s.key] as number;
-            const pct = (min / totalStages) * 100;
-            if (pct <= 0) return null;
-            return (
-              <div
-                key={s.key}
-                style={{ width: `${pct}%`, background: s.color }}
-                title={`${s.label} ${min}m`}
-              />
-            );
-          })}
-        </div>
-
-        <div className="flex flex-wrap gap-x-3 gap-y-1">
-          {STAGE_META.map((s) => {
-            const min = sleep[s.key] as number;
-            return (
-              <span
-                key={s.key}
-                className="text-[10px] tabular-nums"
-                style={{ color: "var(--fg-dim)" }}
-              >
-                <span
-                  className="inline-block w-2 h-2 rounded-sm mr-1 align-middle"
-                  style={{ background: s.color }}
-                />
-                {s.label} {Math.floor(min / 60)}h {min % 60}m
-              </span>
-            );
-          })}
-          {efficiency != null && (
-            <span
-              className="text-[10px] tabular-nums ml-auto"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              {efficiency}% efficiency
-            </span>
-          )}
-        </div>
       </div>
     </div>
   );
