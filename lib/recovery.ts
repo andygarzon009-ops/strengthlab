@@ -173,6 +173,8 @@ export async function refreshRecovery(userId: string): Promise<void> {
         startUtc: lastNight.start.toISOString(),
         endUtc: lastNight.end.toISOString(),
         offsetSec: lastNight.offsetSec,
+        toSleepMin: lastNight.toSleepMin,
+        afterWakeMin: lastNight.afterWakeMin,
         // Per-stage segments for the hypnogram timeline (epoch ms).
         stages: lastNight.stages.map((s) => ({
           type: s.type,

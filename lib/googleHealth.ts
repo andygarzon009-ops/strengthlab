@@ -374,6 +374,8 @@ export type SleepNight = {
   remMin: number;
   lightMin: number;
   awakeMin: number;
+  toSleepMin: number; // minutes to fall asleep (0 if not reported)
+  afterWakeMin: number; // minutes awake after final wake (0 if not reported)
   // Per-stage segments across the night, in time order — powers the hypnogram
   // timeline. Empty when the provider returns only stage totals.
   stages: SleepStageSeg[];
@@ -403,6 +405,8 @@ export async function listSleep(
           summary?: {
             minutesAsleep?: string | number;
             minutesInSleepPeriod?: string | number;
+            minutesToFallAsleep?: string | number;
+            minutesAfterWakeUp?: string | number;
             stagesSummary?: { type?: string; minutes?: string | number }[];
           };
           stages?: {
@@ -474,6 +478,8 @@ export async function listSleep(
         remMin: stages.rem,
         lightMin: stages.light,
         awakeMin: stages.awake,
+        toSleepMin: num(sum.minutesToFallAsleep),
+        afterWakeMin: num(sum.minutesAfterWakeUp),
         stages: segs,
       });
     }

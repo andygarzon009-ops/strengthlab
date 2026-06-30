@@ -5,6 +5,7 @@
 // captured fall back to a static composition bar + graded breakdown.
 
 import SleepHypnogram, { type StageSeg } from "@/components/SleepHypnogram";
+import SleepMetrics from "@/components/SleepMetrics";
 
 export type SleepSummary = {
   asleepMin: number;
@@ -16,6 +17,7 @@ export type SleepSummary = {
   startUtc: string;
   endUtc: string;
   offsetSec: number;
+  toSleepMin?: number; // minutes to fall asleep (added with the metrics section)
   stages?: StageSeg[]; // present on nights synced after the hypnogram change
 };
 
@@ -191,6 +193,14 @@ export default function SleepDetail({
   const v = verdict(qualityScore);
   const hasTimeline = (sleep.stages?.length ?? 0) > 0;
 
+  const segs = sleep.stages ?? [];
+  const awakeCount = segs.filter((s) => s.type === "awake").length;
+  const restlessSegs = segs.filter((s) => s.type === "restless");
+  const restlessMin = restlessSegs.reduce(
+    (a, s) => a + (s.endMs - s.startMs) / 60000,
+    0,
+  );
+
   return (
     <div className="mb-5">
       <p className="label mb-2">Last night</p>
@@ -281,6 +291,17 @@ export default function SleepDetail({
           <CompositionFallback sleep={sleep} totalSleep={totalSleep} />
         )}
       </div>
+
+      <SleepMetrics
+        asleepMin={sleep.asleepMin}
+        deepMin={sleep.deepMin}
+        remMin={sleep.remMin}
+        toSleepMin={sleep.toSleepMin ?? 0}
+        awakeMin={sleep.awakeMin}
+        awakeCount={awakeCount}
+        restlessMin={restlessMin}
+        restlessCount={restlessSegs.length}
+      />
     </div>
   );
 }
