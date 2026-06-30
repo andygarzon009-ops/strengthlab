@@ -43,8 +43,8 @@ type Range = "W" | "M";
 
 // Match the stage colors on the "Last night" card.
 const DEEP = "#4338ca";
-const REM = "#7c3aed";
-const LIGHT = "#0ea5e9";
+const REM = "#38bdf8";
+const LIGHT = "#3b82f6";
 
 function fmtDur(min: number): string {
   return `${Math.floor(min / 60)}h ${Math.round(min % 60)}m`;

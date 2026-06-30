@@ -356,6 +356,14 @@ export async function listDailyHrv(
   }
 }
 
+export type SleepStageType = "deep" | "rem" | "light" | "awake";
+
+export type SleepStageSeg = {
+  type: SleepStageType;
+  startMs: number; // UTC epoch ms
+  endMs: number;
+};
+
 export type SleepNight = {
   start: Date; // UTC bedtime
   end: Date; // UTC wake
@@ -366,6 +374,9 @@ export type SleepNight = {
   remMin: number;
   lightMin: number;
   awakeMin: number;
+  // Per-stage segments across the night, in time order — powers the hypnogram
+  // timeline. Empty when the provider returns only stage totals.
+  stages: SleepStageSeg[];
 };
 
 /// Sleep sessions from Google Health (needs the sleep scope). Returns full
@@ -394,8 +405,24 @@ export async function listSleep(
             minutesInSleepPeriod?: string | number;
             stagesSummary?: { type?: string; minutes?: string | number }[];
           };
+          stages?: {
+            type?: string;
+            startTime?: string;
+            endTime?: string;
+          }[];
         };
       }[];
+    };
+
+    // Provider stage names → our four lanes. ASLEEP (ungranular) reads as light;
+    // RESTLESS as awake — both keep the timeline continuous.
+    const STAGE_MAP: Record<string, SleepStageType> = {
+      DEEP: "deep",
+      REM: "rem",
+      LIGHT: "light",
+      AWAKE: "awake",
+      ASLEEP: "light",
+      RESTLESS: "awake",
     };
 
     const num = (x: unknown) => {
@@ -424,6 +451,19 @@ export async function listSleep(
         else if (st.type === "LIGHT") stages.light = m;
         else if (st.type === "AWAKE") stages.awake = m;
       }
+
+      const segs: SleepStageSeg[] = [];
+      for (const st of s?.stages ?? []) {
+        const type = st.type ? STAGE_MAP[st.type] : undefined;
+        if (!type || !st.startTime || !st.endTime) continue;
+        const sMs = Date.parse(st.startTime);
+        const eMs = Date.parse(st.endTime);
+        if (!Number.isFinite(sMs) || !Number.isFinite(eMs) || eMs <= sMs)
+          continue;
+        segs.push({ type, startMs: sMs, endMs: eMs });
+      }
+      segs.sort((a, b) => a.startMs - b.startMs);
+
       out.push({
         start,
         end,
@@ -434,6 +474,7 @@ export async function listSleep(
         remMin: stages.rem,
         lightMin: stages.light,
         awakeMin: stages.awake,
+        stages: segs,
       });
     }
     out.sort((a, b) => b.end.getTime() - a.end.getTime());

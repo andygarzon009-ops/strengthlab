@@ -1,8 +1,12 @@
 // Server-rendered "Last night" sleep card for the recovery page. Renders a
 // detailed view from the persisted sleepSummary: a quality verdict, the
-// bed→wake window, a hypnogram-style stage timeline, and a per-stage breakdown
-// scored against healthy reference ranges. No client interactivity needed, so
-// this stays a server component.
+// bed→wake window, a stacked-lane hypnogram timeline (when per-stage segments
+// are available), and a per-stage breakdown graded against healthy reference
+// ranges. No client interactivity needed, so this stays a server component.
+
+type SleepStageType = "deep" | "rem" | "light" | "awake";
+
+type StageSeg = { type: SleepStageType; startMs: number; endMs: number };
 
 export type SleepSummary = {
   asleepMin: number;
@@ -14,18 +18,25 @@ export type SleepSummary = {
   startUtc: string;
   endUtc: string;
   offsetSec: number;
+  stages?: StageSeg[]; // present on nights synced after the hypnogram change
 };
 
-const STAGE = {
-  deep: { label: "Deep", color: "#4338ca" },
-  rem: { label: "REM", color: "#7c3aed" },
-  light: { label: "Light", color: "#0ea5e9" },
-  awake: { label: "Awake", color: "#52525b" },
-} as const;
+const STAGE: Record<
+  SleepStageType,
+  { label: string; color: string; min: keyof SleepSummary }
+> = {
+  awake: { label: "Awake", color: "#ef5a6f", min: "awakeMin" },
+  rem: { label: "REM", color: "#38bdf8", min: "remMin" },
+  light: { label: "Light", color: "#3b82f6", min: "lightMin" },
+  deep: { label: "Deep", color: "#4338ca", min: "deepMin" },
+};
+
+// Top→bottom lane order, matching common sleep-app hypnograms.
+const LANES: SleepStageType[] = ["awake", "rem", "light", "deep"];
 
 // Healthy share of total sleep, per stage (rough adult references). Used to
-// tint each row and show a "typical X–Y%" hint — null means we don't grade it.
-const TARGET: Record<keyof typeof STAGE, [number, number] | null> = {
+// grade each stage with an in-range pill — null means we don't grade it.
+const TARGET: Record<SleepStageType, [number, number] | null> = {
   deep: [13, 23],
   rem: [20, 25],
   light: [45, 60],
@@ -47,11 +58,37 @@ function fmtClock(iso: string, offsetSec: number): string {
   return `${h}:${String(m).padStart(2, "0")}${ampm}`;
 }
 
+function fmtClockMs(ms: number, offsetSec: number): string {
+  const d = new Date(ms + offsetSec * 1000);
+  let h = d.getUTCHours();
+  const m = d.getUTCMinutes();
+  const ampm = h >= 12 ? "pm" : "am";
+  h = h % 12 || 12;
+  return `${h}:${String(m).padStart(2, "0")}${ampm}`;
+}
+
 function verdict(score: number): { label: string; color: string } {
   if (score >= 80) return { label: "Excellent", color: "#22c55e" };
   if (score >= 60) return { label: "Good", color: "#22c55e" };
   if (score >= 40) return { label: "Fair", color: "#f59e0b" };
   return { label: "Poor", color: "#ef4444" };
+}
+
+function rangePill(stage: SleepStageType, pctOfSleep: number) {
+  const target = TARGET[stage];
+  if (!target) return null;
+  const inRange = pctOfSleep >= target[0] && pctOfSleep <= target[1];
+  const below = pctOfSleep < target[0];
+  const color = inRange ? "#22c55e" : "#f59e0b";
+  const text = inRange ? "In range" : below ? "Low" : "High";
+  return (
+    <span
+      className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+      style={{ color, background: `${color}1f` }}
+    >
+      {text}
+    </span>
+  );
 }
 
 function MoonIcon() {
@@ -79,73 +116,184 @@ function SunIcon() {
   );
 }
 
-function StageRow({
-  stage,
-  min,
+/// Stacked-lane hypnogram: one horizontal track per stage, with each segment
+/// drawn at its true position across the night and a shared time axis below.
+function Hypnogram({
+  sleep,
   totalSleep,
 }: {
-  stage: keyof typeof STAGE;
-  min: number;
+  sleep: SleepSummary;
   totalSleep: number;
 }) {
-  const meta = STAGE[stage];
-  const pct = totalSleep > 0 ? (min / totalSleep) * 100 : 0;
-  const target = TARGET[stage];
-  const inRange = target ? pct >= target[0] && pct <= target[1] : null;
-  const below = target ? pct < target[0] : false;
-  const hintColor =
-    inRange === null
-      ? "var(--fg-dim)"
-      : inRange
-        ? "var(--accent)"
-        : below
-          ? "#f59e0b"
-          : "var(--fg-dim)";
+  const segs = sleep.stages ?? [];
+  // Span the night from bedtime to wake, widened to cover any stray segment.
+  const spanStart = Math.min(
+    Date.parse(sleep.startUtc),
+    ...segs.map((s) => s.startMs),
+  );
+  const spanEnd = Math.max(
+    Date.parse(sleep.endUtc),
+    ...segs.map((s) => s.endMs),
+  );
+  const span = Math.max(1, spanEnd - spanStart);
+  const midMs = spanStart + span / 2;
 
   return (
-    <div className="flex items-center gap-3">
-      <span
-        className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
-        style={{ background: meta.color }}
-      />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="text-[13px] font-medium">{meta.label}</span>
-          <span className="text-[13px] tabular-nums">
-            {fmtDur(min)}
-            <span
-              className="text-[11px] ml-1.5"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              {Math.round(pct)}%
-            </span>
+    <div className="mb-5">
+      <div className="space-y-3">
+        {LANES.map((lane) => {
+          const meta = STAGE[lane];
+          const min = sleep[meta.min] as number;
+          const pctOfSleep = totalSleep > 0 ? (min / totalSleep) * 100 : 0;
+          const laneSegs = segs.filter((s) => s.type === lane);
+          return (
+            <div key={lane}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[13px]">
+                  <span className="font-semibold">{meta.label}</span>
+                  <span
+                    className="ml-1.5 tabular-nums"
+                    style={{ color: "var(--fg-muted)" }}
+                  >
+                    {fmtDur(min)}
+                  </span>
+                </span>
+                {rangePill(lane, pctOfSleep)}
+              </div>
+              <div
+                className="relative w-full rounded-md overflow-hidden"
+                style={{ height: 22, background: "var(--bg-elevated)" }}
+              >
+                {laneSegs.map((s, i) => {
+                  const left = ((s.startMs - spanStart) / span) * 100;
+                  const width = ((s.endMs - s.startMs) / span) * 100;
+                  return (
+                    <div
+                      key={i}
+                      className="absolute top-0 bottom-0 rounded-md"
+                      style={{
+                        left: `${left}%`,
+                        width: `${width}%`,
+                        minWidth: 3,
+                        background: meta.color,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* shared time axis */}
+      <div className="flex justify-between mt-2">
+        {[spanStart, midMs, spanEnd].map((ms, i) => (
+          <span
+            key={i}
+            className="text-[10px] tabular-nums"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            {fmtClockMs(ms, sleep.offsetSec)}
           </span>
-        </div>
-        {/* per-stage track: filled by share of the night, target band shaded */}
-        <div
-          className="relative mt-1.5 h-1.5 rounded-full overflow-hidden"
-          style={{ background: "var(--bg-elevated)" }}
-        >
-          <div
-            className="absolute inset-y-0 left-0 rounded-full"
-            style={{
-              width: `${Math.min(100, pct)}%`,
-              background: meta.color,
-              opacity: 0.85,
-            }}
-          />
-        </div>
-        {target && (
-          <p className="text-[10px] mt-1" style={{ color: hintColor }}>
-            {inRange
-              ? "in healthy range"
-              : below
-                ? `below typical ${target[0]}–${target[1]}%`
-                : `above typical ${target[0]}–${target[1]}%`}
-          </p>
-        )}
+        ))}
       </div>
     </div>
+  );
+}
+
+/// Fallback for nights stored before segments were captured: a single stacked
+/// composition bar plus a graded per-stage breakdown.
+function CompositionFallback({
+  sleep,
+  totalSleep,
+}: {
+  sleep: SleepSummary;
+  totalSleep: number;
+}) {
+  const totalWithAwake = totalSleep + sleep.awakeMin || 1;
+  const order: SleepStageType[] = ["deep", "rem", "light", "awake"];
+  return (
+    <>
+      <div className="flex h-3 rounded-full overflow-hidden mb-5">
+        {order.map((k) => {
+          const min = sleep[STAGE[k].min] as number;
+          const pct = (min / totalWithAwake) * 100;
+          if (pct <= 0) return null;
+          return (
+            <div
+              key={k}
+              style={{ width: `${pct}%`, background: STAGE[k].color }}
+            />
+          );
+        })}
+      </div>
+      <div className="space-y-3.5">
+        {order.map((k) => {
+          const min = sleep[STAGE[k].min] as number;
+          const pct = totalSleep > 0 ? (min / totalSleep) * 100 : 0;
+          const target = TARGET[k];
+          const inRange = target
+            ? pct >= target[0] && pct <= target[1]
+            : null;
+          const below = target ? pct < target[0] : false;
+          const hintColor =
+            inRange === null
+              ? "var(--fg-dim)"
+              : inRange
+                ? "var(--accent)"
+                : below
+                  ? "#f59e0b"
+                  : "var(--fg-dim)";
+          return (
+            <div key={k} className="flex items-center gap-3">
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
+                style={{ background: STAGE[k].color }}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[13px] font-medium">
+                    {STAGE[k].label}
+                  </span>
+                  <span className="text-[13px] tabular-nums">
+                    {fmtDur(min)}
+                    <span
+                      className="text-[11px] ml-1.5"
+                      style={{ color: "var(--fg-dim)" }}
+                    >
+                      {Math.round(pct)}%
+                    </span>
+                  </span>
+                </div>
+                <div
+                  className="relative mt-1.5 h-1.5 rounded-full overflow-hidden"
+                  style={{ background: "var(--bg-elevated)" }}
+                >
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full"
+                    style={{
+                      width: `${Math.min(100, pct)}%`,
+                      background: STAGE[k].color,
+                      opacity: 0.85,
+                    }}
+                  />
+                </div>
+                {target && (
+                  <p className="text-[10px] mt-1" style={{ color: hintColor }}>
+                    {inRange
+                      ? "in healthy range"
+                      : below
+                        ? `below typical ${target[0]}–${target[1]}%`
+                        : `above typical ${target[0]}–${target[1]}%`}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -158,19 +306,12 @@ export default function SleepDetail({
 }) {
   const totalSleep =
     sleep.deepMin + sleep.remMin + sleep.lightMin || sleep.asleepMin || 1;
-  const totalWithAwake = totalSleep + sleep.awakeMin || 1;
   const efficiency =
     sleep.inBedMin > 0
       ? Math.round((sleep.asleepMin / sleep.inBedMin) * 100)
       : null;
   const v = verdict(qualityScore);
-
-  const segments: { key: keyof typeof STAGE; min: number }[] = [
-    { key: "deep", min: sleep.deepMin },
-    { key: "rem", min: sleep.remMin },
-    { key: "light", min: sleep.lightMin },
-    { key: "awake", min: sleep.awakeMin },
-  ];
+  const hasTimeline = (sleep.stages?.length ?? 0) > 0;
 
   return (
     <div className="mb-5">
@@ -246,31 +387,11 @@ export default function SleepDetail({
           </span>
         </div>
 
-        {/* hypnogram-style composition bar */}
-        <div className="flex h-3 rounded-full overflow-hidden mb-5">
-          {segments.map((s) => {
-            const pct = (s.min / totalWithAwake) * 100;
-            if (pct <= 0) return null;
-            return (
-              <div
-                key={s.key}
-                style={{ width: `${pct}%`, background: STAGE[s.key].color }}
-              />
-            );
-          })}
-        </div>
-
-        {/* per-stage breakdown */}
-        <div className="space-y-3.5">
-          {segments.map((s) => (
-            <StageRow
-              key={s.key}
-              stage={s.key}
-              min={s.min}
-              totalSleep={totalSleep}
-            />
-          ))}
-        </div>
+        {hasTimeline ? (
+          <Hypnogram sleep={sleep} totalSleep={totalSleep} />
+        ) : (
+          <CompositionFallback sleep={sleep} totalSleep={totalSleep} />
+        )}
       </div>
     </div>
   );

@@ -173,6 +173,12 @@ export async function refreshRecovery(userId: string): Promise<void> {
         startUtc: lastNight.start.toISOString(),
         endUtc: lastNight.end.toISOString(),
         offsetSec: lastNight.offsetSec,
+        // Per-stage segments for the hypnogram timeline (epoch ms).
+        stages: lastNight.stages.map((s) => ({
+          type: s.type,
+          startMs: s.startMs,
+          endMs: s.endMs,
+        })),
       };
       // Local calendar date of the wake — identifies which night this is.
       data.sleepNightKey = new Date(
