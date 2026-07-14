@@ -96,7 +96,7 @@ export default function Celebrations() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-6"
+      className="fixed inset-0 z-[80] flex items-center justify-center px-6"
       style={{
         background: "rgba(0,0,0,0.75)",
         backdropFilter: "blur(8px)",

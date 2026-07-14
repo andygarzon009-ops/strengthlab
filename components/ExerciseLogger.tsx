@@ -393,9 +393,20 @@ export default function ExerciseLogger({
 
   const removeSet = (exIdx: number, setIdx: number) => {
     const updated = [...exercises];
-    updated[exIdx].sets.splice(setIdx, 1);
-    updated[exIdx].sets
-      .filter((s) => s.type === updated[exIdx].sets[setIdx]?.type)
+    const sets = updated[exIdx].sets;
+    const removed = sets[setIdx];
+    if (!removed) return;
+    // A working/superset set owns the DROP_SET rows chained under it. Removing
+    // the parent must take those drops with it — otherwise they stop rendering
+    // (an orphaned drop with no parent is skipped) but are still written on save.
+    let deleteCount = 1;
+    if (removed.type === "WORKING" || removed.type === "SUPERSET") {
+      while (sets[setIdx + deleteCount]?.type === "DROP_SET") deleteCount++;
+    }
+    sets.splice(setIdx, deleteCount);
+    // Renumber the removed set's OWN type, not whatever row slid into its index.
+    sets
+      .filter((s) => s.type === removed.type)
       .forEach((s, i) => (s.setNumber = i + 1));
     setExercises(updated);
   };

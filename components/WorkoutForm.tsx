@@ -17,6 +17,7 @@ import {
   shapeForType,
   labelForType,
   detectSplit,
+  isTimedExercise,
   type WorkoutShape,
 } from "@/lib/exercises";
 import ExerciseLogger from "@/components/ExerciseLogger";
@@ -447,6 +448,10 @@ export default function WorkoutForm({
   const missingRepsCount =
     shape === "STRENGTH"
       ? exercises.reduce((count, ex) => {
+          // Timed holds (plank, hang) use the "reps" field as seconds and have
+          // no red-highlighted reps input, so gating save on missing reps here
+          // would strand the user with a disabled Save and nothing to fix.
+          if (isTimedExercise(ex.exerciseName)) return count;
           return (
             count +
             ex.sets.filter(

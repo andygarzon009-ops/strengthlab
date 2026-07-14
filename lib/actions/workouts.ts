@@ -352,6 +352,10 @@ export async function updateWorkout(
             exerciseId: ex.exerciseId,
             order: ex.order,
             notes: ex.notes,
+            // Must mirror createWorkout — updateWorkout delete-and-recreates
+            // the exercise rows, so omitting this dropped every superset link
+            // back to null on any edit-save.
+            supersetGroup: ex.supersetGroup ?? null,
             sets: {
               create: ex.sets.map((s) => ({
                 type: s.type,

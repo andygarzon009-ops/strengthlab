@@ -182,6 +182,10 @@ const QUICK_PROMPTS = [
 export default function AITrainer() {
   const pathname = usePathname();
   const router = useRouter();
+  // Always-current pathname for cleanups that run after a navigation has
+  // already changed `pathname` in a later render.
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
   const search = useSearchParams();
   const hideForChat =
     pathname === "/" &&
@@ -329,6 +333,7 @@ export default function AITrainer() {
   // page can't bleed in at the bottom when the mobile keyboard opens.
   useEffect(() => {
     if (!open) return;
+    const openedPath = pathname;
     const body = document.body;
     const html = document.documentElement;
     const scrollY = window.scrollY;
@@ -350,9 +355,15 @@ export default function AITrainer() {
       body.style.top = prev.bodyTop;
       body.style.width = prev.bodyWidth;
       html.style.overflow = prev.htmlOverflow;
-      window.scrollTo(0, scrollY);
+      // Only restore the saved offset if we're still on the page where the
+      // coach was opened. If the close was triggered by an in-modal navigation
+      // (e.g. the plan's "Do this workout" → /log), restoring would drop the
+      // new page at the old page's scroll position.
+      if (pathnameRef.current === openedPath) {
+        window.scrollTo(0, scrollY);
+      }
     };
-  }, [open]);
+  }, [open, pathname]);
 
   // Broadcast open/close so other floating UI (e.g. the timer FAB) can hide.
   useEffect(() => {
@@ -362,11 +373,24 @@ export default function AITrainer() {
   }, [open]);
 
   const clearChat = () => {
-    const now = Date.now();
-    setClearedAt(now);
+    // Base the clear boundary on the newest server-persisted message's
+    // createdAt, NOT the client clock. clearedAt is later compared against
+    // server createdAt values (visibleMessages, and the server's own
+    // `createdAt > sinceClear` context filter). On a clock-skewed phone,
+    // Date.now() would hide freshly-arrived replies (client ahead of server)
+    // or fail to hide the latest messages (client behind) — either reads as
+    // the chat clearing itself. Server ids are cuids; in-flight optimistic
+    // messages use numeric Date.now() ids, so skip those to stay server-basis.
+    const newestServer = messages.reduce((max, m) => {
+      if (/^\d+$/.test(m.id)) return max;
+      const t = new Date(m.createdAt).getTime();
+      return t > max ? t : max;
+    }, 0);
+    const boundary = newestServer > 0 ? newestServer : Date.now();
+    setClearedAt(boundary);
     setStreaming("");
     if (typeof window !== "undefined") {
-      localStorage.setItem("sl:coachClearedAt", String(now));
+      localStorage.setItem("sl:coachClearedAt", String(boundary));
     }
   };
 
@@ -492,13 +516,37 @@ export default function AITrainer() {
     };
   }, [open, loading, resyncFromServer]);
 
-  // Stop any pending reply-poll on unmount.
+  // Stop any pending reply-poll on unmount, and release the mic if a
+  // recording was still live (the stream is otherwise only stopped by an
+  // explicit stopVoice()).
   useEffect(
     () => () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (recorderRef.current && recorderRef.current.state !== "inactive") {
+        recorderRef.current.stop();
+      }
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
     },
     []
   );
+
+  // Release the mic when the coach closes (close button, or navigation, which
+  // flips open=false). Without this, closing mid-recording leaves the OS mic
+  // indicator on and leaks the getUserMedia stream indefinitely.
+  useEffect(() => {
+    if (open) return;
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+      recorderRef.current.stop();
+    }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setListening(false);
+  }, [open]);
 
   // Anchor-on-user-message scroll: when a new user message lands, pin it
   // to the top of the scroll area so the coach's reply reads from the top.
