@@ -138,12 +138,16 @@ async function synthesizePlanBlock(
 
 export async function GET() {
   const userId = await requireAuth();
-  const messages = await prisma.trainerMessage.findMany({
+  // Fetch the NEWEST 50, then flip back to ascending for display. Ordering
+  // asc + take here would pin every reload to the user's oldest 50 messages,
+  // so a heavy coach user's recent conversation vanishes after a reload —
+  // which reads as the chat clearing itself.
+  const recent = await prisma.trainerMessage.findMany({
     where: { userId },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
     take: 50,
   });
-  return Response.json(messages);
+  return Response.json(recent.reverse());
 }
 
 export async function POST(req: NextRequest) {

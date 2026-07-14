@@ -64,11 +64,17 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 backdrop-blur-xl"
+      className="fixed bottom-0 left-0 right-0 z-50"
       style={{
-        background: "rgba(10, 10, 10, 0.85)",
+        // Solid (not backdrop-blur) + own compositor layer. On iOS Safari a
+        // fixed bar with backdrop-filter visually detaches and drifts up with
+        // the content during momentum scroll, then snaps back. Over this
+        // near-black app the blur was imperceptible anyway.
+        background: "var(--bg)",
         borderTop: "1px solid var(--border)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        transform: "translateZ(0)",
+        willChange: "transform",
       }}
     >
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
