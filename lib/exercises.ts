@@ -657,6 +657,7 @@ export const WORKOUT_TYPES: {
   { value: "WEIGHT_TRAINING", label: "Weight training", shape: "STRENGTH" },
   { value: "CALISTHENICS", label: "Calisthenics", shape: "STRENGTH" },
   { value: "RUNNING", label: "Running", shape: "DISTANCE" },
+  { value: "HIKING", label: "Hiking", shape: "DISTANCE" },
   { value: "TREADMILL", label: "Treadmill", shape: "DISTANCE" },
   { value: "CYCLING", label: "Cycling", shape: "DISTANCE" },
   { value: "SPIN", label: "Indoor cycling", shape: "DISTANCE" },

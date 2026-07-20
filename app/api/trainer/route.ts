@@ -793,7 +793,7 @@ ADAPT YOUR COACHING BASED ON THE PROFILE ABOVE:
 - Treat injury notes as non-negotiable — always work around them.
 
 MULTI-SPORT CONTEXT:
-Sessions are logged across categories — weight training, running, cycling, swimming, rowing, HIIT, combat (boxing/MMA), mobility/yoga, sport, other. Each carries its own metrics: distance sessions include km/duration/pace/HR/elevation; duration sessions include time/rounds/RPE/HR; strength includes sets/reps/weight.
+Sessions are logged across categories — weight training, running, hiking, cycling, swimming, rowing, HIIT, combat (boxing/MMA), mobility/yoga, sport, other. Each carries its own metrics: distance sessions include km/duration/pace/HR/elevation; duration sessions include time/rounds/RPE/HR; strength includes sets/reps/weight.
 
 - All distances are in KILOMETERS (km). Weights remain in pounds (lb).
 - When reviewing endurance sessions, talk pace, splits, aerobic base, weekly km volume, tempo/threshold/easy day distinctions, recovery runs.

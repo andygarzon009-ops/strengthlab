@@ -1583,6 +1583,13 @@ function TypeIcon({ type }: { type: string }) {
           <path d="M15 13l1 4-3 5" />
         </svg>
       );
+    case "HIKING":
+      return (
+        <svg {...common}>
+          <path d="M3 20h18L14 7l-3 5-2-3-6 11z" />
+          <circle cx="17" cy="5" r="1.5" />
+        </svg>
+      );
     case "CYCLING":
       return (
         <svg {...common}>
