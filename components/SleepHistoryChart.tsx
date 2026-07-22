@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { type StageSeg } from "@/components/SleepHypnogram";
 
 export type SleepNightHistory = {
   date: string; // YYYY-MM-DD (local)
@@ -15,6 +16,10 @@ export type SleepNightHistory = {
   startUtc?: string;
   endUtc?: string;
   offsetSec?: number;
+  // Per-stage segments, kept only on the newest 7 nights (see lib/recovery) so
+  // the tappable 7-day trend can render a full hypnogram for a past night.
+  toSleepMin?: number;
+  stages?: StageSeg[];
 };
 
 // Average a set of local clock times (in minutes past midnight), tolerant of

@@ -67,6 +67,10 @@ export default function RecoveryDays({
         startUtc: night.startUtc,
         endUtc: night.endUtc,
         offsetSec: night.offsetSec,
+        toSleepMin: night.toSleepMin,
+        // Only the newest 7 nights carry segments; older ones fall back to the
+        // composition view inside <SleepDetail>.
+        stages: night.stages?.length ? night.stages : undefined,
       };
     }
   }

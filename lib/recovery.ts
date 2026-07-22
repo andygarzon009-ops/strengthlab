@@ -196,6 +196,8 @@ export async function refreshRecovery(userId: string): Promise<void> {
           startUtc: string;
           endUtc: string;
           offsetSec: number;
+          toSleepMin: number;
+          stages: { type: string; startMs: number; endMs: number }[];
         }
       >();
       for (const n of sleep) {
@@ -215,11 +217,24 @@ export async function refreshRecovery(userId: string): Promise<void> {
             startUtc: n.start.toISOString(),
             endUtc: n.end.toISOString(),
             offsetSec: n.offsetSec,
+            toSleepMin: n.toSleepMin,
+            stages: n.stages.map((s) => ({
+              type: s.type,
+              startMs: s.startMs,
+              endMs: s.endMs,
+            })),
           });
         }
       }
-      data.sleepHistory = [...hist.values()].sort((a, b) =>
+      const ordered = [...hist.values()].sort((a, b) =>
         a.date.localeCompare(b.date),
+      );
+      // Per-stage segments are big (hundreds of rows a night) and only the
+      // 7-day trend can surface them, so keep them on the newest 7 nights and
+      // strip them from the older ones the month chart reads.
+      const withStages = ordered.length - 7;
+      data.sleepHistory = ordered.map((n, i) =>
+        i < withStages ? { ...n, stages: [] } : n,
       );
     }
     if (recoveryScore !== null) {
