@@ -541,6 +541,8 @@ ${
       try {
         const f = fuel;
         if (!f) return "NUTRITION (intake): temporarily unavailable.";
+        if (f.state === "no-nutrition-scope")
+          return "NUTRITION (intake): the athlete's Google Health is connected but WITHOUT food access — they linked it before nutrition was supported. Don't assume any intake. If diet comes up, tell them to reconnect Google Health from their profile to turn the food log on.";
         if (f.state === "no-account" || f.state === "reconnect")
           return "NUTRITION (intake): not available — Google Health nutrition not connected. Don't assume calorie or protein intake; ask if it's relevant.";
         if (f.state === "no-profile")

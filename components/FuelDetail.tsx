@@ -19,6 +19,7 @@ export type FuelScoreData = {
 export type NutritionResponse = {
   connected: boolean;
   needsReconnect?: boolean;
+  needsNutritionScope?: boolean;
   needsProfile?: boolean;
   date?: string;
   loggedToday?: boolean;
@@ -70,6 +71,14 @@ function Bar({ pct, color }: { pct: number; color: string }) {
 /// be reused inside the Daily Glance accordion. Handles the no-profile /
 /// nothing-logged states too.
 export default function FuelDetail({ data }: { data: NutritionResponse }) {
+  if (data.needsNutritionScope) {
+    return (
+      <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
+        Google Health is connected, but not for food. Reconnect it from Health &amp;
+        Fitbit in your profile to let StrengthLab read your meals.
+      </p>
+    );
+  }
   if (data.needsProfile) {
     return (
       <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>

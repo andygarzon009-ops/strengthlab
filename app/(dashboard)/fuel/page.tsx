@@ -36,7 +36,11 @@ export default async function FuelPage() {
   );
 }
 
-function EmptyState({ state }: { state: "no-account" | "reconnect" | "no-profile" }) {
+function EmptyState({
+  state,
+}: {
+  state: "no-account" | "reconnect" | "no-nutrition-scope" | "no-profile";
+}) {
   const copy = {
     "no-account": {
       icon: "🍳",
@@ -49,6 +53,14 @@ function EmptyState({ state }: { state: "no-account" | "reconnect" | "no-profile
       title: "Reconnect Google Health",
       body: "Your connection expired, so no food is coming through. Reconnecting takes a few seconds and restores the last week of intake.",
       cta: { href: "/health", label: "Reconnect" },
+    },
+    // Connected before nutrition access existed. Google only grants the scope
+    // on re-consent, so no amount of logging will ever reach us until they do.
+    "no-nutrition-scope": {
+      icon: "🍽️",
+      title: "Grant access to your food log",
+      body: "Google Health is connected, but you linked it before StrengthLab could read nutrition. Disconnect and reconnect to grant food access — your meals will appear here straight after, including the past month.",
+      cta: { href: "/health", label: "Reconnect Google Health" },
     },
     "no-profile": {
       icon: "⚖️",

@@ -43,6 +43,7 @@ export type TodayIntake = {
 export type TodayFuel =
   | { state: "no-account" }
   | { state: "reconnect" }
+  | { state: "no-nutrition-scope" }
   | { state: "no-profile" }
   | {
       state: "ok";
@@ -73,6 +74,7 @@ export type FuelDay = {
 export type FuelWeek =
   | { state: "no-account" }
   | { state: "reconnect" }
+  | { state: "no-nutrition-scope" }
   | { state: "no-profile" }
   | {
       state: "ok";
@@ -132,6 +134,14 @@ export async function getFuelWeek(
 
   const auth = await checkHealthAuth(userId);
   if (auth.needsReconnect) return { state: "reconnect" };
+
+  // The nutrition scope was added after the first users connected, and Google
+  // only grants it on re-consent. Their tokens are perfectly valid, so the
+  // nutrition-log call just 403s and gets swallowed into an empty day — which
+  // renders as "nothing logged" and would never resolve itself, no matter how
+  // diligently they logged food. Detect it and say what's actually wrong.
+  if (!account.scope.includes("googlehealth.nutrition"))
+    return { state: "no-nutrition-scope" };
 
   if (user?.bodyweight == null || user.bodyweight <= 0)
     return { state: "no-profile" };

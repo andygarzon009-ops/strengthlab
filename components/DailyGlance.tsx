@@ -228,6 +228,8 @@ export default function DailyGlance({
       return { value: "·", color: "var(--fg-dim)", sub: "loading…" };
     if (!fuel || !fuel.connected || fuel.needsReconnect)
       return { value: "—", color: "var(--fg-dim)", sub: "not connected" };
+    if (fuel.needsNutritionScope)
+      return { value: "—", color: "var(--fg-dim)", sub: "reconnect health" };
     if (fuel.needsProfile) return { value: "—", color: "var(--fg-dim)", sub: "set profile" };
     if (!fuel.loggedToday) return { value: "—", color: "var(--fg-dim)", sub: "not logged" };
     // Mid-day there's no grade to give — show how much of the targets are in.

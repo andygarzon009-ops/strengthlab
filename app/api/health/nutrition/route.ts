@@ -17,6 +17,8 @@ export async function GET() {
       return Response.json({ connected: false });
     case "reconnect":
       return Response.json({ connected: true, needsReconnect: true });
+    case "no-nutrition-scope":
+      return Response.json({ connected: true, needsNutritionScope: true });
     case "no-profile":
       return Response.json({ connected: true, needsProfile: true });
     default:
