@@ -590,12 +590,30 @@ If diet/recovery comes up, nudge the athlete to log meals so you can coach intak
           .filter((m) => !byMeal.has(m))
           .map((m) => MEAL_LABEL[m]);
 
+        // Per-macro remainders have to be reconciled against the calorie
+        // remainder before they're handed over, because clamping each one at
+        // zero hides an overage. With fat 33g past target, the raw remainders
+        // asked for 1,268 kcal inside 906 kcal of room — and the coach spent
+        // it all on carbs, prescribing more carbohydrate than the whole day
+        // had left. Protein is served first (it's the target that matters
+        // most), then fat, and carbs take whatever calories actually remain.
         const left = (have: number, target: number) => Math.max(0, target - have);
         const leftKcal = left(i.kcal, f.targets.calorieTargetKcal);
-        const leftProtein = left(i.proteinG, f.targets.proteinTargetG);
-        const leftCarbs = left(i.carbsG, f.targets.carbTargetG);
-        const leftFat = left(i.fatG, f.targets.fatTargetG);
+        const leftProtein = Math.min(
+          left(i.proteinG, f.targets.proteinTargetG),
+          Math.floor(leftKcal / 4),
+        );
+        const leftFat = Math.min(
+          left(i.fatG, f.targets.fatTargetG),
+          Math.floor(Math.max(0, leftKcal - leftProtein * 4) / 9),
+        );
+        const leftCarbs = Math.floor(
+          Math.max(0, leftKcal - leftProtein * 4 - leftFat * 9) / 4,
+        );
         const fatOver = Math.max(0, i.fatG - f.targets.fatTargetG);
+        const carbOver = Math.max(0, i.carbsG - f.targets.carbTargetG);
+        const proteinShortfall =
+          left(i.proteinG, f.targets.proteinTargetG) - leftProtein;
 
         return `NUTRITION (today, from Google Health — a HARD INPUT alongside training):
 - Phase: ${f.targets.phaseLabel}. ${
@@ -616,8 +634,12 @@ If diet/recovery comes up, nudge the athlete to log meals so you can coach intak
         }
 ${
   f.partial
-    ? `- STILL TO EAT to hit today's targets: ${leftKcal} kcal, ${leftProtein}g protein, ${leftCarbs}g carbs, ${leftFat}g fat${fatOver > 0 ? ` (fat is already ${fatOver}g OVER target — keep what's left lean)` : ""}.
-- When they ask about intake, lead with what's LEFT and propose a concrete ${missingMeals.includes("Dinner") ? "dinner" : "next meal"} that closes it: name actual foods and rough portions adding up to roughly ${leftKcal} kcal and ${leftProtein}g protein. Prefer foods already in their diary below or their recent days — a meal they actually eat beats an optimal one they won't.`
+    ? `- ROOM LEFT TODAY: ${leftKcal} kcal. Inside that, ${leftProtein}g protein + ${leftCarbs}g carbs + ${leftFat}g fat. These three ALREADY ADD UP to the ${leftKcal} kcal — they are a single budget, not three independent goals. Never prescribe more than these amounts, and never quote a macro figure that on its own exceeds ${leftKcal} kcal.${
+        fatOver > 0 || carbOver > 0
+          ? ` Note ${[fatOver > 0 ? `fat is ${fatOver}g past target` : null, carbOver > 0 ? `carbs are ${carbOver}g past target` : null].filter(Boolean).join(" and ")}, so not every macro target can still be met today — say so plainly and prioritise protein with what's left.`
+          : ""
+      }${proteinShortfall > 0 ? ` There isn't enough calorie room left for the full protein target either — ${proteinShortfall}g of it is out of reach today without going over.` : ""}
+- When they ask about intake, lead with what's LEFT and propose a concrete ${missingMeals.includes("Dinner") ? "dinner" : "next meal"} that fits that budget: name actual foods and rough portions adding up to roughly ${leftKcal} kcal and ${leftProtein}g protein. Sanity-check your own suggestion by adding the macros back up before you send it. If the gap is too big for one sitting, split it across the meal plus a snack rather than prescribing an unreasonable single plate. Prefer foods already in their diary below or their recent days — a meal they actually eat beats an optimal one they won't.`
     : ""
 }
 - The target is built to move bodyweight ${f.targets.targetLbPerWeek === 0 ? "not at all (hold)" : `${f.targets.targetLbPerWeek > 0 ? "+" : "−"}${Math.abs(f.targets.targetLbPerWeek)} lb/week`}, off a maintenance that is ${f.targets.maintenanceSource === "observed" ? "MEASURED from their own logged intake vs actual scale trend — treat it as reliable" : "ESTIMATED from a BMR formula — treat it as approximate, and if they say the scale disagrees, believe the scale"}.

@@ -355,6 +355,7 @@ export default function FuelWeek({
             </div>
 
             <MacroReconcile intake={i} />
+            {inProgress && <RoomLeft intake={i} targets={t} />}
           </div>
 
           {/* ── the diary ── */}
@@ -712,6 +713,68 @@ function FoodLine({ food }: { food: FoodRow }) {
 /// Below this share of the day's calories, the total is too incomplete to state
 /// as a number — it's shown as a floor instead.
 const MICRO_COVERAGE_OK = 0.9;
+
+/// What's actually left to eat, as one budget rather than three. Each macro bar
+/// above shows its own distance to target, and those distances don't reconcile
+/// once a macro has gone over — the overage isn't deducted from the others, so
+/// reading them as a shopping list overshoots the calorie target. This states
+/// the reconciled version: protein first, then fat, then carbs take the rest.
+function RoomLeft({
+  intake,
+  targets,
+}: {
+  intake: FuelDayView["intake"];
+  targets: FuelDayView["targets"];
+}) {
+  const left = (have: number, target: number) => Math.max(0, target - have);
+  const kcal = left(intake.kcal, targets.calorieTargetKcal);
+  const protein = Math.min(
+    left(intake.proteinG, targets.proteinTargetG),
+    Math.floor(kcal / 4),
+  );
+  const fat = Math.min(
+    left(intake.fatG, targets.fatTargetG),
+    Math.floor(Math.max(0, kcal - protein * 4) / 9),
+  );
+  const carbs = Math.floor(Math.max(0, kcal - protein * 4 - fat * 9) / 4);
+  const over = [
+    intake.fatG > targets.fatTargetG ? "fat" : null,
+    intake.carbsG > targets.carbTargetG ? "carbs" : null,
+    intake.proteinG > targets.proteinTargetG ? "protein" : null,
+  ].filter(Boolean) as string[];
+
+  if (kcal <= 0) {
+    return (
+      <p className="text-[11px] mt-3 pt-2.5" style={{ borderTop: "1px solid var(--border)", color: "var(--fg-muted)" }}>
+        You&apos;ve reached today&apos;s calorie target.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 pt-2.5" style={{ borderTop: "1px solid var(--border)" }}>
+      <div className="flex items-baseline justify-between">
+        <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+          Room left today
+        </span>
+        <span className="text-[12px] tabular-nums">
+          <b>{kcal.toLocaleString()}</b>
+          <span style={{ color: "var(--fg-dim)" }}> kcal</span>
+          {" · "}
+          <b style={{ color: PROTEIN }}>{protein}P</b>{" "}
+          <b style={{ color: CARBS }}>{carbs}C</b>{" "}
+          <b style={{ color: FAT }}>{fat}F</b>
+        </span>
+      </div>
+      {over.length > 0 && (
+        <p className="text-[10px] mt-1 leading-snug" style={{ color: "var(--fg-dim)" }}>
+          Already over on {over.join(" and ")}, so the split above spends what&apos;s
+          left rather than chasing every macro target.
+        </p>
+      )}
+    </div>
+  );
+}
 
 /// Macros can't be coverage-checked the way micronutrients are: an omitted macro
 /// is usually a genuine zero (butter has no protein, a peach has no fat), so
