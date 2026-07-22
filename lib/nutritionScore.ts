@@ -103,10 +103,39 @@ function calorieFit(phase: TrainingPhase, intakeKcal: number, targetKcal: number
   }
 }
 
+/// Carb and fat targets, derived rather than prescribed. Protein is set first
+/// (it's the one target grounded in the literature), fat takes a percentage of
+/// total calories, and carbs absorb whatever is left — so the three always
+/// reconcile to the calorie target. Fat runs higher on a cut, where calories
+/// are scarce and dietary fat does more for satiety and hormones; a bulk skews
+/// the remainder toward carbs to fuel training volume.
+export function fatPctOfCalories(phase: TrainingPhase): number {
+  if (phase === "CUT") return 0.3;
+  if (phase === "BULK") return 0.22;
+  return 0.25; // maintain / recomp / peak
+}
+
+export function macroTargets(
+  phase: TrainingPhase,
+  calorieTargetKcal: number,
+  proteinTargetG: number,
+): { proteinG: number; carbsG: number; fatG: number } {
+  const fatKcal = calorieTargetKcal * fatPctOfCalories(phase);
+  const proteinKcal = proteinTargetG * 4;
+  const carbKcal = Math.max(0, calorieTargetKcal - proteinKcal - fatKcal);
+  return {
+    proteinG: proteinTargetG,
+    carbsG: Math.round(carbKcal / 4),
+    fatG: Math.round(fatKcal / 9),
+  };
+}
+
 export type FuelTargets = {
   phase: TrainingPhase;
   phaseLabel: string;
   proteinTargetG: number;
+  carbTargetG: number;
+  fatTargetG: number;
   calorieTargetKcal: number;
   maintenanceKcal: number;
   phaseSet: boolean; // false when the athlete hasn't picked a phase
@@ -123,11 +152,16 @@ export function fuelTargets(opts: {
   const phase = normalizePhase(opts.rawPhase);
   const bmr = estimateBmr(opts);
   const maint = maintenanceKcal(bmr, opts.activeEnergyKcal);
+  const calTarget = calorieTargetKcal(phase, maint);
+  const protein = proteinTargetG(phase, opts.bodyweightLb);
+  const macros = macroTargets(phase, calTarget, protein);
   return {
     phase,
     phaseLabel: PHASE_LABEL[phase],
-    proteinTargetG: proteinTargetG(phase, opts.bodyweightLb),
-    calorieTargetKcal: calorieTargetKcal(phase, maint),
+    proteinTargetG: protein,
+    carbTargetG: macros.carbsG,
+    fatTargetG: macros.fatG,
+    calorieTargetKcal: calTarget,
     maintenanceKcal: maint,
     phaseSet: (opts.rawPhase ?? "").trim() !== "",
   };

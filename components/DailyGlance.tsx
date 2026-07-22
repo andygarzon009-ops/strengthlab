@@ -311,6 +311,9 @@ export default function DailyGlance({
                 <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "var(--accent-dim)", color: "var(--accent)" }}>
                   🎯 {fuel.targets?.phaseLabel ?? "Nutrition"}
                 </span>
+                <Link href="/fuel" className="text-[12px]" style={{ color: "var(--accent)" }}>
+                  Details →
+                </Link>
               </div>
               <FuelDetail data={fuel} />
             </div>
