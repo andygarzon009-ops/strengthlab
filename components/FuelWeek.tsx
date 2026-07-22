@@ -39,6 +39,8 @@ export type FuelDayView = {
     entries: number;
     foods: FoodRow[];
     microCoverageKcal: { fiber: number; sugar: number; satFat: number; sodium: number };
+    macroUnreportedKcal: { protein: number; carbs: number; fat: number };
+    macroEnergyKcal: number;
   };
   activeEnergyKcal: number;
   targets: {
@@ -350,6 +352,8 @@ export default function FuelWeek({
                 <b>{Math.round((fKcal / macroKcal) * 100)}%</b> fat
               </span>
             </div>
+
+            <MacroReconcile intake={i} />
           </div>
 
           {/* ── the diary ── */}
@@ -691,6 +695,64 @@ function FoodLine({ food }: { food: FoodRow }) {
 /// Below this share of the day's calories, the total is too incomplete to state
 /// as a number — it's shown as a floor instead.
 const MICRO_COVERAGE_OK = 0.9;
+
+/// Macros can't be coverage-checked the way micronutrients are: an omitted macro
+/// is usually a genuine zero (butter has no protein, a peach has no fat), so
+/// counting foods that "didn't report carbs" would cry wolf constantly. Energy
+/// is the real check — 4·P + 4·C + 9·F has to add back up to the calories the
+/// same entries claim. It only gets flagged when the mismatch is big enough to
+/// mean something: Atwater factors are rounded, fiber and alcohol don't fit the
+/// 4/4/9 model, so a few percent of drift is normal and expected.
+const MACRO_GAP_PCT = 0.1;
+const MACRO_GAP_KCAL = 150;
+
+function MacroReconcile({ intake }: { intake: FuelDayView["intake"] }) {
+  const gap = intake.kcal - intake.macroEnergyKcal;
+  const pct = intake.kcal > 0 ? Math.abs(gap) / intake.kcal : 0;
+  const accounted =
+    intake.kcal > 0 ? Math.round((intake.macroEnergyKcal / intake.kcal) * 100) : 0;
+
+  if (pct <= MACRO_GAP_PCT || Math.abs(gap) < MACRO_GAP_KCAL) {
+    return (
+      <p className="text-[10px] mt-2.5 tabular-nums" style={{ color: "var(--fg-dim)" }}>
+        Protein, carbs and fat account for {accounted}% of today&apos;s calories — the
+        macros are complete.
+      </p>
+    );
+  }
+
+  // A real gap. Attribute it to whichever macro the most calories went
+  // unreported for, which is only meaningful now that we know one is missing.
+  const u = intake.macroUnreportedKcal;
+  const worst = (
+    [
+      ["carbs", u.carbs],
+      ["fat", u.fat],
+      ["protein", u.protein],
+    ] as const
+  ).reduce((a, b) => (b[1] > a[1] ? b : a));
+
+  return (
+    <p
+      className="text-[10px] mt-2.5 leading-snug"
+      style={{ color: gap > 0 ? "#f59e0b" : "var(--fg-dim)" }}
+    >
+      {gap > 0 ? (
+        <>
+          {gap.toLocaleString()} kcal of today&apos;s food isn&apos;t explained by the
+          macros logged ({accounted}% accounted for)
+          {worst[1] > 0 && <> — most likely missing {worst[0]}</>}. The macro totals
+          are lower than what you actually ate.
+        </>
+      ) : (
+        <>
+          The macros add up to {Math.abs(gap).toLocaleString()} kcal more than the
+          calories logged ({accounted}% of them), so one of the two is overstated.
+        </>
+      )}
+    </p>
+  );
+}
 
 function Micro({
   label,

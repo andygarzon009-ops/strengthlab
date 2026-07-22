@@ -36,6 +36,8 @@ export type TodayIntake = {
   byMeal: Record<string, number>;
   foods: FoodEntry[];
   microCoverageKcal: { fiber: number; sugar: number; satFat: number; sodium: number };
+  macroUnreportedKcal: { protein: number; carbs: number; fat: number };
+  macroEnergyKcal: number;
 };
 
 export type TodayFuel =
@@ -226,6 +228,9 @@ export async function getFuelWeek(
       foods: d?.foods ?? [],
       microCoverageKcal:
         d?.microCoverageKcal ?? { fiber: 0, sugar: 0, satFat: 0, sodium: 0 },
+      macroUnreportedKcal:
+        d?.macroUnreportedKcal ?? { protein: 0, carbs: 0, fat: 0 },
+      macroEnergyKcal: d?.macroEnergyKcal ?? 0,
     };
 
     return {

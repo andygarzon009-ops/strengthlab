@@ -609,6 +609,17 @@ export type DailyNutrition = {
   /// micronutrient. Divided by the day's kcal this gives coverage: when it's
   /// low the totals above are floors, not counts, and must be shown that way.
   microCoverageKcal: { fiber: number; sugar: number; satFat: number; sodium: number };
+  /// Calories from foods that reported no value for each macro. Unlike the
+  /// micronutrients this is NOT evidence of missing data on its own — most
+  /// omitted macros are genuinely ~zero (butter has no protein, a peach has no
+  /// fat). It's only used to attribute a gap that energy reconciliation has
+  /// already proven exists. See macroEnergyKcal.
+  macroUnreportedKcal: { protein: number; carbs: number; fat: number };
+  /// 4·protein + 4·carbs + 9·fat. Compared against `kcal`, this is the real
+  /// check on whether the macros describe the whole day: the two should agree
+  /// within a few percent, and a large shortfall means a macro genuinely went
+  /// unreported rather than being zero.
+  macroEnergyKcal: number;
 };
 
 type NutritionLogPoint = {
@@ -686,6 +697,8 @@ export function foldNutritionPoints(
     byMeal: {},
     foods: [],
     microCoverageKcal: { fiber: 0, sugar: 0, satFat: 0, sodium: 0 },
+    macroUnreportedKcal: { protein: 0, carbs: 0, fat: 0 },
+    macroEnergyKcal: 0,
   });
 
   // Named foods and roll-up points are accumulated into parallel maps so the
@@ -707,9 +720,12 @@ export function foldNutritionPoints(
       n.nutrients?.some((x) => x.nutrient === nutrient) ?? false;
     // Carbs/fat arrive either as a top-level total or inside nutrients[],
     // depending on which row the provider is writing.
-    const carbs = n.totalCarbohydrate?.grams ?? gramsOf("CARBOHYDRATES");
-    const fat = n.totalFat?.grams ?? gramsOf("FAT");
-    const protein = gramsOf("PROTEIN");
+    const carbsRaw = n.totalCarbohydrate?.grams ?? (reports("CARBOHYDRATES") ? gramsOf("CARBOHYDRATES") : undefined);
+    const fatRaw = n.totalFat?.grams ?? (reports("FAT") ? gramsOf("FAT") : undefined);
+    const proteinRaw = reports("PROTEIN") ? gramsOf("PROTEIN") : undefined;
+    const carbs = carbsRaw ?? 0;
+    const fat = fatRaw ?? 0;
+    const protein = proteinRaw ?? 0;
     const fiber = gramsOf("DIETARY_FIBER");
     const sugar = gramsOf("SUGAR");
     const satFat = gramsOf("SATURATED_FAT");
@@ -739,6 +755,10 @@ export function foldNutritionPoints(
       if (has.satFat) cur.microCoverageKcal.satFat += kcal;
       if (has.sodium) cur.microCoverageKcal.sodium += kcal;
 
+      if (proteinRaw === undefined) cur.macroUnreportedKcal.protein += kcal;
+      if (carbsRaw === undefined) cur.macroUnreportedKcal.carbs += kcal;
+      if (fatRaw === undefined) cur.macroUnreportedKcal.fat += kcal;
+
       cur.entries += 1;
       cur.foods.push({
         microsReported:
@@ -766,6 +786,7 @@ export function foldNutritionPoints(
   return [...named.values()]
     .map((d) => ({
       ...d,
+      macroEnergyKcal: Math.round(d.proteinG * 4 + d.carbsG * 4 + d.fatG * 9),
       proteinG: Math.round(d.proteinG),
       carbsG: Math.round(d.carbsG),
       fatG: Math.round(d.fatG),

@@ -543,7 +543,11 @@ If diet/recovery comes up, nudge the athlete to log meals so you can coach intak
 - Protein: ${i.proteinG}g / ${f.targets.proteinTargetG}g target.
 - Calories: ${i.kcal} / ${f.targets.calorieTargetKcal} target — net ${f.score.netKcal >= 0 ? "+" : "−"}${Math.abs(f.score.netKcal)} kcal vs ~${f.targets.maintenanceKcal} burned (${f.score.direction}).
 - The target is built to move bodyweight ${f.targets.targetLbPerWeek === 0 ? "not at all (hold)" : `${f.targets.targetLbPerWeek > 0 ? "+" : "−"}${Math.abs(f.targets.targetLbPerWeek)} lb/week`}, off a maintenance that is ${f.targets.maintenanceSource === "observed" ? "MEASURED from their own logged intake vs actual scale trend — treat it as reliable" : "ESTIMATED from a BMR formula — treat it as approximate, and if they say the scale disagrees, believe the scale"}.
-- Carbs ${i.carbsG}g, fat ${i.fatG}g.
+- Carbs ${i.carbsG}g, fat ${i.fatG}g.${
+          i.kcal > 0 && i.kcal - i.macroEnergyKcal > Math.max(150, i.kcal * 0.1)
+            ? ` NOTE: protein+carbs+fat only account for ${Math.round((i.macroEnergyKcal / i.kcal) * 100)}% of the logged calories, so at least one macro is under-reported today — say so rather than coaching off the gap.`
+            : ""
+        }
 - Fiber ${i.fiberG}g, sugar ${i.sugarG}g, saturated fat ${i.satFatG}g, sodium ${i.sodiumMg}mg${
           i.foods.some((x) => !x.microsReported)
             ? " — MINIMUMS ONLY. " +
