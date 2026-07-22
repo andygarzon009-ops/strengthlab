@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 export type SleepNightHistory = {
   date: string; // YYYY-MM-DD (local)
   asleepMin: number;
+  inBedMin?: number;
   deepMin: number;
   remMin: number;
   lightMin: number;

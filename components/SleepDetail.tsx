@@ -14,9 +14,11 @@ export type SleepSummary = {
   remMin: number;
   lightMin: number;
   awakeMin: number;
-  startUtc: string;
-  endUtc: string;
-  offsetSec: number;
+  // Present on last night and on history nights synced after the schema bump;
+  // guarded so an older history night still renders its composition.
+  startUtc?: string;
+  endUtc?: string;
+  offsetSec?: number;
   toSleepMin?: number; // minutes to fall asleep (added with the metrics section)
   stages?: StageSeg[]; // present on nights synced after the hypnogram change
 };
@@ -180,9 +182,11 @@ function CompositionFallback({
 export default function SleepDetail({
   sleep,
   qualityScore,
+  title = "Last night",
 }: {
   sleep: SleepSummary;
   qualityScore: number;
+  title?: string;
 }) {
   const totalSleep =
     sleep.deepMin + sleep.remMin + sleep.lightMin || sleep.asleepMin || 1;
@@ -192,6 +196,8 @@ export default function SleepDetail({
       : null;
   const v = verdict(qualityScore);
   const hasTimeline = (sleep.stages?.length ?? 0) > 0;
+  const hasWindow =
+    !!sleep.startUtc && !!sleep.endUtc && sleep.offsetSec != null;
 
   const segs = sleep.stages ?? [];
   const awakeCount = segs.filter((s) => s.type === "awake").length;
@@ -203,7 +209,7 @@ export default function SleepDetail({
 
   return (
     <div className="mb-5">
-      <p className="label mb-2">Last night</p>
+      <p className="label mb-2">{title}</p>
       <div
         className="rounded-2xl p-5"
         style={{
@@ -250,6 +256,7 @@ export default function SleepDetail({
         </div>
 
         {/* bed → wake window */}
+        {hasWindow && (
         <div className="flex items-center justify-between mb-4">
           <span
             className="flex items-center gap-1.5 text-[12px] tabular-nums"
@@ -258,7 +265,7 @@ export default function SleepDetail({
             <span style={{ color: STAGE.deep.color }}>
               <MoonIcon />
             </span>
-            {fmtClock(sleep.startUtc, sleep.offsetSec)}
+            {fmtClock(sleep.startUtc!, sleep.offsetSec!)}
           </span>
           <div
             className="flex-1 mx-3 border-t border-dashed"
@@ -271,16 +278,17 @@ export default function SleepDetail({
             <span style={{ color: "#f59e0b" }}>
               <SunIcon />
             </span>
-            {fmtClock(sleep.endUtc, sleep.offsetSec)}
+            {fmtClock(sleep.endUtc!, sleep.offsetSec!)}
           </span>
         </div>
+        )}
 
-        {hasTimeline ? (
+        {hasTimeline && hasWindow ? (
           <SleepHypnogram
             stages={sleep.stages!}
-            startUtc={sleep.startUtc}
-            endUtc={sleep.endUtc}
-            offsetSec={sleep.offsetSec}
+            startUtc={sleep.startUtc!}
+            endUtc={sleep.endUtc!}
+            offsetSec={sleep.offsetSec!}
             deepMin={sleep.deepMin}
             remMin={sleep.remMin}
             lightMin={sleep.lightMin}

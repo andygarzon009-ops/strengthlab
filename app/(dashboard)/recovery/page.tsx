@@ -7,6 +7,7 @@ import SleepDetail, { type SleepSummary } from "@/components/SleepDetail";
 import SleepHistoryChart, {
   type SleepNightHistory,
 } from "@/components/SleepHistoryChart";
+import RecoveryDays from "@/components/RecoveryDays";
 import Spo2Card from "@/components/Spo2Card";
 import HealthReconnectBanner from "@/components/HealthReconnectBanner";
 
@@ -49,6 +50,7 @@ export default async function RecoveryPage() {
       restingHr: true,
       restingBaselineHr: true,
       sleepSummary: true,
+      sleepNightKey: true,
       sleepHistory: true,
     },
   });
@@ -120,11 +122,19 @@ export default async function RecoveryPage() {
             )}
           </div>
 
-          {trendDays.length >= 2 && <RecoveryTrend days={trendDays} />}
-
-          {/* Sleep — the centerpiece */}
-          {sleep && sleepQuality != null && (
-            <SleepDetail sleep={sleep} qualityScore={sleepQuality} />
+          {/* Trend + sleep — tap a day to read that night */}
+          {trendDays.length >= 2 ? (
+            <RecoveryDays
+              days={trendDays}
+              history={sleepHistory}
+              lastNight={sleep}
+              lastNightKey={account?.sleepNightKey ?? null}
+            />
+          ) : (
+            sleep &&
+            sleepQuality != null && (
+              <SleepDetail sleep={sleep} qualityScore={sleepQuality} />
+            )
           )}
 
           {/* Overnight vitals */}
@@ -285,59 +295,6 @@ function VitalTile({
       <p className="text-[10px] mt-1" style={{ color: "var(--fg-dim)" }}>
         {note}
       </p>
-    </div>
-  );
-}
-
-function RecoveryTrend({
-  days,
-}: {
-  days: { dateKey: string; score: number; band: string | null }[];
-}) {
-  const DOW = ["S", "M", "T", "W", "T", "F", "S"];
-  return (
-    <div className="mb-5">
-      <p className="label mb-2">Last {days.length} days</p>
-      <div
-        className="rounded-xl px-4 py-4 flex items-end justify-between"
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-          height: 110,
-        }}
-      >
-        {days.map((d, i) => {
-          const c = d.band
-            ? (BAND_COLOR[d.band] ?? "var(--fg-dim)")
-            : "var(--fg-dim)";
-          const h = Math.max(6, (Math.min(100, d.score) / 100) * 64);
-          // dateKey is YYYY-MM-DD; parse as UTC noon to get a stable weekday.
-          const dow = DOW[new Date(`${d.dateKey}T12:00:00Z`).getUTCDay()];
-          const isLast = i === days.length - 1;
-          return (
-            <div key={d.dateKey} className="flex flex-col items-center gap-1.5">
-              <span
-                className="text-[10px] font-bold tabular-nums"
-                style={{ color: isLast ? c : "var(--fg-dim)" }}
-              >
-                {d.score}
-              </span>
-              <div
-                className="rounded-full"
-                style={{
-                  width: 8,
-                  height: h,
-                  background: c,
-                  opacity: isLast ? 1 : 0.65,
-                }}
-              />
-              <span className="text-[10px]" style={{ color: "var(--fg-dim)" }}>
-                {dow}
-              </span>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }

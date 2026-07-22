@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { sleepQualityScore } from "@/lib/sleepScore";
 import {
   listRestingHeartRate,
   listDailyHrv,
@@ -37,17 +38,7 @@ function rhrScore(deltaBpm: number): number {
 // Duration: 3h(180m)=0 … 8h(480m)+=100. Quality: 20% deep+REM=0 … 50%+=100.
 // Exported so the recovery page can label last night's sleep with the same
 // number the recovery blend uses, instead of re-deriving its own.
-export function sleepQualityScore(
-  asleepMin: number,
-  deepMin: number,
-  remMin: number,
-): number {
-  const duration = clamp(((asleepMin - 180) / (480 - 180)) * 100, 0, 100);
-  const denom = asleepMin || 1;
-  const deepRemPct = ((deepMin + remMin) / denom) * 100;
-  const quality = clamp(((deepRemPct - 20) / (50 - 20)) * 100, 0, 100);
-  return 0.65 * duration + 0.35 * quality;
-}
+export { sleepQualityScore };
 
 function sleepScore(night: SleepNight): number {
   return sleepQualityScore(night.asleepMin, night.deepMin, night.remMin);
