@@ -574,14 +574,52 @@ If diet/recovery comes up, nudge the athlete to log meals so you can coach intak
           )
           .join("\n");
 
+        // Which meals have actually come in. Without this the coach reads a
+        // half-eaten day as a failed one — "you're 900 kcal under target" is
+        // technically true at 3pm and useless, because dinner hasn't happened.
+        const MEAL_LABEL: Record<string, string> = {
+          BREAKFAST: "Breakfast",
+          LUNCH: "Lunch",
+          DINNER: "Dinner",
+          SNACK: "Snacks",
+        };
+        const loggedMeals = MEAL_ORDER.filter((m) => byMeal.has(m)).map(
+          (m) => MEAL_LABEL[m] ?? m.charAt(0) + m.slice(1).toLowerCase(),
+        );
+        const missingMeals = ["BREAKFAST", "LUNCH", "DINNER"]
+          .filter((m) => !byMeal.has(m))
+          .map((m) => MEAL_LABEL[m]);
+
+        const left = (have: number, target: number) => Math.max(0, target - have);
+        const leftKcal = left(i.kcal, f.targets.calorieTargetKcal);
+        const leftProtein = left(i.proteinG, f.targets.proteinTargetG);
+        const leftCarbs = left(i.carbsG, f.targets.carbTargetG);
+        const leftFat = left(i.fatG, f.targets.fatTargetG);
+        const fatOver = Math.max(0, i.fatG - f.targets.fatTargetG);
+
         return `NUTRITION (today, from Google Health — a HARD INPUT alongside training):
 - Phase: ${f.targets.phaseLabel}. ${
           f.partial
-            ? `The day is NOT over, so there is no grade yet — they are ${f.progress.pct}% of the way to today's targets (${f.progress.caloriePct}% of calories, ${f.progress.proteinPct}% of protein). Talk about what's left to eat, not about whether the day was good.`
+            ? `THE DAY IS NOT OVER. What follows is progress, not a verdict. Do NOT tell the athlete they are "under-eating", "in a deficit", or "short of surplus" — the meals they haven't eaten yet are not a failure. They are ${f.progress.pct}% of the way to today's targets.`
             : `Day complete — Fuel Score ${f.score.score}/100 (${f.score.rating}).`
         }
+- Meals logged so far: ${loggedMeals.length ? loggedMeals.join(", ") : "none"}.${
+          f.partial && missingMeals.length
+            ? ` NOT yet logged: ${missingMeals.join(", ")} — assume ${missingMeals.length === 1 ? "it is" : "they are"} still to come.`
+            : ""
+        }
 - Protein: ${i.proteinG}g / ${f.targets.proteinTargetG}g target.
-- Calories: ${i.kcal} / ${f.targets.calorieTargetKcal} target — net ${f.score.netKcal >= 0 ? "+" : "−"}${Math.abs(f.score.netKcal)} kcal vs ~${f.targets.maintenanceKcal} burned (${f.score.direction}).
+- Calories: ${i.kcal} / ${f.targets.calorieTargetKcal} target.${
+          f.partial
+            ? ""
+            : ` Net ${f.score.netKcal >= 0 ? "+" : "−"}${Math.abs(f.score.netKcal)} kcal vs ~${f.targets.maintenanceKcal} burned (${f.score.direction}).`
+        }
+${
+  f.partial
+    ? `- STILL TO EAT to hit today's targets: ${leftKcal} kcal, ${leftProtein}g protein, ${leftCarbs}g carbs, ${leftFat}g fat${fatOver > 0 ? ` (fat is already ${fatOver}g OVER target — keep what's left lean)` : ""}.
+- When they ask about intake, lead with what's LEFT and propose a concrete ${missingMeals.includes("Dinner") ? "dinner" : "next meal"} that closes it: name actual foods and rough portions adding up to roughly ${leftKcal} kcal and ${leftProtein}g protein. Prefer foods already in their diary below or their recent days — a meal they actually eat beats an optimal one they won't.`
+    : ""
+}
 - The target is built to move bodyweight ${f.targets.targetLbPerWeek === 0 ? "not at all (hold)" : `${f.targets.targetLbPerWeek > 0 ? "+" : "−"}${Math.abs(f.targets.targetLbPerWeek)} lb/week`}, off a maintenance that is ${f.targets.maintenanceSource === "observed" ? "MEASURED from their own logged intake vs actual scale trend — treat it as reliable" : "ESTIMATED from a BMR formula — treat it as approximate, and if they say the scale disagrees, believe the scale"}.
 - Carbs ${i.carbsG}g, fat ${i.fatG}g.${
           i.kcal > 0 && i.kcal - i.macroEnergyKcal > Math.max(150, i.kcal * 0.1)
@@ -599,7 +637,11 @@ If diet/recovery comes up, nudge the athlete to log meals so you can coach intak
             : "."
         }
 ${diary ? `- What they actually ate (${i.entries} item${i.entries === 1 ? "" : "s"}, logged in MyFitnessPal):\n${diary}` : "- Individual foods not available for today."}
-Use this: you can see the actual foods, so coach the FOOD, not just the macros — name what they ate, and make concrete swaps or additions ("your breakfast was 8g of protein short; another egg covers it"). Protein short of target undercuts muscle retention (cut) or growth (bulk). Calories drifting the wrong way for the phase (surplus on a cut, deficit on a bulk) is worth flagging. Intake only reflects what's been logged so far today, so don't assume under-eating if it's early.`;
+Use this: you can see the actual foods, so coach the FOOD, not just the macros — name what they ate, and make concrete swaps or additions ("your breakfast was 8g of protein short; another egg covers it").${
+          f.partial
+            ? ` Judge the day only once it is done. Mid-day the useful answer is what to eat next, sized to the gap above — never a warning about under-eating, and never a "deficit" framing when meals are still ahead of them.`
+            : ` Protein short of target undercuts muscle retention (cut) or growth (bulk), and calories drifting the wrong way for the phase (surplus on a cut, deficit on a bulk) is worth flagging.`
+        }`;
       } catch {
         return "NUTRITION (intake): temporarily unavailable.";
       }
