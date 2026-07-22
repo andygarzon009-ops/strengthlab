@@ -21,6 +21,7 @@ export type FoodRow = {
   satFatG: number;
   sodiumMg: number;
   servings: number;
+  microsReported: boolean;
 };
 
 export type FuelDayView = {
@@ -37,6 +38,7 @@ export type FuelDayView = {
     sodiumMg: number;
     entries: number;
     foods: FoodRow[];
+    microCoverageKcal: { fiber: number; sugar: number; satFat: number; sodium: number };
   };
   activeEnergyKcal: number;
   targets: {
@@ -431,10 +433,40 @@ export default function FuelWeek({
             className="rounded-2xl p-4 mb-5"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
           >
-            <Micro label="Fiber" value={i.fiberG} target={FIBER_TARGET_G} unit="g" color={FIBER} />
-            <Micro label="Sugar" value={i.sugarG} target={SUGAR_LIMIT_G} unit="g" color={CARBS} />
-            <Micro label="Sat. fat" value={i.satFatG} target={Math.round((t.calorieTargetKcal * 0.06) / 9)} unit="g" color={FAT} />
-            <Micro label="Sodium" value={i.sodiumMg} target={SODIUM_LIMIT_MG} unit="mg" color="var(--fg-muted)" last />
+            <Micro
+              label="Fiber"
+              value={i.fiberG}
+              target={FIBER_TARGET_G}
+              unit="g"
+              color={FIBER}
+              coverage={i.kcal > 0 ? i.microCoverageKcal.fiber / i.kcal : 1}
+            />
+            <Micro
+              label="Sugar"
+              value={i.sugarG}
+              target={SUGAR_LIMIT_G}
+              unit="g"
+              color={CARBS}
+              coverage={i.kcal > 0 ? i.microCoverageKcal.sugar / i.kcal : 1}
+            />
+            <Micro
+              label="Sat. fat"
+              value={i.satFatG}
+              target={Math.round((t.calorieTargetKcal * 0.06) / 9)}
+              unit="g"
+              color={FAT}
+              coverage={i.kcal > 0 ? i.microCoverageKcal.satFat / i.kcal : 1}
+            />
+            <Micro
+              label="Sodium"
+              value={i.sodiumMg}
+              target={SODIUM_LIMIT_MG}
+              unit="mg"
+              color="var(--fg-muted)"
+              coverage={i.kcal > 0 ? i.microCoverageKcal.sodium / i.kcal : 1}
+              last
+            />
+            <MicroCaveat foods={i.foods} dayKcal={i.kcal} />
           </div>
         </>
       )}
@@ -656,12 +688,17 @@ function FoodLine({ food }: { food: FoodRow }) {
   );
 }
 
+/// Below this share of the day's calories, the total is too incomplete to state
+/// as a number — it's shown as a floor instead.
+const MICRO_COVERAGE_OK = 0.9;
+
 function Micro({
   label,
   value,
   target,
   unit,
   color,
+  coverage,
   last,
 }: {
   label: string;
@@ -669,8 +706,10 @@ function Micro({
   target: number;
   unit: string;
   color: string;
+  coverage: number; // 0..1 share of the day's calories that reported this
   last?: boolean;
 }) {
+  const partial = coverage < MICRO_COVERAGE_OK;
   const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
   return (
     <div className={`flex items-center gap-2.5 ${last ? "" : "mb-2.5"}`}>
@@ -683,16 +722,59 @@ function Micro({
       >
         <span
           className="block h-full rounded-full"
-          style={{ width: `${pct}%`, background: color }}
+          style={{
+            width: `${pct}%`,
+            // A partial total gets a faded, striped bar so it can't be read as
+            // a confident measurement.
+            background: partial
+              ? `repeating-linear-gradient(90deg, ${color} 0 4px, transparent 4px 7px)`
+              : color,
+            opacity: partial ? 0.6 : 1,
+          }}
         />
       </span>
       <span
-        className="text-[11px] tabular-nums w-[86px] text-right shrink-0"
+        className="text-[11px] tabular-nums w-[92px] text-right shrink-0"
         style={{ color: "var(--fg-muted)" }}
       >
-        {Math.round(value).toLocaleString()} / {target.toLocaleString()}
+        {Math.round(value).toLocaleString()}
+        {partial && <span style={{ color: "var(--fg-dim)" }}>+</span>} /{" "}
+        {target.toLocaleString()}
         {unit}
       </span>
     </div>
+  );
+}
+
+/// Names the reason the numbers above are floors. Without this the card reads
+/// as "you ate 4g of fiber today" when the truth is "the one item that was
+/// two-thirds of your calories didn't say."
+function MicroCaveat({ foods, dayKcal }: { foods: FoodRow[]; dayKcal: number }) {
+  const silent = foods.filter((f) => !f.microsReported && f.kcal > 0);
+  if (silent.length === 0 || dayKcal <= 0) return null;
+  const silentKcal = silent.reduce((s, f) => s + f.kcal, 0);
+  const share = Math.round((silentKcal / dayKcal) * 100);
+  if (share < 10) return null;
+  const biggest = silent.reduce((a, b) => (b.kcal > a.kcal ? b : a));
+
+  return (
+    <p
+      className="text-[10px] mt-3 pt-2.5 leading-snug"
+      style={{ borderTop: "1px solid var(--border)", color: "var(--fg-dim)" }}
+    >
+      {silent.length === 1 ? (
+        <>
+          <span style={{ color: "var(--fg-muted)" }}>{biggest.name}</span> didn&apos;t
+          report these
+        </>
+      ) : (
+        <>
+          {silent.length} foods didn&apos;t report these, including{" "}
+          <span style={{ color: "var(--fg-muted)" }}>{biggest.name}</span>
+        </>
+      )}{" "}
+      — {share}% of today&apos;s calories. Treat the numbers above as minimums,
+      not full counts.
+    </p>
   );
 }

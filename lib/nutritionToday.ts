@@ -35,6 +35,7 @@ export type TodayIntake = {
   entries: number;
   byMeal: Record<string, number>;
   foods: FoodEntry[];
+  microCoverageKcal: { fiber: number; sugar: number; satFat: number; sodium: number };
 };
 
 export type TodayFuel =
@@ -223,6 +224,8 @@ export async function getFuelWeek(
       entries: d?.entries ?? 0,
       byMeal: d?.byMeal ?? {},
       foods: d?.foods ?? [],
+      microCoverageKcal:
+        d?.microCoverageKcal ?? { fiber: 0, sugar: 0, satFat: 0, sodium: 0 },
     };
 
     return {

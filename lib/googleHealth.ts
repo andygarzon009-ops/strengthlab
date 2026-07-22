@@ -586,6 +586,10 @@ export type FoodEntry = {
   satFatG: number;
   sodiumMg: number;
   servings: number; // serving.amount (1 when unreported)
+  /// False when the entry carried none of the micronutrients — common for
+  /// restaurant items, where MyFitnessPal often has only the macros. Its zeros
+  /// mean "not reported", not "contains none".
+  microsReported: boolean;
 };
 
 export type DailyNutrition = {
@@ -601,6 +605,10 @@ export type DailyNutrition = {
   entries: number; // number of foods logged
   byMeal: Record<string, number>; // mealType (BREAKFAST/LUNCH/DINNER/SNACK/…) → kcal
   foods: FoodEntry[]; // every food logged that day, in diary order
+  /// Calories contributed by the foods that actually reported each
+  /// micronutrient. Divided by the day's kcal this gives coverage: when it's
+  /// low the totals above are floors, not counts, and must be shown that way.
+  microCoverageKcal: { fiber: number; sugar: number; satFat: number; sodium: number };
 };
 
 type NutritionLogPoint = {
@@ -677,6 +685,7 @@ export function foldNutritionPoints(
     entries: 0,
     byMeal: {},
     foods: [],
+    microCoverageKcal: { fiber: 0, sugar: 0, satFat: 0, sodium: 0 },
   });
 
   // Named foods and roll-up points are accumulated into parallel maps so the
@@ -692,6 +701,10 @@ export function foldNutritionPoints(
     const kcal = Math.max(0, Math.round(n.energy?.kcal ?? 0));
     const gramsOf = (nutrient: string) =>
       n.nutrients?.find((x) => x.nutrient === nutrient)?.quantity?.grams ?? 0;
+    // Present-with-a-value is what counts as reported; an absent nutrient is
+    // unknown, not zero.
+    const reports = (nutrient: string) =>
+      n.nutrients?.some((x) => x.nutrient === nutrient) ?? false;
     // Carbs/fat arrive either as a top-level total or inside nutrients[],
     // depending on which row the provider is writing.
     const carbs = n.totalCarbohydrate?.grams ?? gramsOf("CARBOHYDRATES");
@@ -715,8 +728,21 @@ export function foldNutritionPoints(
     cur.sodiumMg += sodiumMg;
     cur.byMeal[meal] = (cur.byMeal[meal] ?? 0) + kcal;
     if (!isRoll) {
+      const has = {
+        fiber: reports("DIETARY_FIBER"),
+        sugar: reports("SUGAR"),
+        satFat: reports("SATURATED_FAT"),
+        sodium: reports("SODIUM"),
+      };
+      if (has.fiber) cur.microCoverageKcal.fiber += kcal;
+      if (has.sugar) cur.microCoverageKcal.sugar += kcal;
+      if (has.satFat) cur.microCoverageKcal.satFat += kcal;
+      if (has.sodium) cur.microCoverageKcal.sodium += kcal;
+
       cur.entries += 1;
       cur.foods.push({
+        microsReported:
+          has.fiber || has.sugar || has.satFat || has.sodium,
         name: n.foodDisplayName!,
         meal,
         kcal,

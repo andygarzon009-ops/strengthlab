@@ -543,7 +543,17 @@ If diet/recovery comes up, nudge the athlete to log meals so you can coach intak
 - Protein: ${i.proteinG}g / ${f.targets.proteinTargetG}g target.
 - Calories: ${i.kcal} / ${f.targets.calorieTargetKcal} target — net ${f.score.netKcal >= 0 ? "+" : "−"}${Math.abs(f.score.netKcal)} kcal vs ~${f.targets.maintenanceKcal} burned (${f.score.direction}).
 - The target is built to move bodyweight ${f.targets.targetLbPerWeek === 0 ? "not at all (hold)" : `${f.targets.targetLbPerWeek > 0 ? "+" : "−"}${Math.abs(f.targets.targetLbPerWeek)} lb/week`}, off a maintenance that is ${f.targets.maintenanceSource === "observed" ? "MEASURED from their own logged intake vs actual scale trend — treat it as reliable" : "ESTIMATED from a BMR formula — treat it as approximate, and if they say the scale disagrees, believe the scale"}.
-- Carbs ${i.carbsG}g, fat ${i.fatG}g, fiber ${i.fiberG}g, sugar ${i.sugarG}g, saturated fat ${i.satFatG}g, sodium ${i.sodiumMg}mg.
+- Carbs ${i.carbsG}g, fat ${i.fatG}g.
+- Fiber ${i.fiberG}g, sugar ${i.sugarG}g, saturated fat ${i.satFatG}g, sodium ${i.sodiumMg}mg${
+          i.foods.some((x) => !x.microsReported)
+            ? " — MINIMUMS ONLY. " +
+              i.foods
+                .filter((x) => !x.microsReported)
+                .map((x) => x.name)
+                .join(", ") +
+              " reported no micronutrients, so the real figures are higher by an unknown amount. Never tell the athlete they are low on fiber or sodium on the strength of these."
+            : "."
+        }
 ${diary ? `- What they actually ate (${i.entries} item${i.entries === 1 ? "" : "s"}, logged in MyFitnessPal):\n${diary}` : "- Individual foods not available for today."}
 Use this: you can see the actual foods, so coach the FOOD, not just the macros — name what they ate, and make concrete swaps or additions ("your breakfast was 8g of protein short; another egg covers it"). Protein short of target undercuts muscle retention (cut) or growth (bulk). Calories drifting the wrong way for the phase (surplus on a cut, deficit on a bulk) is worth flagging. Intake only reflects what's been logged so far today, so don't assume under-eating if it's early.`;
       } catch {
