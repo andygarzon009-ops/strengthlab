@@ -9,11 +9,12 @@ import {
 import {
   fuelTargets,
   fuelScore,
-  fuelScoreSoFar,
-  eatingDayProgress,
+  fuelProgress,
+  dayIsOver,
   observedMaintenance,
   type FuelTargets,
   type FuelScore,
+  type FuelProgress,
   type MaintenanceCalibration,
 } from "@/lib/nutritionScore";
 
@@ -49,19 +50,21 @@ export type TodayFuel =
       activeEnergyKcal: number;
       targets: FuelTargets;
       score: FuelScore;
+      progress: FuelProgress;
     };
 
 /// One scored day of fuel — the same shape for today and for any day behind it.
 export type FuelDay = {
   date: string; // local YYYY-MM-DD
   logged: boolean;
-  /// True for the day still in progress — its score is a pace score (graded
-  /// against the share of targets due by now), not a finished-day grade.
+  /// True while the day is still in progress. `score` is only meaningful once
+  /// this is false — until then the day is described by `progress`.
   partial: boolean;
   intake: TodayIntake;
   activeEnergyKcal: number;
   targets: FuelTargets;
   score: FuelScore;
+  progress: FuelProgress;
 };
 
 export type FuelWeek =
@@ -96,6 +99,7 @@ export async function getTodayFuel(userId: string): Promise<TodayFuel> {
     activeEnergyKcal: today.activeEnergyKcal,
     targets: today.targets,
     score: today.score,
+    progress: today.progress,
   };
 }
 
@@ -167,7 +171,7 @@ export async function getFuelWeek(
     hour12: false,
   }).format(now);
   const [nowH, nowM] = hm.split(":").map(Number);
-  const progress = eatingDayProgress(nowH, nowM);
+  const todayIsOver = dayIsOver(nowH, nowM);
 
   const [days, activeByDay, weights] = await Promise.all([
     getDailyNutrition(userId, sinceCivil),
@@ -221,26 +225,23 @@ export async function getFuelWeek(
       foods: d?.foods ?? [],
     };
 
-    const partial = date === today && progress < 1;
     return {
       date,
       logged: intake.entries > 0,
-      partial,
+      partial: date === today && !todayIsOver,
       intake,
       activeEnergyKcal,
       targets,
-      score: partial
-        ? fuelScoreSoFar({
-            targets,
-            intakeKcal: intake.kcal,
-            proteinG: intake.proteinG,
-            progress,
-          })
-        : fuelScore({
-            targets,
-            intakeKcal: intake.kcal,
-            proteinG: intake.proteinG,
-          }),
+      score: fuelScore({
+        targets,
+        intakeKcal: intake.kcal,
+        proteinG: intake.proteinG,
+      }),
+      progress: fuelProgress({
+        targets,
+        intakeKcal: intake.kcal,
+        proteinG: intake.proteinG,
+      }),
     };
   });
 

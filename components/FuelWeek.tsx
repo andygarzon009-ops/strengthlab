@@ -50,6 +50,7 @@ export type FuelDayView = {
     targetLbPerWeek: number;
   };
   score: { score: number; rating: string; netKcal: number; direction: string };
+  progress: { pct: number; proteinPct: number; caloriePct: number };
   partial: boolean;
 };
 
@@ -57,6 +58,9 @@ const PROTEIN = "#a78bfa";
 const CARBS = "#38bdf8";
 const FAT = "#fbbf24";
 const FIBER = "#2dd4bf";
+// Progress isn't a verdict, so it gets its own neutral hue rather than borrowing
+// the red→green rating scale. The grade takes over once the day closes.
+const PROGRESS = "#38bdf8";
 
 const RATING_COLOR: Record<string, string> = {
   "on track": "#22c55e",
@@ -116,7 +120,9 @@ export default function FuelWeek({
   const [selected, setSelected] = useState(today);
   const day = days.find((d) => d.date === selected) ?? days[days.length - 1];
   const isToday = day.date === today;
-  const onPace = day.partial;
+  // While the day is open we report progress toward the targets; only once it's
+  // closed is there a result to grade.
+  const inProgress = day.partial;
 
   const i = day.intake;
   const t = day.targets;
@@ -190,9 +196,17 @@ export default function FuelWeek({
                 </div>
                 <span
                   className="text-[10px] font-bold tabular-nums mt-1.5"
-                  style={{ color: d.logged ? (on ? c : "var(--fg-dim)") : "var(--fg-dim)" }}
+                  style={{
+                    color: !d.logged
+                      ? "var(--fg-dim)"
+                      : on
+                        ? d.partial
+                          ? PROGRESS
+                          : c
+                        : "var(--fg-dim)",
+                  }}
                 >
-                  {d.logged ? d.score.score : "—"}
+                  {!d.logged ? "—" : d.partial ? `${d.progress.pct}%` : d.score.score}
                 </span>
                 <span
                   className="text-[10px]"
@@ -259,7 +273,11 @@ export default function FuelWeek({
             className="rounded-2xl p-5 mb-4 flex items-center gap-5"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
           >
-            <Ring score={day.score.score} color={scoreColor} partial={onPace} />
+            <Ring
+              value={inProgress ? day.progress.pct : day.score.score}
+              color={inProgress ? PROGRESS : scoreColor}
+              inProgress={inProgress}
+            />
             <div className="min-w-0">
               <p className="text-[22px] font-bold tabular-nums leading-none">
                 {i.kcal.toLocaleString()}
@@ -268,9 +286,13 @@ export default function FuelWeek({
                   / {t.calorieTargetKcal.toLocaleString()} kcal
                 </span>
               </p>
-              <p className="text-[12px] mt-1.5" style={{ color: scoreColor }}>
-                {onPace ? `${day.score.rating} for this time of day` : day.score.rating} ·{" "}
-                {day.score.direction}
+              <p
+                className="text-[12px] mt-1.5"
+                style={{ color: inProgress ? "var(--fg-muted)" : scoreColor }}
+              >
+                {inProgress
+                  ? `${day.progress.caloriePct}% of calories · ${day.progress.proteinPct}% of protein`
+                  : `${day.score.rating} · ${day.score.direction}`}
               </p>
               <p className="text-[11px] mt-1 tabular-nums" style={{ color: "var(--fg-dim)" }}>
                 {Math.max(0, t.calorieTargetKcal - i.kcal).toLocaleString()} kcal left ·
@@ -501,17 +523,17 @@ function GoalCard({
 }
 
 function Ring({
-  score,
+  value,
   color,
-  partial,
+  inProgress,
 }: {
-  score: number;
+  value: number;
   color: string;
-  partial: boolean;
+  inProgress: boolean;
 }) {
   const r = 32;
   const c = 2 * Math.PI * r;
-  const filled = (Math.max(0, Math.min(100, score)) / 100) * c;
+  const filled = (Math.max(0, Math.min(100, value)) / 100) * c;
   return (
     <div className="relative shrink-0" style={{ width: 80, height: 80 }}>
       <svg width="80" height="80" viewBox="0 0 80 80">
@@ -529,9 +551,12 @@ function Ring({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[22px] font-bold leading-none tabular-nums">{score}</span>
+        <span className="text-[22px] font-bold leading-none tabular-nums">
+          {value}
+          {inProgress && <span className="text-[13px]">%</span>}
+        </span>
         <span className="text-[9px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
-          {partial ? "on pace" : "/ 100"}
+          {inProgress ? "logged" : "/ 100"}
         </span>
       </div>
     </div>
@@ -595,16 +620,9 @@ function MacroHead() {
     >
       <span />
       <span className="text-right">kcal</span>
-      {/* colour alone identifies the macro — the legend above the week strip
-          is the key, so the columns don't need letters repeating it */}
-      {[PROTEIN, CARBS, FAT].map((c) => (
-        <span key={c} className="flex justify-end">
-          <span
-            className="inline-block w-2 h-2 rounded-sm"
-            style={{ background: c }}
-          />
-        </span>
-      ))}
+      <span className="text-right font-bold" style={{ color: PROTEIN }}>P</span>
+      <span className="text-right font-bold" style={{ color: CARBS }}>C</span>
+      <span className="text-right font-bold" style={{ color: FAT }}>F</span>
     </div>
   );
 }

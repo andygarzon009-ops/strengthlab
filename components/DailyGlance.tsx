@@ -230,6 +230,14 @@ export default function DailyGlance({
       return { value: "—", color: "var(--fg-dim)", sub: "not connected" };
     if (fuel.needsProfile) return { value: "—", color: "var(--fg-dim)", sub: "set profile" };
     if (!fuel.loggedToday) return { value: "—", color: "var(--fg-dim)", sub: "not logged" };
+    // Mid-day there's no grade to give — show how much of the targets are in.
+    // The score only appears once the eating day has closed.
+    if (fuel.partial && fuel.progress)
+      return {
+        value: `${fuel.progress.pct}%`,
+        color: "#38bdf8",
+        sub: "logged so far",
+      };
     const s = fuel.score!;
     return { value: String(s.score), color: scoreColor(s.score), sub: s.rating };
   })();

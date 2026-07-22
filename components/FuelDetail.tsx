@@ -33,6 +33,10 @@ export type NutritionResponse = {
   activeEnergyKcal?: number;
   targets?: FuelTargetsData;
   score?: FuelScoreData;
+  /// True while today is still in progress — there's no grade yet, only
+  /// progress toward the targets.
+  partial?: boolean;
+  progress?: { pct: number; proteinPct: number; caloriePct: number };
 };
 
 export const RATING_COLOR: Record<FuelScoreData["rating"], string> = {
@@ -93,8 +97,13 @@ export default function FuelDetail({ data }: { data: NutritionResponse }) {
 
   return (
     <>
-      <p className="text-[13px] mb-3" style={{ color }}>
-        {s.direction}
+      <p
+        className="text-[13px] mb-3"
+        style={{ color: data.partial ? "var(--fg-muted)" : color }}
+      >
+        {data.partial && data.progress
+          ? `${data.progress.pct}% of today's targets logged`
+          : s.direction}
       </p>
       <div className="space-y-3">
         <div>

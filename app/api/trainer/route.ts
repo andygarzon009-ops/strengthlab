@@ -535,7 +535,11 @@ If diet/recovery comes up, nudge the athlete to log meals so you can coach intak
           .join("\n");
 
         return `NUTRITION (today, from Google Health — a HARD INPUT alongside training):
-- Phase: ${f.targets.phaseLabel}. Fuel Score ${f.score.score}/100 (${f.score.rating})${f.partial ? " — graded ON PACE, i.e. against the share of today's targets due by now, not the full day" : ""}.
+- Phase: ${f.targets.phaseLabel}. ${
+          f.partial
+            ? `The day is NOT over, so there is no grade yet — they are ${f.progress.pct}% of the way to today's targets (${f.progress.caloriePct}% of calories, ${f.progress.proteinPct}% of protein). Talk about what's left to eat, not about whether the day was good.`
+            : `Day complete — Fuel Score ${f.score.score}/100 (${f.score.rating}).`
+        }
 - Protein: ${i.proteinG}g / ${f.targets.proteinTargetG}g target.
 - Calories: ${i.kcal} / ${f.targets.calorieTargetKcal} target — net ${f.score.netKcal >= 0 ? "+" : "−"}${Math.abs(f.score.netKcal)} kcal vs ~${f.targets.maintenanceKcal} burned (${f.score.direction}).
 - The target is built to move bodyweight ${f.targets.targetLbPerWeek === 0 ? "not at all (hold)" : `${f.targets.targetLbPerWeek > 0 ? "+" : "−"}${Math.abs(f.targets.targetLbPerWeek)} lb/week`}, off a maintenance that is ${f.targets.maintenanceSource === "observed" ? "MEASURED from their own logged intake vs actual scale trend — treat it as reliable" : "ESTIMATED from a BMR formula — treat it as approximate, and if they say the scale disagrees, believe the scale"}.

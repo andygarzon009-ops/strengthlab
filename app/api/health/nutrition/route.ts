@@ -24,6 +24,8 @@ export async function GET() {
         connected: true,
         date: fuel.date,
         loggedToday: fuel.loggedToday,
+        partial: fuel.partial,
+        progress: fuel.progress,
         intake: fuel.intake,
         activeEnergyKcal: fuel.activeEnergyKcal,
         targets: fuel.targets,
