@@ -571,14 +571,36 @@ function civilDayKey(d?: {
   return `${d.year}-${p(d.month)}-${p(d.day)}`;
 }
 
+/// A single logged food — one row of the athlete's MyFitnessPal diary, as it
+/// reaches us through Google Health. This is what the Fuel page lists and what
+/// the AI coach reads to talk about actual food instead of bare macros.
+export type FoodEntry = {
+  name: string; // foodDisplayName, e.g. "Sourdough Toast"
+  meal: string; // BREAKFAST | LUNCH | DINNER | SNACK | ANYTIME | OTHER
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  fiberG: number;
+  sugarG: number;
+  satFatG: number;
+  sodiumMg: number;
+  servings: number; // serving.amount (1 when unreported)
+};
+
 export type DailyNutrition = {
   date: string; // local civil calendar day, YYYY-MM-DD
   kcal: number;
   proteinG: number;
   carbsG: number;
   fatG: number;
-  entries: number;
+  fiberG: number;
+  sugarG: number;
+  satFatG: number;
+  sodiumMg: number;
+  entries: number; // number of foods logged
   byMeal: Record<string, number>; // mealType (BREAKFAST/LUNCH/DINNER/SNACK/…) → kcal
+  foods: FoodEntry[]; // every food logged that day, in diary order
 };
 
 type NutritionLogPoint = {
@@ -589,8 +611,20 @@ type NutritionLogPoint = {
     totalCarbohydrate?: { grams?: number };
     totalFat?: { grams?: number };
     mealType?: string;
+    foodDisplayName?: string;
+    serving?: { amount?: number };
   };
 };
+
+/// MyFitnessPal writes each day twice: once as named per-food rows, and (on
+/// some days) again as an unnamed per-nutrient roll-up of the same totals —
+/// a bare CARBOHYDRATES point, a bare PROTEIN point, and a "Default Food"
+/// point carrying the day's calories. Summing both double-counts the day, so
+/// roll-up points are bucketed separately and only used when a day has no
+/// named foods at all.
+function isRollupPoint(n: NonNullable<NutritionLogPoint["nutritionLog"]>): boolean {
+  return !n.foodDisplayName || n.foodDisplayName === "Default Food";
+}
 
 /// Logged food intake per local calendar day from Google Health `nutrition-log`
 /// (the meals you log via Google Health's AI-image / barcode tools). Needs the
@@ -606,7 +640,7 @@ export async function getDailyNutrition(
     "/users/me/dataTypes/nutrition-log/dataPoints?pageSize=1000&filter=" +
     encodeURIComponent(filter);
   try {
-    const byDay = new Map<string, DailyNutrition>();
+    const points: NutritionLogPoint[] = [];
     let pageToken: string | undefined;
     do {
       const path: string = pageToken
@@ -616,36 +650,105 @@ export async function getDailyNutrition(
         dataPoints?: NutritionLogPoint[];
         nextPageToken?: string;
       };
-      for (const dp of data.dataPoints ?? []) {
-        const n = dp.nutritionLog;
-        const key = civilDayKey(n?.interval?.civilStartTime?.date);
-        if (!n || !key) continue;
-        const meal = (n.mealType ?? "OTHER").toUpperCase();
-        const kcal = Math.max(0, Math.round(n.energy?.kcal ?? 0));
-        const cur =
-          byDay.get(key) ??
-          { date: key, kcal: 0, proteinG: 0, carbsG: 0, fatG: 0, entries: 0, byMeal: {} };
-        cur.kcal += kcal;
-        cur.proteinG += n.nutrients?.find((x) => x.nutrient === "PROTEIN")?.quantity?.grams ?? 0;
-        cur.carbsG += n.totalCarbohydrate?.grams ?? 0;
-        cur.fatG += n.totalFat?.grams ?? 0;
-        cur.entries += 1;
-        cur.byMeal[meal] = (cur.byMeal[meal] ?? 0) + kcal;
-        byDay.set(key, cur);
-      }
+      points.push(...(data.dataPoints ?? []));
       pageToken = data.nextPageToken;
     } while (pageToken);
-    return [...byDay.values()]
-      .map((d) => ({
-        ...d,
-        proteinG: Math.round(d.proteinG),
-        carbsG: Math.round(d.carbsG),
-        fatG: Math.round(d.fatG),
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+    return foldNutritionPoints(points);
   } catch {
     return [];
   }
+}
+
+/// Folds raw nutrition-log points into per-day totals + a named food list.
+/// Pure (no IO) so it can be exercised against a captured payload.
+export function foldNutritionPoints(
+  points: NutritionLogPoint[],
+): DailyNutrition[] {
+  const empty = (date: string): DailyNutrition => ({
+    date,
+    kcal: 0,
+    proteinG: 0,
+    carbsG: 0,
+    fatG: 0,
+    fiberG: 0,
+    sugarG: 0,
+    satFatG: 0,
+    sodiumMg: 0,
+    entries: 0,
+    byMeal: {},
+    foods: [],
+  });
+
+  // Named foods and roll-up points are accumulated into parallel maps so the
+  // day can pick one or the other — never both. See isRollupPoint.
+  const named = new Map<string, DailyNutrition>();
+  const rollup = new Map<string, DailyNutrition>();
+  for (const dp of points) {
+    const n = dp.nutritionLog;
+    const key = civilDayKey(n?.interval?.civilStartTime?.date);
+    if (!n || !key) continue;
+
+    const meal = (n.mealType ?? "OTHER").toUpperCase();
+    const kcal = Math.max(0, Math.round(n.energy?.kcal ?? 0));
+    const gramsOf = (nutrient: string) =>
+      n.nutrients?.find((x) => x.nutrient === nutrient)?.quantity?.grams ?? 0;
+    // Carbs/fat arrive either as a top-level total or inside nutrients[],
+    // depending on which row the provider is writing.
+    const carbs = n.totalCarbohydrate?.grams ?? gramsOf("CARBOHYDRATES");
+    const fat = n.totalFat?.grams ?? gramsOf("FAT");
+    const protein = gramsOf("PROTEIN");
+    const fiber = gramsOf("DIETARY_FIBER");
+    const sugar = gramsOf("SUGAR");
+    const satFat = gramsOf("SATURATED_FAT");
+    const sodiumMg = gramsOf("SODIUM") * 1000;
+
+    const isRoll = isRollupPoint(n);
+    const target = isRoll ? rollup : named;
+    const cur = target.get(key) ?? empty(key);
+    cur.kcal += kcal;
+    cur.proteinG += protein;
+    cur.carbsG += carbs;
+    cur.fatG += fat;
+    cur.fiberG += fiber;
+    cur.sugarG += sugar;
+    cur.satFatG += satFat;
+    cur.sodiumMg += sodiumMg;
+    cur.byMeal[meal] = (cur.byMeal[meal] ?? 0) + kcal;
+    if (!isRoll) {
+      cur.entries += 1;
+      cur.foods.push({
+        name: n.foodDisplayName!,
+        meal,
+        kcal,
+        proteinG: Math.round(protein),
+        carbsG: Math.round(carbs),
+        fatG: Math.round(fat),
+        fiberG: Math.round(fiber),
+        sugarG: Math.round(sugar),
+        satFatG: Math.round(satFat),
+        sodiumMg: Math.round(sodiumMg),
+        servings: n.serving?.amount ?? 1,
+      });
+    }
+    target.set(key, cur);
+  }
+
+  // A day the provider only ever sent as a roll-up still counts — we just
+  // can't name its foods.
+  for (const [key, day] of rollup) if (!named.has(key)) named.set(key, day);
+
+  return [...named.values()]
+    .map((d) => ({
+      ...d,
+      proteinG: Math.round(d.proteinG),
+      carbsG: Math.round(d.carbsG),
+      fatG: Math.round(d.fatG),
+      fiberG: Math.round(d.fiberG),
+      sugarG: Math.round(d.sugarG),
+      satFatG: Math.round(d.satFatG),
+      sodiumMg: Math.round(d.sodiumMg),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 type ActiveEnergyPoint = {

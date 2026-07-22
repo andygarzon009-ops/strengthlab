@@ -511,12 +511,36 @@ Calibrate today's intensity and volume to this: a low recovery score, short or p
 - Targets for ${f.targets.phaseLabel}: ${f.targets.proteinTargetG}g protein, ~${f.targets.calorieTargetKcal} kcal (maintenance ~${f.targets.maintenanceKcal}).
 If diet/recovery comes up, nudge the athlete to log meals so you can coach intake.`;
         const i = f.intake;
+        // The actual diary, grouped by meal — this is what lets the coach say
+        // "swap the butter for another egg" instead of "eat more protein".
+        const MEAL_ORDER = ["BREAKFAST", "LUNCH", "DINNER", "SNACK", "ANYTIME", "OTHER"];
+        const byMeal = new Map<string, typeof i.foods>();
+        for (const food of i.foods) {
+          const list = byMeal.get(food.meal) ?? [];
+          list.push(food);
+          byMeal.set(food.meal, list);
+        }
+        const diary = [...byMeal.entries()]
+          .sort((a, b) => MEAL_ORDER.indexOf(a[0]) - MEAL_ORDER.indexOf(b[0]))
+          .map(
+            ([meal, foods]) =>
+              `  ${meal.charAt(0) + meal.slice(1).toLowerCase()}: ` +
+              foods
+                .map(
+                  (x) =>
+                    `${x.name} (${x.kcal} kcal, ${x.proteinG}g P${x.carbsG ? `, ${x.carbsG}g C` : ""}${x.fatG ? `, ${x.fatG}g F` : ""})`,
+                )
+                .join("; "),
+          )
+          .join("\n");
+
         return `NUTRITION (today, from Google Health — a HARD INPUT alongside training):
 - Phase: ${f.targets.phaseLabel}. Fuel Score ${f.score.score}/100 (${f.score.rating}).
 - Protein: ${i.proteinG}g / ${f.targets.proteinTargetG}g target.
 - Calories: ${i.kcal} / ${f.targets.calorieTargetKcal} target — net ${f.score.netKcal >= 0 ? "+" : "−"}${Math.abs(f.score.netKcal)} kcal vs ~${f.targets.maintenanceKcal} burned (${f.score.direction}).
-- Carbs ${i.carbsG}g, fat ${i.fatG}g.
-Use this: protein short of target undercuts muscle retention (cut) or growth (bulk) — call it out and give a concrete fix (a shake, leaner protein at the next meal). Calories drifting the wrong way for the phase (surplus on a cut, deficit on a bulk) is worth flagging. Intake only reflects what's been logged so far today, so don't assume under-eating if it's early.`;
+- Carbs ${i.carbsG}g, fat ${i.fatG}g, fiber ${i.fiberG}g, sugar ${i.sugarG}g, saturated fat ${i.satFatG}g, sodium ${i.sodiumMg}mg.
+${diary ? `- What they actually ate (${i.entries} item${i.entries === 1 ? "" : "s"}, logged in MyFitnessPal):\n${diary}` : "- Individual foods not available for today."}
+Use this: you can see the actual foods, so coach the FOOD, not just the macros — name what they ate, and make concrete swaps or additions ("your breakfast was 8g of protein short; another egg covers it"). Protein short of target undercuts muscle retention (cut) or growth (bulk). Calories drifting the wrong way for the phase (surplus on a cut, deficit on a bulk) is worth flagging. Intake only reflects what's been logged so far today, so don't assume under-eating if it's early.`;
       } catch {
         return "NUTRITION (intake): temporarily unavailable.";
       }

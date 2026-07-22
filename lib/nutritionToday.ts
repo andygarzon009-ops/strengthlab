@@ -3,6 +3,7 @@ import {
   checkHealthAuth,
   getDailyNutrition,
   getActiveEnergyByDay,
+  type FoodEntry,
 } from "@/lib/googleHealth";
 import {
   fuelTargets,
@@ -16,8 +17,13 @@ export type TodayIntake = {
   proteinG: number;
   carbsG: number;
   fatG: number;
+  fiberG: number;
+  sugarG: number;
+  satFatG: number;
+  sodiumMg: number;
   entries: number;
   byMeal: Record<string, number>;
+  foods: FoodEntry[];
 };
 
 export type TodayFuel =
@@ -97,8 +103,13 @@ export async function getTodayFuel(userId: string): Promise<TodayFuel> {
     proteinG: today_?.proteinG ?? 0,
     carbsG: today_?.carbsG ?? 0,
     fatG: today_?.fatG ?? 0,
+    fiberG: today_?.fiberG ?? 0,
+    sugarG: today_?.sugarG ?? 0,
+    satFatG: today_?.satFatG ?? 0,
+    sodiumMg: today_?.sodiumMg ?? 0,
     entries: today_?.entries ?? 0,
     byMeal: today_?.byMeal ?? {},
+    foods: today_?.foods ?? [],
   };
 
   const score = fuelScore({
