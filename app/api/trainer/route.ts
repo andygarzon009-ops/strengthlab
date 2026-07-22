@@ -535,7 +535,7 @@ If diet/recovery comes up, nudge the athlete to log meals so you can coach intak
           .join("\n");
 
         return `NUTRITION (today, from Google Health — a HARD INPUT alongside training):
-- Phase: ${f.targets.phaseLabel}. Fuel Score ${f.score.score}/100 (${f.score.rating}).
+- Phase: ${f.targets.phaseLabel}. Fuel Score ${f.score.score}/100 (${f.score.rating})${f.partial ? " — graded ON PACE, i.e. against the share of today's targets due by now, not the full day" : ""}.
 - Protein: ${i.proteinG}g / ${f.targets.proteinTargetG}g target.
 - Calories: ${i.kcal} / ${f.targets.calorieTargetKcal} target — net ${f.score.netKcal >= 0 ? "+" : "−"}${Math.abs(f.score.netKcal)} kcal vs ~${f.targets.maintenanceKcal} burned (${f.score.direction}).
 - Carbs ${i.carbsG}g, fat ${i.fatG}g, fiber ${i.fiberG}g, sugar ${i.sugarG}g, saturated fat ${i.satFatG}g, sodium ${i.sodiumMg}mg.

@@ -176,6 +176,67 @@ export type FuelScore = {
   direction: string; // human note, e.g. "on a cut, in a deficit ✓"
 };
 
+/// How much of the athlete's eating day has passed, 0..1. fuelScore grades a
+/// *finished* day, so applying it at 3pm reads as failure when nothing is wrong
+/// — half the calories are simply still ahead. Scoring the day so far against a
+/// proportionally smaller target answers the question people actually have
+/// mid-day: "am I on pace?" Window is 7am–9pm; before breakfast we hold a small
+/// floor so the first meal doesn't divide by ~zero and read as a wild surplus.
+const EAT_START_H = 7;
+const EAT_END_H = 21;
+
+export function eatingDayProgress(localHour: number, localMinute = 0): number {
+  const t = localHour + localMinute / 60;
+  if (t <= EAT_START_H) return 0.08;
+  if (t >= EAT_END_H) return 1;
+  return (t - EAT_START_H) / (EAT_END_H - EAT_START_H);
+}
+
+/// The pace score for a day still in progress: identical to fuelScore, but
+/// graded against the share of the day's targets that should be met by now.
+/// netKcal and direction still describe the *whole* day, since those are
+/// statements about the day's plan rather than about progress through it.
+export function fuelScoreSoFar(opts: {
+  targets: FuelTargets;
+  intakeKcal: number;
+  proteinG: number;
+  progress: number; // 0..1 from eatingDayProgress
+}): FuelScore {
+  const { targets, intakeKcal, proteinG } = opts;
+  const p = Math.max(0.05, Math.min(1, opts.progress));
+  const pacedProtein = Math.max(1, targets.proteinTargetG * p);
+  const pacedKcal = Math.max(1, targets.calorieTargetKcal * p);
+
+  const proteinFrac = Math.min(1, proteinG / pacedProtein);
+
+  // Three states, and only two of them are failures. Behind pace is graded on
+  // the phase band against the smaller target. Ahead of pace but still inside
+  // the day's allowance is simply front-loading — full credit, so logging more
+  // food can never lower the score. Past the *full* day's target is a real
+  // overshoot and is graded as one.
+  const calFrac =
+    intakeKcal <= pacedKcal
+      ? calorieFit(targets.phase, intakeKcal, pacedKcal)
+      : intakeKcal <= targets.calorieTargetKcal
+        ? 1
+        : calorieFit(targets.phase, intakeKcal, targets.calorieTargetKcal);
+
+  const score = Math.round(proteinFrac * 50 + calFrac * 50);
+  const rating: FuelScore["rating"] =
+    score >= 85 ? "on track" : score >= 65 ? "good" : score >= 45 ? "off target" : "needs work";
+
+  // netKcal and direction describe the whole day's plan, not progress through it.
+  const full = fuelScore({ targets, intakeKcal, proteinG });
+  return {
+    score,
+    rating,
+    proteinPct: Math.round(proteinFrac * 100),
+    caloriePct: Math.round(calFrac * 100),
+    netKcal: full.netKcal,
+    direction: full.direction,
+  };
+}
+
 export function fuelScore(opts: {
   targets: FuelTargets;
   intakeKcal: number;

@@ -48,6 +48,7 @@ export type FuelDayView = {
     maintenanceKcal: number;
   };
   score: { score: number; rating: string; netKcal: number; direction: string };
+  partial: boolean;
 };
 
 const PROTEIN = "#a78bfa";
@@ -103,6 +104,7 @@ export default function FuelWeek({
   const [selected, setSelected] = useState(today);
   const day = days.find((d) => d.date === selected) ?? days[days.length - 1];
   const isToday = day.date === today;
+  const onPace = day.partial;
 
   const i = day.intake;
   const t = day.targets;
@@ -245,7 +247,7 @@ export default function FuelWeek({
             className="rounded-2xl p-5 mb-4 flex items-center gap-5"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
           >
-            <Ring score={day.score.score} color={scoreColor} partial={isToday} />
+            <Ring score={day.score.score} color={scoreColor} partial={onPace} />
             <div className="min-w-0">
               <p className="text-[22px] font-bold tabular-nums leading-none">
                 {i.kcal.toLocaleString()}
@@ -255,7 +257,8 @@ export default function FuelWeek({
                 </span>
               </p>
               <p className="text-[12px] mt-1.5" style={{ color: scoreColor }}>
-                {isToday ? "So far today" : day.score.rating} · {day.score.direction}
+                {onPace ? `${day.score.rating} for this time of day` : day.score.rating} ·{" "}
+                {day.score.direction}
               </p>
               <p className="text-[11px] mt-1 tabular-nums" style={{ color: "var(--fg-dim)" }}>
                 {Math.max(0, t.calorieTargetKcal - i.kcal).toLocaleString()} kcal left ·
@@ -344,24 +347,30 @@ export default function FuelWeek({
                   className={mi > 0 ? "mt-3 pt-3" : ""}
                   style={mi > 0 ? { borderTop: "1px solid var(--border)" } : undefined}
                 >
-                  <div className="flex items-baseline gap-2 mb-1.5">
-                    <span className="text-[13px] font-bold tracking-tight">
-                      {m.icon} {m.label}
-                    </span>
-                    <span
-                      className="ml-auto text-[11px] tabular-nums"
-                      style={{ color: "var(--fg-dim)" }}
-                    >
-                      {sum.kcal.toLocaleString()} ·{" "}
-                      <b style={{ color: PROTEIN }}>{sum.p}P</b>{" "}
-                      <b style={{ color: CARBS }}>{sum.c}C</b>{" "}
-                      <b style={{ color: FAT }}>{sum.f}F</b>
-                    </span>
-                  </div>
+                  <p className="text-[13px] font-bold tracking-tight mb-1.5">
+                    {m.icon} {m.label}
+                  </p>
                   <MacroHead />
                   {foods.map((f, fi) => (
                     <FoodLine key={`${f.name}-${fi}`} food={f} />
                   ))}
+                  {/* meal subtotal sits under its foods, where the eye lands
+                      after reading them */}
+                  <div
+                    className="grid items-baseline gap-1 mt-1 pt-1.5 text-[12px] font-semibold tabular-nums"
+                    style={{
+                      gridTemplateColumns: "minmax(0,1fr) 44px 32px 32px 30px",
+                      borderTop: "1px solid var(--border)",
+                    }}
+                  >
+                    <span style={{ color: "var(--fg-dim)" }}>{m.label} total</span>
+                    <span className="text-right" style={{ color: "var(--fg-muted)" }}>
+                      {sum.kcal.toLocaleString()}
+                    </span>
+                    <span className="text-right" style={{ color: PROTEIN }}>{sum.p}</span>
+                    <span className="text-right" style={{ color: CARBS }}>{sum.c}</span>
+                    <span className="text-right" style={{ color: FAT }}>{sum.f}</span>
+                  </div>
                 </div>
               );
             })}
@@ -444,7 +453,7 @@ function Ring({
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-[22px] font-bold leading-none tabular-nums">{score}</span>
         <span className="text-[9px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
-          {partial ? "so far" : "/ 100"}
+          {partial ? "on pace" : "/ 100"}
         </span>
       </div>
     </div>
@@ -508,9 +517,16 @@ function MacroHead() {
     >
       <span />
       <span className="text-right">kcal</span>
-      <span className="text-right" style={{ color: PROTEIN }}>P</span>
-      <span className="text-right" style={{ color: CARBS }}>C</span>
-      <span className="text-right" style={{ color: FAT }}>F</span>
+      {/* colour alone identifies the macro — the legend above the week strip
+          is the key, so the columns don't need letters repeating it */}
+      {[PROTEIN, CARBS, FAT].map((c) => (
+        <span key={c} className="flex justify-end">
+          <span
+            className="inline-block w-2 h-2 rounded-sm"
+            style={{ background: c }}
+          />
+        </span>
+      ))}
     </div>
   );
 }
