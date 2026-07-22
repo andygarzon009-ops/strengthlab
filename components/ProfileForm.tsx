@@ -4,6 +4,8 @@ import { updateProfile as updateProfileAction } from "@/lib/actions/workouts";
 import { useState, useTransition } from "react";
 import ImageUpload from "@/components/ImageUpload";
 import UsernameField from "@/components/UsernameField";
+import PeriodizationEditor from "@/components/PeriodizationEditor";
+import { type PeriodizationConfig } from "@/lib/periodization";
 
 type UserProfile = {
   name: string;
@@ -24,6 +26,7 @@ type UserProfile = {
   exerciseGoalMin: number | null;
   injuries: string | null;
   coachPrompt: string | null;
+  periodization: PeriodizationConfig | null;
   height: number | null;
   restingHR: number | null;
   waist: number | null;
@@ -47,6 +50,10 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
   const [saved, setSaved] = useState(false);
   const [image, setImage] = useState<string | null>(user.image);
   const [coverImage, setCoverImage] = useState<string | null>(user.coverImage);
+  // Kept outside `form` because it's a structured object, not a text field.
+  const [periodization, setPeriodization] = useState<PeriodizationConfig | null>(
+    user.periodization,
+  );
 
   const [form, setForm] = useState({
     name: user.name,
@@ -123,6 +130,7 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
         injuries: form.injuries,
         bio: form.bio,
         coachPrompt: form.coachPrompt,
+        periodization,
         height: numOrNull(form.height),
         restingHR: intOrNull(form.restingHR),
         waist: numOrNull(form.waist),
@@ -359,6 +367,8 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
               }}
             />
           </div>
+
+          <PeriodizationEditor value={periodization} onChange={setPeriodization} />
 
           <div>
             <div className="flex items-baseline justify-between mb-1.5">

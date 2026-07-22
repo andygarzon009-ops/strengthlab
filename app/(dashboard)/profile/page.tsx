@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/session";
 import { logout } from "@/lib/actions/auth";
 import Link from "next/link";
 import ProfileForm from "@/components/ProfileForm";
+import { type PeriodizationConfig } from "@/lib/periodization";
 import TutorialLauncher from "@/components/TutorialLauncher";
 import ChangePasswordCard from "@/components/ChangePasswordCard";
 import FriendWorkoutNotifyToggle from "@/components/FriendWorkoutNotifyToggle";
@@ -60,6 +61,7 @@ export default async function ProfilePage() {
           exerciseGoalMin: user.exerciseGoalMin,
           injuries: user.injuries,
           coachPrompt: user.coachPrompt,
+          periodization: (user.periodization as PeriodizationConfig | null) ?? null,
           height: user.height,
           restingHR: user.restingHR,
           waist: user.waist,

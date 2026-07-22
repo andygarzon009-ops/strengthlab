@@ -10,6 +10,12 @@ import { parseLiveLog } from "@/lib/parseLiveLog";
 import { computeWeakSpots, formatWeakSpotsForPrompt } from "@/lib/weakSpots";
 import { hasValidPlan } from "@/lib/workoutPlan";
 import { getTodayFuel } from "@/lib/nutritionToday";
+import {
+  periodizationState,
+  describeState,
+  isValidConfig,
+  type PeriodizationConfig,
+} from "@/lib/periodization";
 
 export const maxDuration = 60;
 
@@ -494,6 +500,40 @@ ${ls.join("\n")}
 Calibrate today's intensity and volume to this: a low recovery score, short or poor sleep, suppressed HRV, or elevated resting HR means pull back load, add rest, or suggest a lighter / mobility / deload day — and say so explicitly. A high score with good sleep green-lights harder work. Don't over-react to a single night, and remember sleep/recovery only update on nights the watch is worn.`;
     })();
 
+    // Where the athlete is in their declared training cycle. Computed, not
+    // inferred: the coach's deepest view is the last 30 workouts (~7 weeks for
+    // a 4-day-a-week lifter), which can't see a block boundary or the last
+    // deload, and guessing at them produces confident wrong programming.
+    const periodizationBlock = (() => {
+      const cfg = user?.periodization as PeriodizationConfig | null;
+      if (!isValidConfig(cfg)) return "";
+      const state = periodizationState(cfg, isoToday);
+      if (!state) {
+        return `
+⚑ TRAINING BLOCK: configured, but the cycle starts ${cfg.startDate} — it hasn't begun yet. Program normally and mention the start date if programming comes up. ⚑`;
+      }
+      const cycle = cfg.blocks
+        .map((b) => `${b.name} (${b.weeks}w)`)
+        .join(" → ");
+      return `
+━━━━━━━━━━━━━━━━━━━━━━━━
+⚑ TRAINING BLOCK — ${describeState(state, cfg)} ⚑
+━━━━━━━━━━━━━━━━━━━━━━━━
+The athlete's cycle: ${cycle}, repeating, with a deload every ${cfg.deloadEveryWeeks ?? "—"} training weeks.
+These week numbers are CALCULATED from the athlete's declared start date — they are authoritative. Do not re-derive the block from session history, and never contradict them.
+
+How to use the block (this drives the shape of every session you prescribe):
+${
+  state.isDeloadWeek
+    ? `- THIS IS A DELOAD WEEK. Cut working loads and/or set volume by ~${cfg.deloadReductionPct}% versus their recent sessions. Keep the movements and the groove, drop the fatigue. Explicitly tell the athlete this is a deload and why. Do NOT prescribe PR attempts, AMRAPs, or sets taken near failure. Use the lighter loads to clean up technique, and say what you want them to focus on.`
+    : `- Match intensity and rep ranges to the ${state.blockName} block. Power-building = a heavy top set in the 3–5 range before normal volume work. Hypertrophy = 6–12 with the volume and proximity to failure that drives growth. Pure strength = 1–5 heavy, longer rests, lower total volume.
+- Week ${state.weekInBlock} of ${state.blockWeeks}: early block weeks build in, late block weeks are where the block's hardest work belongs.
+- ${state.weeksUntilDeload === 0 ? "Next week is a deload, so this week can be the hardest of the block." : state.weeksUntilDeload != null ? `${state.weeksUntilDeload} training week${state.weeksUntilDeload === 1 ? "" : "s"} until the deload — pace accumulated fatigue accordingly.` : "No scheduled deload; watch the recovery data for when one is earned."}`
+}
+- When the athlete asks what to do today, say which block and week they're in, in one short clause. Don't lecture them about periodization they already chose.
+- This block is a real calendar and you MAY refer to it — the "no fixed program calendar" rule below applies to weekday schedules you'd otherwise invent, not to this cycle.`;
+    })();
+
     // Today's nutrition (live from Google Health) as a hard input. Best-effort:
     // any failure degrades to a "not available" note rather than breaking chat.
     // `fuel` was fetched in parallel above, so this is now pure formatting.
@@ -643,7 +683,7 @@ YOU MUST BE GOOD AT: building workouts on the spot, adjusting sets/reps/weights 
 HONOR THE ATHLETE'S EXPLICIT REQUEST:
 When the athlete names the session they want — "plan my push workout", "give me a leg day", "I want to train pull tomorrow" — prescribe THAT session. Do NOT override it with your own split rotation or a weekday-based schedule, and never tell them "tomorrow is X day so we're doing Y instead." This app does not run a fixed weekday→split schedule; the athlete trains what they choose, when they choose. If their recent history suggests a muscle group is under-recovered or recently hammered, you may add ONE short caution line — but still give the session they asked for. Only suggest a different focus when they ask an open question ("what should I train?") with no stated preference.
 
-You do NOT have a fixed program calendar. NEVER announce a recurring weekly schedule ("your next Push Day is …") or state specific dates for past/future sessions that aren't grounded in the date block above or the RECENT SESSIONS data. Don't claim a given weekday "is" a certain split.
+You do NOT have a fixed program calendar of WEEKDAYS. NEVER announce a recurring weekly schedule ("your next Push Day is …") or state specific dates for past/future sessions that aren't grounded in the date block above or the RECENT SESSIONS data. Don't claim a given weekday "is" a certain split. (This does not apply to the TRAINING BLOCK above, if one is set — those week and block numbers are calculated and you should use them freely.)
 
 WORKOUT RESPONSE FORMAT (KEEP PRESCRIPTIONS SHORT AND STRAIGHT TO THE POINT):
 When the athlete asks for a workout, be brief and direct. The structured plan block at the end renders a "Do this workout" button that already carries every set, rep, load, and rest — so the prose is a quick brief, NOT a textbook. The long, multi-section format below is BANNED for prescriptions. The ENTIRE reply must be just these three pieces, in this exact order, and nothing else:
@@ -758,10 +798,10 @@ Ground every answer in the athlete's actual data: last session numbers, PRs, cur
 ATHLETE DATA — ${user?.name ?? "this athlete"}
 ━━━━━━━━━━━━━━━━━━━━━━━━
 
-⚑ CURRENT TRAINING PHASE: ${user?.trainingPhase ?? "NOT SET"} ⚑
-This is the most important lens through which every recommendation must be filtered.
-Every workout, load prescription, volume call, and recovery decision you make must be consistent with this phase.
+⚑ NUTRITION PHASE: ${user?.trainingPhase ?? "NOT SET"} ⚑
+This is the athlete's DIET phase — whether they're eating in a deficit, a surplus, or at maintenance. It is NOT their training block; that's the separate block below. Every load prescription, volume call, and recovery decision must be consistent with it: you cannot push aggressive overload into a deficit, and a surplus is when to spend recovery capacity.
 If it's not set, ask the athlete to set it in their profile before giving programming advice.
+${periodizationBlock}
 
 PROFILE:
 - Name: ${user?.name ?? "unknown"}

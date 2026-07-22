@@ -47,6 +47,10 @@ model User {
   trainingDays   Int?
   injuries       String?
   coachPrompt    String?
+  // Block periodization the coach programs against: { blocks:[{name,weeks}],
+  // startDate:"YYYY-MM-DD", deloadEveryWeeks, deloadReductionPct }.
+  // Shape is PeriodizationConfig in lib/periodization.ts.
+  periodization  Json?
   preferredWarmups Json?
   moveGoalKcal     Int?
   exerciseGoalMin  Int?

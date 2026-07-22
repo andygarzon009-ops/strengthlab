@@ -1,6 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/app/generated/prisma";
+import { isValidConfig, type PeriodizationConfig } from "@/lib/periodization";
 import { requireAuth } from "@/lib/session";
 import { similarExerciseIds } from "@/lib/exerciseIdentity";
 import { revalidatePath } from "next/cache";
@@ -440,6 +442,7 @@ export async function updateProfile(data: {
   exerciseGoalMin?: number | null;
   injuries?: string;
   coachPrompt?: string;
+  periodization?: PeriodizationConfig | null;
   height?: number | null;
   bodyFat?: number | null;
   restingHR?: number | null;
@@ -454,11 +457,19 @@ export async function updateProfile(data: {
   calf?: number | null;
 }) {
   const userId = await requireAuth();
-  const { birthDate, ...rest } = data;
+  const { birthDate, periodization, ...rest } = data;
   await prisma.user.update({
     where: { id: userId },
     data: {
       ...rest,
+      // Validated here as well as in the editor: the coach states these week
+      // numbers as fact, so a malformed cycle must never reach the database.
+      periodization:
+        periodization === undefined
+          ? undefined
+          : isValidConfig(periodization)
+            ? (periodization as unknown as Prisma.InputJsonValue)
+            : Prisma.DbNull,
       birthDate:
         birthDate === undefined
           ? undefined
