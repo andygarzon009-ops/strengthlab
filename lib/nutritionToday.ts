@@ -3,6 +3,7 @@ import {
   checkHealthAuth,
   getDailyNutrition,
   getActiveEnergyByDay,
+  listDailyWeights,
   type FoodEntry,
 } from "@/lib/googleHealth";
 import {
@@ -10,9 +11,16 @@ import {
   fuelScore,
   fuelScoreSoFar,
   eatingDayProgress,
+  observedMaintenance,
   type FuelTargets,
   type FuelScore,
+  type MaintenanceCalibration,
 } from "@/lib/nutritionScore";
+
+/// How far back to look when solving maintenance from intake vs weight trend.
+/// Long enough for a 0.25%/week trend to clear scale noise, short enough to
+/// still describe the athlete's current metabolism and habits.
+const CALIBRATION_DAYS = 28;
 
 export type TodayIntake = {
   kcal: number;
@@ -60,7 +68,14 @@ export type FuelWeek =
   | { state: "no-account" }
   | { state: "reconnect" }
   | { state: "no-profile" }
-  | { state: "ok"; today: string; days: FuelDay[] }; // oldest → newest, today last
+  | {
+      state: "ok";
+      today: string;
+      days: FuelDay[]; // oldest → newest, today last
+      /// Non-null when maintenance was solved from real intake + weight data
+      /// rather than estimated from the BMR formula.
+      calibration: MaintenanceCalibration | null;
+    };
 
 /// Computes the athlete's goal-aware Fuel Score for *their* local today —
 /// today's logged intake from Google Health vs phase-based targets. Shared by
@@ -131,7 +146,18 @@ export async function getFuelWeek(
   for (let i = daysBack; i >= 0; i--) {
     window.push(localKey(new Date(now.getTime() - i * 86_400_000)));
   }
-  const sinceCivil = `${window[0]}T00:00:00`;
+  // The nutrition window is widened to the calibration span and the display
+  // week sliced out of it, so solving maintenance costs no extra API call.
+  // Active energy stays on the short window — it arrives per-minute, and a
+  // month of it would be tens of thousands of points to page through.
+  const calibrationStart = localKey(
+    new Date(now.getTime() - CALIBRATION_DAYS * 86_400_000),
+  );
+  const sinceCivil = `${calibrationStart}T00:00:00`;
+  const sinceShort = `${window[0]}T00:00:00`;
+  const weightSinceISO = new Date(
+    now.getTime() - CALIBRATION_DAYS * 86_400_000,
+  ).toISOString();
 
   // Local clock time, used to grade today on pace rather than as a finished day.
   const hm = new Intl.DateTimeFormat("en-GB", {
@@ -143,11 +169,21 @@ export async function getFuelWeek(
   const [nowH, nowM] = hm.split(":").map(Number);
   const progress = eatingDayProgress(nowH, nowM);
 
-  const [days, activeByDay] = await Promise.all([
+  const [days, activeByDay, weights] = await Promise.all([
     getDailyNutrition(userId, sinceCivil),
-    getActiveEnergyByDay(userId, sinceCivil),
+    getActiveEnergyByDay(userId, sinceShort),
+    listDailyWeights(userId, weightSinceISO),
   ]);
   const byDate = new Map(days.map((d) => [d.date, d]));
+
+  // Solve maintenance from what actually happened. Today is excluded — it's
+  // half-eaten, and averaging a partial day in would drag the estimate down.
+  const calibration = observedMaintenance({
+    intakeByDay: days
+      .filter((d) => d.date !== today)
+      .map((d) => ({ date: d.date, kcal: d.kcal })),
+    weightByDay: weights,
+  });
 
   const age = user.birthDate
     ? Math.floor(
@@ -168,6 +204,7 @@ export async function getFuelWeek(
       age,
       sex: user.sex ?? null,
       activeEnergyKcal,
+      observedMaintenanceKcal: calibration?.maintenanceKcal ?? null,
     });
 
     const intake: TodayIntake = {
@@ -207,5 +244,5 @@ export async function getFuelWeek(
     };
   });
 
-  return { state: "ok", today, days: scored };
+  return { state: "ok", today, days: scored, calibration };
 }

@@ -46,6 +46,8 @@ export type FuelDayView = {
     fatTargetG: number;
     calorieTargetKcal: number;
     maintenanceKcal: number;
+    maintenanceSource: "observed" | "estimated";
+    targetLbPerWeek: number;
   };
   score: { score: number; rating: string; netKcal: number; direction: string };
   partial: boolean;
@@ -94,12 +96,22 @@ function longDate(dateKey: string): string {
   });
 }
 
+export type Calibration = {
+  maintenanceKcal: number;
+  avgIntakeKcal: number;
+  lbPerWeek: number;
+  loggedDays: number;
+  spanDays: number;
+};
+
 export default function FuelWeek({
   days,
   today,
+  calibration,
 }: {
   days: FuelDayView[];
   today: string;
+  calibration: Calibration | null;
 }) {
   const [selected, setSelected] = useState(today);
   const day = days.find((d) => d.date === selected) ?? days[days.length - 1];
@@ -263,6 +275,7 @@ export default function FuelWeek({
               <p className="text-[11px] mt-1 tabular-nums" style={{ color: "var(--fg-dim)" }}>
                 {Math.max(0, t.calorieTargetKcal - i.kcal).toLocaleString()} kcal left ·
                 ~{t.maintenanceKcal.toLocaleString()} burned
+                {t.maintenanceSource === "observed" ? " (measured)" : " (estimated)"}
               </p>
             </div>
           </div>
@@ -404,6 +417,8 @@ export default function FuelWeek({
         </>
       )}
 
+      <GoalCard targets={day.targets} calibration={calibration} />
+
       <Link
         href="/group?coach=1"
         className="flex items-center justify-center gap-2 w-full rounded-xl py-3 text-[14px] font-semibold"
@@ -419,6 +434,69 @@ export default function FuelWeek({
         day&apos;s logged movement.
       </p>
     </>
+  );
+}
+
+/// Closes the loop between the target and the goal it's supposed to serve:
+/// what rate the plan is aiming for, and — when there's enough data — what the
+/// scale says is actually happening.
+function GoalCard({
+  targets,
+  calibration,
+}: {
+  targets: FuelDayView["targets"];
+  calibration: Calibration | null;
+}) {
+  const goal = targets.targetLbPerWeek;
+  const goalText =
+    goal === 0
+      ? "hold weight"
+      : `${goal > 0 ? "+" : "−"}${Math.abs(goal).toFixed(2)} lb / week`;
+
+  // Is the scale doing what the plan asked? Half a target rate of drift is the
+  // most a 28-day trend can resolve without over-reading scale noise.
+  const tol = Math.max(0.15, Math.abs(goal) * 0.5);
+  const actual = calibration?.lbPerWeek ?? null;
+  const onPlan = actual != null ? Math.abs(actual - goal) <= tol : null;
+
+  return (
+    <div
+      className="rounded-2xl p-4 mb-4"
+      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+    >
+      <div className="flex items-baseline justify-between">
+        <span className="text-[13px] font-semibold">{targets.phaseLabel} plan</span>
+        <span className="text-[13px] tabular-nums font-semibold">{goalText}</span>
+      </div>
+
+      {calibration ? (
+        <>
+          <div className="flex items-baseline justify-between mt-2">
+            <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
+              Actually happening
+            </span>
+            <span
+              className="text-[13px] tabular-nums font-semibold"
+              style={{ color: onPlan ? "#22c55e" : "#f59e0b" }}
+            >
+              {actual! > 0 ? "+" : actual! < 0 ? "−" : ""}
+              {Math.abs(actual!).toFixed(2)} lb / week
+            </span>
+          </div>
+          <p className="text-[11px] mt-2 leading-snug" style={{ color: "var(--fg-dim)" }}>
+            {onPlan
+              ? `On plan. Your ${targets.maintenanceKcal.toLocaleString()} kcal maintenance is measured from ${calibration.loggedDays} logged days averaging ${calibration.avgIntakeKcal.toLocaleString()} kcal against ${calibration.spanDays} days of scale readings — not an estimate.`
+              : `Off plan. Averaging ${calibration.avgIntakeKcal.toLocaleString()} kcal over ${calibration.loggedDays} logged days put you at ${Math.abs(actual!).toFixed(2)} lb/week, so maintenance has been recalculated to ${targets.maintenanceKcal.toLocaleString()} and your target moved to match the goal.`}
+          </p>
+        </>
+      ) : (
+        <p className="text-[11px] mt-2 leading-snug" style={{ color: "var(--fg-dim)" }}>
+          Targets use an estimated maintenance for now. Log food on at least 10
+          days in a month and weigh in regularly, and this switches to your real
+          maintenance — solved from what you ate against what the scale did.
+        </p>
+      )}
+    </div>
   );
 }
 

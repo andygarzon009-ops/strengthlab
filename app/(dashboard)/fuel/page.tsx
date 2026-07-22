@@ -24,7 +24,11 @@ export default async function FuelPage() {
       <HealthReconnectBanner />
 
       {week.state === "ok" ? (
-        <FuelWeek days={week.days} today={week.today} />
+        <FuelWeek
+          days={week.days}
+          today={week.today}
+          calibration={week.calibration}
+        />
       ) : (
         <EmptyState state={week.state} />
       )}

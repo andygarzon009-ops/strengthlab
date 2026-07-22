@@ -751,6 +751,49 @@ export function foldNutritionPoints(
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+type WeightPoint = {
+  weight?: {
+    sampleTime?: {
+      civilTime?: { date?: { year?: number; month?: number; day?: number } };
+    };
+    weightGrams?: number;
+  };
+};
+
+const GRAMS_PER_LB = 453.592;
+
+/// Body weight (lb) per local calendar day from Google Health `weight` — the
+/// scale readings MyFitnessPal and Fitbit both write. Multiple readings a day
+/// are averaged. Covered by the health_metrics_and_measurements scope we
+/// already hold, so no reconnect. Sorted oldest → newest; [] if unavailable.
+export async function listDailyWeights(
+  userId: string,
+  sinceISO: string,
+): Promise<{ date: string; lb: number }[]> {
+  const filter = `weight.sample_time.physical_time >= "${sinceISO}"`;
+  const path =
+    "/users/me/dataTypes/weight/dataPoints?pageSize=1000&filter=" +
+    encodeURIComponent(filter);
+  try {
+    const data = (await healthFetch(userId, path)) as { dataPoints?: WeightPoint[] };
+    const byDay = new Map<string, { sum: number; n: number }>();
+    for (const dp of data.dataPoints ?? []) {
+      const grams = dp.weight?.weightGrams;
+      const key = civilDayKey(dp.weight?.sampleTime?.civilTime?.date);
+      if (!grams || !key) continue;
+      const cur = byDay.get(key) ?? { sum: 0, n: 0 };
+      cur.sum += grams / GRAMS_PER_LB;
+      cur.n += 1;
+      byDay.set(key, cur);
+    }
+    return [...byDay.entries()]
+      .map(([date, v]) => ({ date, lb: v.sum / v.n }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    return [];
+  }
+}
+
 type ActiveEnergyPoint = {
   activeEnergyBurned?: {
     interval?: { civilStartTime?: { date?: { year?: number; month?: number; day?: number } } };
