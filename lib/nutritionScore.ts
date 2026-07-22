@@ -72,10 +72,26 @@ export type MaintenanceCalibration = {
   spanDays: number;
 };
 
-/// Fewer logged days than this and the average intake isn't trustworthy enough
-/// to solve against — a handful of days is as likely to reflect which days got
-/// logged as what was actually eaten.
-export const MIN_DAYS_FOR_CALIBRATION = 10;
+/// Guards on the calibration inputs. These are deliberately strict: a wrong
+/// maintenance silently biases every target and every projection downstream of
+/// it, and the fallback (Mifflin–St Jeor) is a perfectly serviceable estimate.
+/// Declining to calibrate costs little; calibrating on bad data costs a lot.
+export const MIN_DAYS_FOR_CALIBRATION = 14;
+/// The weight change term spans every calendar day in the window, but the
+/// intake term only knows the logged ones. If most days are unlogged, the two
+/// halves of the equation describe different periods and the answer is biased
+/// by however the athlete chooses which days to log.
+export const MIN_INTAKE_COVERAGE = 0.7;
+/// A trend needs a series, not two endpoints. Real data brought this one home:
+/// this athlete's account holds exactly two weigh-ins, one of which reads 80 lb
+/// against a 178 lb bodyweight — a line through those two points implies
+/// −13.75 lb/week.
+export const MIN_WEIGH_INS = 8;
+/// Readings this far from the median are equipment or entry errors, not the
+/// athlete. Body weight does not move 20% inside a month.
+const WEIGHT_OUTLIER_TOLERANCE = 0.2;
+/// Sustained change beyond this is not physiology, it's bad data.
+const MAX_PLAUSIBLE_LB_PER_WEEK = 3;
 
 /// Least-squares slope of y over x. Used on the weight series rather than
 /// first-minus-last, because day-to-day scale noise (water, food in transit)
@@ -104,30 +120,58 @@ function slope(points: { x: number; y: number }[]): number | null {
 /// too short a weight span, or a result so far from plausible that something
 /// other than energy balance is going on (an unlogged week, a new scale).
 export function observedMaintenance(opts: {
-  intakeByDay: { date: string; kcal: number }[]; // logged days only
+  intakeByDay: { date: string; kcal: number }[]; // every day in the window
   weightByDay: { date: string; lb: number }[];
+  bodyweightLb: number; // the athlete's known weight, to sanity-check readings
+  windowDays: number;
   minDays?: number;
 }): MaintenanceCalibration | null {
   const minDays = opts.minDays ?? MIN_DAYS_FOR_CALIBRATION;
   const logged = opts.intakeByDay.filter((d) => d.kcal > 0);
   if (logged.length < minDays) return null;
-  if (opts.weightByDay.length < 2) return null;
+  if (opts.windowDays > 0 && logged.length / opts.windowDays < MIN_INTAKE_COVERAGE)
+    return null;
+
+  // Drop readings that can't be this person. Median is the reference because it
+  // survives outliers that would drag a mean; a scale that logged a dumbbell
+  // shouldn't get a vote on where the centre is.
+  const sorted = [...opts.weightByDay].sort((a, b) => a.lb - b.lb);
+  const median = sorted.length
+    ? sorted[Math.floor(sorted.length / 2)].lb
+    : opts.bodyweightLb;
+  const reference = median > 0 ? median : opts.bodyweightLb;
+  const clean = opts.weightByDay.filter(
+    (w) =>
+      Math.abs(w.lb - reference) / reference <= WEIGHT_OUTLIER_TOLERANCE &&
+      // and it still has to be in the same postcode as their profile weight
+      Math.abs(w.lb - opts.bodyweightLb) / opts.bodyweightLb <=
+        WEIGHT_OUTLIER_TOLERANCE * 1.5,
+  );
+  if (clean.length < MIN_WEIGH_INS) return null;
 
   const dayNum = (date: string) => Date.parse(`${date}T12:00:00Z`) / 86_400_000;
-  const weights = opts.weightByDay.map((w) => ({ x: dayNum(w.date), y: w.lb }));
-  const spanDays =
-    weights[weights.length - 1].x - weights[0].x;
-  if (spanDays < 7) return null; // too short for a trend to outrun scale noise
+  const weights = clean
+    .map((w) => ({ x: dayNum(w.date), y: w.lb }))
+    .sort((a, b) => a.x - b.x);
+  const spanDays = weights[weights.length - 1].x - weights[0].x;
+  if (spanDays < 14) return null; // shorter than this and noise outruns the trend
+
+  // Readings have to sit across the window, not bunch at one end — a cluster
+  // followed by a single late reading is two points wearing a disguise.
+  const midpoint = weights[0].x + spanDays / 2;
+  const firstHalf = weights.filter((w) => w.x < midpoint).length;
+  const secondHalf = weights.length - firstHalf;
+  if (firstHalf < 2 || secondHalf < 2) return null;
 
   const lbPerDay = slope(weights);
   if (lbPerDay == null) return null;
+  if (Math.abs(lbPerDay * 7) > MAX_PLAUSIBLE_LB_PER_WEEK) return null;
 
-  const avgIntakeKcal =
-    logged.reduce((s, d) => s + d.kcal, 0) / logged.length;
+  const avgIntakeKcal = logged.reduce((s, d) => s + d.kcal, 0) / logged.length;
   const maintenanceKcal = Math.round(avgIntakeKcal - lbPerDay * KCAL_PER_LB);
 
-  // Sanity band. A real adult maintenance sits well inside this; anything
-  // outside means the inputs are lying (gaps in logging, a bad scale reading).
+  // Final band. A real adult maintenance sits well inside this; outside it,
+  // something upstream is lying regardless of how the guards above went.
   if (maintenanceKcal < 1200 || maintenanceKcal > 5000) return null;
 
   return {
@@ -235,6 +279,11 @@ export type FuelTargets = {
   maintenanceSource: "observed" | "estimated";
   /// Intended weight change, lb/week — the goal the calorie target encodes.
   targetLbPerWeek: number;
+  /// Profile fields the BMR estimate had to substitute defaults for. Non-empty
+  /// means the maintenance figure — and therefore every target built on it — is
+  /// rougher than it looks, and the athlete should be told rather than left to
+  /// assume the number is theirs. Empty once maintenance is measured.
+  assumedProfileFields: string[];
   phaseSet: boolean; // false when the athlete hasn't picked a phase
 };
 
@@ -265,6 +314,16 @@ export function fuelTargets(opts: {
     calorieTargetKcal: calTarget,
     maintenanceKcal: maint,
     maintenanceSource: observed != null ? "observed" : "estimated",
+    // Only worth reporting while maintenance rests on the formula — once it's
+    // measured, the formula's inputs no longer affect anything.
+    assumedProfileFields:
+      observed != null
+        ? []
+        : [
+            opts.heightIn == null ? "height" : null,
+            opts.age == null ? "age" : null,
+            (opts.sex ?? "").trim() === "" ? "sex" : null,
+          ].filter((x): x is string => x !== null),
     targetLbPerWeek:
       Math.round(PHASE_RATE_PCT_PER_WEEK[phase] * opts.bodyweightLb * 100) / 100,
     phaseSet: (opts.rawPhase ?? "").trim() !== "",

@@ -52,6 +52,7 @@ export type FuelDayView = {
     maintenanceKcal: number;
     maintenanceSource: "observed" | "estimated";
     targetLbPerWeek: number;
+    assumedProfileFields: string[];
   };
   score: { score: number; rating: string; netKcal: number; direction: string };
   progress: { pct: number; proteinPct: number; caloriePct: number };
@@ -549,9 +550,25 @@ function GoalCard({
         </>
       ) : (
         <p className="text-[11px] mt-2 leading-snug" style={{ color: "var(--fg-dim)" }}>
-          Targets use an estimated maintenance for now. Log food on at least 10
-          days in a month and weigh in regularly, and this switches to your real
+          Targets use an estimated maintenance for now. Log food on most days of
+          a month and weigh in at least weekly, and this switches to your real
           maintenance — solved from what you ate against what the scale did.
+        </p>
+      )}
+
+      {targets.assumedProfileFields.length > 0 && (
+        <p
+          className="text-[11px] mt-2.5 pt-2.5 leading-snug"
+          style={{ borderTop: "1px solid var(--border)", color: "#f59e0b" }}
+        >
+          Your {targets.assumedProfileFields.join(" and ")}{" "}
+          {targets.assumedProfileFields.length === 1 ? "isn't" : "aren't"} set, so
+          the calorie estimate is using{" "}
+          {targets.assumedProfileFields.length === 1 ? "an average" : "averages"}{" "}
+          instead of yours — every target here inherits that error.{" "}
+          <Link href="/profile" style={{ color: "var(--accent)" }}>
+            Add {targets.assumedProfileFields.length === 1 ? "it" : "them"} →
+          </Link>
         </p>
       )}
     </div>

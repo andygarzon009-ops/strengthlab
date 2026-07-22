@@ -190,6 +190,8 @@ export async function getFuelWeek(
       .filter((d) => d.date !== today)
       .map((d) => ({ date: d.date, kcal: d.kcal })),
     weightByDay: weights,
+    bodyweightLb: user.bodyweight,
+    windowDays: CALIBRATION_DAYS,
   });
 
   const age = user.birthDate
@@ -198,9 +200,26 @@ export async function getFuelWeek(
       )
     : null;
 
+  // Today's active energy is only counted up to now, so using it raw would make
+  // today's calorie target climb all afternoon — and a target that grows while
+  // you sit still makes the percentage of it you've eaten go *down*. Project
+  // today's burn from the recent days instead, and only let the live figure win
+  // once it has already exceeded that (a genuinely big training day).
+  const priorActive = window
+    .filter((d) => d !== today)
+    .map((d) => activeByDay[d] ?? 0)
+    .filter((v) => v > 0);
+  const typicalActive = priorActive.length
+    ? Math.round(priorActive.reduce((s, v) => s + v, 0) / priorActive.length)
+    : 0;
+
   const scored: FuelDay[] = window.map((date) => {
     const d = byDate.get(date) ?? null;
-    const activeEnergyKcal = activeByDay[date] ?? 0;
+    const actualActive = activeByDay[date] ?? 0;
+    const activeEnergyKcal =
+      date === today && !todayIsOver
+        ? Math.max(actualActive, typicalActive)
+        : actualActive;
 
     // Targets are recomputed per day: active energy raises maintenance, so a
     // heavy training day earns a higher calorie target than a rest day.

@@ -879,11 +879,14 @@ export async function getActiveEnergyByDay(
       }
       pageToken = data.nextPageToken;
     } while (pageToken);
-    for (const k of Object.keys(byDay)) byDay[k] = Math.round(byDay[k]);
-    return byDay;
   } catch {
-    return {};
+    // Active energy arrives per-minute — a week is several pages, and the
+    // per-request timeout can bite partway through. Keep what did arrive
+    // rather than throwing the day away: an understated burn is far better
+    // than a zero, which would silently drop the calorie target by hundreds.
   }
+  for (const k of Object.keys(byDay)) byDay[k] = Math.round(byDay[k]);
+  return byDay;
 }
 
 export async function listHeartRateBetween(
