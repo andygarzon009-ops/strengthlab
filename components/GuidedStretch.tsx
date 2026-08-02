@@ -429,6 +429,33 @@ export default function GuidedStretch({
       ? KIND_META[current.modality]
       : null;
   const stretchNum = (current?.stretchIndex ?? 0) + 1;
+  // During a rest, the very next step is always the hold this rest leads into
+  // (buildStretchSteps emits rest → hold). Surface its instructions NOW so the
+  // athlete can get into position before the hold's clock starts, instead of
+  // reading them only once the timer is already running.
+  const upcoming =
+    current?.kind === "rest" && steps[idx + 1]?.kind === "hold"
+      ? steps[idx + 1]
+      : null;
+  const upcomingMeta =
+    upcoming?.kind === "hold" && upcoming.modality ? KIND_META[upcoming.modality] : null;
+  // Show the modality/side badges and instructions for whichever stretch is
+  // relevant right now: the running hold, or (during a rest) the one coming up.
+  const badgeMeta = isHold ? holdMeta : upcomingMeta;
+  const badgeSide = isHold
+    ? current?.kind === "hold"
+      ? current.side
+      : null
+    : upcoming?.kind === "hold"
+      ? upcoming.side
+      : null;
+  const activeInstructions = isHold
+    ? current?.kind === "hold"
+      ? current.instructions
+      : undefined
+    : upcoming?.kind === "hold"
+      ? upcoming.instructions
+      : undefined;
   const fullDur = current?.durationSec ?? 1;
   const progress = Math.min(1, Math.max(0, 1 - remaining / fullDur));
 
@@ -495,22 +522,22 @@ export default function GuidedStretch({
           </span>
         )}
 
-        {isHold && (holdMeta || current?.side) && (
+        {(badgeMeta || badgeSide) && (
           <div className="flex items-center gap-2 mb-2">
-            {holdMeta && (
+            {badgeMeta && (
               <span
                 className="text-[11px] font-bold tracking-[0.12em] uppercase px-3 py-1 rounded-full"
-                style={{ background: `${holdMeta.color}22`, color: holdMeta.color }}
+                style={{ background: `${badgeMeta.color}22`, color: badgeMeta.color }}
               >
-                {holdMeta.label}
+                {badgeMeta.label}
               </span>
             )}
-            {current?.kind === "hold" && current.side && (
+            {badgeSide && (
               <span
                 className="text-[11px] font-bold tracking-[0.12em] uppercase px-3 py-1 rounded-full"
                 style={{ background: "var(--bg-elevated)", color: "var(--fg-dim)" }}
               >
-                {SIDE_LABEL[current.side]}
+                {SIDE_LABEL[badgeSide]}
               </span>
             )}
           </div>
@@ -525,20 +552,23 @@ export default function GuidedStretch({
         </h1>
 
         {current?.kind === "rest" && (
-          <p className="text-[13px] mb-1" style={{ color: "var(--fg-dim)" }}>
+          <p
+            className="text-[12px] font-semibold mb-1"
+            style={{ color: accent }}
+          >
             {current.variant === "switch"
               ? "Switch to your right side"
               : current.variant === "getReady"
                 ? "Get into position"
-                : "Move into the next stretch"}
+                : "Get into position for the next one"}
             {current.nextSide && current.variant !== "switch"
               ? ` · ${SIDE_LABEL[current.nextSide].toLowerCase()}`
               : ""}
           </p>
         )}
-        {isHold && current.instructions && (
+        {activeInstructions && (
           <p className="text-[13px] mb-1 max-w-sm" style={{ color: "var(--fg-dim)" }}>
-            {current.instructions}
+            {activeInstructions}
           </p>
         )}
 
