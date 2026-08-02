@@ -5,6 +5,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { extractPlan, type WorkoutPlan } from "@/lib/workoutPlan";
+import {
+  extractStretchRoutine,
+  routineDurationSec,
+  type StretchRoutine,
+} from "@/lib/stretchRoutine";
 
 type LoggedSummary = {
   workoutId: string;
@@ -41,7 +46,23 @@ type Message = {
   pendingLog?: PendingLog;
   pendingDismissed?: boolean;
   plan?: WorkoutPlan;
+  routine?: StretchRoutine;
 };
+
+// Pull both the workout plan and the stretch routine out of a raw coach reply.
+// extractPlan strips its own fence first; the stretch fence is stripped from
+// whatever text remains, so a reply can't carry both but the order is safe
+// either way. One helper keeps the streaming preview, final parse, and history
+// hydration in lockstep.
+function extractCoachBlocks(raw: string): {
+  text: string;
+  plan: WorkoutPlan | null;
+  routine: StretchRoutine | null;
+} {
+  const { text: afterPlan, plan } = extractPlan(raw);
+  const { text, routine } = extractStretchRoutine(afterPlan);
+  return { text, plan, routine };
+}
 
 function splitLoggedMarker(raw: string): {
   logged: LoggedSummary | null;
@@ -410,8 +431,13 @@ export default function AITrainer() {
         if (!Array.isArray(data)) return [];
         const hydrated: Message[] = data.map((m: Message) => {
           if (m.role !== "assistant") return m;
-          const { text, plan } = extractPlan(m.content ?? "");
-          return { ...m, content: text, plan: plan ?? undefined };
+          const { text, plan, routine } = extractCoachBlocks(m.content ?? "");
+          return {
+            ...m,
+            content: text,
+            plan: plan ?? undefined,
+            routine: routine ?? undefined,
+          };
         });
         setMessages(hydrated);
         if (scroll) {
@@ -655,12 +681,12 @@ export default function AITrainer() {
         // ```workout-plan``` fence from the streaming preview so the
         // user never sees raw markers or JSON flash onscreen.
         const { text } = splitLoggedMarker(full);
-        const { text: visible } = extractPlan(text);
+        const { text: visible } = extractCoachBlocks(text);
         setStreaming(visible);
       }
 
       const { logged, pendingLog, text: postLogged } = splitLoggedMarker(full);
-      const { text: finalText, plan } = extractPlan(postLogged);
+      const { text: finalText, plan, routine } = extractCoachBlocks(postLogged);
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
@@ -669,6 +695,7 @@ export default function AITrainer() {
         logged: logged ?? undefined,
         pendingLog: pendingLog ?? undefined,
         plan: plan ?? undefined,
+        routine: routine ?? undefined,
       };
       setMessages((prev) => [...prev, assistantMsg]);
       setStreaming("");
@@ -1009,6 +1036,15 @@ export default function AITrainer() {
                         </button>
                       </>
                     )}
+                    {m.routine && (
+                      <StretchRoutineButton
+                        routine={m.routine}
+                        onNavigate={() => {
+                          setOpen(false);
+                          router.push("/stretch");
+                        }}
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -1236,6 +1272,58 @@ function formatDurationLabel(seconds: number): string {
   const h = Math.floor(minsRaw / 60);
   const m = Math.round((minsRaw - h * 60) / 5) * 5;
   return m > 0 ? `~${h}h ${m}m` : `~${h}h`;
+}
+
+// The stretching-routine analog of "Do this workout": stash the routine for
+// the /stretch player to hydrate, then navigate. No server round-trip — a
+// stretch routine isn't logged as a workout, it's just performed live.
+function StretchRoutineButton({
+  routine,
+  onNavigate,
+}: {
+  routine: StretchRoutine;
+  onNavigate: () => void;
+}) {
+  const count = routine.stretches.length;
+  const durationLabel = formatDurationLabel(routineDurationSec(routine));
+
+  const onClick = () => {
+    try {
+      sessionStorage.setItem("sl:stretchRoutine", JSON.stringify(routine));
+    } catch {
+      // ignore — the player shows an empty state if the handoff didn't land
+    }
+    onNavigate();
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full rounded-xl px-4 py-3 text-[14px] font-semibold flex items-center justify-between gap-3 active:scale-[0.99] transition-transform"
+      style={{ background: "var(--accent)", color: "#0a0a0a", border: "1px solid var(--accent)" }}
+    >
+      <span className="flex items-center gap-2">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M8 5v14l11-7z" />
+        </svg>
+        Do this stretching routine
+      </span>
+      <span className="text-[11px] opacity-80 text-right leading-tight">
+        {durationLabel}
+        <br />
+        {count} stretch{count === 1 ? "" : "es"}
+      </span>
+    </button>
+  );
 }
 
 function LogPlanButton({
