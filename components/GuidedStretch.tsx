@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   buildStretchSteps,
   routineDurationSec,
+  type StretchKind,
   type StretchRoutine,
   type StretchStep,
 } from "@/lib/stretchRoutine";
@@ -90,6 +91,15 @@ const SIDE_LABEL: Record<"left" | "right", string> = {
   right: "Right side",
 };
 
+// Modality label / color / countdown-verb for a mixed routine. Foam rolling,
+// dynamic mobility, and breathing each read distinctly in the live player.
+const KIND_META: Record<StretchKind, { label: string; color: string; verb: string }> = {
+  static: { label: "Stretch", color: "#22c55e", verb: "hold" },
+  dynamic: { label: "Mobility", color: "#60a5fa", verb: "keep moving" },
+  foamroll: { label: "Foam roll", color: "#f97316", verb: "roll" },
+  breathing: { label: "Breathe", color: "#a78bfa", verb: "breathe" },
+};
+
 type Mode = "idle" | "running" | "done";
 
 export default function GuidedStretch({
@@ -99,9 +109,9 @@ export default function GuidedStretch({
   routine: StretchRoutine;
   onExit: () => void;
 }) {
-  const steps = useRef<StretchStep[]>(buildStretchSteps(routine)).current;
+  const steps = useMemo<StretchStep[]>(() => buildStretchSteps(routine), [routine]);
   const totalStretches = routine.stretches.length;
-  const totalSec = useRef(routineDurationSec(routine)).current;
+  const totalSec = useMemo(() => routineDurationSec(routine), [routine]);
 
   const [mode, setMode] = useState<Mode>("idle");
   const [idx, setIdx] = useState(0);
@@ -304,13 +314,25 @@ export default function GuidedStretch({
                     {i + 1}
                   </span>
                   <div className="min-w-0">
-                    <div className="text-[14px] font-medium truncate">{s.name}</div>
-                    {s.instructions && (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {s.kind && KIND_META[s.kind] && (
+                        <span
+                          className="w-1.5 h-1.5 rounded-full shrink-0"
+                          style={{ background: KIND_META[s.kind].color }}
+                        />
+                      )}
+                      <span className="text-[14px] font-medium truncate">{s.name}</span>
+                    </div>
+                    {(s.instructions || (s.kind && s.kind !== "static")) && (
                       <div
                         className="text-[11px] truncate"
                         style={{ color: "var(--fg-dim)" }}
                       >
-                        {s.instructions}
+                        {s.kind && s.kind !== "static" && KIND_META[s.kind]
+                          ? s.instructions
+                            ? `${KIND_META[s.kind].label} · ${s.instructions}`
+                            : KIND_META[s.kind].label
+                          : s.instructions}
                       </div>
                     )}
                   </div>
@@ -402,6 +424,10 @@ export default function GuidedStretch({
 
   // ---- RUNNING -----------------------------------------------------------
   const isHold = current?.kind === "hold";
+  const holdMeta =
+    isHold && current?.kind === "hold" && current.modality
+      ? KIND_META[current.modality]
+      : null;
   const stretchNum = (current?.stretchIndex ?? 0) + 1;
   const fullDur = current?.durationSec ?? 1;
   const progress = Math.min(1, Math.max(0, 1 - remaining / fullDur));
@@ -419,7 +445,7 @@ export default function GuidedStretch({
           : "Rest"
       : "";
 
-  const accent = isHold ? "var(--accent)" : "#f59e0b";
+  const accent = isHold ? holdMeta?.color ?? "var(--accent)" : "#f59e0b";
 
   return (
     <Shell onExit={onExit}>
@@ -430,7 +456,7 @@ export default function GuidedStretch({
             Stretch {stretchNum} of {totalStretches}
           </span>
           <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
-            {isHold ? "Hold" : restVariantLabel}
+            {isHold ? holdMeta?.label ?? "Hold" : restVariantLabel}
           </span>
         </div>
         <div className="flex gap-1">
@@ -469,13 +495,25 @@ export default function GuidedStretch({
           </span>
         )}
 
-        {isHold && current?.side && (
-          <span
-            className="text-[12px] font-bold tracking-[0.14em] uppercase mb-2 px-3 py-1 rounded-full"
-            style={{ background: "var(--accent-dim)", color: "var(--accent)" }}
-          >
-            {SIDE_LABEL[current.side]}
-          </span>
+        {isHold && (holdMeta || current?.side) && (
+          <div className="flex items-center gap-2 mb-2">
+            {holdMeta && (
+              <span
+                className="text-[11px] font-bold tracking-[0.12em] uppercase px-3 py-1 rounded-full"
+                style={{ background: `${holdMeta.color}22`, color: holdMeta.color }}
+              >
+                {holdMeta.label}
+              </span>
+            )}
+            {current?.kind === "hold" && current.side && (
+              <span
+                className="text-[11px] font-bold tracking-[0.12em] uppercase px-3 py-1 rounded-full"
+                style={{ background: "var(--bg-elevated)", color: "var(--fg-dim)" }}
+              >
+                {SIDE_LABEL[current.side]}
+              </span>
+            )}
+          </div>
         )}
 
         <h1 className="text-[26px] font-bold leading-tight mb-1 max-w-md">
@@ -538,7 +576,7 @@ export default function GuidedStretch({
               {formatTime(remaining)}
             </div>
             <div className="text-[12px] mt-1" style={{ color: "var(--fg-dim)" }}>
-              {paused ? "paused" : isHold ? "hold" : "remaining"}
+              {paused ? "paused" : isHold ? holdMeta?.verb ?? "hold" : "remaining"}
             </div>
           </div>
         </div>

@@ -4,17 +4,27 @@
 // needed, the trainer API route — so the two sides always agree on what
 // counts as a valid routine.
 //
-// A stretch routine is a short, hands-free sequence the athlete performs live:
-// each stretch is a timed hold, with a little rest between so they can move
-// into the next position. Some stretches are per-side (hamstring, hip flexor)
-// and get done left then right with a quick switch in between.
+// A routine is a short, hands-free sequence the athlete performs live: each
+// item is a timed hold/movement, with a little rest between so they can move
+// into the next position. Items can be static stretches, dynamic mobility
+// drills, foam rolling / soft-tissue work, or breathing — whatever the coach
+// prescribed for the athlete's soreness, prehab goal, or time budget. Per-side
+// items (hamstring stretch, quad foam roll) get done left then right with a
+// quick switch in between.
 
 export type StretchSide = "both" | "left" | "right";
 
+// The modality of an item — drives the label/color in the live player so a
+// mixed routine (foam roll → dynamic → static) reads clearly. Everything is
+// still timed; "dynamic" just means keep moving for the window rather than
+// holding a position.
+export type StretchKind = "static" | "dynamic" | "foamroll" | "breathing";
+
 export type Stretch = {
   name: string;
-  durationSec: number; // hold time per side, clamped 5–300
+  durationSec: number; // hold/work time per side, clamped 5–300
   side?: StretchSide | null; // "both" = do left then right; null/undefined = symmetric, once
+  kind?: StretchKind | null; // modality label; defaults to a plain static hold
   instructions?: string;
 };
 
@@ -34,6 +44,26 @@ export const SWITCH_SEC = 7;
 export const GET_READY_SEC = 10;
 
 const VALID_SIDES = new Set<StretchSide>(["both", "left", "right"]);
+const VALID_KINDS = new Set<StretchKind>([
+  "static",
+  "dynamic",
+  "foamroll",
+  "breathing",
+]);
+
+// Map the model's likely kind synonyms onto our set so a "mobility" or
+// "smr"/"roll" tag still colors correctly instead of falling back to static.
+function coerceKind(v: unknown): StretchKind | null {
+  if (typeof v !== "string") return null;
+  const k = v.trim().toLowerCase().replace(/[\s_-]/g, "");
+  if (VALID_KINDS.has(k as StretchKind)) return k as StretchKind;
+  if (k === "mobility" || k === "movement" || k === "activation") return "dynamic";
+  if (k === "foamrolling" || k === "smr" || k === "roll" || k === "release")
+    return "foamroll";
+  if (k === "breath" || k === "breathwork" || k === "downregulation") return "breathing";
+  if (k === "hold" || k === "stretch") return "static";
+  return null;
+}
 
 function clampDuration(v: unknown): number | null {
   let n: number | null = null;
@@ -69,11 +99,12 @@ function normalizeRoutine(parsed: unknown): StretchRoutine | null {
         : s.side === "each" // tolerate the model saying "each"
           ? "both"
           : null;
+    const kind = coerceKind(s.kind);
     const instructions =
       typeof s.instructions === "string"
         ? s.instructions.trim().slice(0, 200) || undefined
         : undefined;
-    stretches.push({ name, durationSec, side, instructions });
+    stretches.push({ name, durationSec, side, kind, instructions });
   }
   if (stretches.length === 0) return null;
 
@@ -160,6 +191,7 @@ export type StretchStep =
       name: string;
       durationSec: number;
       side?: "left" | "right" | null;
+      modality?: StretchKind | null; // the item's kind (static/dynamic/foamroll/breathing)
       instructions?: string;
       stretchIndex: number; // which stretch (0-based) this hold belongs to
     }
@@ -216,6 +248,7 @@ export function buildStretchSteps(routine: StretchRoutine): StretchStep[] {
         name: s.name,
         durationSec: s.durationSec,
         side: "left",
+        modality: s.kind,
         instructions: s.instructions,
         stretchIndex: i,
       });
@@ -232,6 +265,7 @@ export function buildStretchSteps(routine: StretchRoutine): StretchStep[] {
         name: s.name,
         durationSec: s.durationSec,
         side: "right",
+        modality: s.kind,
         instructions: s.instructions,
         stretchIndex: i,
       });
@@ -241,6 +275,7 @@ export function buildStretchSteps(routine: StretchRoutine): StretchStep[] {
         name: s.name,
         durationSec: s.durationSec,
         side: s.side === "left" || s.side === "right" ? s.side : null,
+        modality: s.kind,
         instructions: s.instructions,
         stretchIndex: i,
       });
