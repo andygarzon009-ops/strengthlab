@@ -654,8 +654,12 @@ function CtrlButton({
 // it sits over the bottom nav for a distraction-free live session.
 function Shell({ children, onExit }: { children: React.ReactNode; onExit: () => void }) {
   return (
+    // z-[100] so the full-screen player sits ABOVE the dashboard chrome —
+    // the bottom nav (z-50, painted after this in the layout) and the floating
+    // timer/coach buttons (z-40/z-70) were otherwise covering the Start button
+    // and the bottom controls. Stays below the rest-timer modal (z-110+).
     <div
-      className="fixed inset-0 z-50 flex flex-col"
+      className="fixed inset-0 z-[100] flex flex-col"
       style={{
         background: "var(--bg)",
         height: "100dvh",
