@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sendPushToUser } from "@/lib/push";
 import { createNotification } from "@/lib/notifications";
+import type { StretchRoutine } from "@/lib/stretchRoutine";
 
 type SetInput = {
   type: string;
@@ -169,6 +170,48 @@ export async function createWorkout(data: CreateWorkoutInput) {
   // server-side redirect() so a transient failure surfaces as a normal
   // catchable error and the client keeps the draft for retry.
   return { workoutId: workout.id };
+}
+
+// Log a completed guided stretch/mobility session as a real MOBILITY workout,
+// so it lands in History and counts toward streaks/consistency like any other
+// session. MOBILITY is a DURATION-shape type, so no sets/exercises are needed:
+// the session is a title + a duration, with the stretches captured in notes.
+// The elapsed time is the routine's planned length (holds + rests), which is
+// stable regardless of pauses or time spent navigating away mid-routine.
+export async function logStretchWorkout(input: {
+  routine: StretchRoutine;
+  elapsedSec: number;
+}) {
+  const { routine, elapsedSec } = input;
+  const stretches = Array.isArray(routine?.stretches) ? routine.stretches : [];
+  if (stretches.length === 0) {
+    throw new Error("Empty routine — nothing to log");
+  }
+
+  const minutes = Math.max(1, Math.round((elapsedSec || 0) / 60));
+  const lines = stretches.map((s) => {
+    const secs = Math.max(0, Math.round(s.durationSec || 0));
+    const dur = secs >= 60 ? `${Math.round((secs / 60) * 10) / 10} min` : `${secs}s`;
+    const side = s.side === "both" ? " each side" : "";
+    return `• ${s.name} — ${dur}${side}`;
+  });
+  const notes = [
+    `Guided mobility session · ${stretches.length} ${
+      stretches.length === 1 ? "stretch" : "stretches"
+    }`,
+    ...lines,
+  ].join("\n");
+
+  const now = new Date().toISOString();
+  return createWorkout({
+    title: routine.title?.trim() || "Stretch & Mobility",
+    type: "MOBILITY",
+    date: now,
+    endedAt: now,
+    duration: minutes,
+    notes,
+    exercises: [],
+  });
 }
 
 export type DetectedPR = {

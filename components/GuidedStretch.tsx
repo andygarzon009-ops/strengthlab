@@ -15,6 +15,7 @@ import {
   tone,
   vibrate,
 } from "@/lib/timerSound";
+import { logStretchWorkout } from "@/lib/actions/workouts";
 
 // --- Audio cues ----------------------------------------------------------
 // The tone engine (silent-switch bypass + background keep-alive) lives in
@@ -122,6 +123,11 @@ export default function GuidedStretch({
   const [mode, setMode] = useState<Mode>(() => (boot() ? "running" : "idle"));
   const [idx, setIdx] = useState(() => boot()?.idx ?? 0);
   const [paused, setPaused] = useState(() => !!boot());
+  // Whether the finished session has been saved to the workout log.
+  const [logState, setLogState] = useState<"idle" | "saving" | "saved" | "error">(
+    "idle",
+  );
+  const loggedRef = useRef(false);
 
   // Wall-clock anchor for the running countdown. Deriving remaining from a real
   // end time (instead of decrementing on a setInterval, which browsers freeze
@@ -290,6 +296,24 @@ export default function GuidedStretch({
     };
   }, [releaseWakeLock, saveProgress]);
 
+  // Save the finished routine as a MOBILITY workout. Reused by the auto-log on
+  // completion and the manual Retry button, so a failure never loops.
+  const logSession = useCallback(() => {
+    setLogState("saving");
+    return logStretchWorkout({ routine, elapsedSec: totalSec })
+      .then(() => setLogState("saved"))
+      .catch(() => setLogState("error"));
+  }, [routine, totalSec]);
+
+  // When the routine completes, log it exactly once (survives re-render /
+  // strict-mode double-run). On failure we stop and show a Retry button rather
+  // than re-firing, so a persistent error can't spam createWorkout.
+  useEffect(() => {
+    if (mode !== "done" || loggedRef.current) return;
+    loggedRef.current = true;
+    void logSession();
+  }, [mode, logSession]);
+
   function start() {
     unlockAudio(); // unlock audio (through the mute switch) within the Start gesture
     void acquireWakeLock();
@@ -342,6 +366,8 @@ export default function GuidedStretch({
 
   function replay() {
     clearProgress();
+    loggedRef.current = false; // a fresh run is a new session to log
+    setLogState("idle");
     setMode("idle");
     setIdx(0);
     setEndsAt(null);
@@ -462,10 +488,39 @@ export default function GuidedStretch({
             </svg>
           </div>
           <h1 className="text-[22px] font-bold mb-1">All stretched out</h1>
-          <p className="text-[13px] mb-8" style={{ color: "var(--fg-dim)" }}>
+          <p className="text-[13px] mb-3" style={{ color: "var(--fg-dim)" }}>
             {totalStretches} stretch{totalStretches === 1 ? "" : "es"} ·{" "}
             {Math.round(totalSec / 60)} min · nicely done.
           </p>
+          <div
+            className="text-[12px] mb-8 inline-flex items-center gap-1.5"
+            style={{
+              color: logState === "error" ? "#ef4444" : "var(--accent)",
+            }}
+          >
+            {logState === "saving" && <span>Saving to your log…</span>}
+            {logState === "saved" && (
+              <>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span>Saved to your log</span>
+              </>
+            )}
+            {logState === "error" && (
+              <>
+                <span>Couldn’t save to your log</span>
+                <button
+                  type="button"
+                  onClick={() => void logSession()}
+                  className="underline font-semibold"
+                  style={{ color: "var(--accent)" }}
+                >
+                  Retry
+                </button>
+              </>
+            )}
+          </div>
           <div className="w-full max-w-xs space-y-2">
             <button
               type="button"

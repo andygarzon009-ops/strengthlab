@@ -4,6 +4,7 @@ import { labelForType, shapeForType, formatDuration } from "@/lib/exercises";
 import { startOfMonth, endOfMonth } from "date-fns";
 import Link from "next/link";
 import HistoryCalendar from "@/components/HistoryCalendar";
+import StretchResumeCard from "@/components/StretchResumeCard";
 import { formatShortDate, formatDateKey } from "@/lib/dateFormat";
 
 export default async function HistoryPage() {
@@ -91,6 +92,8 @@ export default async function HistoryPage() {
           Every session
         </h1>
       </div>
+
+      <StretchResumeCard />
 
       <HistoryCalendar
         workoutDates={workoutDateStrings}
