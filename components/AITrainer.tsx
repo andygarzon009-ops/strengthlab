@@ -1290,6 +1290,9 @@ function StretchRoutineButton({
   const onClick = () => {
     try {
       sessionStorage.setItem("sl:stretchRoutine", JSON.stringify(routine));
+      // Starting a freshly-prescribed routine — drop any saved resume point
+      // from a previous one so the player begins at the top, not mid-way.
+      sessionStorage.removeItem("sl:stretchProgress");
     } catch {
       // ignore — the player shows an empty state if the handoff didn't land
     }

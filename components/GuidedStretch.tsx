@@ -102,6 +102,19 @@ const KIND_META: Record<StretchKind, { label: string; color: string; verb: strin
 
 type Mode = "idle" | "running" | "done";
 
+// Live progress is mirrored here so the routine survives leaving and coming
+// back to the page (same sessionStorage handoff the workout draft uses). We
+// store which step and how much of it is left, plus a signature of the routine
+// so a DIFFERENT routine's progress can never restore into this one.
+const PROGRESS_KEY = "sl:stretchProgress";
+
+type StretchProgress = {
+  sig: string;
+  idx: number;
+  remainingMs: number;
+  paused: boolean;
+};
+
 export default function GuidedStretch({
   routine,
   onExit,
@@ -112,18 +125,59 @@ export default function GuidedStretch({
   const steps = useMemo<StretchStep[]>(() => buildStretchSteps(routine), [routine]);
   const totalStretches = routine.stretches.length;
   const totalSec = useMemo(() => routineDurationSec(routine), [routine]);
+  const routineSig = useMemo(
+    () => `${routine.stretches.length}:${routine.title ?? ""}`,
+    [routine],
+  );
 
-  const [mode, setMode] = useState<Mode>("idle");
-  const [idx, setIdx] = useState(0);
-  const [paused, setPaused] = useState(false);
+  // Read any saved progress for THIS routine exactly once, so the state below
+  // can initialize straight into the resumed step (no idle-screen flash).
+  // Restored sessions come back PAUSED so time spent away never auto-skips
+  // stretches — the athlete taps play when they're back in position.
+  const bootRef = useRef<{ idx: number; remMs: number } | null | undefined>(
+    undefined,
+  );
+  const boot = (): { idx: number; remMs: number } | null => {
+    if (bootRef.current !== undefined) return bootRef.current;
+    let r: { idx: number; remMs: number } | null = null;
+    try {
+      const raw = sessionStorage.getItem(PROGRESS_KEY);
+      if (raw) {
+        const p = JSON.parse(raw) as StretchProgress;
+        if (
+          p &&
+          p.sig === routineSig &&
+          typeof p.idx === "number" &&
+          p.idx >= 0 &&
+          p.idx < steps.length
+        ) {
+          r = { idx: p.idx, remMs: Math.max(0, Number(p.remainingMs) || 0) };
+        }
+      }
+    } catch {
+      // ignore — falls through to a fresh start
+    }
+    bootRef.current = r;
+    return r;
+  };
+  const exitingRef = useRef(false);
+
+  const [mode, setMode] = useState<Mode>(() => (boot() ? "running" : "idle"));
+  const [idx, setIdx] = useState(() => boot()?.idx ?? 0);
+  const [paused, setPaused] = useState(() => !!boot());
 
   // Wall-clock anchor for the running countdown. Deriving remaining from a real
   // end time (instead of decrementing on a setInterval, which browsers freeze
   // when the app is backgrounded) keeps the clock honest across screen-lock and
   // tab-switch. On pause we snapshot the remaining ms and re-anchor on resume.
-  const [endsAt, setEndsAt] = useState<number | null>(null);
+  // When restoring, anchor endsAt to now + remaining; paused freezes the tick
+  // so it displays that remaining until the athlete resumes.
+  const [endsAt, setEndsAt] = useState<number | null>(() => {
+    const b = boot();
+    return b ? Date.now() + b.remMs : null;
+  });
   const [now, setNow] = useState(() => Date.now());
-  const pausedRemainingRef = useRef<number | null>(null);
+  const pausedRemainingRef = useRef<number | null>(boot()?.remMs ?? null);
   const lastBeepRef = useRef<number | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
@@ -154,6 +208,31 @@ export default function GuidedStretch({
     wakeLockRef.current = null;
   }, []);
 
+  // Persist / clear the resume point in sessionStorage.
+  const saveProgress = useCallback(
+    (remMs: number, curIdx: number, isPaused: boolean) => {
+      try {
+        const p: StretchProgress = {
+          sig: routineSig,
+          idx: curIdx,
+          remainingMs: Math.max(0, Math.round(remMs)),
+          paused: isPaused,
+        };
+        sessionStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
+      } catch {
+        // ignore — resume just won't be available
+      }
+    },
+    [routineSig],
+  );
+  const clearProgress = useCallback(() => {
+    try {
+      sessionStorage.removeItem(PROGRESS_KEY);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Advance to the next step, or finish. Anchors the next step's countdown.
   const goTo = useCallback(
     (nextIdx: number) => {
@@ -165,14 +244,16 @@ export default function GuidedStretch({
         cueDone();
         vibrate([200, 100, 200]);
         releaseWakeLock();
+        clearProgress(); // routine finished — nothing to resume
         return;
       }
       const dur = steps[nextIdx]?.durationSec ?? 0;
       setIdx(nextIdx);
       setNow(Date.now());
       setEndsAt(Date.now() + dur * 1000);
+      saveProgress(dur * 1000, nextIdx, false);
     },
-    [steps, releaseWakeLock],
+    [steps, releaseWakeLock, saveProgress, clearProgress],
   );
 
   // Drive the displayed countdown from the wall clock, and re-sync the instant
@@ -229,8 +310,26 @@ export default function GuidedStretch({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining, mode, paused, endsAt]);
 
-  // Release the wake lock if the component unmounts mid-session.
-  useEffect(() => releaseWakeLock, [releaseWakeLock]);
+  // Keep a snapshot of the live position fresh on every render so the unmount
+  // handler below can persist the exact mid-step remaining when the athlete
+  // navigates away — effect closures would otherwise capture stale values.
+  const liveRef = useRef({ mode, idx, remainingMs: 0 });
+  useEffect(() => {
+    liveRef.current = { mode, idx, remainingMs: Math.round(remaining * 1000) };
+  });
+
+  // On unmount: release the wake lock, and — unless the athlete deliberately
+  // exited — freeze the current position to sessionStorage as PAUSED so
+  // leaving the page (bottom nav, a link) and returning resumes right here
+  // instead of losing the routine.
+  useEffect(() => {
+    return () => {
+      releaseWakeLock();
+      if (exitingRef.current) return;
+      const l = liveRef.current;
+      if (l.mode === "running") saveProgress(l.remainingMs, l.idx, true);
+    };
+  }, [releaseWakeLock, saveProgress]);
 
   function start() {
     ensureAudio(); // unlock audio within the Start gesture
@@ -251,12 +350,22 @@ export default function GuidedStretch({
       setNow(Date.now());
       setEndsAt(Date.now() + rem);
       setPaused(false);
+      saveProgress(rem, idx, false);
     } else {
       // Pause: snapshot remaining ms so resume picks up exactly where it froze.
-      pausedRemainingRef.current =
+      const rem =
         endsAt !== null ? Math.max(0, endsAt - Date.now()) : (current?.durationSec ?? 0) * 1000;
+      pausedRemainingRef.current = rem;
       setPaused(true);
+      saveProgress(rem, idx, true);
     }
+  }
+
+  // Deliberate exit (the X): don't leave a resume point behind.
+  function handleExit() {
+    exitingRef.current = true;
+    clearProgress();
+    onExit();
   }
 
   function skip() {
@@ -272,6 +381,7 @@ export default function GuidedStretch({
   }
 
   function replay() {
+    clearProgress();
     setMode("idle");
     setIdx(0);
     setEndsAt(null);
@@ -283,7 +393,7 @@ export default function GuidedStretch({
   // ---- IDLE: routine overview + Start ------------------------------------
   if (mode === "idle") {
     return (
-      <Shell onExit={onExit}>
+      <Shell onExit={handleExit}>
         <div className="px-5 pb-4">
           <p
             className="text-[11px] font-semibold tracking-[0.14em] uppercase mb-1"
@@ -372,7 +482,7 @@ export default function GuidedStretch({
   // ---- DONE --------------------------------------------------------------
   if (mode === "done") {
     return (
-      <Shell onExit={onExit}>
+      <Shell onExit={handleExit}>
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
           <div
             className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
@@ -399,7 +509,7 @@ export default function GuidedStretch({
           <div className="w-full max-w-xs space-y-2">
             <button
               type="button"
-              onClick={onExit}
+              onClick={handleExit}
               className="w-full rounded-2xl py-3.5 text-[14px] font-bold active:scale-[0.99] transition-transform"
               style={{ background: "var(--accent)", color: "#0a0a0a" }}
             >
