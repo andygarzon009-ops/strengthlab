@@ -284,7 +284,7 @@ export default function GuidedStretch({
   if (mode === "idle") {
     return (
       <Shell onExit={onExit}>
-        <div className="flex-1 overflow-y-auto px-5 pb-4">
+        <div className="px-5 pb-4">
           <p
             className="text-[11px] font-semibold tracking-[0.14em] uppercase mb-1"
             style={{ color: "var(--accent)" }}
@@ -352,10 +352,7 @@ export default function GuidedStretch({
           </ul>
         </div>
 
-        <div
-          className="px-5 pt-3"
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)" }}
-        >
+        <div className="px-5 pt-3 pb-6">
           <button
             type="button"
             onClick={start}
@@ -684,20 +681,19 @@ function CtrlButton({
 // it sits over the bottom nav for a distraction-free live session.
 function Shell({ children, onExit }: { children: React.ReactNode; onExit: () => void }) {
   return (
-    // z-[100] so the full-screen player sits ABOVE the dashboard chrome —
-    // the bottom nav (z-50, painted after this in the layout) and the floating
-    // timer/coach buttons (z-40/z-70) were otherwise covering the Start button
-    // and the bottom controls. Stays below the rest-timer modal (z-110+).
+    // A normal in-flow dashboard page, NOT a full-screen overlay — so the
+    // bottom nav, the floating coach button, and the rest timer all stay
+    // reachable while a routine runs. The athlete can open the coach to ask a
+    // question mid-stretch; that chat opens as its own overlay and this page
+    // stays mounted underneath, so the wall-clock timer keeps ticking and is
+    // still correct when they come back. min-height fills the band above the
+    // nav (the dashboard layout already reserves the nav's height) so the
+    // running view can center its ring.
     <div
-      className="fixed inset-0 z-[100] flex flex-col"
-      style={{
-        background: "var(--bg)",
-        height: "100dvh",
-        maxHeight: "100dvh",
-        paddingTop: "calc(env(safe-area-inset-top, 0px) + 0.5rem)",
-      }}
+      className="flex flex-col"
+      style={{ minHeight: "calc(100dvh - 8rem)" }}
     >
-      <div className="flex justify-end px-4 pb-1">
+      <div className="flex justify-end px-4 pt-1 pb-1">
         <button
           type="button"
           onClick={onExit}
