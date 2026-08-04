@@ -8,19 +8,52 @@ import {
   type StretchRoutine,
   type StretchStep,
 } from "@/lib/stretchRoutine";
-import {
-  unlockAudio,
-  resumeAudio,
-  releaseAudio,
-  tone,
-  vibrate,
-} from "@/lib/timerSound";
 import { logStretchWorkout } from "@/lib/actions/workouts";
 
-// --- Audio cues ----------------------------------------------------------
-// The tone engine (silent-switch bypass + background keep-alive) lives in
-// lib/timerSound. unlockAudio() runs from the Start/Resume tap so audio
-// unlocks reliably; resumeAudio() re-arms it when we return to the foreground.
+// --- Audio cues (mirrors components/GuidedWarmup.tsx) --------------------
+// Web Audio beeps for the countdown. The context is created lazily and
+// resumed on every access: browsers start it "suspended" and auto-suspend on
+// tab-switch / screen-lock, after which tones are silent until a gesture
+// resumes it. ensureAudio() runs from the Start tap so audio unlocks reliably.
+type AudioBag = { ctx: AudioContext };
+let audioBag: AudioBag | null = null;
+
+function ensureAudio(): AudioBag | null {
+  if (typeof window === "undefined") return null;
+  if (audioBag) {
+    if (audioBag.ctx.state === "suspended") void audioBag.ctx.resume();
+    return audioBag;
+  }
+  try {
+    type W = Window & { webkitAudioContext?: typeof AudioContext };
+    const AC = window.AudioContext ?? (window as W).webkitAudioContext;
+    if (!AC) return null;
+    const ctx = new AC();
+    if (ctx.state === "suspended") void ctx.resume();
+    audioBag = { ctx };
+    return audioBag;
+  } catch {
+    return null;
+  }
+}
+
+function tone(freq: number, durationMs: number, gainPeak = 0.22) {
+  const bag = ensureAudio();
+  if (!bag) return;
+  const { ctx } = bag;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.value = freq;
+  const now = ctx.currentTime;
+  const dur = durationMs / 1000;
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(gainPeak, now + 0.01);
+  gain.gain.linearRampToValueAtTime(0, now + dur);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + dur + 0.05);
+}
 
 // 3-2-1 tick before a hold or rest ends.
 const cueCountdown = () => tone(660, 120, 0.18);
@@ -35,6 +68,16 @@ const cueGo = () => tone(784, 200, 0.2);
 const cueDone = () => {
   tone(523, 200, 0.2);
   setTimeout(() => tone(392, 320, 0.2), 200);
+};
+
+const vibrate = (pattern: number | number[]) => {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    try {
+      navigator.vibrate?.(pattern);
+    } catch {
+      // ignore — unsupported or blocked
+    }
+  }
 };
 
 function formatTime(seconds: number): string {
@@ -207,7 +250,6 @@ export default function GuidedStretch({
         cueDone();
         vibrate([200, 100, 200]);
         releaseWakeLock();
-        releaseAudio(); // stop the silent keep-alive now the timer is over
         clearProgress(); // routine finished — nothing to resume
         return;
       }
@@ -230,7 +272,7 @@ export default function GuidedStretch({
     const id = setInterval(tick, 200);
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        resumeAudio();
+        ensureAudio();
         void acquireWakeLock();
         tick();
       }
@@ -289,7 +331,6 @@ export default function GuidedStretch({
   useEffect(() => {
     return () => {
       releaseWakeLock();
-      releaseAudio();
       if (exitingRef.current) return;
       const l = liveRef.current;
       if (l.mode === "running") saveProgress(l.remainingMs, l.idx, true);
@@ -315,7 +356,7 @@ export default function GuidedStretch({
   }, [mode, logSession]);
 
   function start() {
-    unlockAudio(); // unlock audio (through the mute switch) within the Start gesture
+    ensureAudio(); // unlock audio within the Start gesture
     void acquireWakeLock();
     setMode("running");
     setPaused(false);
@@ -328,7 +369,7 @@ export default function GuidedStretch({
       const rem = pausedRemainingRef.current ?? (current?.durationSec ?? 0) * 1000;
       pausedRemainingRef.current = null;
       lastBeepRef.current = null;
-      unlockAudio();
+      ensureAudio();
       void acquireWakeLock();
       setNow(Date.now());
       setEndsAt(Date.now() + rem);
@@ -347,7 +388,6 @@ export default function GuidedStretch({
   // Deliberate exit (the X): don't leave a resume point behind.
   function handleExit() {
     exitingRef.current = true;
-    releaseAudio();
     clearProgress();
     onExit();
   }
