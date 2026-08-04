@@ -1,12 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  unlockAudio,
-  resumeAudio,
-  tone,
-  vibrate,
-} from "@/lib/timerSound";
 
 const INTERVAL_KEY = "strengthlab.timer.interval.v1";
 const PRESETS_KEY = "strengthlab.timer.intervalPresets.v1";
@@ -44,6 +38,52 @@ const BUILT_IN_PRESETS: { name: string; config: IntervalConfig }[] = [
   { name: "EMOM 2m", config: { workSeconds: 120, restSeconds: 0, rounds: 10, prepSeconds: 5 } },
 ];
 
+type AudioBag = { ctx: AudioContext };
+let audioBag: AudioBag | null = null;
+
+function ensureAudio(): AudioBag | null {
+  if (audioBag) {
+    // A context created during one gesture gets auto-suspended by the
+    // browser whenever the tab backgrounds or the screen locks (constant on
+    // iOS). While suspended every tone is silent, so resume it on each
+    // access — when called from a user gesture (start/skip tap) this
+    // reliably unlocks audio again.
+    if (audioBag.ctx.state === "suspended") void audioBag.ctx.resume();
+    return audioBag;
+  }
+  try {
+    type W = Window & { webkitAudioContext?: typeof AudioContext };
+    const w = window as W;
+    const AC = window.AudioContext ?? w.webkitAudioContext;
+    if (!AC) return null;
+    const ctx = new AC();
+    // New contexts start "suspended" until a user gesture resumes them.
+    if (ctx.state === "suspended") void ctx.resume();
+    audioBag = { ctx };
+    return audioBag;
+  } catch {
+    return null;
+  }
+}
+
+function tone(freq: number, durationMs: number, gainPeak = 0.25) {
+  const bag = ensureAudio();
+  if (!bag) return;
+  const { ctx } = bag;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.value = freq;
+  const now = ctx.currentTime;
+  const dur = durationMs / 1000;
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(gainPeak, now + 0.01);
+  gain.gain.linearRampToValueAtTime(0, now + dur);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + dur + 0.05);
+}
+
 const cueCountdown = () => tone(660, 120, 0.18);
 const cueWork = () => {
   tone(880, 180);
@@ -57,6 +97,11 @@ const cueDone = () => tone(440, 260, 0.2);
 const cueTick = () => tone(800, 60, 0.15);
 const cueRound = () => tone(1320, 100, 0.18);
 
+const vibrate = (pattern: number | number[]) => {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    navigator.vibrate?.(pattern);
+  }
+};
 
 const fmtMMSS = (s: number) => {
   const total = Math.max(0, Math.ceil(s));
@@ -105,7 +150,7 @@ export default function Timer() {
     const handler = (e: Event) => {
       const ce = e as CustomEvent<{ seconds?: number }>;
       const secs = Math.max(5, Math.round(ce.detail?.seconds ?? 90));
-      unlockAudio();
+      ensureAudio();
       setMode("COUNTDOWN");
       setCdConfigSeconds(secs);
       cdBeepRef.current = null;
@@ -248,9 +293,9 @@ export default function Timer() {
   // it whenever the page comes back to the foreground while a timer runs.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const unlock = () => unlockAudio();
+    const unlock = () => ensureAudio();
     const onVisible = () => {
-      if (document.visibilityState === "visible") resumeAudio();
+      if (document.visibilityState === "visible") ensureAudio();
     };
     // `once` so the priming listeners detach themselves after first use.
     window.addEventListener("pointerdown", unlock, { once: true });
@@ -331,7 +376,7 @@ export default function Timer() {
   }, [intervalRemaining, intervalRunning]);
 
   const startInterval = () => {
-    unlockAudio();
+    ensureAudio();
     setRound(1);
     startPhase(intervalConfig.prepSeconds > 0 ? "PREP" : "WORK");
   };
@@ -368,7 +413,7 @@ export default function Timer() {
   const swElapsedMs = swStartedAt !== null ? now - swStartedAt : swElapsedBeforePause;
 
   const startSw = () => {
-    unlockAudio();
+    ensureAudio();
     setSwStartedAt(Date.now() - swElapsedBeforePause);
     setSwElapsedBeforePause(0);
     setNow(Date.now());
@@ -422,7 +467,7 @@ export default function Timer() {
 
   const startCd = () => {
     if (cdConfigSeconds <= 0) return;
-    unlockAudio();
+    ensureAudio();
     cdBeepRef.current = null;
     cdFiredRef.current = false;
     setCdEndsAt(Date.now() + cdConfigSeconds * 1000);
@@ -476,7 +521,7 @@ export default function Timer() {
 
   const startAmrap = () => {
     if (amrapConfigSeconds <= 0) return;
-    unlockAudio();
+    ensureAudio();
     amrapBeepRef.current = null;
     amrapFiredRef.current = false;
     setAmrapRounds(0);
