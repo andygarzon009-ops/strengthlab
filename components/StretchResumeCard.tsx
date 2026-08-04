@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { tryParseRoutine, type StretchRoutine } from "@/lib/stretchRoutine";
+import { readStretchProgressRaw, readStretchRoutineRaw } from "@/lib/stretchSession";
 
 // Surfaces an in-progress guided stretch routine in the History / Log tab so
 // the athlete can jump back into the live player — the routine's live state
@@ -12,13 +13,9 @@ export default function StretchResumeCard() {
   const [routine, setRoutine] = useState<StretchRoutine | null>(null);
 
   useEffect(() => {
-    try {
-      const progress = sessionStorage.getItem("sl:stretchProgress");
-      const raw = sessionStorage.getItem("sl:stretchRoutine");
-      if (progress && raw) setRoutine(tryParseRoutine(raw));
-    } catch {
-      // no session storage / bad data — just don't show the card
-    }
+    const progress = readStretchProgressRaw();
+    const raw = readStretchRoutineRaw();
+    if (progress && raw) setRoutine(tryParseRoutine(raw));
   }, []);
 
   if (!routine) return null;

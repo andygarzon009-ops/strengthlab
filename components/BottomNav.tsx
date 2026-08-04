@@ -1,7 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  hasLiveStretchSession,
+  subscribeStretchSession,
+} from "@/lib/stretchSession";
 
 const navItems = [
   { href: "/", label: "Feed" },
@@ -62,6 +67,19 @@ function Icon({ name, active }: { name: string; active: boolean }) {
 export default function BottomNav() {
   const pathname = usePathname();
 
+  // A guided stretch routine keeps running while the athlete wanders off to
+  // another tab. The center action button is the one control that's always on
+  // screen, so while a session is live it becomes the way back into it —
+  // otherwise the only route back was the resume card buried on the Log tab,
+  // which nobody would think to look for. Re-synced on navigation and on every
+  // session write (see lib/stretchSession).
+  const [stretching, setStretching] = useState(false);
+  useEffect(() => {
+    const sync = () => setStretching(hasLiveStretchSession());
+    sync();
+    return subscribeStretchSession(sync);
+  }, [pathname]);
+
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-50"
@@ -81,30 +99,39 @@ export default function BottomNav() {
         {navItems.map((item) => {
           const active = pathname === item.href;
           if (item.accent) {
+            // Mid-routine this button returns to the stretch player, and shows
+            // a play glyph instead of the plus so it reads as "resume" rather
+            // than "start something new".
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={stretching ? "/stretch" : item.href}
                 className="flex flex-col items-center justify-center w-14 h-14 -mt-6 rounded-full active:scale-95 transition-transform"
                 style={{
                   background: "var(--accent)",
                   boxShadow:
                     "0 8px 24px -6px rgba(34, 197, 94, 0.5), 0 0 0 4px var(--bg)",
                 }}
-                aria-label={item.label}
+                aria-label={stretching ? "Resume stretching" : item.label}
               >
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#0a0a0a"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
+                {stretching ? (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="#0a0a0a" aria-hidden>
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                ) : (
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#0a0a0a"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                )}
               </Link>
             );
           }

@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import GuidedStretch from "@/components/GuidedStretch";
 import { tryParseRoutine, type StretchRoutine } from "@/lib/stretchRoutine";
+import { readStretchRoutineRaw, clearStretchSession } from "@/lib/stretchSession";
 
-// The coach's "Do this stretching routine" button stashes the routine JSON
-// here and navigates over — same handoff pattern as the "Do this workout"
-// voice-draft. Reading it on the client avoids threading a big payload through
-// the URL.
-const ROUTINE_KEY = "sl:stretchRoutine";
+// The coach's "Do this stretching routine" button stashes the routine JSON in
+// sessionStorage and navigates over — same handoff pattern as the "Do this
+// workout" voice-draft. Reading it on the client avoids threading a big
+// payload through the URL. lib/stretchSession owns the keys.
 
 export default function StretchPage() {
   const router = useRouter();
@@ -18,21 +18,15 @@ export default function StretchPage() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(ROUTINE_KEY);
-      if (raw) setRoutine(tryParseRoutine(raw));
-    } catch {
-      // ignore — falls through to the empty state
-    }
+    const raw = readStretchRoutineRaw();
+    if (raw) setRoutine(tryParseRoutine(raw));
     setReady(true);
   }, []);
 
   const exit = () => {
-    try {
-      sessionStorage.removeItem(ROUTINE_KEY);
-    } catch {
-      // ignore
-    }
+    // Deliberate exit — drop the routine AND any resume point, which also
+    // flips the bottom nav's button back from "resume stretching" to "train".
+    clearStretchSession();
     // Prefer going back to where they were (the coach); fall back to the home
     // dashboard if there's no history to return to.
     if (window.history.length > 1) router.back();

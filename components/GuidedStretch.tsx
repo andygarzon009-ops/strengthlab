@@ -10,6 +10,11 @@ import {
 } from "@/lib/stretchRoutine";
 import { logStretchWorkout } from "@/lib/actions/workouts";
 import { resolvePose } from "@/lib/stretchPoses";
+import {
+  readStretchProgressRaw,
+  saveStretchProgressRaw,
+  clearStretchProgress,
+} from "@/lib/stretchSession";
 import StretchFigure from "./StretchFigure";
 
 // --- Audio cues (mirrors components/GuidedWarmup.tsx) --------------------
@@ -105,12 +110,11 @@ const KIND_META: Record<StretchKind, { label: string; color: string; verb: strin
 
 type Mode = "idle" | "running" | "done";
 
-// Live progress is mirrored here so the routine survives leaving and coming
-// back to the page (same sessionStorage handoff the workout draft uses). We
-// store which step and how much of it is left, plus a signature of the routine
-// so a DIFFERENT routine's progress can never restore into this one.
-const PROGRESS_KEY = "sl:stretchProgress";
-
+// Live progress is mirrored to sessionStorage (via lib/stretchSession, which
+// also tells the bottom nav a session is live) so the routine survives leaving
+// and coming back to the page. We store which step and how much of it is left,
+// plus a signature of the routine so a DIFFERENT routine's progress can never
+// restore into this one.
 type StretchProgress = {
   sig: string;
   idx: number;
@@ -144,7 +148,7 @@ export default function GuidedStretch({
     if (bootRef.current !== undefined) return bootRef.current;
     let r: { idx: number; remMs: number } | null = null;
     try {
-      const raw = sessionStorage.getItem(PROGRESS_KEY);
+      const raw = readStretchProgressRaw();
       if (raw) {
         const p = JSON.parse(raw) as StretchProgress;
         if (
@@ -216,29 +220,23 @@ export default function GuidedStretch({
     wakeLockRef.current = null;
   }, []);
 
-  // Persist / clear the resume point in sessionStorage.
+  // Persist / clear the resume point. Both writes notify the rest of the app
+  // so the bottom nav's action button can flip to "resume stretching" the
+  // moment a routine starts, and back when it ends.
   const saveProgress = useCallback(
     (remMs: number, curIdx: number, isPaused: boolean) => {
-      try {
-        const p: StretchProgress = {
-          sig: routineSig,
-          idx: curIdx,
-          remainingMs: Math.max(0, Math.round(remMs)),
-          paused: isPaused,
-        };
-        sessionStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
-      } catch {
-        // ignore — resume just won't be available
-      }
+      const p: StretchProgress = {
+        sig: routineSig,
+        idx: curIdx,
+        remainingMs: Math.max(0, Math.round(remMs)),
+        paused: isPaused,
+      };
+      saveStretchProgressRaw(JSON.stringify(p));
     },
     [routineSig],
   );
   const clearProgress = useCallback(() => {
-    try {
-      sessionStorage.removeItem(PROGRESS_KEY);
-    } catch {
-      // ignore
-    }
+    clearStretchProgress();
   }, []);
 
   // Advance to the next step, or finish. Anchors the next step's countdown.
