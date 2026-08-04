@@ -2,11 +2,15 @@
 // guided warm-up, and the guided stretch player. Centralized so the two hard
 // mobile problems get solved in one place:
 //
-//   1. SILENT MODE. On iOS, Web Audio is muted by the hardware ring/silent
-//      switch by default — which is exactly how a phone sits at the gym, so
-//      the beeps "don't work." Declaring the audio session as "playback"
-//      (Safari 16.4+) makes our tones play THROUGH the mute switch, like a
-//      music or video app. This is the main fix.
+//   1. SILENT MODE / OTHER AUDIO. iOS Web Audio has two independent audio
+//      session categories to choose between: "playback" ignores the hardware
+//      ring/silent switch, but is exclusive — it pauses whatever the user is
+//      already listening to (Spotify, Apple Music, a podcast) for as long as
+//      our session stays active, which is not acceptable. "ambient" mixes
+//      with other apps' audio instead of pausing it, at the cost of also
+//      respecting the silent switch like any other alert sound. We use
+//      "ambient" so a workout never stops the user's music; a phone left on
+//      silent just won't audibly beep, same as any other non-playback app.
 //
 //   2. BACKGROUND / SCREEN LOCK. Browsers suspend the AudioContext when the
 //      tab is backgrounded or the screen locks, after which every tone is
@@ -23,13 +27,14 @@ let ctx: AudioContext | null = null;
 let keepAliveEl: HTMLAudioElement | null = null;
 let keepAliveUrl: string | null = null;
 
-// Tell iOS this is playback audio so it ignores the mute switch. Cheap and
-// idempotent — safe to call on every unlock/resume.
-function setPlaybackSession(): void {
+// Tell iOS our tones should mix with whatever else is already playing
+// instead of pausing it. Cheap and idempotent — safe to call on every
+// unlock/resume.
+function setAmbientSession(): void {
   try {
     const s = (navigator as unknown as { audioSession?: { type: string } })
       .audioSession;
-    if (s && s.type !== "playback") s.type = "playback";
+    if (s && s.type !== "ambient") s.type = "ambient";
   } catch {
     // Unsupported browser — nothing to do; foreground audio still works.
   }
@@ -73,7 +78,7 @@ function makeSilentLoopUrl(): string | null {
 // AudioContext, sets the playback session, and starts the silent keep-alive.
 export function unlockAudio(): void {
   if (typeof window === "undefined") return;
-  setPlaybackSession();
+  setAmbientSession();
   try {
     type W = Window & { webkitAudioContext?: typeof AudioContext };
     const AC = window.AudioContext ?? (window as W).webkitAudioContext;
@@ -103,7 +108,7 @@ export function unlockAudio(): void {
 // audio the browser suspended while backgrounded.
 export function resumeAudio(): void {
   if (typeof window === "undefined") return;
-  setPlaybackSession();
+  setAmbientSession();
   try {
     if (ctx && ctx.state === "suspended") void ctx.resume();
   } catch {
