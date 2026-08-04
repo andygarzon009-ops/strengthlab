@@ -10,12 +10,12 @@ dataset above. They are used here in a private, non-commercial app.
 
 BEFORE ANY PUBLIC LAUNCH, one of the following must happen:
 
-  1. License these clips directly from Gym Visual (roughly $0.90 each; the 17
-     files here would be about $15), or
+  1. License these clips directly from Gym Visual (roughly $0.90 each; the 13
+     files here would be about $12), or
   2. Delete this folder.
 
 Deleting the folder is safe and requires no code change: lib/stretchMedia.ts
 falls back to the drawn figures in lib/stretchPoses.ts for any drill without a
-clip, and 17 of the 34 drills already run on drawn figures today.
+clip, and 21 of the 34 drills already run on drawn figures today.
 
 Each file is named for its pose slug in lib/stretchPoses.ts.
