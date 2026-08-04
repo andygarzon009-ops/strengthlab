@@ -21,8 +21,11 @@
 // precision, not coverage: a routine full of drawn figures is fine, one clip
 // showing the wrong position is not.
 //
-// Source: ExerciseGymGifsDB (github.com/JahelCuadrado/ExerciseGymGifsDB).
-// Media © Gym Visual — see public/stretch/NOTICE.txt.
+// Sources: ExerciseGymGifsDB (github.com/JahelCuadrado/ExerciseGymGifsDB) for
+// most clips, plus individual drills pulled from lyfta.app where that dataset
+// has no entry — it's a ~20% subset of the upstream catalogue, which is why so
+// many mobility and yoga drills appeared to have "no match anywhere".
+// All media © Gym Visual — see public/stretch/NOTICE.txt.
 
 type Clip = {
   /** File in public/stretch, without the .webp extension. */
@@ -82,6 +85,7 @@ const CLIPS: Clip[] = [
     subject: /lateral stretch|side bend|side body|quadratus/,
     not: /lying|seated|roller|foam/,
   },
+  { file: "cat-cow", subject: /cat.?cow|cat.?camel/ },
   { file: "worlds-greatest", subject: /world.?s? greatest/ },
   { file: "deep-squat", subject: /deep squat|squat hold|malasana|garland|third.?world squat/ },
   { file: "shoulder-pass-through", subject: /pass.?through|dislocate/ },

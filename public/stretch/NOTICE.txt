@@ -1,7 +1,8 @@
 Stretch demonstration animations
 ================================
 
-Source:  ExerciseGymGifsDB — https://github.com/JahelCuadrado/ExerciseGymGifsDB
+Sources: ExerciseGymGifsDB — https://github.com/JahelCuadrado/ExerciseGymGifsDB
+         lyfta.app (individual drills the dataset above doesn't carry)
 Media:   © Gym Visual — https://gymvisual.com/
 Format:  animated WebP, 300x300, converted from the source GIFs
 
@@ -10,13 +11,13 @@ dataset above. They are used here in a private, non-commercial app.
 
 BEFORE ANY PUBLIC LAUNCH, one of the following must happen:
 
-  1. License these clips directly from Gym Visual (roughly $0.90 each; the 15
-     files here would be about $14), or
+  1. License these clips directly from Gym Visual (roughly $0.90 each; the 16
+     files here would be about $15), or
   2. Delete this folder.
 
 Deleting the folder is safe and requires no code change: lib/stretchMedia.ts
 falls back to the drawn figures in lib/stretchPoses.ts for any drill without a
-clip, and 21 of the 34 drills already run on drawn figures today.
+clip, and 20 of the 34 drills already run on drawn figures today.
 
 Each file is named for the POSITION it shows, and lib/stretchMedia.ts decides
 which drill names may play it. Filenames are not pose slugs — a clip has to
