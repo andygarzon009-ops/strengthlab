@@ -22,10 +22,15 @@
 // showing the wrong position is not.
 //
 // Sources: ExerciseGymGifsDB (github.com/JahelCuadrado/ExerciseGymGifsDB) for
-// most clips, plus individual drills pulled from lyfta.app where that dataset
-// has no entry — it's a ~20% subset of the upstream catalogue, which is why so
-// many mobility and yoga drills appeared to have "no match anywhere".
-// All media © Gym Visual — see public/stretch/NOTICE.txt.
+// most clips, plus individual drills pulled from lyfta.app, liftmanual.com and
+// fitnessprogramer.com where that dataset has no entry — it's a ~20% subset of
+// the upstream catalogue, which is why so many mobility and yoga drills
+// appeared to have "no match anywhere". All of it traces back to Gym Visual.
+// See public/stretch/NOTICE.txt — including the one clip whose source-site
+// corner logo was cleared, which is listed there so it can't be forgotten.
+//
+// Not every clip animates: a couple are stills, which is fine for a static
+// hold and invisible in the player since both render on the same white plate.
 
 type Clip = {
   /** File in public/stretch, without the .webp extension. */
@@ -54,11 +59,24 @@ const CLIPS: Clip[] = [
   },
 
   // --- glutes ---
+  // Lying and seated figure-4 are different enough to need their own clips,
+  // the same way the two hamstring positions do. Lying is tested first.
+  {
+    file: "figure-4-supine",
+    subject: /figure.?4|figure.?four|piriformis|glute/,
+    position: /supine|lying|lie |on (your |the )?back/,
+    not: /roller|foam|bridge|ball|standing/,
+  },
   {
     file: "figure-4",
     subject: /figure.?4|figure.?four|piriformis|glute/,
     position: /seated|sitting|floor|chair/,
     not: /supine|lying|standing|roller|foam|bridge|kneel|ball/,
+  },
+  {
+    file: "hip-flexor-lunge",
+    subject: /hip flexor|couch stretch|psoas|kneeling lunge/,
+    not: /roller|foam|ball|standing/,
   },
   { file: "glute-bridge", subject: /glute bridge|hip bridge/, not: /single|march|barbell|band/ },
 

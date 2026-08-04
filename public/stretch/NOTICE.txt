@@ -2,7 +2,12 @@ Stretch demonstration animations
 ================================
 
 Sources: ExerciseGymGifsDB — https://github.com/JahelCuadrado/ExerciseGymGifsDB
-         lyfta.app (individual drills the dataset above doesn't carry)
+         lyfta.app, liftmanual.com, fitnessprogramer.com (individual drills
+         the dataset above doesn't carry). All trace back to Gym Visual.
+
+NOTE: hip-flexor-lunge.webp came from fitnessprogramer.com and had a corner
+site logo, which was painted out during conversion. Recorded here so the
+provenance isn't lost and so it is dealt with at launch along with the rest.
 Media:   © Gym Visual — https://gymvisual.com/
 Format:  animated WebP, 300x300, converted from the source GIFs
 
@@ -11,8 +16,8 @@ dataset above. They are used here in a private, non-commercial app.
 
 BEFORE ANY PUBLIC LAUNCH, one of the following must happen:
 
-  1. License these clips directly from Gym Visual (roughly $0.90 each; the 22
-     files here would be about $20), or
+  1. License these clips directly from Gym Visual (roughly $0.90 each; the 24
+     files here would be about $22), or
   2. Delete this folder.
 
 Deleting the folder is safe and requires no code change: lib/stretchMedia.ts
