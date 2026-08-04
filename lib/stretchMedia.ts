@@ -86,6 +86,11 @@ const CLIPS: Clip[] = [
     not: /lying|seated|roller|foam/,
   },
   { file: "cat-cow", subject: /cat.?cow|cat.?camel/ },
+  { file: "cobra", subject: /cobra|sphinx|upward.?facing dog/ },
+  { file: "pigeon", subject: /pigeon/ },
+  { file: "butterfly", subject: /butterfly|bound angle|soles together/ },
+  { file: "arm-circles", subject: /arm circle|shoulder circle/ },
+  { file: "hip-cars", subject: /hip circle|hip car|90.?90/ },
   { file: "worlds-greatest", subject: /world.?s? greatest/ },
   { file: "deep-squat", subject: /deep squat|squat hold|malasana|garland|third.?world squat/ },
   { file: "shoulder-pass-through", subject: /pass.?through|dislocate/ },
@@ -95,6 +100,11 @@ const CLIPS: Clip[] = [
     file: "foamroll-quad",
     subject: /foam ?roll|roller|smr/,
     position: /quad|thigh|hip flexor/,
+  },
+  {
+    file: "foamroll-hamstring",
+    subject: /foam ?roll|roller|smr/,
+    position: /hamstring/,
   },
   {
     file: "foamroll-back",
