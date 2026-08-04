@@ -799,7 +799,7 @@ export default function GuidedStretch({
         )}
 
         {/* countdown ring */}
-        <div className="relative my-6" style={{ width: 2 * (R + 16), height: 2 * (R + 16) }}>
+        <div className="relative mt-5 mb-4" style={{ width: 2 * (R + 16), height: 2 * (R + 16) }}>
           <svg
             width={2 * (R + 16)}
             height={2 * (R + 16)}
@@ -827,28 +827,37 @@ export default function GuidedStretch({
               style={{ transition: paused ? "none" : "stroke-dashoffset 0.2s linear" }}
             />
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
+          {/* The demonstration fills the ring's interior edge-to-edge, so the
+              progress arc reads as its rim rather than as a second circle
+              around a smaller one. The clips are drawn on white, so the plate
+              IS the white — sized to the track's inner edge. */}
+          <div className="absolute inset-0 flex items-center justify-center">
             {activeMedia ? (
-              // The clips are drawn on white, so they sit on a light disc —
-              // reads as a photo plate inside the ring rather than a hole.
               <div
-                className="rounded-full overflow-hidden flex items-center justify-center mb-1"
+                className="rounded-full overflow-hidden"
                 style={{
-                  width: 168,
-                  height: 168,
+                  width: 2 * R - 12,
+                  height: 2 * R - 12,
                   background: "#fff",
-                  // Paused freezes the clock, so freeze the demo with it.
-                  filter: paused ? "grayscale(0.5) opacity(0.6)" : undefined,
+                  // Paused freezes the clock, so dim the demo to match.
+                  opacity: paused ? 0.45 : 1,
+                  transition: "opacity 0.2s ease",
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={activeMedia}
                   alt=""
-                  width={168}
-                  height={168}
                   aria-hidden
-                  style={{ display: "block", width: "100%", height: "100%" }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    height: "100%",
+                    // The source art is centred with white margins, so filling
+                    // the circle only ever crops empty corners.
+                    objectFit: "cover",
+                    transform: "scale(1.06)",
+                  }}
                 />
               </div>
             ) : (
@@ -856,21 +865,27 @@ export default function GuidedStretch({
                 <StretchFigure
                   pose={activePose}
                   mirror={activeHold?.side === "right"}
-                  size={172}
+                  size={2 * R - 40}
                   color={badgeMeta?.color ?? accent}
                   // While paused the figure freezes too — a moving demo next to
                   // a stopped clock reads as if the routine is still running.
                   animate={!paused}
-                  className="mb-1"
                 />
               )
             )}
-            <div className="text-[42px] font-bold tabular-nums leading-none">
-              {formatTime(remaining)}
-            </div>
-            <div className="text-[12px] mt-1" style={{ color: "var(--fg-dim)" }}>
-              {paused ? "paused" : isHold ? holdMeta?.verb ?? "hold" : "remaining"}
-            </div>
+          </div>
+        </div>
+
+        {/* Countdown sits under the ring: with a photo filling the interior
+            there's nowhere legible to put it inside, and keeping it outside
+            for the drawn figures too means the layout doesn't jump between
+            drills that have a clip and drills that don't. */}
+        <div className="flex flex-col items-center -mt-2">
+          <div className="text-[46px] font-bold tabular-nums leading-none">
+            {formatTime(remaining)}
+          </div>
+          <div className="text-[12px] mt-1.5" style={{ color: "var(--fg-dim)" }}>
+            {paused ? "paused" : isHold ? holdMeta?.verb ?? "hold" : "remaining"}
           </div>
         </div>
 
