@@ -11,6 +11,11 @@ import {
 import { logStretchWorkout } from "@/lib/actions/workouts";
 import { resolvePose } from "@/lib/stretchPoses";
 import {
+  stretchMediaSrc,
+  routineUsesMedia,
+  STRETCH_MEDIA_CREDIT,
+} from "@/lib/stretchMedia";
+import {
   readStretchProgressRaw,
   saveStretchProgressRaw,
   clearStretchProgress,
@@ -136,6 +141,29 @@ export default function GuidedStretch({
     () => `${routine.stretches.length}:${routine.title ?? ""}`,
     [routine],
   );
+
+  // The demonstration clip for each item, resolved once. Used to warm the
+  // browser cache up front so a clip never pops in mid-hold, and to decide
+  // whether the media credit belongs on the overview screen.
+  const mediaSrcs = useMemo(
+    () =>
+      routine.stretches
+        .map((s) => stretchMediaSrc(resolvePose(s.pose, s.name, s.kind)))
+        .filter((s): s is string => !!s),
+    [routine],
+  );
+  const usesMedia = useMemo(
+    () => routineUsesMedia(routine.stretches.map((s) => resolvePose(s.pose, s.name, s.kind))),
+    [routine],
+  );
+  useEffect(() => {
+    // Fire-and-forget prefetch; the whole set is under 1 MB and a routine
+    // only ever pulls a handful of them.
+    for (const src of mediaSrcs) {
+      const img = new Image();
+      img.src = src;
+    }
+  }, [mediaSrcs]);
 
   // Read any saved progress for THIS routine exactly once, so the state below
   // can initialize straight into the resumed step (no idle-screen flash).
@@ -508,6 +536,14 @@ export default function GuidedStretch({
             </svg>
             Start routine
           </button>
+          {usesMedia && (
+            <p
+              className="text-[10px] text-center mt-3"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              {STRETCH_MEDIA_CREDIT}
+            </p>
+          )}
         </div>
       </Shell>
     );
@@ -639,6 +675,11 @@ export default function GuidedStretch({
   const activePose = activeHold
     ? resolvePose(activeHold.pose, activeHold.name, activeHold.modality)
     : null;
+  // A real demonstration clip when we have a verified one for this drill,
+  // otherwise the drawn figure. Deliberately NOT mirrored for the right-side
+  // rep: flipping the clip would move the highlighted muscle to the wrong
+  // side of the body. The "Right side" badge already carries that.
+  const activeMedia = stretchMediaSrc(activePose);
 
   const fullDur = current?.durationSec ?? 1;
   const progress = Math.min(1, Math.max(0, 1 - remaining / fullDur));
@@ -786,17 +827,42 @@ export default function GuidedStretch({
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            {activePose && (
-              <StretchFigure
-                pose={activePose}
-                mirror={activeHold?.side === "right"}
-                size={172}
-                color={badgeMeta?.color ?? accent}
-                // While paused the figure freezes too — a moving demo next to a
-                // stopped clock reads as if the routine is still running.
-                animate={!paused}
-                className="mb-1"
-              />
+            {activeMedia ? (
+              // The clips are drawn on white, so they sit on a light disc —
+              // reads as a photo plate inside the ring rather than a hole.
+              <div
+                className="rounded-full overflow-hidden flex items-center justify-center mb-1"
+                style={{
+                  width: 168,
+                  height: 168,
+                  background: "#fff",
+                  // Paused freezes the clock, so freeze the demo with it.
+                  filter: paused ? "grayscale(0.5) opacity(0.6)" : undefined,
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={activeMedia}
+                  alt=""
+                  width={168}
+                  height={168}
+                  aria-hidden
+                  style={{ display: "block", width: "100%", height: "100%" }}
+                />
+              </div>
+            ) : (
+              activePose && (
+                <StretchFigure
+                  pose={activePose}
+                  mirror={activeHold?.side === "right"}
+                  size={172}
+                  color={badgeMeta?.color ?? accent}
+                  // While paused the figure freezes too — a moving demo next to
+                  // a stopped clock reads as if the routine is still running.
+                  animate={!paused}
+                  className="mb-1"
+                />
+              )
             )}
             <div className="text-[42px] font-bold tabular-nums leading-none">
               {formatTime(remaining)}
