@@ -1,65 +1,123 @@
 // Real demonstration clips for the live stretch player.
 //
-// The drawn figures in lib/stretchPoses.ts cover every drill, but they're
-// diagrams — they can't show you what a position actually looks like on a
-// body. Where a genuine animated demonstration exists we play that instead,
-// but ONLY during the live hold. The routine overview keeps the drawn figures:
-// they recolor per modality, they're consistent across all 34 drills, and a
-// grid of photo-real clips would fight the list layout.
+// These are matched on the DRILL NAME, deliberately not on the pose slug from
+// lib/stretchPoses.ts. That distinction is the whole design:
 //
-// Every pairing below was checked by eye, frame by frame — name matching alone
-// put a medicine-ball throw against "cat-cow" and paired several drills with
-// *assisted* stretches that need a second person. Anything not in this map has
-// no trustworthy match and falls back to its drawn figure, which is why this
-// is a deliberately short list rather than a best-effort guess for all 34.
+//   A pose is a loose bucket. resolvePose() sends anything containing
+//   "hamstring" to `hamstring-hinge`, which is exactly right for a stick
+//   figure — the drawn hinge is close enough to any hamstring stretch to be
+//   useful, and it's obviously a diagram, so nobody copies it literally.
+//
+//   A clip is a specific human in a specific position. Routing clips through
+//   the pose bucket meant "Supine Hamstring Stretch with Strap" played a
+//   STANDING forward fold, and "Half-Kneeling Adductor Stretch" played a
+//   quadruped rocking frog. Same muscle, wrong body position — and people
+//   copy what they see, so that's worse than showing no clip at all.
+//
+// So a clip plays only when the drill name states BOTH what's being stretched
+// (`subject`) and, where the clip is position-specific, the position itself
+// (`position`) — with `not` to reject names that contradict it. Anything that
+// doesn't clear that bar falls back to its drawn figure. This is tuned for
+// precision, not coverage: a routine full of drawn figures is fine, one clip
+// showing the wrong position is not.
 //
 // Source: ExerciseGymGifsDB (github.com/JahelCuadrado/ExerciseGymGifsDB).
-// Media is © Gym Visual, redistributed via that dataset — see
-// public/stretch/NOTICE.txt. Converted to animated WebP (~5x smaller than the
-// source GIFs; the whole set is under 1 MB).
+// Media © Gym Visual — see public/stretch/NOTICE.txt.
 
-import type { StretchPose } from "./stretchPoses";
-
-// Pose slug → clip in public/stretch. Only poses with a verified match appear.
-//
-// The bar is "shows the position this drill actually names", not "targets the
-// same muscle" — a clip that stretches the right muscle in the wrong position
-// is worse than no clip, because the athlete copies what they see. Five
-// pairings were cut on exactly that test after review:
-//   chest-doorway    — the clip is a band pass-through, not a doorway pec stretch
-//                      (that clip was correct for shoulder-pass-through, so it
-//                       moved there rather than being thrown away)
-//   butterfly        — quadruped rocking frog, not seated soles-together
-//   child-pose       — quadruped rock-back; the hips never reach the heels
-//   foamroll-itband  — prone on the roller, all but identical to foamroll-quad
-//   hip-flexor-lunge — right position, but a loaded weight plate sits in frame
-const MEDIA: Partial<Record<StretchPose, true>> = {
-  "hamstring-hinge": true,
-  "figure-4": true,
-  "overhead-triceps": true,
-  "neck-lateral": true,
-  "calf-wall": true,
-  "supine-twist": true,
-  "side-bend": true,
-  "worlds-greatest": true,
-  "deep-squat": true,
-  "glute-bridge": true,
-  "shoulder-pass-through": true,
-  "foamroll-quad": true,
-  "foamroll-back": true,
+type Clip = {
+  /** File in public/stretch, without the .webp extension. */
+  file: string;
+  /** What the drill stretches. Required. */
+  subject: RegExp;
+  /** Position words the clip depends on. Omit when the clip is position-neutral. */
+  position?: RegExp;
+  /** Words that rule this clip out even when the rest matches. */
+  not?: RegExp;
 };
+
+// Order matters: the most specific position variant has to be tested before
+// the general one, or "supine hamstring" gets claimed by the standing hinge.
+const CLIPS: Clip[] = [
+  // --- hamstrings: two genuinely different positions ---
+  {
+    file: "hamstring-supine",
+    subject: /hamstring/,
+    position: /supine|lying|lie |on (your |the )?back|strap|towel|leg[- ]?up/,
+  },
+  {
+    file: "hamstring-hinge",
+    subject: /hamstring|forward fold|toe touch|pike|good morning/,
+    not: /supine|lying|lie |seated|sitting|strap|towel|band|wall|ball|roller|foam|kneel|floor/,
+  },
+
+  // --- glutes ---
+  {
+    file: "figure-4",
+    subject: /figure.?4|figure.?four|piriformis|glute/,
+    position: /seated|sitting|floor|chair/,
+    not: /supine|lying|standing|roller|foam|bridge|kneel|ball/,
+  },
+  { file: "glute-bridge", subject: /glute bridge|hip bridge/, not: /single|march|barbell|band/ },
+
+  // --- position-specific holds ---
+  { file: "calf-wall", subject: /calf|gastroc|soleus/, position: /wall/ },
+  {
+    file: "kneeling-lat",
+    subject: /lat |lats|latissimus/,
+    position: /kneel|quadruped|all.?fours/,
+    not: /roller|foam/,
+  },
+  {
+    file: "supine-twist",
+    subject: /twist|scorpion/,
+    position: /supine|lying|lie |on (your |the )?back/,
+    not: /seated|sitting|standing|chair/,
+  },
+
+  // --- position-neutral enough to be safe on the subject alone ---
+  { file: "neck-lateral", subject: /neck|upper trap|levator|scalene/, not: /roller|foam|ball/ },
+  { file: "overhead-triceps", subject: /tricep/, not: /roller|foam|ball|band/ },
+  {
+    file: "side-bend",
+    subject: /lateral stretch|side bend|side body|quadratus/,
+    not: /lying|seated|roller|foam/,
+  },
+  { file: "worlds-greatest", subject: /world.?s? greatest/ },
+  { file: "deep-squat", subject: /deep squat|squat hold|malasana|garland|third.?world squat/ },
+  { file: "shoulder-pass-through", subject: /pass.?through|dislocate/ },
+
+  // --- soft tissue: the roller word is mandatory, then the target ---
+  {
+    file: "foamroll-quad",
+    subject: /foam ?roll|roller|smr/,
+    position: /quad|thigh|hip flexor/,
+  },
+  {
+    file: "foamroll-back",
+    subject: /foam ?roll|roller|smr/,
+    position: /back|thoracic|t.?spine/,
+  },
+];
 
 export const STRETCH_MEDIA_CREDIT = "Exercise animations © Gym Visual";
 
-// The clip for a pose, or null when we only have the drawn figure. Callers
-// should treat null as "render StretchFigure instead" rather than as an error.
-export function stretchMediaSrc(pose: StretchPose | null | undefined): string | null {
-  if (!pose || !MEDIA[pose]) return null;
-  return `/stretch/${pose}.webp`;
+// The clip for a drill, or null when nothing clears the bar — in which case
+// the caller should render the drawn figure instead. Null is the normal,
+// expected result for most drills, not an error.
+export function stretchMediaSrc(name: string | null | undefined): string | null {
+  if (!name) return null;
+  const n = name.toLowerCase();
+  for (const c of CLIPS) {
+    if (!c.subject.test(n)) continue;
+    if (c.position && !c.position.test(n)) continue;
+    if (c.not && c.not.test(n)) continue;
+    return `/stretch/${c.file}.webp`;
+  }
+  return null;
 }
 
-// True when at least one item in a routine will play a real clip — used to
-// decide whether the credit line is worth showing at all.
-export function routineUsesMedia(poses: (StretchPose | null | undefined)[]): boolean {
-  return poses.some((p) => !!p && !!MEDIA[p]);
+// True when at least one drill in a routine will play a real clip — used to
+// decide whether the media credit is worth showing at all.
+export function routineUsesMedia(names: (string | null | undefined)[]): boolean {
+  return names.some((n) => stretchMediaSrc(n) !== null);
 }

@@ -148,12 +148,12 @@ export default function GuidedStretch({
   const mediaSrcs = useMemo(
     () =>
       routine.stretches
-        .map((s) => stretchMediaSrc(resolvePose(s.pose, s.name, s.kind)))
+        .map((s) => stretchMediaSrc(s.name))
         .filter((s): s is string => !!s),
     [routine],
   );
   const usesMedia = useMemo(
-    () => routineUsesMedia(routine.stretches.map((s) => resolvePose(s.pose, s.name, s.kind))),
+    () => routineUsesMedia(routine.stretches.map((s) => s.name)),
     [routine],
   );
   useEffect(() => {
@@ -675,11 +675,12 @@ export default function GuidedStretch({
   const activePose = activeHold
     ? resolvePose(activeHold.pose, activeHold.name, activeHold.modality)
     : null;
-  // A real demonstration clip when we have a verified one for this drill,
-  // otherwise the drawn figure. Deliberately NOT mirrored for the right-side
-  // rep: flipping the clip would move the highlighted muscle to the wrong
-  // side of the body. The "Right side" badge already carries that.
-  const activeMedia = stretchMediaSrc(activePose);
+  // A real demonstration clip when the drill's NAME clears the bar in
+  // lib/stretchMedia (not its pose — see the note there on why routing clips
+  // through the pose bucket showed the wrong position). Otherwise the drawn
+  // figure. Deliberately NOT mirrored for the right-side rep: flipping would
+  // move the highlighted muscle to the wrong side. The badge already says.
+  const activeMedia = stretchMediaSrc(activeHold?.name);
 
   const fullDur = current?.durationSec ?? 1;
   const progress = Math.min(1, Math.max(0, 1 - remaining / fullDur));
