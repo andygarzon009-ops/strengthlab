@@ -138,6 +138,140 @@ input[type="number"]::-webkit-outer-spin-button {
   animation: pulse-accent 2s ease-out infinite;
 }
 
+/* --- Guided-stretch figures ------------------------------------------------
+   Motion for the animated pose figures (components/StretchFigure.tsx). All of
+   it is CSS so nothing has to tick in JS alongside the countdown. Props (the
+   floor line, a wall, a foam roller) are drawn dimmer and thinner than the
+   body so the figure stays the subject. */
+
+.sl-fig-prop {
+  stroke: var(--fg-dim);
+  stroke-width: 2;
+  opacity: 0.5;
+}
+
+/* The stick in a shoulder pass-through is held, not scenery — it tracks the
+   hands and needs to read as part of the movement. */
+.sl-fig-bar {
+  stroke: currentColor;
+  stroke-width: 2.6;
+  opacity: 0.75;
+}
+
+/* Resting rise-and-fall for a held position. */
+@keyframes sl-fig-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+.sl-fig-breathe {
+  animation: sl-fig-breathe 4s ease-in-out infinite;
+}
+
+@keyframes sl-fig-sway {
+  0%,
+  100% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(2deg);
+  }
+}
+.sl-fig-sway {
+  animation: sl-fig-sway 3.6s ease-in-out infinite;
+}
+
+/* Body travelling along a foam roller. */
+@keyframes sl-fig-roll {
+  0%,
+  100% {
+    transform: translateX(-6px);
+  }
+  50% {
+    transform: translateX(6px);
+  }
+}
+.sl-fig-roll {
+  animation: sl-fig-roll 2.8s ease-in-out infinite;
+}
+
+/* A limb rotating a full turn (arm circles). */
+@keyframes sl-fig-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.sl-fig-spin {
+  animation: sl-fig-spin 3s linear infinite;
+}
+
+/* A limb penduluming from its root joint (leg swings, hip CARs). */
+@keyframes sl-fig-swing {
+  0%,
+  100% {
+    transform: rotate(-26deg);
+  }
+  50% {
+    transform: rotate(26deg);
+  }
+}
+.sl-fig-swing {
+  animation: sl-fig-swing 2.2s ease-in-out infinite;
+}
+
+/* Two-beat drills (cat-cow, world's greatest, open book) cross-fade between
+   two drawn frames — cheaper and more legible than tweening every joint. */
+@keyframes sl-fig-frame-a {
+  0%,
+  40% {
+    opacity: 1;
+  }
+  60%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes sl-fig-frame-b {
+  0%,
+  40% {
+    opacity: 0;
+  }
+  60%,
+  100% {
+    opacity: 1;
+  }
+}
+.sl-fig-frame-a {
+  animation: sl-fig-frame-a 3.2s ease-in-out infinite alternate;
+}
+.sl-fig-frame-b {
+  opacity: 0;
+  animation: sl-fig-frame-b 3.2s ease-in-out infinite alternate;
+}
+
+/* Thumbnails (and anyone who asked for reduced motion) hold the first frame. */
+.sl-fig-still *,
+.sl-fig-still {
+  animation: none !important;
+}
+.sl-fig-still .sl-fig-frame-b {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sl-fig *,
+  .sl-fig {
+    animation: none !important;
+  }
+  .sl-fig .sl-fig-frame-b {
+    display: none;
+  }
+}
+
 /* Normalize iOS Safari date inputs so they align with text inputs
    and use the app's font instead of the chunky system calendar font. */
 .profile-date-input {

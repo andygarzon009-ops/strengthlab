@@ -9,6 +9,8 @@ import {
   type StretchStep,
 } from "@/lib/stretchRoutine";
 import { logStretchWorkout } from "@/lib/actions/workouts";
+import { resolvePose } from "@/lib/stretchPoses";
+import StretchFigure from "./StretchFigure";
 
 // --- Audio cues (mirrors components/GuidedWarmup.tsx) --------------------
 // Web Audio beeps for the countdown. The context is created lazily and
@@ -443,11 +445,19 @@ export default function GuidedStretch({
                 style={{ background: "var(--surface)" }}
               >
                 <div className="flex items-center gap-3 min-w-0">
+                  {/* A still preview of the drill, so the athlete can see what
+                      they're in for before starting. It animates in the live
+                      player; here it holds frame one. */}
                   <span
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
-                    style={{ background: "var(--bg-elevated)", color: "var(--fg-dim)" }}
+                    className="w-12 h-10 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ background: "var(--bg-elevated)" }}
                   >
-                    {i + 1}
+                    <StretchFigure
+                      pose={resolvePose(s.pose, s.name, s.kind)}
+                      size={46}
+                      animate={false}
+                      color={s.kind && KIND_META[s.kind] ? KIND_META[s.kind].color : "var(--fg-dim)"}
+                    />
                   </span>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 min-w-0">
@@ -618,6 +628,20 @@ export default function GuidedStretch({
     : upcoming?.kind === "hold"
       ? upcoming.instructions
       : undefined;
+  // The figure follows the same "what matters right now" rule as the badges:
+  // the running hold, or — during a rest — the hold that rest leads into, so
+  // the athlete can see the shape before its clock starts. Right-side reps
+  // render mirrored so left and right are visibly different.
+  const activeHold =
+    isHold && current?.kind === "hold"
+      ? current
+      : upcoming?.kind === "hold"
+        ? upcoming
+        : null;
+  const activePose = activeHold
+    ? resolvePose(activeHold.pose, activeHold.name, activeHold.modality)
+    : null;
+
   const fullDur = current?.durationSec ?? 1;
   const progress = Math.min(1, Math.max(0, 1 - remaining / fullDur));
 
@@ -764,7 +788,19 @@ export default function GuidedStretch({
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-[56px] font-bold tabular-nums leading-none">
+            {activePose && (
+              <StretchFigure
+                pose={activePose}
+                mirror={activeHold?.side === "right"}
+                size={172}
+                color={badgeMeta?.color ?? accent}
+                // While paused the figure freezes too — a moving demo next to a
+                // stopped clock reads as if the routine is still running.
+                animate={!paused}
+                className="mb-1"
+              />
+            )}
+            <div className="text-[42px] font-bold tabular-nums leading-none">
               {formatTime(remaining)}
             </div>
             <div className="text-[12px] mt-1" style={{ color: "var(--fg-dim)" }}>

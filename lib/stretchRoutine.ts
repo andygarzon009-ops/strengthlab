@@ -12,6 +12,8 @@
 // items (hamstring stretch, quad foam roll) get done left then right with a
 // quick switch in between.
 
+import { coercePose, type StretchPose } from "./stretchPoses";
+
 export type StretchSide = "both" | "left" | "right";
 
 // The modality of an item — drives the label/color in the live player so a
@@ -26,6 +28,11 @@ export type Stretch = {
   side?: StretchSide | null; // "both" = do left then right; null/undefined = symmetric, once
   kind?: StretchKind | null; // modality label; defaults to a plain static hold
   instructions?: string;
+  // Which animated figure to show in the player. The coach picks one from the
+  // closed enum in lib/stretchPoses.ts; when it's missing or unrecognized,
+  // resolvePose() falls back to the drill's name and then its modality, so a
+  // routine without any poses still animates.
+  pose?: StretchPose | null;
 };
 
 export type StretchRoutine = {
@@ -104,7 +111,8 @@ function normalizeRoutine(parsed: unknown): StretchRoutine | null {
       typeof s.instructions === "string"
         ? s.instructions.trim().slice(0, 200) || undefined
         : undefined;
-    stretches.push({ name, durationSec, side, kind, instructions });
+    const pose = coercePose(s.pose);
+    stretches.push({ name, durationSec, side, kind, instructions, pose });
   }
   if (stretches.length === 0) return null;
 
@@ -193,6 +201,7 @@ export type StretchStep =
       side?: "left" | "right" | null;
       modality?: StretchKind | null; // the item's kind (static/dynamic/foamroll/breathing)
       instructions?: string;
+      pose?: StretchPose | null; // animated figure to show for this hold
       stretchIndex: number; // which stretch (0-based) this hold belongs to
     }
   | {
@@ -250,6 +259,7 @@ export function buildStretchSteps(routine: StretchRoutine): StretchStep[] {
         side: "left",
         modality: s.kind,
         instructions: s.instructions,
+        pose: s.pose,
         stretchIndex: i,
       });
       steps.push({
@@ -267,6 +277,7 @@ export function buildStretchSteps(routine: StretchRoutine): StretchStep[] {
         side: "right",
         modality: s.kind,
         instructions: s.instructions,
+        pose: s.pose,
         stretchIndex: i,
       });
     } else {
@@ -277,6 +288,7 @@ export function buildStretchSteps(routine: StretchRoutine): StretchStep[] {
         side: s.side === "left" || s.side === "right" ? s.side : null,
         modality: s.kind,
         instructions: s.instructions,
+        pose: s.pose,
         stretchIndex: i,
       });
     }

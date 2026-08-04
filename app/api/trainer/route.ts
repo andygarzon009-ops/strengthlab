@@ -9,6 +9,7 @@ import { normalizeExerciseName } from "@/lib/exerciseIdentity";
 import { parseLiveLog } from "@/lib/parseLiveLog";
 import { computeWeakSpots, formatWeakSpotsForPrompt } from "@/lib/weakSpots";
 import { hasValidPlan } from "@/lib/workoutPlan";
+import { STRETCH_POSES } from "@/lib/stretchPoses";
 import { getTodayFuel } from "@/lib/nutritionToday";
 import {
   periodizationState,
@@ -827,7 +828,7 @@ Use a "### Exercise Name" heading per lift, then 3–4 bold-labeled bullets unde
    Triggers: "give me a stretching routine", "quick stretch", "cool down", "mobility routine", "foam roll my legs", "stretch out my hips/hamstrings/back", "I'm tight/sore, help me loosen up", "my knees have been bugging me, prehab", "10 minutes of mobility before I lift", "wind-down before bed", etc. End your reply with a structured block formatted EXACTLY like this, on its own lines, after your prose:
 
    \`\`\`stretch-routine
-   {"title":"Sore Hamstrings & Glutes","restSec":15,"stretches":[{"name":"Hamstring Foam Roll","durationSec":45,"side":"both","kind":"foamroll","instructions":"Slow passes, pause on tender spots"},{"name":"World's Greatest Stretch","durationSec":40,"side":"both","kind":"dynamic","instructions":"Lunge, rotate up, reach for the ceiling"},{"name":"Standing Hamstring Stretch","durationSec":30,"side":"both","kind":"static","instructions":"Hinge at the hips, keep a flat back"},{"name":"Seated Figure-4","durationSec":30,"side":"both","kind":"static","instructions":"Gently lean forward over the shin"},{"name":"Diaphragmatic Breathing","durationSec":45,"kind":"breathing","instructions":"Long exhales, let the hips settle"}]}
+   {"title":"Sore Hamstrings & Glutes","restSec":15,"stretches":[{"name":"Hamstring Foam Roll","durationSec":45,"side":"both","kind":"foamroll","pose":"foamroll-hamstring","instructions":"Slow passes, pause on tender spots"},{"name":"World's Greatest Stretch","durationSec":40,"side":"both","kind":"dynamic","pose":"worlds-greatest","instructions":"Lunge, rotate up, reach for the ceiling"},{"name":"Standing Hamstring Stretch","durationSec":30,"side":"both","kind":"static","pose":"hamstring-hinge","instructions":"Hinge at the hips, keep a flat back"},{"name":"Seated Figure-4","durationSec":30,"side":"both","kind":"static","pose":"figure-4","instructions":"Gently lean forward over the shin"},{"name":"Diaphragmatic Breathing","durationSec":45,"kind":"breathing","pose":"breathing-supine","instructions":"Long exhales, let the hips settle"}]}
    \`\`\`
 
    BE VERSATILE — PRESCRIBE WHAT THEY ACTUALLY NEED (this is the whole point):
@@ -848,6 +849,9 @@ Use a "### Exercise Name" heading per lift, then 3–4 bold-labeled bullets unde
    - "durationSec" — hold/work time in seconds PER SIDE. Integer, 5–300. Dynamic 25–40s; static 20–60s; foam roll 30–60s.
    - "side" — set to "both" for anything done one side at a time (hip flexor, quad, figure-4, single-leg foam roll, cross-body shoulder) so the player runs left, cues a switch, then right. OMIT for symmetric items done once (forward fold, cat-cow, child's pose, breathing).
    - "instructions" — optional, ≤ 200 chars: one concrete cue for the position, tempo, or where to feel it.
+   - "pose" — the animated figure the live player shows while the athlete does the item, so they can SEE the position instead of only reading it. Pick the closest match from this exact list (verbatim, lowercase, hyphenated) — never invent a value:
+     ${STRETCH_POSES.join(", ")}
+     Guidance: match the POSITION, not the muscle name — a hamstring drill on a roller is "foamroll-hamstring" while a standing one is "hamstring-hinge". Anything on a roller or ball uses the matching "foamroll-*"/"ball-glute" figure. Quad/hip-flexor/couch stretches are "hip-flexor-lunge". Glute/piriformis holds are "figure-4" or "pigeon". Lat, QL, and side-body work is "side-bend". Use "deep-squat" for squat holds and Cossacks, "open-book" for thoracic rotations, "hip-cars" for 90/90s and hip circles. If nothing is close, use the "generic-*" entry for the item's kind — it's better than a wrong figure. Omitting "pose" is allowed and falls back to name matching, but ALWAYS set it when one fits.
    - "restSec" — transition rest between different items so they can reposition. Integer 0–60; default 15. More (20) for big floor↔standing changes, less (10) for quick flows.
    - "title" — short, describes the focus/intent ("Post-Leg-Day Cooldown", "Pre-Squat Hip Mobility", "Cranky-Knee Prehab", "Desk Reset").
    - Valid minified JSON — double-quoted keys, no trailing commas, no comments.
