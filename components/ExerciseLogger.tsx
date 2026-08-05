@@ -148,16 +148,52 @@ type PreviousData = {
   prReps?: { reps: number | null; value: number } | null;
 };
 
+// How a set draws. Only one thing varies — how much of it is on screen —
+// and every row can be turned back into an editor with one tap.
+type RowMode =
+  /** Full controls. The set being worked, or one deliberately opened. */
+  | "editor"
+  /** Finished: a dim one-line summary. Tap to reopen. */
+  | "summary"
+  /** Still to come: dim, no controls. Tap to set it up early. */
+  | "ghost";
+
+// Mirrors `repsMissing` in SetRow, which is the rule that paints a row red:
+// a load entered with no reps. Timed holds are exempt — their `reps` field
+// holds seconds, and a hold is valid on seconds alone. A row matching this
+// must never collapse, or an unsaveable set hides inside a summary line.
+const isInvalidSet = (exerciseName: string, s: SetData): boolean => {
+  if (s.type === "WARMUP") return false;
+  if (isTimedExercise(exerciseName)) return false;
+  return (
+    s.weight.trim() !== "" &&
+    parseFloat(s.weight) > 0 &&
+    s.reps.trim() === ""
+  );
+};
+
 type Props = {
   exercises: ExerciseData[];
   setExercises: (exercises: ExerciseData[]) => void;
+  /**
+   * Whether a completed set collapses to a summary line. True while logging,
+   * where the point is to make the set you're on unmistakable. False in edit
+   * mode: reopening a finished workout arrives with every set already ticked,
+   * so collapsing would hide the whole session behind taps — precisely the
+   * rows the athlete came back to change.
+   */
+  collapseCompleted?: boolean;
 };
 
 export default function ExerciseLogger({
   exercises,
   setExercises,
+  collapseCompleted = true,
 }: Props) {
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
+  // "exIdx:setIdx" of a row tapped open by hand — a finished set being
+  // corrected, or a later one being dialled in early. One at a time.
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showVoice, setShowVoice] = useState(false);
@@ -437,6 +473,9 @@ export default function ExerciseLogger({
     if (field === "completed") {
       if (value === true) {
         if (!target.loggedAt) target.loggedAt = new Date().toISOString();
+        // Ticking a set hands the screen to whatever comes next, so any row
+        // held open by hand should let go.
+        setEditingKey(null);
       } else {
         target.loggedAt = undefined;
       }
@@ -478,6 +517,45 @@ export default function ExerciseLogger({
       clusterLetter.set(c.groupId, String.fromCharCode(nextLetterCode++));
     }
   }
+
+  // The set being worked: the first un-ticked non-warm-up set in the session.
+  // Warm-ups are skipped because SetRow gives them no checkbox — they can
+  // never be ticked, so treating one as current would park the cursor on it
+  // for the whole workout and nothing below would ever come forward.
+  const activeKey = (() => {
+    for (let e = 0; e < exercises.length; e++) {
+      const sets = exercises[e].sets;
+      for (let s = 0; s < sets.length; s++) {
+        if (sets[s].type === "WARMUP") continue;
+        if (!sets[s].completed) return `${e}:${s}`;
+      }
+    }
+    return null;
+  })();
+
+  const anyCompleted = exercises.some((ex) =>
+    ex.sets.some((s) => s.completed)
+  );
+
+  const rowModeFor = (exIdx: number, setIdx: number): RowMode => {
+    const ex = exercises[exIdx];
+    const set = ex.sets[setIdx];
+    const key = `${exIdx}:${setIdx}`;
+    // Warm-ups keep the row they have today: always editable, nothing to
+    // collapse into since they carry no completion state.
+    if (set.type === "WARMUP") return "editor";
+    // An unsaveable row stays open no matter what else is true.
+    if (isInvalidSet(ex.exerciseName, set)) return "editor";
+    if (editingKey === key) return "editor";
+    if (set.completed) return collapseCompleted ? "summary" : "editor";
+    if (key === activeKey) return "editor";
+    // Only fade what's still ahead once the athlete has actually ticked
+    // something off. Ticking is optional today — plenty of people fill in the
+    // numbers and never touch the check — and for them activeKey would sit on
+    // set one forever, fading the entire session behind it.
+    if (!collapseCompleted || !anyCompleted) return "editor";
+    return "ghost";
+  };
 
   const renderExerciseBody = (
     exIdx: number,
@@ -638,12 +716,14 @@ export default function ExerciseLogger({
                 {warmupSets.map((set, setIdx) => {
                   const actualIdx = ex.sets.indexOf(set);
                   return (
-                    <SetRow
+                    <SetRowSwitch
                       key={setIdx}
                       set={set}
                       setIdx={setIdx}
                       exerciseName={ex.exerciseName}
                       restSeconds={restFor(ex.exerciseId)}
+                      mode="editor"
+                      onOpen={() => {}}
                       onUpdate={(field, val) =>
                         updateSet(exIdx, actualIdx, field, val)
                       }
@@ -660,11 +740,14 @@ export default function ExerciseLogger({
                 <p className="label mb-2">Working sets</p>
                 {workingChains.map((chain, ci) => (
                   <div key={ci}>
-                    <SetRow
+                    <SetRowSwitch
                       set={chain.parent}
                       setIdx={ci}
                       exerciseName={ex.exerciseName}
                       restSeconds={restFor(ex.exerciseId)}
+                      mode={rowModeFor(exIdx, chain.parentIdx)}
+                      onOpen={() => setEditingKey(`${exIdx}:${chain.parentIdx}`)}
+                      prev={prev}
                       onUpdate={(field, val) =>
                         updateSet(exIdx, chain.parentIdx, field, val)
                       }
@@ -673,12 +756,14 @@ export default function ExerciseLogger({
                       isWarmup={false}
                     />
                     {chain.drops.map((dropIdx) => (
-                      <SetRow
+                      <SetRowSwitch
                         key={dropIdx}
                         set={ex.sets[dropIdx]}
                         setIdx={dropIdx}
                         exerciseName={ex.exerciseName}
                         restSeconds={restFor(ex.exerciseId)}
+                        mode={rowModeFor(exIdx, dropIdx)}
+                        onOpen={() => setEditingKey(`${exIdx}:${dropIdx}`)}
                         onUpdate={(field, val) =>
                           updateSet(exIdx, dropIdx, field, val)
                         }
@@ -702,11 +787,14 @@ export default function ExerciseLogger({
                 </p>
                 {supersetChains.map((chain, ci) => (
                   <div key={ci}>
-                    <SetRow
+                    <SetRowSwitch
                       set={chain.parent}
                       setIdx={ci}
                       exerciseName={ex.exerciseName}
                       restSeconds={restFor(ex.exerciseId)}
+                      mode={rowModeFor(exIdx, chain.parentIdx)}
+                      onOpen={() => setEditingKey(`${exIdx}:${chain.parentIdx}`)}
+                      prev={prev}
                       onUpdate={(field, val) =>
                         updateSet(exIdx, chain.parentIdx, field, val)
                       }
@@ -715,12 +803,14 @@ export default function ExerciseLogger({
                       isWarmup={false}
                     />
                     {chain.drops.map((dropIdx) => (
-                      <SetRow
+                      <SetRowSwitch
                         key={dropIdx}
                         set={ex.sets[dropIdx]}
                         setIdx={dropIdx}
                         exerciseName={ex.exerciseName}
                         restSeconds={restFor(ex.exerciseId)}
+                        mode={rowModeFor(exIdx, dropIdx)}
+                        onOpen={() => setEditingKey(`${exIdx}:${dropIdx}`)}
                         onUpdate={(field, val) =>
                           updateSet(exIdx, dropIdx, field, val)
                         }
@@ -1468,6 +1558,156 @@ function VoiceAddModal({
   );
 }
 
+// One-line rendering of a set, in whatever units its editor uses — plates for
+// a plate machine, seconds for a hold, BW for an unloaded bodyweight lift.
+// Kept in step with the inputs so a collapsed row never reads differently
+// from the row it collapsed from.
+const setSummaryText = (exerciseName: string, s: SetData): string => {
+  const w = parseFloat(s.weight);
+  const hasWeight = Number.isFinite(w) && w > 0;
+  const reps = s.reps.trim() !== "" ? s.reps : "—";
+
+  if (isTimedExercise(exerciseName)) {
+    return `${reps}s${hasWeight ? ` +${w}lb` : ""}`;
+  }
+  if (usesPlates(exerciseName)) {
+    if (!hasWeight) return `— × ${reps}`;
+    const perSide = w / plateSides(exerciseName);
+    const full = Math.floor(perSide / PLATE_WEIGHT_LB);
+    const extras = +(perSide - full * PLATE_WEIGHT_LB).toFixed(2);
+    const plates = `${full} plate${full === 1 ? "" : "s"}${
+      extras > 0 ? `+${Number.isInteger(extras) ? extras : extras.toFixed(1)}` : ""
+    }`;
+    return `${plates} × ${reps}`;
+  }
+  if (isBodyweightCapable(exerciseName)) {
+    return `${hasWeight ? `+${w}` : "BW"} × ${reps}`;
+  }
+  return `${hasWeight ? w : "—"} × ${reps}`;
+};
+
+type SetRowProps = {
+  set: SetData;
+  setIdx: number;
+  exerciseName: string;
+  restSeconds: number;
+  mode: RowMode;
+  onOpen: () => void;
+  onUpdate: (field: keyof SetData, val: string | boolean) => void;
+  onRemove: () => void;
+  isWarmup: boolean;
+  isDrop?: boolean;
+  onAddDrop?: () => void;
+  prev?: PreviousData;
+};
+
+// Picks the rendering for a set. This has to be a switch between two separate
+// components rather than an early return inside one: SetRow holds hooks, and
+// bailing out above them would change the hook count the moment a set is
+// ticked and its row collapses.
+function SetRowSwitch(props: SetRowProps) {
+  if (props.mode === "editor") return <SetRow {...props} />;
+  return <CollapsedSetRow {...props} />;
+}
+
+// Collapsed forms. Both are buttons, not text: a finished set stays one tap
+// from its full editor, and a set further down can be dialled in before you
+// reach it. Nothing here is read-only — the row is smaller, not locked.
+function CollapsedSetRow({
+  set,
+  setIdx,
+  exerciseName,
+  mode,
+  onOpen,
+  isDrop = false,
+}: SetRowProps) {
+  {
+    const isSummary = mode === "summary";
+    const label = `${isSummary ? "Edit" : "Set up"} ${
+      isDrop ? "drop set" : `set ${setIdx + 1}`
+    }, ${setSummaryText(exerciseName, set)}`;
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={label}
+        className="w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 mb-1.5 text-left transition-opacity hover:opacity-100"
+        style={{
+          opacity: isSummary ? 0.62 : 0.42,
+          paddingLeft: isDrop ? 22 : undefined,
+          background: "transparent",
+          border: "1px solid transparent",
+        }}
+      >
+        <span
+          className="nums text-[11px] w-5 text-center shrink-0 font-semibold"
+          style={{
+            color: "var(--fg-dim)",
+            fontFamily: "var(--font-geist-mono)",
+          }}
+        >
+          {isDrop ? "↘" : setIdx + 1}
+        </span>
+        <span
+          className="nums text-[13px] truncate"
+          style={{
+            color: isSummary ? "var(--fg-muted)" : "var(--fg-dim)",
+            fontFamily: "var(--font-geist-mono)",
+          }}
+        >
+          {setSummaryText(exerciseName, set)}
+        </span>
+        {isSummary && set.rir.trim() !== "" && (
+          <span
+            className="nums text-[10px] shrink-0"
+            style={{
+              color: "var(--fg-dim)",
+              fontFamily: "var(--font-geist-mono)",
+            }}
+          >
+            RIR {set.rir}
+          </span>
+        )}
+        {isSummary && (
+          <span className="ml-auto flex items-center gap-2 shrink-0">
+            {/* The pencil is the only hint that a collapsed row is still
+                editable — without it, tap-to-reopen is undiscoverable. */}
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ color: "var(--fg-dim)" }}
+              aria-hidden
+            >
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ color: "var(--accent)" }}
+              aria-hidden
+            >
+              <path d="M5 12l5 5 9-11" />
+            </svg>
+          </span>
+        )}
+      </button>
+    );
+  }
+}
+
 function SetRow({
   set,
   setIdx,
@@ -1478,17 +1718,8 @@ function SetRow({
   isWarmup,
   isDrop = false,
   onAddDrop,
-}: {
-  set: SetData;
-  setIdx: number;
-  exerciseName: string;
-  restSeconds: number;
-  onUpdate: (field: keyof SetData, val: string | boolean) => void;
-  onRemove: () => void;
-  isWarmup: boolean;
-  isDrop?: boolean;
-  onAddDrop?: () => void;
-}) {
+}: SetRowProps) {
+
   // "completed" lives on SetData so the green check survives navigation
   // (opening the Coach, switching apps, browser reload). The rest timer
   // only fires on the false→true transition.
