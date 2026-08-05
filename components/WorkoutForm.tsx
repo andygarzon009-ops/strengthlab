@@ -1235,10 +1235,6 @@ export default function WorkoutForm({
         <ExerciseLogger
           exercises={exercises}
           setExercises={setExercises}
-          // Editing a finished workout arrives with every set already ticked.
-          // Collapsing them would hide the whole session behind taps —
-          // precisely the rows the athlete opened the page to change.
-          collapseCompleted={mode === "create"}
         />
       )}
 
