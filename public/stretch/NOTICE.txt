@@ -5,9 +5,13 @@ Sources: ExerciseGymGifsDB — https://github.com/JahelCuadrado/ExerciseGymGifsD
          lyfta.app, liftmanual.com, fitnessprogramer.com (individual drills
          the dataset above doesn't carry). All trace back to Gym Visual.
 
-NOTE: hip-flexor-lunge.webp came from fitnessprogramer.com and had a corner
-site logo, which was painted out during conversion. Recorded here so the
-provenance isn't lost and so it is dealt with at launch along with the rest.
+NOTE: two files came from fitnessprogramer.com carrying a corner site logo,
+which was painted out during conversion. Recorded here so the provenance isn't
+lost and so both are dealt with at launch along with the rest:
+
+  - hip-flexor-lunge.webp
+  - cat-cow.webp  (replaced the earlier ExerciseGymGifsDB clip; 18 frames,
+    shows the full neutral-to-flexion arc with the erectors highlighted)
 Media:   © Gym Visual — https://gymvisual.com/
 Format:  animated WebP, 300x300, converted from the source GIFs
 
