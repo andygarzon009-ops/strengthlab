@@ -66,6 +66,11 @@ export type CreateWorkoutInput = {
   feeling?: string;
   isDeload?: boolean;
   exercises: ExerciseInput[];
+  // When false, skip the social side effects (crew group post + friend
+  // notifications). Defaults to true so normal logging is unchanged; used to
+  // keep frequent, low-signal sessions (e.g. guided stretching) out of the
+  // crew feed. PR detection and revalidation still run either way.
+  broadcast?: boolean;
 } & WorkoutMetrics;
 
 export async function createWorkout(data: CreateWorkoutInput) {
@@ -128,32 +133,37 @@ export async function createWorkout(data: CreateWorkoutInput) {
     workout.date
   );
 
+  const broadcast = data.broadcast !== false;
+
   // Auto-broadcast to every group the athlete is in as a chat message.
   // When the session produced one or more PRs, attach them to the post
   // so the crew sees a celebratory "🏆 PR" card instead of the plain
-  // "just logged" line — turns logging into a social event.
-  const memberships = await prisma.groupMember.findMany({
-    where: { userId },
-    select: { groupId: true },
-  });
-  if (memberships.length > 0) {
-    const cardType = prs.length > 0 ? "WORKOUT_PR" : null;
-    const cardData = prs.length > 0 ? { prs } : undefined;
-    await prisma.groupPost.createMany({
-      data: memberships.map((m) => ({
-        groupId: m.groupId,
-        userId,
-        text: "",
-        workoutId: workout.id,
-        cardType,
-        cardData,
-      })),
+  // "just logged" line — turns logging into a social event. Skipped when
+  // broadcast is false (e.g. a guided stretch session).
+  if (broadcast) {
+    const memberships = await prisma.groupMember.findMany({
+      where: { userId },
+      select: { groupId: true },
     });
-  }
+    if (memberships.length > 0) {
+      const cardType = prs.length > 0 ? "WORKOUT_PR" : null;
+      const cardData = prs.length > 0 ? { prs } : undefined;
+      await prisma.groupPost.createMany({
+        data: memberships.map((m) => ({
+          groupId: m.groupId,
+          userId,
+          text: "",
+          workoutId: workout.id,
+          cardType,
+          cardData,
+        })),
+      });
+    }
 
-  // Ping crew friends who want to be motivated when someone trains.
-  // Fully best-effort: any failure here must never break logging a workout.
-  await notifyFriendsOfWorkout(userId, workout.id, workout.title, prs.length > 0);
+    // Ping crew friends who want to be motivated when someone trains.
+    // Fully best-effort: any failure here must never break logging a workout.
+    await notifyFriendsOfWorkout(userId, workout.id, workout.title, prs.length > 0);
+  }
 
   // Clear the server-side draft now that the workout is committed.
   // Failures here are non-fatal — the draft will get overwritten next
@@ -211,6 +221,9 @@ export async function logStretchWorkout(input: {
     duration: minutes,
     notes,
     exercises: [],
+    // Stretch sessions are frequent and low-signal — keep them out of the
+    // crew feed and friend notifications. Still logged to History and streaks.
+    broadcast: false,
   });
 }
 
@@ -533,6 +546,21 @@ export async function setNotifyFriendWorkouts(enabled: boolean) {
   await prisma.user.update({
     where: { id: userId },
     data: { notifyFriendWorkouts: enabled },
+  });
+  revalidatePath("/profile");
+}
+
+/// Opt in/out of the "away longer than usual" nudge. Clearing lastNudgedAt on
+/// re-enable means someone who turns it back on isn't stuck waiting out a
+/// cooldown from before they switched it off.
+export async function setNotifyInactivity(enabled: boolean) {
+  const userId = await requireAuth();
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      notifyInactivity: enabled,
+      ...(enabled ? { lastNudgedAt: null } : {}),
+    },
   });
   revalidatePath("/profile");
 }

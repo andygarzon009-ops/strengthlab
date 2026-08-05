@@ -55,6 +55,10 @@ model User {
   moveGoalKcal     Int?
   exerciseGoalMin  Int?
   notifyFriendWorkouts Boolean @default(true)
+  /// Opt-out for the "you've been away longer than usual" nudge.
+  notifyInactivity     Boolean @default(true)
+  /// When that nudge last fired, so it can't fire more than once a week.
+  lastNudgedAt         DateTime?
   weeklyAnalysisCache Json?
   height         Float?
   bodyFat        Float?

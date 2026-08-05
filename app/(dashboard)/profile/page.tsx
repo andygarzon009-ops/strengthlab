@@ -7,6 +7,7 @@ import { type PeriodizationConfig } from "@/lib/periodization";
 import TutorialLauncher from "@/components/TutorialLauncher";
 import ChangePasswordCard from "@/components/ChangePasswordCard";
 import FriendWorkoutNotifyToggle from "@/components/FriendWorkoutNotifyToggle";
+import InactivityNotifyToggle from "@/components/InactivityNotifyToggle";
 
 export default async function ProfilePage() {
   const userId = await requireAuth();
@@ -198,6 +199,8 @@ export default async function ProfilePage() {
         <FriendWorkoutNotifyToggle
           initialEnabled={user.notifyFriendWorkouts}
         />
+
+        <InactivityNotifyToggle initialEnabled={user.notifyInactivity} />
 
         <ChangePasswordCard />
 
