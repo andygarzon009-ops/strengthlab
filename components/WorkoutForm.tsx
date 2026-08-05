@@ -483,11 +483,16 @@ export default function WorkoutForm({
     let total = 0;
     let tonnage = 0;
     for (const ex of exercises) {
+      // A hold stores SECONDS in `reps`, so weight x reps on a 45-second
+      // farmer carry with 100 lb would book 4,500 lb that was never lifted.
+      // Its sets still count toward progress — only the tonnage is skipped.
+      const timed = isTimedExercise(ex.exerciseName);
       for (const s of ex.sets) {
         if (s.type === "WARMUP") continue;
         total++;
         if (!s.completed) continue;
         done++;
+        if (timed) continue;
         const w = parseFloat(s.weight);
         const r = parseInt(s.reps, 10);
         if (Number.isFinite(w) && Number.isFinite(r)) tonnage += w * r;

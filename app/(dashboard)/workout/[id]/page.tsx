@@ -17,6 +17,7 @@ import DeleteWorkoutButton from "@/components/DeleteWorkoutButton";
 import WorkoutHRChart from "@/components/WorkoutHRChart";
 import SyncHRButton from "@/components/SyncHRButton";
 import { WarmupSummary } from "@/components/GuidedWarmup";
+import { workoutVolume, compareVolume, formatVolume } from "@/lib/volume";
 
 type WarmupShape = {
   items: {
@@ -77,6 +78,53 @@ export default async function WorkoutDetailPage({
     : null;
   const feeling = FEELING_OPTIONS.find((f) => f.value === workout.feeling);
   const isOwn = workout.userId === userId;
+
+  // Volume for this session, and the last comparable one to measure it
+  // against. "Comparable" means the same split where there is one (last Pull
+  // day vs this Pull day, which is how lifters actually think about it), and
+  // otherwise the same workout type. Comparing a Push day against a run would
+  // be a number with no meaning.
+  const volume = workoutVolume(workout.exercises);
+
+  const previousSession =
+    shape === "STRENGTH" && isOwn
+      ? await prisma.workout.findFirst({
+          where: {
+            userId: workout.userId,
+            date: { lt: workout.date },
+            id: { not: workout.id },
+            ...(workout.split
+              ? { split: workout.split }
+              : { type: workout.type }),
+          },
+          orderBy: { date: "desc" },
+          include: {
+            exercises: {
+              include: {
+                exercise: { select: { name: true } },
+                sets: { select: { type: true, weight: true, reps: true } },
+              },
+            },
+          },
+        })
+      : null;
+
+  const previousVolume = previousSession
+    ? workoutVolume(previousSession.exercises)
+    : null;
+  // Only worth showing when both sides have a real number. A previous session
+  // of pure holds or bodyweight work has no tonnage to compare against.
+  const volumeComparison =
+    previousVolume !== null && previousVolume > 0 && volume > 0
+      ? compareVolume(volume, previousVolume)
+      : null;
+  const daysSincePrevious =
+    previousSession !== null
+      ? Math.round(
+          (workout.date.getTime() - previousSession.date.getTime()) /
+            (1000 * 60 * 60 * 24)
+        )
+      : null;
 
   const totalSets = workout.exercises.flatMap((e) =>
     e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"))
@@ -209,6 +257,21 @@ export default async function WorkoutDetailPage({
           </svg>
           {isOwn ? "Do this workout again" : "Do this workout"}
         </Link>
+      )}
+
+      {shape === "STRENGTH" && volume > 0 && (
+        <VolumeCard
+          volume={volume}
+          comparison={volumeComparison}
+          previousLabel={
+            previousSession
+              ? splitLabel
+                ? `${splitLabel} day`
+                : labelForType(previousSession.type)
+              : null
+          }
+          daysAgo={daysSincePrevious}
+        />
       )}
 
       <StatsGrid
@@ -646,6 +709,133 @@ function SetLine({
         >
           {note}
         </span>
+      )}
+    </div>
+  );
+}
+
+/// Total weight moved this session, and how it sits against the last
+/// comparable one. The bar is the honest part: it's the previous session
+/// drawn to scale against this one, so a small gain doesn't get to look like
+/// a big one just because the percentage reads well.
+function VolumeCard({
+  volume,
+  comparison,
+  previousLabel,
+  daysAgo,
+}: {
+  volume: number;
+  comparison: ReturnType<typeof compareVolume> | null;
+  previousLabel: string | null;
+  daysAgo: number | null;
+}) {
+  const up = comparison ? comparison.delta > 0 : false;
+  const flat = comparison ? comparison.delta === 0 : false;
+  const tone = !comparison || flat ? "var(--fg-muted)" : up ? "var(--accent)" : "#f0a35e";
+
+  // Both bars scale off whichever session was bigger, so the pair reads as a
+  // direct comparison rather than two independent full-width bars.
+  const peak = comparison ? Math.max(comparison.current, comparison.previous) : volume;
+
+  return (
+    <div className="card p-4 mb-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="label">Volume</p>
+        {comparison && (
+          <p
+            className="nums text-[12px] font-semibold"
+            style={{ color: tone, fontFamily: "var(--font-geist-mono)" }}
+          >
+            {flat
+              ? "same as last time"
+              : `${up ? "↑" : "↓"} ${formatVolume(Math.abs(comparison.delta))} lb${
+                  comparison.percent !== null
+                    ? ` · ${Math.abs(comparison.percent)}%`
+                    : ""
+                }`}
+          </p>
+        )}
+      </div>
+
+      <p
+        className="nums text-[26px] font-bold tracking-tight leading-none mt-1.5"
+        style={{ fontFamily: "var(--font-geist-mono)" }}
+      >
+        {formatVolume(volume)}
+        <span
+          className="text-[13px] font-medium ml-1.5"
+          style={{ color: "var(--fg-dim)" }}
+        >
+          lb
+        </span>
+      </p>
+
+      {comparison ? (
+        <div className="mt-3 space-y-1.5">
+          <div className="flex items-center gap-2.5">
+            <span
+              className="label text-[9px] w-10 shrink-0"
+              style={{ color: "var(--fg-muted)" }}
+            >
+              This
+            </span>
+            <div
+              className="flex-1 rounded-full overflow-hidden"
+              style={{ height: 6, background: "var(--bg-elevated)" }}
+            >
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${peak > 0 ? (comparison.current / peak) * 100 : 0}%`,
+                  background: "var(--accent)",
+                }}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <span
+              className="label text-[9px] w-10 shrink-0"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              Last
+            </span>
+            <div
+              className="flex-1 rounded-full overflow-hidden"
+              style={{ height: 6, background: "var(--bg-elevated)" }}
+            >
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${peak > 0 ? (comparison.previous / peak) * 100 : 0}%`,
+                  background: "var(--border-strong)",
+                }}
+              />
+            </div>
+          </div>
+          <p
+            className="nums text-[11px] pt-0.5"
+            style={{
+              color: "var(--fg-dim)",
+              fontFamily: "var(--font-geist-mono)",
+            }}
+          >
+            {formatVolume(comparison.previous)} lb
+            {previousLabel ? ` · last ${previousLabel}` : ""}
+            {daysAgo !== null
+              ? daysAgo <= 0
+                ? " · same day"
+                : ` · ${daysAgo}d earlier`
+              : ""}
+          </p>
+        </div>
+      ) : (
+        <p
+          className="text-[11px] mt-2"
+          style={{ color: "var(--fg-dim)" }}
+        >
+          Weight moved across working, superset and drop sets. Holds and
+          warm-ups aren&apos;t counted.
+        </p>
       )}
     </div>
   );
