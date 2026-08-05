@@ -1103,7 +1103,14 @@ export default function WorkoutForm({
         </div>
       )}
 
-      <DateSelector date={date} setDate={setDate} />
+      {/* A coach-prescribed session is for right now — it was built from
+          today's plan and the athlete is standing in the gym holding it. The
+          date picker and its Today/Yesterday shortcuts are only noise there,
+          so they're left out. The date still saves as today, set by
+          /api/coach-plan. */}
+      {!initial?.fromCoachPlan && (
+        <DateSelector date={date} setDate={setDate} />
+      )}
 
       <div className="space-y-2.5 mb-6">
         {shape === "STRENGTH" && split && (
