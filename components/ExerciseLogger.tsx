@@ -1718,6 +1718,7 @@ function SetRow({
   isWarmup,
   isDrop = false,
   onAddDrop,
+  prev,
 }: SetRowProps) {
 
   // "completed" lives on SetData so the green check survives navigation
@@ -1735,6 +1736,64 @@ function SetRow({
       }
     }
   };
+  // Would this set, as entered, clear the standing record?
+  //
+  // Deliberately mirrors detectPRs in lib/actions/workouts.ts: WORKING sets
+  // only — a SUPERSET is pre-fatigued and a DROP_SET isn't max effort, so
+  // neither joins the ladder — the same tie-breaks, and no prior record means
+  // anything qualifying counts. `prev.prWeight/prReps` are the all-time bar;
+  // topWeight/topReps are just the last session and would call a PR on
+  // anything heavier than last week, which is the wrong claim entirely.
+  const prBadge = (() => {
+    if (set.type !== "WORKING" || !prev) return null;
+    const w = parseFloat(set.weight);
+    const r = parseInt(set.reps, 10);
+    const weight = Number.isFinite(w) ? w : 0;
+    const reps = Number.isFinite(r) ? r : 0;
+    const timed = isTimedExercise(exerciseName);
+
+    const pw = prev.prWeight;
+    if (weight > 0) {
+      if (!pw) return "1st";
+      if (weight > pw.value) {
+        const d = +(weight - pw.value).toFixed(2);
+        return `+${d} lb`;
+      }
+      // Adding a rep at the record load counts as a WEIGHT PR server-side.
+      if (weight === pw.value && reps > (pw.reps ?? 0)) {
+        const d = reps - (pw.reps ?? 0);
+        return `+${d} ${timed ? "s" : d === 1 ? "rep" : "reps"}`;
+      }
+    }
+    const pr = prev.prReps;
+    if (reps > 0) {
+      if (!pr) return "1st";
+      if (reps > (pr.reps ?? 0)) {
+        const d = reps - (pr.reps ?? 0);
+        return `+${d} ${timed ? "s" : d === 1 ? "rep" : "reps"}`;
+      }
+      if (reps === (pr.reps ?? 0) && weight > pr.value) {
+        return `+${+(weight - pr.value).toFixed(2)} lb`;
+      }
+    }
+    return null;
+  })();
+
+  const prPill = prBadge ? (
+    <p
+      className="nums text-[10px] font-bold mb-1 ml-7 inline-flex items-center gap-1 px-2 py-0.5 rounded-full w-fit"
+      style={{
+        background: "var(--accent)",
+        color: "#08130c",
+        fontFamily: "var(--font-geist-mono)",
+        letterSpacing: "0.06em",
+      }}
+      title="Clears your standing record for this lift"
+    >
+      🏆 PR {prBadge}
+    </p>
+  ) : null;
+
   const repsRef = useRef<HTMLInputElement>(null);
   const plateMode = usesPlates(exerciseName);
   const timedMode = isTimedExercise(exerciseName);
@@ -1843,7 +1902,9 @@ function SetRow({
 
   if (timedMode) {
     return (
-      <div className="flex items-center gap-2 mb-1.5" style={doneRowStyle}>
+      <div className="flex flex-col mb-1.5" style={doneRowStyle}>
+      {prPill}
+      <div className="flex items-center gap-2">
         <span
           className="nums text-[11px] w-5 text-center shrink-0 font-semibold"
           style={{
@@ -1938,6 +1999,7 @@ function SetRow({
           </svg>
         </button>
       </div>
+      </div>
     );
   }
 
@@ -1955,6 +2017,7 @@ function SetRow({
         ...(isDrop ? { paddingLeft: 18 } : {}),
       }}
     >
+    {prPill}
     <div className="flex items-center gap-1.5">
       <span
         className="nums text-[11px] w-5 text-center shrink-0 font-semibold"
