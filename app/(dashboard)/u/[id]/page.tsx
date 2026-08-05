@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { e1rm } from "@/lib/strengthProgression";
-import { isMachineExercise } from "@/lib/exercises";
+import { isMachineExercise, labelForType, formatDuration } from "@/lib/exercises";
 import { normalizeExerciseName } from "@/lib/exerciseIdentity";
 import Link from "next/link";
 import BackButton from "@/components/BackButton";
@@ -10,10 +10,10 @@ import FriendButton from "@/components/FriendButton";
 import ShareProfileButton from "@/components/ShareProfileButton";
 import { getFriendState } from "@/lib/actions/friends";
 import Avatar from "@/components/Avatar";
+import ProfileCalendar, { type CalendarWorkout } from "@/components/ProfileCalendar";
 
 export const dynamic = "force-dynamic";
 
-const DOW = ["M", "T", "W", "T", "F", "S", "S"];
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -56,6 +56,8 @@ export default async function PublicProfilePage({
       orderBy: { date: "desc" },
       select: {
         id: true,
+        title: true,
+        type: true,
         date: true,
         duration: true,
         calories: true,
@@ -83,13 +85,19 @@ export default async function PublicProfilePage({
   // Level from lifetime workouts.
   const level = Math.floor(totalWorkouts / 10) + 1;
 
-  // Map each trained day in the current month to a workout id so the
-  // calendar cell can link straight to that session. monthWorkouts is
-  // date-desc, so the first hit per day is the most recent one.
-  const workoutByDay = new Map<number, string>();
-  for (const w of monthWorkouts) {
+  // Group every workout in the month by day. Keeping only the first hit per
+  // day (monthWorkouts is date-desc) meant a double session showed one cell
+  // linking to the later workout, with the earlier one unreachable from here.
+  // Reversed so each day's list reads earliest-first, the order they trained.
+  const workoutsByDay: Record<number, CalendarWorkout[]> = {};
+  for (const w of [...monthWorkouts].reverse()) {
     const d = new Date(w.date).getDate();
-    if (!workoutByDay.has(d)) workoutByDay.set(d, w.id);
+    (workoutsByDay[d] ??= []).push({
+      id: w.id,
+      title: w.title || labelForType(w.type),
+      typeLabel: labelForType(w.type),
+      durationLabel: w.duration ? formatDuration(w.duration) : null,
+    });
   }
   const daysInMonth = new Date(
     now.getFullYear(),
@@ -208,46 +216,11 @@ export default async function PublicProfilePage({
               {MONTHS[now.getMonth()]} {now.getFullYear()}
             </span>
           </div>
-          <div className="grid grid-cols-7 gap-1.5">
-            {DOW.map((d, i) => (
-              <div
-                key={i}
-                className="text-center text-[10px] font-semibold uppercase"
-                style={{ color: "var(--fg-dim)" }}
-              >
-                {d}
-              </div>
-            ))}
-            {cells.map((day, i) => {
-              const workoutId = day !== null ? workoutByDay.get(day) : undefined;
-              return (
-                <div key={i} className="flex items-center justify-center aspect-square">
-                  {day !== null &&
-                    (workoutId ? (
-                      <Link
-                        href={`/workout/${workoutId}`}
-                        aria-label={`View workout on ${MONTHS[now.getMonth()]} ${day}`}
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] active:scale-95 transition-transform"
-                        style={{
-                          border: "1.5px solid #a3e635",
-                          color: "var(--fg)",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {day}
-                      </Link>
-                    ) : (
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-[12px]"
-                        style={{ color: "var(--fg-dim)" }}
-                      >
-                        {day}
-                      </div>
-                    ))}
-                </div>
-              );
-            })}
-          </div>
+          <ProfileCalendar
+            cells={cells}
+            workoutsByDay={workoutsByDay}
+            monthLabel={MONTHS[now.getMonth()]}
+          />
         </div>
 
         {/* Top lifts */}
