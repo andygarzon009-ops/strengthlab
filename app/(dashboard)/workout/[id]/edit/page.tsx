@@ -56,7 +56,9 @@ export default async function EditWorkoutPage({
       notes: ex.notes ?? "",
       supersetGroup: ex.supersetGroup ?? null,
       sets: ex.sets.map((s) => ({
-        type: s.type as "WARMUP" | "WORKING" | "SUPERSET",
+        // DROP_SET is a real stored type — omitting it here claimed drop sets
+        // could never come back from the database, which they can.
+        type: s.type as "WARMUP" | "WORKING" | "SUPERSET" | "DROP_SET",
         setNumber: s.setNumber,
         weight: s.weight?.toString() ?? "",
         reps: s.reps?.toString() ?? "",

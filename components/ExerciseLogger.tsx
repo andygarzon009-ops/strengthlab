@@ -426,10 +426,20 @@ export default function ExerciseLogger({
     const updated = [...exercises];
     const target = updated[exIdx].sets[setIdx] as unknown as Record<string, string | boolean | undefined>;
     target[field] = value;
-    // First time a set is marked complete, stamp loggedAt so the HR chart can
-    // overlay a marker. Toggling off doesn't clear it — preserves history.
-    if (field === "completed" && value === true && !target.loggedAt) {
-      target.loggedAt = new Date().toISOString();
+    // loggedAt is the ONLY persisted form of "completed" — Set has no
+    // completed column, and the edit page rebuilds the tick from
+    // `!!s.loggedAt`. So the two have to move together: stamp it on the way
+    // in (the HR chart overlays a marker there), and clear it on the way out.
+    //
+    // Leaving it set on un-tick was the old behaviour and meant un-ticking
+    // never survived a save — reopen the workout and the set was complete
+    // again, with no way to undo it.
+    if (field === "completed") {
+      if (value === true) {
+        if (!target.loggedAt) target.loggedAt = new Date().toISOString();
+      } else {
+        target.loggedAt = undefined;
+      }
     }
     setExercises(updated);
   };
