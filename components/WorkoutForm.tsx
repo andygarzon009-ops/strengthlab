@@ -186,6 +186,15 @@ export default function WorkoutForm({
   // through to the workout row on save so the detail page can replay it.
   const warmup = initial?.warmup ?? null;
 
+  // Drives the elapsed clock in the pinned header. Only ticks while a session
+  // is actually running.
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    if (!startedAt) return;
+    const t = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [startedAt]);
+
   // Shape-specific metrics
   const [durationMin, setDurationMin] = useState(
     initial?.duration ? String(Math.floor(initial.duration / 60)) : ""
@@ -464,6 +473,42 @@ export default function WorkoutForm({
           );
         }, 0)
       : 0;
+
+  // Live totals for the pinned header. Strength only: a run has no set count,
+  // and "lb moved" is meaningless on a bike. Warm-ups are excluded from the
+  // count for the same reason they carry no tick — they aren't the work.
+  const sessionStats = (() => {
+    if (shape !== "STRENGTH") return null;
+    let done = 0;
+    let total = 0;
+    let tonnage = 0;
+    for (const ex of exercises) {
+      for (const s of ex.sets) {
+        if (s.type === "WARMUP") continue;
+        total++;
+        if (!s.completed) continue;
+        done++;
+        const w = parseFloat(s.weight);
+        const r = parseInt(s.reps, 10);
+        if (Number.isFinite(w) && Number.isFinite(r)) tonnage += w * r;
+      }
+    }
+    return { done, total, tonnage };
+  })();
+
+  const elapsedLabel = (() => {
+    if (!startedAt) return null;
+    const secs = Math.max(
+      0,
+      Math.floor((nowTick - startedAt.getTime()) / 1000)
+    );
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return h > 0
+      ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+      : `${m}:${String(s).padStart(2, "0")}`;
+  })();
 
   const canSave = (() => {
     if (!title) return false;
@@ -817,7 +862,19 @@ export default function WorkoutForm({
   // STEP 2: Log details
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
-      <div className="flex items-center gap-2 mb-6">
+      {/* Pinned so the clock, the session's progress and Finish stay reachable
+          from anywhere in a long log, instead of scrolling off after the first
+          exercise. Negative margins let it span the page gutter. */}
+      <div
+        className="sticky z-30 -mx-4 px-4 pb-3 mb-5"
+        style={{
+          top: 0,
+          paddingTop: "0.5rem",
+          background: "var(--bg)",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+      <div className="flex items-center gap-2">
         {mode === "create" ? (
           <button
             onClick={() => setStep("type")}
@@ -880,6 +937,78 @@ export default function WorkoutForm({
         </div>
       </div>
 
+      {/* Live session line. Only while the clock runs, and only where the
+          numbers mean something — a run has no sets to count. */}
+      {step === "log" && startedAt && (
+        <div className="mt-2.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <div className="flex items-baseline gap-2.5 min-w-0">
+              <span
+                className="w-1.5 h-1.5 rounded-full shrink-0 self-center pulse-accent"
+                style={{ background: "var(--accent)" }}
+              />
+              <span
+                className="nums text-[20px] font-semibold tracking-tight leading-none"
+                style={{ fontFamily: "var(--font-geist-mono)" }}
+              >
+                {elapsedLabel}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    confirm("Discard the workout timer? Set/rep entries stay.")
+                  )
+                    setStartedAt(null);
+                }}
+                className="label text-[9px] underline underline-offset-2 shrink-0"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                Cancel
+              </button>
+            </div>
+            {sessionStats && sessionStats.total > 0 && (
+              <span
+                className="nums text-[11px] shrink-0"
+                style={{
+                  color: "var(--fg-dim)",
+                  fontFamily: "var(--font-geist-mono)",
+                }}
+              >
+                <span style={{ color: "var(--fg-muted)" }}>
+                  {sessionStats.done}/{sessionStats.total}
+                </span>{" "}
+                sets
+                {sessionStats.tonnage > 0 && (
+                  <>
+                    {" · "}
+                    <span style={{ color: "var(--fg-muted)" }}>
+                      {Math.round(sessionStats.tonnage).toLocaleString("en-US")}
+                    </span>{" "}
+                    lb
+                  </>
+                )}
+              </span>
+            )}
+          </div>
+          {sessionStats && sessionStats.total > 0 && (
+            <div
+              className="mt-2 rounded-full overflow-hidden"
+              style={{ height: 2, background: "var(--border)" }}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${(sessionStats.done / sessionStats.total) * 100}%`,
+                  background: "var(--accent)",
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+      </div>
+
       {step === "log" && warmup && warmup.items.length > 0 && (
         <GuidedWarmup
           items={warmup.items}
@@ -890,17 +1019,16 @@ export default function WorkoutForm({
         />
       )}
 
-      {/* The timer strip's own "Begin workout" button is only needed when there
-          is no warm-up to start the clock for us. Once running, always show the
-          live timer. */}
-      {step === "log" &&
-        (startedAt || !(warmup && warmup.items.length > 0)) && (
-          <WorkoutTimerStrip
-            startedAt={startedAt}
-            onBegin={() => setStartedAt(new Date())}
-            onCancel={() => setStartedAt(null)}
-          />
-        )}
+      {/* Only the "Begin workout" state now, and only when there's no warm-up
+          to start the clock for us. Once running, the pinned header carries
+          the clock and its Cancel, so the strip would just repeat itself. */}
+      {step === "log" && !startedAt && !(warmup && warmup.items.length > 0) && (
+        <WorkoutTimerStrip
+          startedAt={null}
+          onBegin={() => setStartedAt(new Date())}
+          onCancel={() => setStartedAt(null)}
+        />
+      )}
 
       {step === "log" && startedAt && <LiveHRWidget />}
 
