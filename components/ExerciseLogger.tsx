@@ -2041,6 +2041,17 @@ function SetRow({
       >
         −
       </button>
+      {/* A loaded bodyweight lift has to say what the number means. Without
+          this the row reads "85 × 3" while the summary line under it reads
+          "+45 × 8" — same lift, two different claims about the same field. */}
+      {bodyweightMode && parseFloat(set.weight) > 0 && (
+        <span
+          className="shrink-0 whitespace-nowrap"
+          style={{ color: "var(--fg-dim)", fontSize: "11px" }}
+        >
+          BW +
+        </span>
+      )}
       {plateMode ? (
         <input
           type="number"

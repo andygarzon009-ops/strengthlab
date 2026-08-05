@@ -869,7 +869,14 @@ export default function WorkoutForm({
         className="sticky z-30 -mx-4 px-4 pb-3 mb-5"
         style={{
           top: 0,
-          paddingTop: "0.5rem",
+          // Installed to the home screen the viewport starts behind the status
+          // bar, so a header stuck to top:0 paints under the clock and
+          // battery. Pad by the inset so the background fills that strip and
+          // the content clears it — then pull the same amount back off the top
+          // margin, because the dashboard layout has already offset the page
+          // by the inset and we'd otherwise leave a second gap at rest.
+          marginTop: "calc(-1 * env(safe-area-inset-top, 0px))",
+          paddingTop: "calc(env(safe-area-inset-top, 0px) + 0.5rem)",
           background: "var(--bg)",
           borderBottom: "1px solid var(--border)",
         }}
