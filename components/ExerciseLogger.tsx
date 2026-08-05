@@ -1795,6 +1795,22 @@ function SetRow({
   ) : null;
 
   const repsRef = useRef<HTMLInputElement>(null);
+  // RIR, drop set and remove live behind this. They're real controls, just not
+  // ones needed on every set — keeping them inline is what made the row a
+  // ten-target instrument panel.
+  const [showMore, setShowMore] = useState(false);
+
+  // Only the working set gets the large treatment. A warm-up is not the work
+  // and a drop set is a child of the set above it; blowing either up would
+  // cost the card its shape and say they matter equally, which they don't.
+  const big = !isWarmup && !isDrop;
+  const numClass = big
+    ? "text-center text-[22px] font-semibold rounded-xl py-1.5 focus:outline-none nums"
+    : "text-center text-[14px] rounded-lg py-2 focus:outline-none nums";
+  const stepClass = big
+    ? "w-8 h-11 rounded-xl shrink-0 text-[16px] font-semibold leading-none active:scale-95 transition-transform"
+    : "w-7 h-9 rounded-lg shrink-0 text-[14px] font-semibold leading-none active:scale-95 transition-transform";
+
   const plateMode = usesPlates(exerciseName);
   const timedMode = isTimedExercise(exerciseName);
   const bodyweightMode =
@@ -1920,7 +1936,13 @@ function SetRow({
           value={set.reps}
           onChange={(e) => onUpdate("reps", e.target.value)}
           placeholder="sec"
-          className="w-20 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
+          // Seconds are the lift on a hold, so they get the same weight the
+          // load carries on a normal set.
+          className={`${
+            big
+              ? "w-[76px] text-center text-[22px] font-semibold rounded-xl py-1.5"
+              : "w-20 text-center text-[14px] rounded-lg py-2"
+          } focus:outline-none nums`}
           style={{
             background: "var(--bg-elevated)",
             border: "1px solid var(--border)",
@@ -1950,7 +1972,9 @@ function SetRow({
           <button
             type="button"
             onClick={toggleDone}
-            className="ml-auto w-8 h-8 rounded-lg flex items-center justify-center transition-transform active:scale-90"
+            className={`ml-auto ${
+              big ? "w-11 h-11 rounded-xl" : "w-8 h-8 rounded-lg"
+            } flex items-center justify-center transition-transform active:scale-90 shrink-0`}
             style={{
               background: done ? "var(--accent)" : "var(--bg-elevated)",
               border: `1px solid ${done ? "var(--accent)" : "var(--border)"}`,
@@ -2036,7 +2060,7 @@ function SetRow({
         type="button"
         onClick={() => (plateMode ? stepExtras(-1) : stepWeight(-1))}
         aria-label={plateMode ? "Decrease extras" : "Decrease weight"}
-        className="w-7 h-9 rounded-lg shrink-0 text-[14px] font-semibold leading-none active:scale-95 transition-transform"
+        className={stepClass}
         style={stepperBtnStyle}
       >
         −
@@ -2051,7 +2075,7 @@ function SetRow({
           onBlur={handleWeightBlur}
           placeholder="plates"
           aria-label={isSingleSide ? "Plates" : "Plates per side"}
-          className="w-14 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
+          className={`${big ? "w-[62px]" : "w-14"} ${numClass}`}
           style={{
             background: "var(--bg-elevated)",
             border: "1px solid var(--border)",
@@ -2067,7 +2091,7 @@ function SetRow({
           onChange={(e) => onUpdate("weight", e.target.value)}
           onBlur={handleWeightBlur}
           placeholder={bodyweightMode ? "+lb" : "lb"}
-          className="w-14 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
+          className={`${big ? "w-[66px]" : "w-14"} ${numClass}`}
           style={{
             background: "var(--bg-elevated)",
             border: "1px solid var(--border)",
@@ -2080,7 +2104,7 @@ function SetRow({
         type="button"
         onClick={() => (plateMode ? stepExtras(1) : stepWeight(1))}
         aria-label={plateMode ? "Increase extras" : "Increase weight"}
-        className="w-7 h-9 rounded-lg shrink-0 text-[14px] font-semibold leading-none active:scale-95 transition-transform"
+        className={stepClass}
         style={stepperBtnStyle}
       >
         +
@@ -2128,7 +2152,7 @@ function SetRow({
         value={set.reps}
         onChange={(e) => onUpdate("reps", e.target.value)}
         placeholder="reps"
-        className="w-14 text-center text-[14px] rounded-lg py-2 focus:outline-none nums"
+        className={`${big ? "w-[56px]" : "w-14"} ${numClass}`}
         style={{
           background: repsMissing
             ? "rgba(239,68,68,0.08)"
@@ -2140,24 +2164,46 @@ function SetRow({
           fontFamily: "var(--font-geist-mono)",
         }}
       />
-      <input
-        type="number"
-        inputMode="numeric"
-        value={set.rir}
-        onChange={(e) => onUpdate("rir", e.target.value)}
-        placeholder="RIR"
-        className="w-12 text-center text-[11px] rounded-lg py-2 focus:outline-none"
-        style={{
-          background: "var(--bg-elevated)",
-          border: "1px solid var(--border)",
-          color: "var(--fg-muted)",
-        }}
-      />
+      {/* Compact rows keep RIR inline — they have no More panel to hide it in. */}
+      {!big && (
+        <input
+          type="number"
+          inputMode="numeric"
+          value={set.rir}
+          onChange={(e) => onUpdate("rir", e.target.value)}
+          placeholder="RIR"
+          className="w-12 text-center text-[11px] rounded-lg py-2 focus:outline-none"
+          style={{
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            color: "var(--fg-muted)",
+          }}
+        />
+      )}
+      {/* A filled RIR shouldn't vanish just because the panel is shut. */}
+      {big && set.rir.trim() !== "" && !showMore && (
+        <button
+          type="button"
+          onClick={() => setShowMore(true)}
+          className="nums text-[10px] px-1.5 py-0.5 rounded-md shrink-0"
+          style={{
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            color: "var(--fg-muted)",
+            fontFamily: "var(--font-geist-mono)",
+          }}
+          aria-label={`Reps in reserve ${set.rir}, tap to edit`}
+        >
+          RIR {set.rir}
+        </button>
+      )}
       {!isWarmup && (
         <button
           type="button"
           onClick={toggleDone}
-          className="ml-auto w-8 h-8 rounded-lg flex items-center justify-center transition-transform active:scale-90"
+          className={`ml-auto ${
+            big ? "w-11 h-11 rounded-xl" : "w-8 h-8 rounded-lg"
+          } flex items-center justify-center transition-transform active:scale-90 shrink-0`}
           style={{
             background: done ? "var(--accent)" : "var(--bg-elevated)",
             border: `1px solid ${done ? "var(--accent)" : "var(--border)"}`,
@@ -2186,7 +2232,7 @@ function SetRow({
           </svg>
         </button>
       )}
-      {onAddDrop && !isDrop && !isWarmup && (
+      {!big && onAddDrop && !isDrop && !isWarmup && (
         <button
           type="button"
           onClick={onAddDrop}
@@ -2211,25 +2257,27 @@ function SetRow({
           </svg>
         </button>
       )}
-      <button
-        onClick={onRemove}
-        className={`${isWarmup ? "ml-auto" : ""} w-7 h-7 flex items-center justify-center`}
-        style={{ color: "var(--fg-dim)" }}
-        aria-label="Remove set"
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+      {!big && (
+        <button
+          onClick={onRemove}
+          className={`${isWarmup ? "ml-auto" : ""} w-7 h-7 flex items-center justify-center`}
+          style={{ color: "var(--fg-dim)" }}
+          aria-label="Remove set"
         >
-          <path d="M18 6 6 18M6 6l12 12" />
-        </svg>
-      </button>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      )}
     </div>
     {plateMode && plateBreakdown && (
       <p
@@ -2242,6 +2290,73 @@ function SetRow({
       >
         {isSingleSide ? "plates: " : "per side: "}{plateBreakdown}
       </p>
+    )}
+    {big && (
+      <div className="ml-7 mt-1">
+        {!showMore ? (
+          <button
+            type="button"
+            onClick={() => setShowMore(true)}
+            className="text-[10px] underline underline-offset-2"
+            style={{ color: "var(--fg-dim)" }}
+            aria-expanded={false}
+            title="Reps in reserve, drop set, remove"
+          >
+            More
+          </button>
+        ) : (
+          <div className="flex items-center gap-3 flex-wrap py-1">
+            <label
+              className="flex items-center gap-1.5 text-[10px]"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              RIR
+              <input
+                type="number"
+                inputMode="numeric"
+                value={set.rir}
+                onChange={(e) => onUpdate("rir", e.target.value)}
+                className="w-11 text-center text-[11px] rounded-lg py-1 focus:outline-none nums"
+                style={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg-muted)",
+                  fontFamily: "var(--font-geist-mono)",
+                }}
+                aria-label="Reps in reserve"
+              />
+            </label>
+            {onAddDrop && (
+              <button
+                type="button"
+                onClick={onAddDrop}
+                className="text-[10px] underline underline-offset-2"
+                style={{ color: "var(--fg-dim)" }}
+                title="Add a drop set after this one"
+              >
+                + Drop set
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onRemove}
+              className="text-[10px] underline underline-offset-2"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              Remove set
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowMore(false)}
+              className="text-[10px] underline underline-offset-2 ml-auto"
+              style={{ color: "var(--fg-dim)" }}
+              aria-expanded
+            >
+              Less
+            </button>
+          </div>
+        )}
+      </div>
     )}
     </div>
   );
