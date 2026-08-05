@@ -140,6 +140,12 @@ type PreviousData = {
   topWeight?: number;
   topReps?: number;
   daysAgo?: number;
+  // Standing all-time PRs, from the same comparison the save path uses.
+  // topWeight/topReps describe only the last session, so they are NOT a
+  // record — anything claiming "PR" has to read these instead. Null means
+  // no record stands yet for this lift (or its near-duplicate siblings).
+  prWeight?: { value: number; reps: number | null } | null;
+  prReps?: { reps: number | null; value: number } | null;
 };
 
 type Props = {
