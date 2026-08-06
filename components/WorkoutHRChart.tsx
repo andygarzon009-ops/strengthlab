@@ -317,7 +317,12 @@ export default function WorkoutHRChart({
               x={data[maxIdx].time}
               y={max}
               r={3.5}
-              fill={TRACE_COLOR}
+              // Same treatment as the min below it. They're one pair of
+              // endpoint annotations — the footer labels them MAX and MIN
+              // together — so giving the peak its own colour made it read as
+              // a different kind of thing, and put a second blue on a chart
+              // where the trace should own that.
+              fill="rgba(255,255,255,0.45)"
               stroke="var(--surface)"
               strokeWidth={1.5}
               ifOverflow="extendDomain"
@@ -325,7 +330,7 @@ export default function WorkoutHRChart({
                 value: `${max}`,
                 position: "top",
                 offset: 8,
-                fill: TRACE_COLOR,
+                fill: "rgba(255,255,255,0.75)",
                 fontSize: 11,
                 fontWeight: 600,
               }}
