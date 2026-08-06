@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { hrZoneBands } from "@/lib/hrZones";
+import { hrZoneBands, hrZoneColor } from "@/lib/hrZones";
 import { useScrub, scrubIndex } from "@/lib/useScrub";
 import { hapticTick } from "@/lib/haptics";
 import { useState } from "react";
@@ -42,6 +42,12 @@ const MARGIN_RIGHT = 16;
 /// Single colour for the workout trace — see strokePaint below for why this
 /// isn't the zone gradient.
 const TRACE_COLOR = "#3b82f6";
+
+/// Heart rate's own colour, used for the headline numbers. Red reads as
+/// "pulse" everywhere else in the app (the workout-HR dot, the recovery
+/// cards), and keeping the trace blue means the two never fight: blue is the
+/// shape of the session, red is the number being quoted.
+const HR_ACCENT = "#ef4444";
 
 export default function WorkoutHRChart({
   samples,
@@ -119,6 +125,11 @@ export default function WorkoutHRChart({
   // and the legend still say which zone any part of it is in.
   const strokePaint = TRACE_COLOR;
 
+  // Zone the session actually peaked in. Falls back to neutral when there's
+  // no max HR to score against, rather than picking a colour at random.
+  const peakColor =
+    maxHr && maxHr > 0 ? hrZoneColor(max, maxHr) : "rgba(255,255,255,0.75)";
+
   // Recharts insets the plot by the axis width and right margin, so the data
   // occupies only the middle of the element. Map through those or the readout
   // lags the cursor at both edges.
@@ -181,7 +192,7 @@ export default function WorkoutHRChart({
               <div className="flex items-baseline gap-1.5">
                 <span
                   className="text-[22px] font-bold tabular-nums leading-none"
-                  style={{ color: TRACE_COLOR }}
+                  style={{ color: HR_ACCENT }}
                 >
                   {active.bpm}
                 </span>
@@ -316,13 +327,13 @@ export default function WorkoutHRChart({
             <ReferenceDot
               x={data[maxIdx].time}
               y={max}
-              r={3.5}
-              // Same treatment as the min below it. They're one pair of
-              // endpoint annotations — the footer labels them MAX and MIN
-              // together — so giving the peak its own colour made it read as
-              // a different kind of thing, and put a second blue on a chart
-              // where the trace should own that.
-              fill="rgba(255,255,255,0.45)"
+              r={4}
+              // The peak is worth saying something about, so it takes the
+              // colour of the zone it actually reached — the same yellow as
+              // the Moderate threshold it's sitting on. Red was arbitrary,
+              // blue competed with the trace, grey said nothing at all. This
+              // varies with the session, which is the point.
+              fill={peakColor}
               stroke="var(--surface)"
               strokeWidth={1.5}
               ifOverflow="extendDomain"
@@ -330,9 +341,9 @@ export default function WorkoutHRChart({
                 value: `${max}`,
                 position: "top",
                 offset: 8,
-                fill: "rgba(255,255,255,0.75)",
+                fill: peakColor,
                 fontSize: 11,
-                fontWeight: 600,
+                fontWeight: 700,
               }}
             />
             <ReferenceDot
@@ -441,7 +452,7 @@ export default function WorkoutHRChart({
       <div className="flex items-end justify-between mt-2">
         <div
           className="text-[11px] font-semibold tracking-wider uppercase"
-          style={{ color: TRACE_COLOR, letterSpacing: "0.08em" }}
+          style={{ color: HR_ACCENT, letterSpacing: "0.08em" }}
         >
           {avg} BPM AVG
         </div>
