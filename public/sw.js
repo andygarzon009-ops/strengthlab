@@ -42,7 +42,8 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// Web Push hook (no-op until VAPID + server scheduling lands).
+// Web Push hook. Rest-end pushes are scheduled server-side (see
+// lib/qstash.ts) so they land even with the screen locked.
 self.addEventListener("push", (event) => {
   let payload = { title: "StrengthLab", body: "Time's up", tag: "rest-end" };
   try {
@@ -51,15 +52,31 @@ self.addEventListener("push", (event) => {
     // non-JSON push payload — keep defaults
   }
   event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      tag: payload.tag,
-      icon: "/icon-192.png",
-      badge: "/icon-192.png",
-      vibrate: [300, 120, 300],
-      silent: false,
-      requireInteraction: true,
-      data: { url: payload.url || "/" },
-    })
+    (async () => {
+      // A rest-end push exists for the locked-screen case. If the athlete is
+      // actually looking at the app, the timer has already latched its REST
+      // DONE pill and chimed — a banner on top of that is noise. Other push
+      // types (friend requests, the inactivity nudge) are unaffected.
+      if (payload.tag === "rest-end") {
+        const clients = await self.clients.matchAll({
+          type: "window",
+          includeUncontrolled: true,
+        });
+        const onScreen = clients.some(
+          (c) => c.visibilityState === "visible" || c.focused
+        );
+        if (onScreen) return;
+      }
+      await self.registration.showNotification(payload.title, {
+        body: payload.body,
+        tag: payload.tag,
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        vibrate: [300, 120, 300],
+        silent: false,
+        requireInteraction: true,
+        data: { url: payload.url || "/" },
+      });
+    })()
   );
 });

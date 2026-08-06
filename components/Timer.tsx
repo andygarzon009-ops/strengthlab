@@ -481,6 +481,24 @@ export default function Timer() {
     return () => clearTimeout(t);
   }, [restDone]);
 
+  // Keep buzzing while the pill is unacknowledged. A single pattern at the
+  // instant rest ends is easy to miss with the phone in a pocket mid-set, and
+  // vibration is the cue most likely to land without looking at the screen.
+  // Three pulses over five seconds — enough to notice, short of nagging.
+  useEffect(() => {
+    if (!restDone) return;
+    let fired = 1; // the pattern at zero already counts as the first
+    const id = setInterval(() => {
+      if (fired >= 3) {
+        clearInterval(id);
+        return;
+      }
+      fired++;
+      vibrate([200, 120, 200]);
+    }, 2500);
+    return () => clearInterval(id);
+  }, [restDone]);
+
   useEffect(() => {
     if (!cdRunning) return;
     const sec = Math.ceil(cdRemaining);
@@ -513,6 +531,13 @@ export default function Timer() {
     setCdPaused(null);
     cdBeepRef.current = null;
     cdFiredRef.current = false;
+    setRestDone(false);
+    // Nothing had ever dispatched this — RestNotifications listened for it and
+    // never heard it — so cutting a rest short left both the page timer and,
+    // now, the queued server push still armed. Skipping rest shouldn't buzz.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("strengthlab:rest-cancel"));
+    }
   };
 
   // ---------- AMRAP ----------

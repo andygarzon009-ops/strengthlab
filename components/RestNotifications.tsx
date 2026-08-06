@@ -188,6 +188,17 @@ export default function RestNotifications() {
       // still needs permission; the in-page cues never did.
       scheduleNotification(secs);
       void ensurePermission();
+
+      // Hand the same deadline to the server. Locking the screen suspends
+      // this page and freezes the timer above, so the only thing that can
+      // reach a locked phone is a push the server sends on its own clock.
+      // Best-effort: failing here must never disturb logging a set.
+      void fetch("/api/rest/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seconds: secs }),
+        keepalive: true,
+      }).catch(() => {});
     };
 
     const cancel = () => {
@@ -195,6 +206,11 @@ export default function RestNotifications() {
         clearTimeout(pendingTimer.current);
         pendingTimer.current = null;
       }
+      // Defuse the queued push too, or a skipped rest still buzzes.
+      void fetch("/api/rest/schedule", {
+        method: "DELETE",
+        keepalive: true,
+      }).catch(() => {});
     };
 
     window.addEventListener("strengthlab:rest-start", handler);
