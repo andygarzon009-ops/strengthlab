@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { hrZoneBands } from "@/lib/hrZones";
 import { useScrub, scrubIndex } from "@/lib/useScrub";
+import { hapticTick } from "@/lib/haptics";
 import { useState } from "react";
 
 type Sample = { timestamp: string; bpm: number };
@@ -130,14 +131,8 @@ export default function WorkoutHRChart({
   if (liveIdx != null && liveIdx !== held) {
     setHeld(liveIdx);
     // A tick per reading, so the drag catches on the data instead of sliding
-    // over glass. No-op where the browser doesn't support vibration.
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      try {
-        navigator.vibrate?.(6);
-      } catch {
-        // unsupported or blocked
-      }
-    }
+    // over glass.
+    hapticTick();
   }
   const idx = liveIdx ?? held ?? -1;
   const active = idx >= 0 ? data[idx] : null;
@@ -322,7 +317,7 @@ export default function WorkoutHRChart({
               x={data[maxIdx].time}
               y={max}
               r={3.5}
-              fill="#ef4444"
+              fill={TRACE_COLOR}
               stroke="var(--surface)"
               strokeWidth={1.5}
               ifOverflow="extendDomain"
@@ -330,7 +325,7 @@ export default function WorkoutHRChart({
                 value: `${max}`,
                 position: "top",
                 offset: 8,
-                fill: "#ef4444",
+                fill: TRACE_COLOR,
                 fontSize: 11,
                 fontWeight: 600,
               }}

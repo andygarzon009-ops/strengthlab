@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { hrZoneBands, hrZoneColor, type HrZoneBand } from "@/lib/hrZones";
 import { useScrub, scrubIndex } from "@/lib/useScrub";
+import { hapticTick } from "@/lib/haptics";
 
 type Sample = { t: string; bpm: number };
 type Bucket = { startMin: number; min: number; max: number };
@@ -14,7 +15,11 @@ type RangeDay = {
 };
 export type Range = "H" | "D" | "W" | "M" | "Y";
 
-const BUCKET_MIN = 30;
+// 5-minute buckets: ~288 points across the day, roughly one per pixel of
+// plot at this width. At 30 the day was 48 points and the trace came out
+// smooth and characterless — the spikes that make a day legible were being
+// averaged away before they were ever drawn.
+const BUCKET_MIN = 5;
 const HOUR_BUCKET_MIN = 2;
 const Y_MIN = 50;
 const Y_MAX = 200;
@@ -825,18 +830,6 @@ function nearestByX(
   return best;
 }
 
-/// A tick each time the selection moves to a new reading, so dragging feels
-/// like it's catching on the data rather than sliding over glass. Silent
-/// where the browser doesn't support vibration.
-function tickHaptic() {
-  if (typeof navigator === "undefined" || !("vibrate" in navigator)) return;
-  try {
-    navigator.vibrate?.(6);
-  } catch {
-    // unsupported or blocked
-  }
-}
-
 function ScrubbableChart({
   points,
   maxHr,
@@ -861,7 +854,7 @@ function ScrubbableChart({
   const liveIdx = frac == null ? null : nearestByX(frac, points);
   if (liveIdx != null && liveIdx !== held) {
     setHeld(liveIdx);
-    tickHaptic();
+    hapticTick();
   }
 
   const idx = liveIdx ?? held;

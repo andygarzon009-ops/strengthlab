@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { hapticTick, hapticPattern } from "@/lib/haptics";
 
 const INTERVAL_KEY = "strengthlab.timer.interval.v1";
 const PRESETS_KEY = "strengthlab.timer.intervalPresets.v1";
@@ -97,10 +98,13 @@ const cueDone = () => tone(440, 260, 0.2);
 const cueTick = () => tone(800, 60, 0.15);
 const cueRound = () => tone(1320, 100, 0.18);
 
+/// Routed through lib/haptics so iPhones get something. navigator.vibrate
+/// doesn't exist in iOS Safari, which meant every cue in here — including
+/// rest finishing — was silent on the device most likely to be in a pocket
+/// at the gym.
 const vibrate = (pattern: number | number[]) => {
-  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-    navigator.vibrate?.(pattern);
-  }
+  if (typeof pattern === "number") hapticTick(pattern);
+  else hapticPattern(pattern);
 };
 
 const fmtMMSS = (s: number) => {
