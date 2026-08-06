@@ -118,6 +118,34 @@ export default function WorkoutHRChart({
   const idx = liveIdx ?? held ?? -1;
   const active = idx >= 0 ? data[idx] : null;
 
+  // Which set was on when the scrubbed reading was taken. Markers carry
+  // loggedAt — the instant a set was ticked — so the last one at or before
+  // this point is the set the athlete had just finished, which is exactly
+  // what a spike on the trace is asking about.
+  const sortedMarkers = [...setMarkers].sort(
+    (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp)
+  );
+  const activeSetIdx = (() => {
+    if (!active) return -1;
+    const t = Date.parse(active.time);
+    let found = -1;
+    for (let i = 0; i < sortedMarkers.length; i++) {
+      if (Date.parse(sortedMarkers[i].timestamp) <= t) found = i;
+      else break;
+    }
+    return found;
+  })();
+  const activeSet = activeSetIdx >= 0 ? sortedMarkers[activeSetIdx] : null;
+  const secsSinceSet =
+    active && activeSet
+      ? Math.max(
+          0,
+          Math.round(
+            (Date.parse(active.time) - Date.parse(activeSet.timestamp)) / 1000
+          )
+        )
+      : null;
+
   return (
     <section className="rounded-2xl p-4" style={{ background: "var(--surface)" }}>
       <div className="flex items-baseline justify-between mb-2">
@@ -153,6 +181,22 @@ export default function WorkoutHRChart({
               >
                 {formatTime(active.time)}
               </div>
+              {activeSet && (
+                <div
+                  className="text-[11px] mt-0.5 truncate"
+                  style={{ color: "var(--accent)", maxWidth: 220 }}
+                  title={activeSet.label}
+                >
+                  {secsSinceSet !== null && secsSinceSet < 20
+                    ? "on "
+                    : secsSinceSet !== null
+                      ? `${Math.floor(secsSinceSet / 60)}:${String(
+                          secsSinceSet % 60
+                        ).padStart(2, "0")} after `
+                      : ""}
+                  {activeSet.label}
+                </div>
+              )}
             </div>
             <button
               type="button"
@@ -297,7 +341,8 @@ export default function WorkoutHRChart({
                 ifOverflow="extendDomain"
               />
             )}
-            {setMarkers.map((m, i) => {
+            {sortedMarkers.map((m, i) => {
+              const isActiveSet = i === activeSetIdx;
               const target = new Date(m.timestamp).getTime();
               let nearestIdx = 0;
               let nearestDiff = Infinity;
@@ -313,10 +358,10 @@ export default function WorkoutHRChart({
                   key={`${m.timestamp}-${i}`}
                   x={data[nearestIdx].time}
                   y={data[nearestIdx].bpm}
-                  r={3}
+                  r={isActiveSet ? 5 : 3}
                   fill="#22c55e"
-                  stroke="var(--surface)"
-                  strokeWidth={1.5}
+                  stroke={isActiveSet ? "var(--fg)" : "var(--surface)"}
+                  strokeWidth={isActiveSet ? 2 : 1.5}
                   ifOverflow="extendDomain"
                 />
               );
