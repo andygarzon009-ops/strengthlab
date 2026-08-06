@@ -9,7 +9,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { hrZoneBands } from "@/lib/hrZones";
+import { hrZoneBands, hrZoneColor } from "@/lib/hrZones";
+import { useScrub, scrubIndex } from "@/lib/useScrub";
 
 type Sample = { timestamp: string; bpm: number };
 type SetMarker = { timestamp: string; label: string };
@@ -30,10 +31,11 @@ const XAXIS_H = 20;
 const PLOT_TOP = MARGIN_TOP;
 const PLOT_BOTTOM = CHART_H - MARGIN_BOTTOM - XAXIS_H;
 
-/// Horizontal room per sample once the chart is allowed to scroll. Below this
-/// a long session compresses into an unreadable smear.
-const PX_PER_SAMPLE = 3;
-const MAX_SCROLL_WIDTH = 2400;
+/// Recharts insets the plot by these margins, so a scrub fraction measured
+/// across the whole element has to be mapped through them or the readout
+/// drifts from the cursor at both ends.
+const MARGIN_LEFT = 36; // YAxis width
+const MARGIN_RIGHT = 16;
 
 export default function WorkoutHRChart({
   samples,
@@ -45,6 +47,9 @@ export default function WorkoutHRChart({
   /** Athlete's estimated max HR, for zone thresholds. Omit to skip zones. */
   maxHr?: number | null;
 }) {
+  // Before the early return — a hook can't sit behind a conditional exit.
+  const { trackRef, frac, trackWidth, handlers } = useScrub<HTMLDivElement>();
+
   if (samples.length === 0) return null;
 
   const bpms = samples.map((s) => s.bpm);
@@ -96,12 +101,16 @@ export default function WorkoutHRChart({
   const hasZones = gradientStops.length > 0;
   const strokePaint = hasZones ? "url(#hrZoneStroke)" : "#ef4444";
 
-  // Give every sample room, and scroll rather than compress. `max()` keeps
-  // short sessions full-width instead of leaving dead space.
-  const scrollWidth = Math.min(
-    MAX_SCROLL_WIDTH,
-    samples.length * PX_PER_SAMPLE
-  );
+  // Recharts insets the plot by the axis width and right margin, so the data
+  // occupies only the middle of the element. Map through those or the readout
+  // lags the cursor at both edges.
+  const padLeftPct = trackWidth > 0 ? MARGIN_LEFT / trackWidth : 0;
+  const padRightPct = trackWidth > 0 ? MARGIN_RIGHT / trackWidth : 0;
+  const idx =
+    frac == null
+      ? -1
+      : scrubIndex(frac, data.length, padLeftPct, padRightPct);
+  const active = idx >= 0 ? data[idx] : null;
 
   return (
     <section className="rounded-2xl p-4" style={{ background: "var(--surface)" }}>
@@ -112,11 +121,36 @@ export default function WorkoutHRChart({
         </div>
       </div>
 
+      <div className="h-6 mb-1 flex items-center">
+        {active ? (
+          <span className="flex items-center gap-1.5 text-[12px] font-semibold tabular-nums">
+            <span
+              className="inline-block w-2 h-2 rounded-full"
+              style={{
+                background: maxHr
+                  ? hrZoneColor(active.bpm, maxHr)
+                  : "#ef4444",
+              }}
+            />
+            {active.bpm}
+            <span style={{ color: "var(--fg-muted)" }}>bpm</span>
+            <span style={{ color: "var(--fg-dim)" }}>
+              · {formatTime(active.time)}
+            </span>
+          </span>
+        ) : (
+          <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+            Drag across the chart to read exact times
+          </span>
+        )}
+      </div>
+
       <div
-        className="overflow-x-auto overscroll-x-contain"
-        style={{ WebkitOverflowScrolling: "touch" }}
+        ref={trackRef}
+        className="relative select-none touch-pan-y cursor-ew-resize"
+        {...handlers}
       >
-      <div style={{ width: `max(100%, ${scrollWidth}px)`, height: CHART_H }}>
+      <div style={{ width: "100%", height: CHART_H }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={data}
@@ -250,6 +284,18 @@ export default function WorkoutHRChart({
           </AreaChart>
         </ResponsiveContainer>
       </div>
+        {frac != null && (
+          <div
+            className="absolute top-0 bottom-0 pointer-events-none"
+            style={{
+              left: `${frac * 100}%`,
+              width: 2,
+              marginLeft: -1,
+              background: "var(--fg)",
+              opacity: 0.85,
+            }}
+          />
+        )}
       </div>
 
       {visibleBands.length > 1 && (

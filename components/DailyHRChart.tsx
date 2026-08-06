@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { hrZoneBands, hrZoneColor, type HrZoneBand } from "@/lib/hrZones";
+import { useScrub, scrubIndex } from "@/lib/useScrub";
 
 type Sample = { t: string; bpm: number };
 type Bucket = { startMin: number; min: number; max: number };
@@ -15,11 +16,6 @@ export type Range = "H" | "D" | "W" | "M" | "Y";
 
 const BUCKET_MIN = 30;
 const HOUR_BUCKET_MIN = 2;
-/// Canvas widths once the charts are allowed to scroll. A 24-hour trace in
-/// 320px is a smear; these give each bucket enough width to read.
-const DAY_SCROLL_W = 900;
-const HOUR_SCROLL_W = 520;
-
 const Y_MIN = 50;
 const Y_MAX = 200;
 
@@ -327,20 +323,21 @@ function HourCard({
         subtitle="Last hour"
         loading={loading}
       />
-      <div
-        className="overflow-x-auto overscroll-x-contain"
-        style={{ WebkitOverflowScrolling: "touch" }}
+      <ScrubbableChart
+        points={samples.map((sp) => ({
+          label: fmtClock(new Date(sp.t), tz),
+          bpm: sp.bpm,
+        }))}
+        maxHr={maxHr}
       >
-        <div style={{ width: `max(100%, ${HOUR_SCROLL_W}px)` }}>
-          <HourSvg
-            samples={samples}
-            startMs={startMs}
-            endMs={endMs}
-            tz={tz}
-            maxHr={maxHr}
-          />
-        </div>
-      </div>
+        <HourSvg
+          samples={samples}
+          startMs={startMs}
+          endMs={endMs}
+          tz={tz}
+          maxHr={maxHr}
+        />
+      </ScrubbableChart>
       <ZoneLegend maxHr={maxHr} />
       {latest && (
         <>
@@ -437,14 +434,12 @@ function DayCard({
         subtitle="Today"
         loading={loading}
       />
-      <div
-        className="overflow-x-auto overscroll-x-contain"
-        style={{ WebkitOverflowScrolling: "touch" }}
+      <ScrubbableChart
+        points={buckets.map((b) => ({ label: fmtBucketClock(b.startMin), bpm: b.max }))}
+        maxHr={maxHr}
       >
-        <div style={{ width: `max(100%, ${DAY_SCROLL_W}px)` }}>
-          <DaySvg buckets={buckets} maxHr={maxHr} />
-        </div>
-      </div>
+        <DaySvg buckets={buckets} maxHr={maxHr} />
+      </ScrubbableChart>
       <ZoneLegend maxHr={maxHr} />
       {latest && (
         <>
@@ -661,6 +656,94 @@ export function ZoneLegend({ maxHr }: { maxHr?: number | null }) {
       ))}
     </div>
   );
+}
+
+
+/// Press-and-drag readout over a chart, matching the sleep hypnogram's
+/// gesture. The SVGs inside pad the plot by padL/padR, so the scrub fraction
+/// is mapped through those insets — otherwise the cursor and the value drift
+/// apart at both edges.
+const PLOT_PAD_L = 8 / 320;
+const PLOT_PAD_R = 32 / 320;
+
+function ScrubbableChart({
+  points,
+  maxHr,
+  children,
+}: {
+  points: { label: string; bpm: number }[];
+  maxHr?: number | null;
+  children: React.ReactNode;
+}) {
+  const { trackRef, frac, handlers } = useScrub<HTMLDivElement>();
+  const idx =
+    frac == null ? -1 : scrubIndex(frac, points.length, PLOT_PAD_L, PLOT_PAD_R);
+  const active = idx >= 0 ? points[idx] : null;
+
+  return (
+    <div className="select-none">
+      <div className="h-6 mb-1 flex items-center">
+        {active ? (
+          <span className="flex items-center gap-1.5 text-[12px] font-semibold tabular-nums">
+            <span
+              className="inline-block w-2 h-2 rounded-full"
+              style={{
+                background: maxHr
+                  ? hrZoneColor(active.bpm, maxHr)
+                  : "var(--fg-dim)",
+              }}
+            />
+            {active.bpm}
+            <span style={{ color: "var(--fg-muted)" }}>bpm</span>
+            <span style={{ color: "var(--fg-dim)" }}>· {active.label}</span>
+          </span>
+        ) : (
+          <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+            {points.length > 0
+              ? "Drag across the chart to read exact times"
+              : ""}
+          </span>
+        )}
+      </div>
+      <div
+        ref={trackRef}
+        className="relative touch-pan-y cursor-ew-resize"
+        {...handlers}
+      >
+        {children}
+        {frac != null && (
+          <div
+            className="absolute top-0 bottom-0 pointer-events-none"
+            style={{
+              left: `${frac * 100}%`,
+              width: 2,
+              marginLeft: -1,
+              background: "var(--fg)",
+              opacity: 0.85,
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/// "3:11 PM" for a sample instant in the athlete's timezone.
+function fmtClock(d: Date, tz: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    timeZone: tz,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(d);
+}
+
+/// "3:10 PM" for a day-view bucket, which is stored as minutes past midnight.
+function fmtBucketClock(startMin: number): string {
+  const h24 = Math.floor(startMin / 60);
+  const m = startMin % 60;
+  const ampm = h24 < 12 ? "AM" : "PM";
+  const h = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
 function HourSvg({
