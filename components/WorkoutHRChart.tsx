@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { hrZoneBands } from "@/lib/hrZones";
 
 type Sample = { timestamp: string; bpm: number };
 type SetMarker = { timestamp: string; label: string };
@@ -20,12 +21,29 @@ function formatTime(iso: string): string {
   });
 }
 
+/// Chart geometry. The zone gradient is positioned in user space, so these
+/// have to match what's handed to AreaChart below — change one, change both.
+const CHART_H = 200;
+const MARGIN_TOP = 24;
+const MARGIN_BOTTOM = 8;
+const XAXIS_H = 20;
+const PLOT_TOP = MARGIN_TOP;
+const PLOT_BOTTOM = CHART_H - MARGIN_BOTTOM - XAXIS_H;
+
+/// Horizontal room per sample once the chart is allowed to scroll. Below this
+/// a long session compresses into an unreadable smear.
+const PX_PER_SAMPLE = 3;
+const MAX_SCROLL_WIDTH = 2400;
+
 export default function WorkoutHRChart({
   samples,
   setMarkers = [],
+  maxHr,
 }: {
   samples: Sample[];
   setMarkers?: SetMarker[];
+  /** Athlete's estimated max HR, for zone thresholds. Omit to skip zones. */
+  maxHr?: number | null;
 }) {
   if (samples.length === 0) return null;
 
@@ -50,6 +68,41 @@ export default function WorkoutHRChart({
   // values are rounded so the axis reads as 50/100/150 etc.
   const yTicks = [min, max];
 
+  // Zone bands clipped to what's actually on screen. A session that never
+  // left the light zone shouldn't draw four threshold lines it never crossed.
+  const bands = maxHr && maxHr > 0 ? hrZoneBands(maxHr) : [];
+  const visibleBands = bands.filter(
+    (b) => (b.maxBpm ?? Infinity) > yMin && b.minBpm < yMax
+  );
+
+  // Pixel position of a BPM value inside the plot, for the gradient below.
+  const yPx = (bpm: number) =>
+    PLOT_TOP +
+    (PLOT_BOTTOM - PLOT_TOP) * (1 - (bpm - yMin) / (yMax - yMin));
+
+  // Hard-stopped gradient so the trace takes the colour of whatever zone it's
+  // passing through — the same colours as the threshold lines and the legend,
+  // rather than one flat red for the whole session.
+  const gradientStops = visibleBands.flatMap((b) => {
+    const top = Math.min(b.maxBpm ?? yMax, yMax);
+    const bottom = Math.max(b.minBpm, yMin);
+    const o1 = (yPx(top) - PLOT_TOP) / (PLOT_BOTTOM - PLOT_TOP);
+    const o2 = (yPx(bottom) - PLOT_TOP) / (PLOT_BOTTOM - PLOT_TOP);
+    return [
+      { offset: Math.max(0, Math.min(1, o1)), color: b.color },
+      { offset: Math.max(0, Math.min(1, o2)), color: b.color },
+    ];
+  });
+  const hasZones = gradientStops.length > 0;
+  const strokePaint = hasZones ? "url(#hrZoneStroke)" : "#ef4444";
+
+  // Give every sample room, and scroll rather than compress. `max()` keeps
+  // short sessions full-width instead of leaving dead space.
+  const scrollWidth = Math.min(
+    MAX_SCROLL_WIDTH,
+    samples.length * PX_PER_SAMPLE
+  );
+
   return (
     <section className="rounded-2xl p-4" style={{ background: "var(--surface)" }}>
       <div className="flex items-baseline justify-between mb-2">
@@ -59,15 +112,52 @@ export default function WorkoutHRChart({
         </div>
       </div>
 
-      <div style={{ width: "100%", height: 200 }}>
+      <div
+        className="overflow-x-auto overscroll-x-contain"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+      <div style={{ width: `max(100%, ${scrollWidth}px)`, height: CHART_H }}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 24, right: 16, bottom: 8, left: 0 }}>
+          <AreaChart
+            data={data}
+            margin={{ top: MARGIN_TOP, right: 16, bottom: MARGIN_BOTTOM, left: 0 }}
+          >
             <defs>
               <linearGradient id="hrFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#ef4444" stopOpacity={0.35} />
                 <stop offset="100%" stopColor="#ef4444" stopOpacity={0.02} />
               </linearGradient>
+              {hasZones && (
+                <linearGradient
+                  id="hrZoneStroke"
+                  gradientUnits="userSpaceOnUse"
+                  x1={0}
+                  y1={PLOT_TOP}
+                  x2={0}
+                  y2={PLOT_BOTTOM}
+                >
+                  {gradientStops.map((s, i) => (
+                    <stop
+                      key={i}
+                      offset={`${(s.offset * 100).toFixed(2)}%`}
+                      stopColor={s.color}
+                    />
+                  ))}
+                </linearGradient>
+              )}
             </defs>
+            {visibleBands
+              // The floor of zone 1 is the axis, not a threshold worth drawing.
+              .filter((b) => b.minBpm > yMin)
+              .map((b) => (
+                <ReferenceLine
+                  key={`zone-${b.zone}`}
+                  y={b.minBpm}
+                  stroke={b.color}
+                  strokeDasharray="1 5"
+                  strokeOpacity={0.7}
+                />
+              ))}
             <YAxis
               domain={[yMin, yMax]}
               ticks={yTicks}
@@ -93,8 +183,8 @@ export default function WorkoutHRChart({
             <Area
               type="monotone"
               dataKey="bpm"
-              stroke="#ef4444"
-              strokeWidth={1.5}
+              stroke={strokePaint}
+              strokeWidth={1.75}
               fill="url(#hrFill)"
               isAnimationActive={false}
               activeDot={false}
@@ -160,6 +250,31 @@ export default function WorkoutHRChart({
           </AreaChart>
         </ResponsiveContainer>
       </div>
+      </div>
+
+      {visibleBands.length > 1 && (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+          {visibleBands.map((b) => (
+            <span
+              key={`legend-${b.zone}`}
+              className="flex items-center gap-1.5 text-[10px]"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  width: 12,
+                  height: 2,
+                  borderRadius: 1,
+                  background: b.color,
+                  display: "inline-block",
+                }}
+              />
+              {b.label}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-end justify-between mt-2">
         <div

@@ -18,6 +18,7 @@ import WorkoutHRChart from "@/components/WorkoutHRChart";
 import SyncHRButton from "@/components/SyncHRButton";
 import { WarmupSummary } from "@/components/GuidedWarmup";
 import { workoutVolume, compareVolume, formatVolume } from "@/lib/volume";
+import { ageFromBirthDate, estimateMaxHr } from "@/lib/hrZones";
 
 type WarmupShape = {
   items: {
@@ -70,6 +71,32 @@ export default async function WorkoutDetailPage({
     orderBy: { timestamp: "asc" },
     select: { timestamp: true, bpm: true },
   });
+
+  // Max HR for the zone thresholds on the chart, resolved exactly as the live
+  // widget does it (age estimate, raised by any peak actually observed) so the
+  // zones an athlete sees mid-workout match the ones they see afterwards.
+  // Resolved against the workout's owner, not the viewer — a friend looking at
+  // this session should see it scored against the person who trained.
+  const hrOwner =
+    hrSamples.length > 0
+      ? await prisma.user.findUnique({
+          where: { id: workout.userId },
+          select: { birthDate: true },
+        })
+      : null;
+  const observedMaxHr =
+    hrSamples.length > 0
+      ? (
+          await prisma.workout.aggregate({
+            where: { userId: workout.userId, maxHeartRate: { not: null } },
+            _max: { maxHeartRate: true },
+          })
+        )._max.maxHeartRate
+      : null;
+  const maxHr =
+    hrSamples.length > 0
+      ? estimateMaxHr(ageFromBirthDate(hrOwner?.birthDate), observedMaxHr ?? null)
+      : null;
 
   const typeLabel = labelForType(workout.type);
   const shape = shapeForType(workout.type);
@@ -330,6 +357,7 @@ export default async function WorkoutDetailPage({
       {hrSamples.length > 0 && (
         <div className="mb-4">
           <WorkoutHRChart
+            maxHr={maxHr}
             samples={hrSamples.map((s) => ({
               timestamp: s.timestamp.toISOString(),
               bpm: s.bpm,

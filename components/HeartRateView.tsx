@@ -49,6 +49,7 @@ function formatWorkoutDate(d: Date): string {
 export default function HeartRateView({
   initial,
   workouts,
+  maxHr,
 }: {
   initial: {
     connected: boolean;
@@ -57,6 +58,8 @@ export default function HeartRateView({
     dateKey: string;
   };
   workouts: Workout[];
+  /** Estimated max HR, for the chart's intensity zones. */
+  maxHr?: number | null;
 }) {
   const [range, setRange] = useState<Range>("D");
 
@@ -74,6 +77,7 @@ export default function HeartRateView({
   return (
     <div>
       <DailyHRChart
+        maxHr={maxHr}
         initial={initial}
         range={range}
         onRangeChange={setRange}

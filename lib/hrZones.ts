@@ -14,6 +14,45 @@ export type HrZoneInfo = {
 const ZONE_LABELS = ["Very light", "Light", "Moderate", "Hard", "Peak"];
 const ZONE_COLORS = ["#3b82f6", "#22c55e", "#eab308", "#f97316", "#ef4444"];
 
+/// Lower bound of each zone as a % of max HR. The single source for both
+/// hrZone() and hrZoneBands(), so a reading's colour can never disagree with
+/// the band it's plotted inside.
+const ZONE_PCT_FLOORS = [0, 60, 70, 80, 90] as const;
+
+export const HR_ZONE_LABELS: readonly string[] = ZONE_LABELS;
+export const HR_ZONE_COLORS: readonly string[] = ZONE_COLORS;
+
+export type HrZoneBand = {
+  zone: 1 | 2 | 3 | 4 | 5;
+  label: string;
+  color: string;
+  /** Inclusive lower bound in BPM. */
+  minBpm: number;
+  /** Exclusive upper bound in BPM; null for the top zone, which is open. */
+  maxBpm: number | null;
+};
+
+/// The five zones expressed in BPM for a given max HR, so a chart can draw
+/// threshold lines and a legend in the same colours the readings use.
+export function hrZoneBands(maxHr: number): HrZoneBand[] {
+  return ZONE_PCT_FLOORS.map((pct, i) => {
+    const nextPct = ZONE_PCT_FLOORS[i + 1];
+    return {
+      zone: (i + 1) as 1 | 2 | 3 | 4 | 5,
+      label: ZONE_LABELS[i],
+      color: ZONE_COLORS[i],
+      minBpm: Math.round((pct / 100) * maxHr),
+      maxBpm: nextPct != null ? Math.round((nextPct / 100) * maxHr) : null,
+    };
+  });
+}
+
+/// Just the colour for a reading — the common case in chart rendering, where
+/// pulling the whole HrZoneInfo per point is wasteful.
+export function hrZoneColor(bpm: number, maxHr: number): string {
+  return hrZone(bpm, maxHr).color;
+}
+
 // Generic fallback max HR when we can't estimate one (no birthday, no history).
 const FALLBACK_MAX_HR = 190;
 

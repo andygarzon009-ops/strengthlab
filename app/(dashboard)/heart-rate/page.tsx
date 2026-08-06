@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import HeartRateView from "@/components/HeartRateView";
 import HealthReconnectBanner from "@/components/HealthReconnectBanner";
 import BackButton from "@/components/BackButton";
+import { ageFromBirthDate, estimateMaxHr } from "@/lib/hrZones";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +13,21 @@ export default async function HeartRatePage() {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { timezone: true },
+    select: { timezone: true, birthDate: true },
   });
   const tz = user?.timezone ?? "UTC";
+
+  // Same max-HR estimate the live widget and the post-workout chart use — age
+  // formula, raised by any peak actually observed — so the zone thresholds are
+  // identical wherever heart rate is drawn.
+  const observedMaxHr = await prisma.workout.aggregate({
+    where: { userId, maxHeartRate: { not: null } },
+    _max: { maxHeartRate: true },
+  });
+  const maxHr = estimateMaxHr(
+    ageFromBirthDate(user?.birthDate),
+    observedMaxHr._max.maxHeartRate ?? null
+  );
   const dateKey = new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,
     year: "numeric",
@@ -58,6 +71,7 @@ export default async function HeartRatePage() {
       <HealthReconnectBanner />
 
       <HeartRateView
+        maxHr={maxHr}
         initial={{
           connected: !!account,
           samples: initialSamples,

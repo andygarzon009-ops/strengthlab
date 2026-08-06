@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { hrZoneBands, hrZoneColor, type HrZoneBand } from "@/lib/hrZones";
 
 type Sample = { t: string; bpm: number };
 type Bucket = { startMin: number; min: number; max: number };
@@ -14,6 +15,11 @@ export type Range = "H" | "D" | "W" | "M" | "Y";
 
 const BUCKET_MIN = 30;
 const HOUR_BUCKET_MIN = 2;
+/// Canvas widths once the charts are allowed to scroll. A 24-hour trace in
+/// 320px is a smear; these give each bucket enough width to read.
+const DAY_SCROLL_W = 900;
+const HOUR_SCROLL_W = 520;
+
 const Y_MIN = 50;
 const Y_MAX = 200;
 
@@ -29,6 +35,7 @@ export default function DailyHRChart({
   initial,
   range,
   onRangeChange,
+  maxHr,
 }: {
   initial: {
     connected: boolean;
@@ -38,6 +45,8 @@ export default function DailyHRChart({
   };
   range: Range;
   onRangeChange: (r: Range) => void;
+  /** Estimated max HR for the intensity zones. Omit to draw without them. */
+  maxHr?: number | null;
 }) {
   const [data, setData] = useState(initial);
   const [rangeDays, setRangeDays] = useState<RangeDay[]>([]);
@@ -258,6 +267,7 @@ export default function DailyHRChart({
 
       {range === "H" ? (
         <HourCard
+          maxHr={maxHr}
           samples={hourSamples}
           windowStart={hourWindow?.start ?? null}
           windowEnd={hourWindow?.end ?? null}
@@ -265,7 +275,7 @@ export default function DailyHRChart({
           loading={loading}
         />
       ) : range === "D" ? (
-        <DayCard data={data} loading={loading} />
+        <DayCard data={data} loading={loading} maxHr={maxHr} />
       ) : (
         <RangeCard range={range} days={rangeDays} loading={loading} />
       )}
@@ -279,12 +289,14 @@ function HourCard({
   windowEnd,
   tz,
   loading,
+  maxHr,
 }: {
   samples: Sample[];
   windowStart: string | null;
   windowEnd: string | null;
   tz: string;
   loading: boolean;
+  maxHr?: number | null;
 }) {
   const range = useMemo(() => {
     if (samples.length === 0) return null;
@@ -315,7 +327,21 @@ function HourCard({
         subtitle="Last hour"
         loading={loading}
       />
-      <HourSvg samples={samples} startMs={startMs} endMs={endMs} tz={tz} />
+      <div
+        className="overflow-x-auto overscroll-x-contain"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        <div style={{ width: `max(100%, ${HOUR_SCROLL_W}px)` }}>
+          <HourSvg
+            samples={samples}
+            startMs={startMs}
+            endMs={endMs}
+            tz={tz}
+            maxHr={maxHr}
+          />
+        </div>
+      </div>
+      <ZoneLegend maxHr={maxHr} />
       {latest && (
         <>
           <div
@@ -343,6 +369,7 @@ function HourCard({
 function DayCard({
   data,
   loading,
+  maxHr,
 }: {
   data: {
     connected: boolean;
@@ -351,6 +378,7 @@ function DayCard({
     dateKey: string;
   };
   loading: boolean;
+  maxHr?: number | null;
 }) {
   const buckets = useMemo<Bucket[]>(() => {
     if (!data.samples?.length) return [];
@@ -409,7 +437,15 @@ function DayCard({
         subtitle="Today"
         loading={loading}
       />
-      <DaySvg buckets={buckets} />
+      <div
+        className="overflow-x-auto overscroll-x-contain"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        <div style={{ width: `max(100%, ${DAY_SCROLL_W}px)` }}>
+          <DaySvg buckets={buckets} maxHr={maxHr} />
+        </div>
+      </div>
+      <ZoneLegend maxHr={maxHr} />
       {latest && (
         <>
           <div
@@ -561,16 +597,84 @@ function RangeHeader({
   );
 }
 
+
+/// Dotted intensity thresholds, drawn in the same colours the readings use.
+/// Only the lower bound of each zone above the first is worth a line — the
+/// floor of zone 1 is the axis.
+function ZoneLines({
+  bands,
+  yFor,
+  x1,
+  x2,
+}: {
+  bands: HrZoneBand[];
+  yFor: (bpm: number) => number;
+  x1: number;
+  x2: number;
+}) {
+  return (
+    <>
+      {bands
+        .filter((b) => b.minBpm > Y_MIN && b.minBpm < Y_MAX)
+        .map((b) => (
+          <line
+            key={`zone-${b.zone}`}
+            x1={x1}
+            x2={x2}
+            y1={yFor(b.minBpm)}
+            y2={yFor(b.minBpm)}
+            stroke={b.color}
+            strokeDasharray="1 5"
+            strokeWidth={1}
+            strokeOpacity={0.75}
+          />
+        ))}
+    </>
+  );
+}
+
+/// Key for the threshold colours. Sits under the chart rather than inside it,
+/// so it doesn't compete with the trace for space on a narrow screen.
+export function ZoneLegend({ maxHr }: { maxHr?: number | null }) {
+  if (!maxHr || maxHr <= 0) return null;
+  const bands = hrZoneBands(maxHr).filter((b) => b.minBpm < Y_MAX);
+  return (
+    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 px-1">
+      {bands.map((b) => (
+        <span
+          key={`lg-${b.zone}`}
+          className="flex items-center gap-1.5 text-[10px]"
+          style={{ color: "var(--fg-dim)" }}
+        >
+          <span
+            aria-hidden
+            style={{
+              width: 12,
+              height: 2,
+              borderRadius: 1,
+              background: b.color,
+              display: "inline-block",
+            }}
+          />
+          {b.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function HourSvg({
   samples,
   startMs,
   endMs,
   tz,
+  maxHr,
 }: {
   samples: Sample[];
   startMs: number | null;
   endMs: number | null;
   tz: string;
+  maxHr?: number | null;
 }) {
   const W = 320;
   const H = 200;
@@ -647,6 +751,9 @@ function HourSvg({
           strokeWidth={0.5}
         />
       ))}
+      {maxHr ? (
+        <ZoneLines bands={hrZoneBands(maxHr)} yFor={yFor} x1={padL} x2={W - padR} />
+      ) : null}
       {yTicks.map((y) => (
         <text
           key={`yl-${y}`}
@@ -682,8 +789,8 @@ function HourSvg({
             width={Math.max(2, bucketWidth)}
             height={h}
             rx={1.5}
-            fill="#ef4444"
-            opacity={0.85}
+            fill={maxHr ? hrZoneColor(b.max, maxHr) : "#ef4444"}
+            opacity={0.9}
           />
         );
       })}
@@ -691,7 +798,7 @@ function HourSvg({
   );
 }
 
-function DaySvg({ buckets }: { buckets: Bucket[] }) {
+function DaySvg({ buckets, maxHr }: { buckets: Bucket[]; maxHr?: number | null }) {
   const W = 320;
   const H = 200;
   const padL = 8;
@@ -733,6 +840,9 @@ function DaySvg({ buckets }: { buckets: Bucket[] }) {
           strokeWidth={0.5}
         />
       ))}
+      {maxHr ? (
+        <ZoneLines bands={hrZoneBands(maxHr)} yFor={yFor} x1={padL} x2={W - padR} />
+      ) : null}
       {yTicks.map((y) => (
         <text
           key={`yl-${y}`}
@@ -780,8 +890,8 @@ function DaySvg({ buckets }: { buckets: Bucket[] }) {
             width={Math.max(2, bucketWidth)}
             height={h}
             rx={1.5}
-            fill="#ef4444"
-            opacity={0.85}
+            fill={maxHr ? hrZoneColor(b.max, maxHr) : "#ef4444"}
+            opacity={0.9}
           />
         );
       })}
