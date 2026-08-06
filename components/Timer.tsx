@@ -642,10 +642,16 @@ export default function Timer() {
       {!coachOpen && (
       <button
         onClick={() => {
-          setRestDone(false);
+          // Tapping the rest-over pill just acknowledges it. Opening the timer
+          // sheet was a non-sequitur — rest is over, so the next thing wanted
+          // is the log, not timer settings.
+          if (restDone) {
+            setRestDone(false);
+            return;
+          }
           setOpen(true);
         }}
-        aria-label={restDone ? "Rest finished — open timer" : "Open timer"}
+        aria-label={restDone ? "Rest finished — dismiss" : "Open timer"}
         className={`fixed z-[70] rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-95${
           restDone ? " rest-done-pulse" : ""
         }`}

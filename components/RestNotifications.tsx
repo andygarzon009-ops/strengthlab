@@ -53,15 +53,19 @@ function buzz(pattern: number | number[]) {
   }
 }
 
-// Listens for the same `strengthlab:rest-start` window event the
-// in-app Timer already reacts to, and schedules a system notification
-// to fire at the rest's wall-clock end. Works alongside the in-app
-// chime (foreground) so the user gets:
-//   - foreground tab → soft sine bell from Timer.tsx
-//   - tab in background but page alive → system notification + vibrate
-//   - tab fully suspended (e.g. screen locked on iOS Safari) → no
-//     guarantee until we wire VAPID + Web Push from the server. The
-//     SW push handler is already in place for when that lands.
+// Listens for the same `strengthlab:rest-start` window event the in-app Timer
+// reacts to, and schedules a system notification for the rest's wall-clock
+// end. This component owns ONLY the away-from-the-app case:
+//
+//   - app open and visible → nothing from here. Timer.tsx sounds its chime
+//     and latches the REST DONE pill on the FAB, which is a cue that needs no
+//     permission and survives a muted phone. Firing here as well would double
+//     the chime and put a system banner over a cue already on screen.
+//   - backgrounded but page alive → chime, vibrate and a system notification,
+//     since the FAB can't be seen.
+//   - fully suspended (screen locked on iOS Safari) → no guarantee until
+//     VAPID Web Push is driven from the server. The SW push handler is
+//     already in place for when that lands.
 export default function RestNotifications() {
   const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swReg = useRef<ServiceWorkerRegistration | null>(null);
@@ -114,9 +118,20 @@ export default function RestNotifications() {
       if (pendingTimer.current) clearTimeout(pendingTimer.current);
       pendingTimer.current = setTimeout(async () => {
         pendingTimer.current = null;
-        // Page-side cues. These run on Android Chrome and on web/PWA
-        // tabs that are still alive when the timer fires; iOS Safari
-        // ignores navigator.vibrate but plays the chime.
+
+        // If the athlete is looking at the app, Timer.tsx has this covered —
+        // it sounds its own chime and latches the REST DONE pill on the FAB.
+        // Firing here too would double the chime and stack a system
+        // notification on top of a cue already on screen.
+        if (
+          typeof document !== "undefined" &&
+          document.visibilityState === "visible"
+        ) {
+          return;
+        }
+
+        // Page backgrounded but still alive. These cues can still land, and
+        // the FAB can't be seen, so this is where they earn their keep.
         chime();
         buzz([300, 120, 300]);
         try {
