@@ -120,6 +120,9 @@ export default function RestNotifications() {
         chime();
         buzz([300, 120, 300]);
         try {
+          if (!("Notification" in window) || Notification.permission !== "granted") {
+            return; // in-page cues above already fired; nothing more to do
+          }
           const reg =
             swReg.current ??
             (await navigator.serviceWorker?.getRegistration?.()) ??
@@ -163,9 +166,13 @@ export default function RestNotifications() {
     const handler = async (e: Event) => {
       const ce = e as CustomEvent<{ seconds?: number }>;
       const secs = Math.max(5, Math.round(ce.detail?.seconds ?? 90));
-      const granted = await ensurePermission();
-      if (!granted) return;
+      // Schedule FIRST, then ask. Bailing out on a denied permission used to
+      // skip the page-side chime and buzz too, so anyone who dismissed the
+      // browser prompt once — which is asked exactly once, ever — got nothing
+      // at rest-end from this component for good. The system notification
+      // still needs permission; the in-page cues never did.
       scheduleNotification(secs);
+      void ensurePermission();
     };
 
     const cancel = () => {

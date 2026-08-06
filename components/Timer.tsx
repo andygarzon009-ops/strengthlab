@@ -187,6 +187,10 @@ export default function Timer() {
   const [cdPaused, setCdPaused] = useState<number | null>(null);
   const cdBeepRef = useRef<number | null>(null);
   const cdFiredRef = useRef(false);
+  /// Latched when rest hits zero and held until acknowledged. The FAB reads
+  /// this to announce itself on screen, which is the only rest-over cue that
+  /// doesn't depend on audio, vibration or notification permission.
+  const [restDone, setRestDone] = useState(false);
 
   // AMRAP state.
   const [amrapConfigSeconds, setAmrapConfigSeconds] = useState(600);
@@ -449,12 +453,33 @@ export default function Timer() {
     if (cdRemaining === 0 && !cdFiredRef.current) {
       cdFiredRef.current = true;
       cueDone();
-      // Single soft tap to match the minimal sine-bell cue — feels
-      // like a notification, not an alarm.
-      vibrate(60);
+      // Three taps, not one. Where vibration works at all this has to be
+      // felt through a pocket mid-set, and a single 60 ms tap wasn't.
+      vibrate([200, 120, 200]);
       setCdEndsAt(null);
+      // The cue that actually survives a gym. Sound is muted by the ring
+      // switch, vibration is unreliable on iOS, and both were the only
+      // things marking rest-over — so with the app open and the phone on
+      // silent, nothing happened at all. This latches a visible state
+      // instead, and holds it until it's acknowledged.
+      setRestDone(true);
     }
   }, [cdRemaining, cdRunning]);
+
+  // Clear the rest-over state whenever a new rest begins or the timer is
+  // opened — those both mean it's been seen.
+  useEffect(() => {
+    if (cdRunning) setRestDone(false);
+  }, [cdRunning]);
+
+  // Give up after a while. Starting the next set clears this, but only if that
+  // set has a rest timer set; with rest switched off nothing would ever clear
+  // it and the pill would sit there for the rest of the session.
+  useEffect(() => {
+    if (!restDone) return;
+    const t = setTimeout(() => setRestDone(false), 90_000);
+    return () => clearTimeout(t);
+  }, [restDone]);
 
   useEffect(() => {
     if (!cdRunning) return;
@@ -616,21 +641,42 @@ export default function Timer() {
     <>
       {!coachOpen && (
       <button
-        onClick={() => setOpen(true)}
-        aria-label="Open timer"
-        className="fixed z-[70] rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-95"
+        onClick={() => {
+          setRestDone(false);
+          setOpen(true);
+        }}
+        aria-label={restDone ? "Rest finished — open timer" : "Open timer"}
+        className={`fixed z-[70] rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-95${
+          restDone ? " rest-done-pulse" : ""
+        }`}
         style={{
           right: 76,
           bottom: 96,
-          width: 48,
+          // Grows into a pill so it can carry a word, not just a number —
+          // a colour change alone is missable at a glance mid-set.
+          width: restDone ? 116 : 48,
           height: 48,
-          background: fabReadout ? fabReadout.color : "var(--bg-card)",
-          color: fabReadout ? "#0a0a0a" : "var(--fg)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 10px 30px -8px rgba(0,0,0,0.5)",
+          background: restDone
+            ? "var(--accent)"
+            : fabReadout
+              ? fabReadout.color
+              : "var(--bg-card)",
+          color: restDone || fabReadout ? "#0a0a0a" : "var(--fg)",
+          border: restDone ? "1px solid var(--accent)" : "1px solid var(--border)",
+          boxShadow: restDone
+            ? "0 0 0 6px rgba(34,197,94,0.18), 0 10px 30px -8px rgba(0,0,0,0.5)"
+            : "0 10px 30px -8px rgba(0,0,0,0.5)",
+          transition: "width .22s cubic-bezier(.22,1,.36,1), background .2s",
         }}
       >
-        {fabReadout ? (
+        {restDone ? (
+          <span
+            className="label text-[10px] font-bold whitespace-nowrap"
+            style={{ letterSpacing: "0.1em" }}
+          >
+            REST DONE
+          </span>
+        ) : fabReadout ? (
           <span
             className="nums text-[12px] font-bold leading-none"
             style={{ fontFamily: "var(--font-geist-mono)" }}
