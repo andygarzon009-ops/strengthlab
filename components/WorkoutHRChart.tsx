@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { hrZoneBands, hrZoneColor } from "@/lib/hrZones";
 import { useScrub, scrubIndex } from "@/lib/useScrub";
+import { useState } from "react";
 
 type Sample = { timestamp: string; bpm: number };
 type SetMarker = { timestamp: string; label: string };
@@ -49,6 +50,9 @@ export default function WorkoutHRChart({
 }) {
   // Before the early return — a hook can't sit behind a conditional exit.
   const { trackRef, frac, trackWidth, handlers } = useScrub<HTMLDivElement>();
+  // Held after release so the value can actually be read — while you're
+  // dragging, it's under your thumb.
+  const [held, setHeld] = useState<number | null>(null);
 
   if (samples.length === 0) return null;
 
@@ -106,10 +110,12 @@ export default function WorkoutHRChart({
   // lags the cursor at both edges.
   const padLeftPct = trackWidth > 0 ? MARGIN_LEFT / trackWidth : 0;
   const padRightPct = trackWidth > 0 ? MARGIN_RIGHT / trackWidth : 0;
-  const idx =
+  const liveIdx =
     frac == null
-      ? -1
+      ? null
       : scrubIndex(frac, data.length, padLeftPct, padRightPct);
+  if (liveIdx != null && liveIdx !== held) setHeld(liveIdx);
+  const idx = liveIdx ?? held ?? -1;
   const active = idx >= 0 ? data[idx] : null;
 
   return (
@@ -121,26 +127,49 @@ export default function WorkoutHRChart({
         </div>
       </div>
 
-      <div className="h-6 mb-1 flex items-center">
+      <div className="h-9 mb-1 flex items-center">
         {active ? (
-          <span className="flex items-center gap-1.5 text-[12px] font-semibold tabular-nums">
-            <span
-              className="inline-block w-2 h-2 rounded-full"
-              style={{
-                background: maxHr
-                  ? hrZoneColor(active.bpm, maxHr)
-                  : "#ef4444",
-              }}
-            />
-            {active.bpm}
-            <span style={{ color: "var(--fg-muted)" }}>bpm</span>
-            <span style={{ color: "var(--fg-dim)" }}>
-              · {formatTime(active.time)}
-            </span>
-          </span>
+          <div className="flex items-center gap-2.5">
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <span
+                  className="text-[22px] font-bold tabular-nums leading-none"
+                  style={{
+                    color: maxHr ? hrZoneColor(active.bpm, maxHr) : "#ef4444",
+                  }}
+                >
+                  {active.bpm}
+                </span>
+                <span
+                  className="text-[11px] font-medium"
+                  style={{ color: "var(--fg-muted)" }}
+                >
+                  bpm
+                </span>
+              </div>
+              <div
+                className="text-[11px] tabular-nums mt-0.5"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                {formatTime(active.time)}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setHeld(null)}
+              aria-label="Clear reading"
+              className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: "var(--bg-elevated)", color: "var(--fg-muted)" }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         ) : (
           <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
-            Drag across the chart to read exact times
+            Hold and drag the chart to read a time
           </span>
         )}
       </div>
@@ -257,6 +286,17 @@ export default function WorkoutHRChart({
                 fontWeight: 600,
               }}
             />
+            {active && (
+              <ReferenceDot
+                x={active.time}
+                y={active.bpm}
+                r={4}
+                fill="var(--surface)"
+                stroke="var(--fg)"
+                strokeWidth={2}
+                ifOverflow="extendDomain"
+              />
+            )}
             {setMarkers.map((m, i) => {
               const target = new Date(m.timestamp).getTime();
               let nearestIdx = 0;
@@ -284,15 +324,20 @@ export default function WorkoutHRChart({
           </AreaChart>
         </ResponsiveContainer>
       </div>
-        {frac != null && (
+        {idx >= 0 && trackWidth > 0 && (
           <div
             className="absolute top-0 bottom-0 pointer-events-none"
             style={{
-              left: `${frac * 100}%`,
-              width: 2,
-              marginLeft: -1,
+              // Snapped to the sample rather than the raw finger position, so
+              // the line, the dot and the number can't disagree.
+              left: `${(padLeftPct +
+                (data.length > 1 ? idx / (data.length - 1) : 0.5) *
+                  (1 - padLeftPct - padRightPct)) *
+                100}%`,
+              width: 1.5,
+              marginLeft: -0.75,
               background: "var(--fg)",
-              opacity: 0.85,
+              opacity: 0.9,
             }}
           />
         )}

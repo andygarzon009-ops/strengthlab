@@ -330,13 +330,16 @@ function HourCard({
         }))}
         maxHr={maxHr}
       >
-        <HourSvg
-          samples={samples}
-          startMs={startMs}
-          endMs={endMs}
-          tz={tz}
-          maxHr={maxHr}
-        />
+        {(scrubIdx) => (
+          <HourSvg
+            samples={samples}
+            startMs={startMs}
+            endMs={endMs}
+            tz={tz}
+            maxHr={maxHr}
+            scrubIdx={scrubIdx}
+          />
+        )}
       </ScrubbableChart>
       <ZoneLegend maxHr={maxHr} />
       {latest && (
@@ -438,7 +441,9 @@ function DayCard({
         points={buckets.map((b) => ({ label: fmtBucketClock(b.startMin), bpm: b.max }))}
         maxHr={maxHr}
       >
-        <DaySvg buckets={buckets} maxHr={maxHr} />
+        {(scrubIdx) => (
+          <DaySvg buckets={buckets} maxHr={maxHr} scrubIdx={scrubIdx} />
+        )}
       </ScrubbableChart>
       <ZoneLegend maxHr={maxHr} />
       {latest && (
@@ -666,6 +671,88 @@ export function ZoneLegend({ maxHr }: { maxHr?: number | null }) {
 const PLOT_PAD_L = 8 / 320;
 const PLOT_PAD_R = 32 / 320;
 
+
+/// Vertical gradient with hard stops at each zone boundary, so one polyline
+/// changes colour as it crosses into a zone. Positioned in user space against
+/// the plot box, which is why it takes the same padT/plotH the chart uses.
+function ZoneGradient({
+  id,
+  maxHr,
+  padT,
+  plotH,
+}: {
+  id: string;
+  maxHr: number;
+  padT: number;
+  plotH: number;
+}) {
+  const yFor = (bpm: number) => {
+    const c = Math.max(Y_MIN, Math.min(Y_MAX, bpm));
+    return padT + plotH * (1 - (c - Y_MIN) / (Y_MAX - Y_MIN));
+  };
+  const stops = hrZoneBands(maxHr).flatMap((b) => {
+    const top = Math.min(b.maxBpm ?? Y_MAX, Y_MAX);
+    const bottom = Math.max(b.minBpm, Y_MIN);
+    if (top <= bottom) return [];
+    const o1 = (yFor(top) - padT) / plotH;
+    const o2 = (yFor(bottom) - padT) / plotH;
+    return [
+      { o: Math.max(0, Math.min(1, o1)), c: b.color },
+      { o: Math.max(0, Math.min(1, o2)), c: b.color },
+    ];
+  });
+  return (
+    <linearGradient
+      id={id}
+      gradientUnits="userSpaceOnUse"
+      x1={0}
+      y1={padT}
+      x2={0}
+      y2={padT + plotH}
+    >
+      {stops.map((st, i) => (
+        <stop key={i} offset={`${(st.o * 100).toFixed(2)}%`} stopColor={st.c} />
+      ))}
+    </linearGradient>
+  );
+}
+
+/// The trace. A continuous line rather than a bar per bucket — bars read as a
+/// barcode at day scale, and the shape of the day is what's actually being
+/// looked at. Peaks are preserved by plotting each bucket's high.
+function TraceLine({
+  pts,
+  gradientId,
+  hasZones,
+}: {
+  pts: { x: number; y: number }[];
+  gradientId: string;
+  hasZones: boolean;
+}) {
+  if (pts.length === 0) return null;
+  if (pts.length === 1) {
+    return (
+      <circle
+        cx={pts[0].x}
+        cy={pts[0].y}
+        r={1.6}
+        fill={hasZones ? `url(#${gradientId})` : "#ef4444"}
+      />
+    );
+  }
+  return (
+    <polyline
+      points={pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ")}
+      fill="none"
+      stroke={hasZones ? `url(#${gradientId})` : "#ef4444"}
+      strokeWidth={1.4}
+      strokeLinejoin="round"
+      strokeLinecap="round"
+      vectorEffect="non-scaling-stroke"
+    />
+  );
+}
+
 function ScrubbableChart({
   points,
   maxHr,
@@ -673,35 +760,76 @@ function ScrubbableChart({
 }: {
   points: { label: string; bpm: number }[];
   maxHr?: number | null;
-  children: React.ReactNode;
+  children: (scrubIdx: number | null) => React.ReactNode;
 }) {
   const { trackRef, frac, handlers } = useScrub<HTMLDivElement>();
-  const idx =
-    frac == null ? -1 : scrubIndex(frac, points.length, PLOT_PAD_L, PLOT_PAD_R);
-  const active = idx >= 0 ? points[idx] : null;
+  // The reading stays put after the finger lifts, cleared with the ✕. Letting
+  // it vanish on release means you can never actually read it — the value is
+  // under your thumb the whole time you're holding it there.
+  const [held, setHeld] = useState<number | null>(null);
+
+  const liveIdx =
+    frac == null ? null : scrubIndex(frac, points.length, PLOT_PAD_L, PLOT_PAD_R);
+  if (liveIdx != null && liveIdx !== held) setHeld(liveIdx);
+
+  const idx = liveIdx ?? held;
+  const active = idx != null && idx >= 0 ? points[idx] : null;
+  const dotColor =
+    active && maxHr ? hrZoneColor(active.bpm, maxHr) : "var(--fg-dim)";
 
   return (
     <div className="select-none">
-      <div className="h-6 mb-1 flex items-center">
+      <div className="h-9 mb-1 flex items-center">
         {active ? (
-          <span className="flex items-center gap-1.5 text-[12px] font-semibold tabular-nums">
-            <span
-              className="inline-block w-2 h-2 rounded-full"
+          <div className="flex items-center gap-2.5">
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <span
+                  className="text-[22px] font-bold tabular-nums leading-none"
+                  style={{ color: dotColor }}
+                >
+                  {active.bpm}
+                </span>
+                <span
+                  className="text-[11px] font-medium"
+                  style={{ color: "var(--fg-muted)" }}
+                >
+                  bpm
+                </span>
+              </div>
+              <div
+                className="text-[11px] tabular-nums mt-0.5"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                {active.label}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setHeld(null)}
+              aria-label="Clear reading"
+              className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
               style={{
-                background: maxHr
-                  ? hrZoneColor(active.bpm, maxHr)
-                  : "var(--fg-dim)",
+                background: "var(--bg-elevated)",
+                color: "var(--fg-muted)",
               }}
-            />
-            {active.bpm}
-            <span style={{ color: "var(--fg-muted)" }}>bpm</span>
-            <span style={{ color: "var(--fg-dim)" }}>· {active.label}</span>
-          </span>
+            >
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              >
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         ) : (
           <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
-            {points.length > 0
-              ? "Drag across the chart to read exact times"
-              : ""}
+            {points.length > 0 ? "Hold and drag the chart to read a time" : ""}
           </span>
         )}
       </div>
@@ -710,16 +838,19 @@ function ScrubbableChart({
         className="relative touch-pan-y cursor-ew-resize"
         {...handlers}
       >
-        {children}
-        {frac != null && (
+        {children(idx)}
+        {idx != null && idx >= 0 && (
           <div
             className="absolute top-0 bottom-0 pointer-events-none"
             style={{
-              left: `${frac * 100}%`,
-              width: 2,
-              marginLeft: -1,
+              left: `${(PLOT_PAD_L +
+                (points.length > 1 ? idx / (points.length - 1) : 0.5) *
+                  (1 - PLOT_PAD_L - PLOT_PAD_R)) *
+                100}%`,
+              width: 1.5,
+              marginLeft: -0.75,
               background: "var(--fg)",
-              opacity: 0.85,
+              opacity: 0.9,
             }}
           />
         )}
@@ -752,12 +883,14 @@ function HourSvg({
   endMs,
   tz,
   maxHr,
+  scrubIdx,
 }: {
   samples: Sample[];
   startMs: number | null;
   endMs: number | null;
   tz: string;
   maxHr?: number | null;
+  scrubIdx?: number | null;
 }) {
   const W = 320;
   const H = 200;
@@ -835,7 +968,12 @@ function HourSvg({
         />
       ))}
       {maxHr ? (
-        <ZoneLines bands={hrZoneBands(maxHr)} yFor={yFor} x1={padL} x2={W - padR} />
+        <>
+          <defs>
+            <ZoneGradient id="hourZoneGrad" maxHr={maxHr} padT={padT} plotH={plotH} />
+          </defs>
+          <ZoneLines bands={hrZoneBands(maxHr)} yFor={yFor} x1={padL} x2={W - padR} />
+        </>
       ) : null}
       {yTicks.map((y) => (
         <text
@@ -860,28 +998,37 @@ function HourSvg({
           {tickLabel(m)}
         </text>
       ))}
-      {buckets.map((b) => {
-        const y1 = yFor(b.max);
-        const y2 = yFor(b.min);
-        const h = Math.max(2, y2 - y1);
-        return (
-          <rect
-            key={b.offsetMin}
-            x={xFor(b.offsetMin)}
-            y={y1}
-            width={Math.max(2, bucketWidth)}
-            height={h}
-            rx={1.5}
-            fill={maxHr ? hrZoneColor(b.max, maxHr) : "#ef4444"}
-            opacity={0.9}
-          />
-        );
-      })}
+      <TraceLine
+        pts={buckets.map((b) => ({
+          x: xFor(b.offsetMin) + bucketWidth / 2,
+          y: yFor(b.max),
+        }))}
+        gradientId="hourZoneGrad"
+        hasZones={!!maxHr}
+      />
+      {scrubIdx != null && buckets[scrubIdx] && (
+        <circle
+          cx={xFor(buckets[scrubIdx].offsetMin) + bucketWidth / 2}
+          cy={yFor(buckets[scrubIdx].max)}
+          r={4}
+          fill="var(--bg-card)"
+          stroke="var(--fg)"
+          strokeWidth={2}
+        />
+      )}
     </svg>
   );
 }
 
-function DaySvg({ buckets, maxHr }: { buckets: Bucket[]; maxHr?: number | null }) {
+function DaySvg({
+  buckets,
+  maxHr,
+  scrubIdx,
+}: {
+  buckets: Bucket[];
+  maxHr?: number | null;
+  scrubIdx?: number | null;
+}) {
   const W = 320;
   const H = 200;
   const padL = 8;
@@ -924,7 +1071,12 @@ function DaySvg({ buckets, maxHr }: { buckets: Bucket[]; maxHr?: number | null }
         />
       ))}
       {maxHr ? (
-        <ZoneLines bands={hrZoneBands(maxHr)} yFor={yFor} x1={padL} x2={W - padR} />
+        <>
+          <defs>
+            <ZoneGradient id="dayZoneGrad" maxHr={maxHr} padT={padT} plotH={plotH} />
+          </defs>
+          <ZoneLines bands={hrZoneBands(maxHr)} yFor={yFor} x1={padL} x2={W - padR} />
+        </>
       ) : null}
       {yTicks.map((y) => (
         <text
@@ -961,23 +1113,24 @@ function DaySvg({ buckets, maxHr }: { buckets: Bucket[]; maxHr?: number | null }
           </text>
         );
       })}
-      {buckets.map((b) => {
-        const y1 = yFor(b.max);
-        const y2 = yFor(b.min);
-        const h = Math.max(2, y2 - y1);
-        return (
-          <rect
-            key={b.startMin}
-            x={xFor(b.startMin)}
-            y={y1}
-            width={Math.max(2, bucketWidth)}
-            height={h}
-            rx={1.5}
-            fill={maxHr ? hrZoneColor(b.max, maxHr) : "#ef4444"}
-            opacity={0.9}
-          />
-        );
-      })}
+      <TraceLine
+        pts={buckets.map((b) => ({
+          x: xFor(b.startMin) + bucketWidth / 2,
+          y: yFor(b.max),
+        }))}
+        gradientId="dayZoneGrad"
+        hasZones={!!maxHr}
+      />
+      {scrubIdx != null && buckets[scrubIdx] && (
+        <circle
+          cx={xFor(buckets[scrubIdx].startMin) + bucketWidth / 2}
+          cy={yFor(buckets[scrubIdx].max)}
+          r={4}
+          fill="var(--bg-card)"
+          stroke="var(--fg)"
+          strokeWidth={2}
+        />
+      )}
     </svg>
   );
 }
