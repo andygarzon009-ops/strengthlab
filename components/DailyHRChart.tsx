@@ -324,20 +324,31 @@ function HourCard({
         loading={loading}
       />
       <ScrubbableChart
-        points={samples.map((sp) => ({
-          label: fmtClock(new Date(sp.t), tz),
-          bpm: sp.bpm,
-        }))}
+        points={
+          startMs === null || endMs === null || endMs <= startMs
+            ? []
+            : samples.map((sp) => ({
+                label: fmtClock(new Date(sp.t), tz),
+                bpm: sp.bpm,
+                xFrac: Math.max(
+                  0,
+                  Math.min(
+                    1,
+                    (new Date(sp.t).getTime() - startMs) / (endMs - startMs)
+                  )
+                ),
+              }))
+        }
         maxHr={maxHr}
       >
-        {(scrubIdx) => (
+        {(marker) => (
           <HourSvg
             samples={samples}
             startMs={startMs}
             endMs={endMs}
             tz={tz}
             maxHr={maxHr}
-            scrubIdx={scrubIdx}
+            marker={marker}
           />
         )}
       </ScrubbableChart>
@@ -438,11 +449,16 @@ function DayCard({
         loading={loading}
       />
       <ScrubbableChart
-        points={buckets.map((b) => ({ label: fmtBucketClock(b.startMin), bpm: b.max }))}
+        points={buckets.map((b) => ({
+          label: fmtBucketClock(b.startMin),
+          bpm: b.max,
+          // Same mapping DaySvg uses to place the bucket.
+          xFrac: b.startMin / (24 * 60),
+        }))}
         maxHr={maxHr}
       >
-        {(scrubIdx) => (
-          <DaySvg buckets={buckets} maxHr={maxHr} scrubIdx={scrubIdx} />
+        {(marker) => (
+          <DaySvg buckets={buckets} maxHr={maxHr} marker={marker} />
         )}
       </ScrubbableChart>
       <ZoneLegend maxHr={maxHr} />
@@ -690,7 +706,11 @@ function ZoneGradient({
     const c = Math.max(Y_MIN, Math.min(Y_MAX, bpm));
     return padT + plotH * (1 - (c - Y_MIN) / (Y_MAX - Y_MIN));
   };
-  const stops = hrZoneBands(maxHr).flatMap((b) => {
+  // Top zone first. SVG clamps any stop whose offset is below the previous
+  // one, and zone 1 sits at the BOTTOM of the plot — so emitting in zone
+  // order made every stop after the first collapse, painting the whole line
+  // zone 1's blue no matter how high it went.
+  const stops = [...hrZoneBands(maxHr)].reverse().flatMap((b) => {
     const top = Math.min(b.maxBpm ?? Y_MAX, Y_MAX);
     const bottom = Math.max(b.minBpm, Y_MIN);
     if (top <= bottom) return [];
@@ -753,14 +773,53 @@ function TraceLine({
   );
 }
 
+
+/// Nearest point to a scrub position, matched on where each point actually
+/// sits in the plot rather than on its index.
+function nearestByX(
+  frac: number,
+  points: { xFrac: number }[]
+): number | null {
+  if (points.length === 0) return null;
+  const t = (frac - PLOT_PAD_L) / (1 - PLOT_PAD_L - PLOT_PAD_R);
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < points.length; i++) {
+    const d = Math.abs(points[i].xFrac - t);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/// A tick each time the selection moves to a new reading, so dragging feels
+/// like it's catching on the data rather than sliding over glass. Silent
+/// where the browser doesn't support vibration.
+function tickHaptic() {
+  if (typeof navigator === "undefined" || !("vibrate" in navigator)) return;
+  try {
+    navigator.vibrate?.(6);
+  } catch {
+    // unsupported or blocked
+  }
+}
+
 function ScrubbableChart({
   points,
   maxHr,
   children,
 }: {
-  points: { label: string; bpm: number }[];
+  /**
+   * xFrac is the point's position across the PLOT (0..1), not its index.
+   * The day chart lays buckets out by time of day, so a session starting at
+   * 2am sits a fifth of the way in — indexing would put the cursor somewhere
+   * the dot isn't.
+   */
+  points: { label: string; bpm: number; xFrac: number }[];
   maxHr?: number | null;
-  children: (scrubIdx: number | null) => React.ReactNode;
+  children: (marker: { xFrac: number; bpm: number } | null) => React.ReactNode;
 }) {
   const { trackRef, frac, handlers } = useScrub<HTMLDivElement>();
   // The reading stays put after the finger lifts, cleared with the ✕. Letting
@@ -768,9 +827,11 @@ function ScrubbableChart({
   // under your thumb the whole time you're holding it there.
   const [held, setHeld] = useState<number | null>(null);
 
-  const liveIdx =
-    frac == null ? null : scrubIndex(frac, points.length, PLOT_PAD_L, PLOT_PAD_R);
-  if (liveIdx != null && liveIdx !== held) setHeld(liveIdx);
+  const liveIdx = frac == null ? null : nearestByX(frac, points);
+  if (liveIdx != null && liveIdx !== held) {
+    setHeld(liveIdx);
+    tickHaptic();
+  }
 
   const idx = liveIdx ?? held;
   const active = idx != null && idx >= 0 ? points[idx] : null;
@@ -838,14 +899,13 @@ function ScrubbableChart({
         className="relative touch-pan-y cursor-ew-resize"
         {...handlers}
       >
-        {children(idx)}
+        {children(active && idx != null && idx >= 0 ? { xFrac: points[idx].xFrac, bpm: active.bpm } : null)}
         {idx != null && idx >= 0 && (
           <div
             className="absolute top-0 bottom-0 pointer-events-none"
             style={{
               left: `${(PLOT_PAD_L +
-                (points.length > 1 ? idx / (points.length - 1) : 0.5) *
-                  (1 - PLOT_PAD_L - PLOT_PAD_R)) *
+                (points[idx]?.xFrac ?? 0) * (1 - PLOT_PAD_L - PLOT_PAD_R)) *
                 100}%`,
               width: 1.5,
               marginLeft: -0.75,
@@ -883,14 +943,14 @@ function HourSvg({
   endMs,
   tz,
   maxHr,
-  scrubIdx,
+  marker,
 }: {
   samples: Sample[];
   startMs: number | null;
   endMs: number | null;
   tz: string;
   maxHr?: number | null;
-  scrubIdx?: number | null;
+  marker?: { xFrac: number; bpm: number } | null;
 }) {
   const W = 320;
   const H = 200;
@@ -1006,10 +1066,10 @@ function HourSvg({
         gradientId="hourZoneGrad"
         hasZones={!!maxHr}
       />
-      {scrubIdx != null && buckets[scrubIdx] && (
+      {marker && (
         <circle
-          cx={xFor(buckets[scrubIdx].offsetMin) + bucketWidth / 2}
-          cy={yFor(buckets[scrubIdx].max)}
+          cx={padL + marker.xFrac * plotW}
+          cy={yFor(marker.bpm)}
           r={4}
           fill="var(--bg-card)"
           stroke="var(--fg)"
@@ -1023,11 +1083,11 @@ function HourSvg({
 function DaySvg({
   buckets,
   maxHr,
-  scrubIdx,
+  marker,
 }: {
   buckets: Bucket[];
   maxHr?: number | null;
-  scrubIdx?: number | null;
+  marker?: { xFrac: number; bpm: number } | null;
 }) {
   const W = 320;
   const H = 200;
@@ -1121,10 +1181,10 @@ function DaySvg({
         gradientId="dayZoneGrad"
         hasZones={!!maxHr}
       />
-      {scrubIdx != null && buckets[scrubIdx] && (
+      {marker && (
         <circle
-          cx={xFor(buckets[scrubIdx].startMin) + bucketWidth / 2}
-          cy={yFor(buckets[scrubIdx].max)}
+          cx={padL + marker.xFrac * plotW}
+          cy={yFor(marker.bpm)}
           r={4}
           fill="var(--bg-card)"
           stroke="var(--fg)"

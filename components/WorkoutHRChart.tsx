@@ -92,7 +92,11 @@ export default function WorkoutHRChart({
   // Hard-stopped gradient so the trace takes the colour of whatever zone it's
   // passing through — the same colours as the threshold lines and the legend,
   // rather than one flat red for the whole session.
-  const gradientStops = visibleBands.flatMap((b) => {
+  // Top zone first: SVG clamps a stop whose offset is below the previous
+  // one, and zone 1 sits at the BOTTOM of the plot. Emitting in zone order
+  // collapsed every stop after the first, painting the whole trace zone 1's
+  // colour however high the session went.
+  const gradientStops = [...visibleBands].reverse().flatMap((b) => {
     const top = Math.min(b.maxBpm ?? yMax, yMax);
     const bottom = Math.max(b.minBpm, yMin);
     const o1 = (yPx(top) - PLOT_TOP) / (PLOT_BOTTOM - PLOT_TOP);
@@ -114,7 +118,18 @@ export default function WorkoutHRChart({
     frac == null
       ? null
       : scrubIndex(frac, data.length, padLeftPct, padRightPct);
-  if (liveIdx != null && liveIdx !== held) setHeld(liveIdx);
+  if (liveIdx != null && liveIdx !== held) {
+    setHeld(liveIdx);
+    // A tick per reading, so the drag catches on the data instead of sliding
+    // over glass. No-op where the browser doesn't support vibration.
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try {
+        navigator.vibrate?.(6);
+      } catch {
+        // unsupported or blocked
+      }
+    }
+  }
   const idx = liveIdx ?? held ?? -1;
   const active = idx >= 0 ? data[idx] : null;
 
