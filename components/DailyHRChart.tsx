@@ -622,11 +622,14 @@ function ZoneLines({
   yFor,
   x1,
   x2,
+  labelX,
 }: {
   bands: HrZoneBand[];
   yFor: (bpm: number) => number;
   x1: number;
   x2: number;
+  /** Where the BPM label sits. Omit to draw lines only. */
+  labelX?: number;
 }) {
   return (
     <>
@@ -640,12 +643,49 @@ function ZoneLines({
             y1={yFor(b.minBpm)}
             y2={yFor(b.minBpm)}
             stroke={b.color}
-            strokeDasharray="1 5"
+            strokeDasharray={b.dash}
             strokeWidth={1}
-            strokeOpacity={0.75}
+            strokeOpacity={0.8}
           />
         ))}
+      {labelX != null &&
+        bands
+          .filter((b) => b.minBpm > Y_MIN && b.minBpm < Y_MAX)
+          .map((b) => (
+            <text
+              key={`zl-${b.zone}`}
+              x={labelX}
+              y={yFor(b.minBpm) + 3}
+              fontSize="9"
+              fill={b.color}
+              opacity={0.9}
+            >
+              {b.minBpm}
+            </text>
+          ))}
     </>
+  );
+}
+
+/// The zone's dot signature, matching the density of its threshold line —
+/// one dot for the easiest zone through five for the hardest. Doubles as a
+/// key for anyone who can't tell the colours apart.
+function ZoneDots({ zone, color }: { zone: number; color: string }) {
+  return (
+    <span aria-hidden className="inline-flex items-center gap-[2px]">
+      {Array.from({ length: zone }).map((_, i) => (
+        <span
+          key={i}
+          style={{
+            width: 2.5,
+            height: 2.5,
+            borderRadius: "50%",
+            background: color,
+            display: "inline-block",
+          }}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -662,16 +702,7 @@ export function ZoneLegend({ maxHr }: { maxHr?: number | null }) {
           className="flex items-center gap-1.5 text-[10px]"
           style={{ color: "var(--fg-dim)" }}
         >
-          <span
-            aria-hidden
-            style={{
-              width: 12,
-              height: 2,
-              borderRadius: 1,
-              background: b.color,
-              display: "inline-block",
-            }}
-          />
+          <ZoneDots zone={b.zone} color={b.color} />
           {b.label}
         </span>
       ))}
@@ -1015,37 +1046,56 @@ function HourSvg({
       style={{ display: "block" }}
       preserveAspectRatio="none"
     >
-      {yTicks.map((y) => (
-        <line
-          key={`y-${y}`}
-          x1={padL}
-          x2={W - padR}
-          y1={yFor(y)}
-          y2={yFor(y)}
-          stroke="var(--border)"
-          strokeDasharray="2 3"
-          strokeWidth={0.5}
-        />
-      ))}
+      {/* Faint reference lines only where no zone threshold already sits. */}
+      {yTicks
+        .filter(
+          (y) =>
+            !maxHr ||
+            !hrZoneBands(maxHr).some((b) => Math.abs(b.minBpm - y) < 6)
+        )
+        .map((y) => (
+          <line
+            key={`y-${y}`}
+            x1={padL}
+            x2={W - padR}
+            y1={yFor(y)}
+            y2={yFor(y)}
+            stroke="var(--border)"
+            strokeDasharray="2 3"
+            strokeWidth={0.5}
+          />
+        ))}
       {maxHr ? (
         <>
           <defs>
             <ZoneGradient id="hourZoneGrad" maxHr={maxHr} padT={padT} plotH={plotH} />
           </defs>
-          <ZoneLines bands={hrZoneBands(maxHr)} yFor={yFor} x1={padL} x2={W - padR} />
+          <ZoneLines
+            bands={hrZoneBands(maxHr)}
+            yFor={yFor}
+            x1={padL}
+            x2={W - padR}
+            labelX={W - padR + 4}
+          />
         </>
       ) : null}
-      {yTicks.map((y) => (
-        <text
-          key={`yl-${y}`}
-          x={W - padR + 4}
-          y={yFor(y) + 3}
-          fontSize="9"
-          fill="var(--fg-dim)"
-        >
-          {y}
-        </text>
-      ))}
+      {yTicks
+        .filter(
+          (y) =>
+            !maxHr ||
+            !hrZoneBands(maxHr).some((b) => Math.abs(yFor(b.minBpm) - yFor(y)) < 9)
+        )
+        .map((y) => (
+          <text
+            key={`yl-${y}`}
+            x={W - padR + 4}
+            y={yFor(y) + 3}
+            fontSize="9"
+            fill="var(--fg-dim)"
+          >
+            {y}
+          </text>
+        ))}
       {tickOffsets.map((m) => (
         <text
           key={`xl-${m}`}
@@ -1118,37 +1168,56 @@ function DaySvg({
       style={{ display: "block" }}
       preserveAspectRatio="none"
     >
-      {yTicks.map((y) => (
-        <line
-          key={`y-${y}`}
-          x1={padL}
-          x2={W - padR}
-          y1={yFor(y)}
-          y2={yFor(y)}
-          stroke="var(--border)"
-          strokeDasharray="2 3"
-          strokeWidth={0.5}
-        />
-      ))}
+      {/* Faint reference lines only where no zone threshold already sits. */}
+      {yTicks
+        .filter(
+          (y) =>
+            !maxHr ||
+            !hrZoneBands(maxHr).some((b) => Math.abs(b.minBpm - y) < 6)
+        )
+        .map((y) => (
+          <line
+            key={`y-${y}`}
+            x1={padL}
+            x2={W - padR}
+            y1={yFor(y)}
+            y2={yFor(y)}
+            stroke="var(--border)"
+            strokeDasharray="2 3"
+            strokeWidth={0.5}
+          />
+        ))}
       {maxHr ? (
         <>
           <defs>
             <ZoneGradient id="dayZoneGrad" maxHr={maxHr} padT={padT} plotH={plotH} />
           </defs>
-          <ZoneLines bands={hrZoneBands(maxHr)} yFor={yFor} x1={padL} x2={W - padR} />
+          <ZoneLines
+            bands={hrZoneBands(maxHr)}
+            yFor={yFor}
+            x1={padL}
+            x2={W - padR}
+            labelX={W - padR + 4}
+          />
         </>
       ) : null}
-      {yTicks.map((y) => (
-        <text
-          key={`yl-${y}`}
-          x={W - padR + 4}
-          y={yFor(y) + 3}
-          fontSize="9"
-          fill="var(--fg-dim)"
-        >
-          {y}
-        </text>
-      ))}
+      {yTicks
+        .filter(
+          (y) =>
+            !maxHr ||
+            !hrZoneBands(maxHr).some((b) => Math.abs(yFor(b.minBpm) - yFor(y)) < 9)
+        )
+        .map((y) => (
+          <text
+            key={`yl-${y}`}
+            x={W - padR + 4}
+            y={yFor(y) + 3}
+            fontSize="9"
+            fill="var(--fg-dim)"
+          >
+            {y}
+          </text>
+        ))}
       {xTicks.map((m) => {
         const label =
           m === 0

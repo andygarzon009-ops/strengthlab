@@ -22,10 +22,21 @@ const ZONE_PCT_FLOORS = [0, 60, 70, 80, 90] as const;
 export const HR_ZONE_LABELS: readonly string[] = ZONE_LABELS;
 export const HR_ZONE_COLORS: readonly string[] = ZONE_COLORS;
 
+/// Dot spacing per zone, tightening as intensity rises. Colour alone carries
+/// the zone otherwise, which fails for anyone who can't separate the green
+/// from the orange — the pattern says the same thing a second way.
+const ZONE_DASH = ["1 9", "1 7", "1 5", "1 3.5", "1 2.5"];
+
+export function hrZoneDash(zone: 1 | 2 | 3 | 4 | 5): string {
+  return ZONE_DASH[zone - 1];
+}
+
 export type HrZoneBand = {
   zone: 1 | 2 | 3 | 4 | 5;
   label: string;
   color: string;
+  /** SVG stroke-dasharray for this zone's threshold line. */
+  dash: string;
   /** Inclusive lower bound in BPM. */
   minBpm: number;
   /** Exclusive upper bound in BPM; null for the top zone, which is open. */
@@ -41,6 +52,7 @@ export function hrZoneBands(maxHr: number): HrZoneBand[] {
       zone: (i + 1) as 1 | 2 | 3 | 4 | 5,
       label: ZONE_LABELS[i],
       color: ZONE_COLORS[i],
+      dash: ZONE_DASH[i],
       minBpm: Math.round((pct / 100) * maxHr),
       maxBpm: nextPct != null ? Math.round((nextPct / 100) * maxHr) : null,
     };

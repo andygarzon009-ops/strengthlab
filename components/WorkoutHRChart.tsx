@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { hrZoneBands, hrZoneColor } from "@/lib/hrZones";
+import { hrZoneBands } from "@/lib/hrZones";
 import { useScrub, scrubIndex } from "@/lib/useScrub";
 import { useState } from "react";
 
@@ -37,6 +37,10 @@ const PLOT_BOTTOM = CHART_H - MARGIN_BOTTOM - XAXIS_H;
 /// drifts from the cursor at both ends.
 const MARGIN_LEFT = 36; // YAxis width
 const MARGIN_RIGHT = 16;
+
+/// Single colour for the workout trace — see strokePaint below for why this
+/// isn't the zone gradient.
+const TRACE_COLOR = "#3b82f6";
 
 export default function WorkoutHRChart({
   samples,
@@ -107,7 +111,12 @@ export default function WorkoutHRChart({
     ];
   });
   const hasZones = gradientStops.length > 0;
-  const strokePaint = hasZones ? "url(#hrZoneStroke)" : "#ef4444";
+  // The trace stays one colour here, unlike the day chart. A workout sits
+  // right on a zone boundary for most of its length, so colouring by zone
+  // made the line strobe blue/green every few samples and cost more
+  // legibility than the zone information was worth. The dotted thresholds
+  // and the legend still say which zone any part of it is in.
+  const strokePaint = TRACE_COLOR;
 
   // Recharts insets the plot by the axis width and right margin, so the data
   // occupies only the middle of the element. Map through those or the readout
@@ -177,9 +186,7 @@ export default function WorkoutHRChart({
               <div className="flex items-baseline gap-1.5">
                 <span
                   className="text-[22px] font-bold tabular-nums leading-none"
-                  style={{
-                    color: maxHr ? hrZoneColor(active.bpm, maxHr) : "#ef4444",
-                  }}
+                  style={{ color: TRACE_COLOR }}
                 >
                   {active.bpm}
                 </span>
@@ -246,8 +253,8 @@ export default function WorkoutHRChart({
           >
             <defs>
               <linearGradient id="hrFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#ef4444" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="#ef4444" stopOpacity={0.02} />
+                <stop offset="0%" stopColor={TRACE_COLOR} stopOpacity={0.32} />
+                <stop offset="100%" stopColor={TRACE_COLOR} stopOpacity={0.02} />
               </linearGradient>
               {hasZones && (
                 <linearGradient
@@ -276,8 +283,8 @@ export default function WorkoutHRChart({
                   key={`zone-${b.zone}`}
                   y={b.minBpm}
                   stroke={b.color}
-                  strokeDasharray="1 5"
-                  strokeOpacity={0.7}
+                  strokeDasharray={b.dash}
+                  strokeOpacity={0.8}
                 />
               ))}
             <YAxis
@@ -411,16 +418,20 @@ export default function WorkoutHRChart({
               className="flex items-center gap-1.5 text-[10px]"
               style={{ color: "var(--fg-dim)" }}
             >
-              <span
-                aria-hidden
-                style={{
-                  width: 12,
-                  height: 2,
-                  borderRadius: 1,
-                  background: b.color,
-                  display: "inline-block",
-                }}
-              />
+              <span aria-hidden className="inline-flex items-center gap-[2px]">
+                {Array.from({ length: b.zone }).map((_, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      width: 2.5,
+                      height: 2.5,
+                      borderRadius: "50%",
+                      background: b.color,
+                      display: "inline-block",
+                    }}
+                  />
+                ))}
+              </span>
               {b.label}
             </span>
           ))}
@@ -430,7 +441,7 @@ export default function WorkoutHRChart({
       <div className="flex items-end justify-between mt-2">
         <div
           className="text-[11px] font-semibold tracking-wider uppercase"
-          style={{ color: "#ef4444", letterSpacing: "0.08em" }}
+          style={{ color: TRACE_COLOR, letterSpacing: "0.08em" }}
         >
           {avg} BPM AVG
         </div>
