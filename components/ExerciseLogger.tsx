@@ -1520,6 +1520,12 @@ function SetRow({
   // anything heavier than last week, which is the wrong claim entirely.
   const prBadge = (() => {
     if (set.type !== "WORKING" || !prev) return null;
+    // Only once the set is actually ticked off. Reacting to the numbers as
+    // they're typed announced a record for a set nobody had done yet — and
+    // dialling 250 in before settling on 225 flashed a PR that never
+    // happened. A record is something you've lifted, not something you've
+    // entered.
+    if (!set.completed) return null;
     const w = parseFloat(set.weight);
     const r = parseInt(set.reps, 10);
     const weight = Number.isFinite(w) ? w : 0;
