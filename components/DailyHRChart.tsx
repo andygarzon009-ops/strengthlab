@@ -921,6 +921,7 @@ function ScrubbableChart({
       <div
         ref={trackRef}
         className="relative touch-pan-y cursor-ew-resize"
+        data-chart-scrub
         {...handlers}
       >
         {children(active && idx != null && idx >= 0 ? { xFrac: points[idx].xFrac, bpm: active.bpm } : null)}

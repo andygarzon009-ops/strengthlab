@@ -249,6 +249,7 @@ export default function WorkoutHRChart({
       <div
         ref={trackRef}
         className="relative select-none touch-pan-y cursor-ew-resize"
+        data-chart-scrub
         {...handlers}
       >
       <div style={{ width: "100%", height: CHART_H }}>

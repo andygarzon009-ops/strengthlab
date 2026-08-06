@@ -138,6 +138,28 @@ input[type="number"]::-webkit-outer-spin-button {
   animation: pulse-accent 2s ease-out infinite;
 }
 
+/* --- Scrubbable charts ---------------------------------------------------
+   Recharts 3 turns its accessibility layer on by default, which puts
+   tabIndex=0 on the chart wrapper — so pressing a chart to read a value also
+   focuses it and the browser paints its default blue box around the whole
+   plot. Dragging a chart shouldn't look like landing on a form field.
+
+   Only the pointer case is suppressed. :focus-visible still draws a ring, so
+   a keyboard user can see where they are — with our accent rather than the
+   UA's blue. */
+.recharts-wrapper:focus,
+.recharts-surface:focus,
+[data-chart-scrub]:focus {
+  outline: none;
+}
+
+.recharts-wrapper:focus-visible,
+[data-chart-scrub]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
 /* Rest-over cue on the timer FAB. Deliberately faster and wider than
    .pulse-accent: it has to catch the eye of someone who isn't looking at the
    phone, because sound and vibration can't be relied on to do it. Holds until
