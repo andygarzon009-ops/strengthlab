@@ -920,7 +920,9 @@ function ScrubbableChart({
       </div>
       <div
         ref={trackRef}
-        className="relative touch-pan-y cursor-ew-resize"
+        // touch-none, not pan-y: with pan-y the browser grabbed the gesture as
+        // soon as the thumb drifted vertically and the scrub died mid-drag.
+        className="relative touch-none cursor-ew-resize"
         data-chart-scrub
         {...handlers}
       >

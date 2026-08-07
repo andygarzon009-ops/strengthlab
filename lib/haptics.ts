@@ -17,6 +17,13 @@ let hiddenLabel: HTMLLabelElement | null = null;
 let hiddenInput: HTMLInputElement | null = null;
 let nativeWorks: boolean | null = null;
 
+/// Floor between ticks. A fast drag crosses dozens of readings in a frame, and
+/// asking the motor for every one queues vibrations faster than it can play
+/// them — on Android that backs up and drags the whole gesture with it. At
+/// 30ms the detents still feel continuous.
+const MIN_TICK_GAP_MS = 30;
+let lastTickAt = 0;
+
 function ensureSwitch(): void {
   if (hiddenLabel || typeof document === "undefined") return;
   const label = document.createElement("label");
@@ -49,6 +56,10 @@ export function hasVibrationApi(): boolean {
  */
 export function hapticTick(durationMs = 10): void {
   if (typeof window === "undefined") return;
+
+  const now = Date.now();
+  if (now - lastTickAt < MIN_TICK_GAP_MS) return;
+  lastTickAt = now;
 
   // Native first. vibrate() returns false when the request was rejected, so
   // remember that and stop asking.

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
+import { useScrub } from "@/lib/useScrub";
 
 type SleepStageType = "deep" | "rem" | "light" | "awake" | "restless";
 
@@ -80,9 +81,10 @@ export default function SleepHypnogram({
   awakeMin: number;
   totalSleep: number;
 }) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  // Scrub fraction 0..1 along the night, or null when not scrubbing.
-  const [frac, setFrac] = useState<number | null>(null);
+  // Scrub fraction 0..1 along the night, or null when not scrubbing. This was
+  // a local copy of the gesture; it's the shared hook now, which coalesces
+  // moves to one per frame instead of re-rendering per pointer event.
+  const { trackRef, frac, handlers } = useScrub<HTMLDivElement>();
 
   const { spanStart, span, hourMarks } = useMemo(() => {
     const starts = stages.map((s) => s.startMs);
@@ -121,14 +123,6 @@ export default function SleepHypnogram({
       ? null
       : (stages.find((s) => scrubMs >= s.startMs && scrubMs < s.endMs) ?? null);
 
-  function updateFromClientX(clientX: number) {
-    const el = trackRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const f = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    setFrac(f);
-  }
-
   return (
     <div className="mb-1 select-none">
       {/* scrub readout */}
@@ -158,20 +152,10 @@ export default function SleepHypnogram({
       {/* lanes + shared scrub overlay */}
       <div
         ref={trackRef}
-        className="relative touch-pan-y cursor-ew-resize"
-        onPointerDown={(e) => {
-          e.currentTarget.setPointerCapture(e.pointerId);
-          updateFromClientX(e.clientX);
-        }}
-        onPointerMove={(e) => {
-          if (e.buttons === 0 && e.pointerType === "mouse") return;
-          if (frac != null || e.buttons !== 0) updateFromClientX(e.clientX);
-        }}
-        onPointerUp={() => setFrac(null)}
-        onPointerCancel={() => setFrac(null)}
-        onPointerLeave={(e) => {
-          if (e.pointerType === "mouse") setFrac(null);
-        }}
+        // touch-none, not pan-y: with pan-y the browser grabbed the gesture as
+        // soon as the thumb drifted vertically and the scrub died mid-drag.
+        className="relative touch-none cursor-ew-resize"
+        {...handlers}
       >
         <div className="space-y-2.5">
           {LANES.map((lane) => {

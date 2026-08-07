@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /// Press-and-drag readout for a time-series chart, factored out of
 /// SleepHypnogram so heart rate behaves identically to sleep — same gesture,
@@ -17,32 +17,71 @@ export function useScrub<T extends HTMLElement = HTMLDivElement>() {
   // observer. Zero until the first interaction.
   const [trackWidth, setTrackWidth] = useState(0);
 
-  const updateFromClientX = (clientX: number) => {
-    const el = trackRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    if (rect.width <= 0) return;
-    setTrackWidth(rect.width);
-    setFrac(Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)));
-  };
+  // The track's box, measured once per gesture rather than per move.
+  // getBoundingClientRect forces layout, and doing that on every pointer
+  // event — which fire faster than the screen refreshes — is a real cost on a
+  // phone. Nothing can move the track mid-drag: the plot is touch-action:none,
+  // so the page can't scroll under the finger. Non-null means a scrub is live.
+  const boxRef = useRef<{ left: number; width: number } | null>(null);
+
+  // Moves are folded into one state update per animation frame. A finger
+  // produces several pointermove events per frame on a 120Hz screen; acting on
+  // each one meant several full re-renders per painted frame, which is what
+  // made the drag feel like it was chasing the thumb.
+  const pendingX = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  const flush = useCallback(() => {
+    rafRef.current = null;
+    const x = pendingX.current;
+    const box = boxRef.current;
+    pendingX.current = null;
+    if (x == null || !box) return;
+    setFrac(Math.max(0, Math.min(1, (x - box.left) / box.width)));
+  }, []);
+
+  const end = useCallback(() => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    pendingX.current = null;
+    boxRef.current = null;
+    setFrac(null);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    },
+    []
+  );
 
   const handlers = {
     onPointerDown: (e: React.PointerEvent<T>) => {
+      const el = e.currentTarget;
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0) return;
       // Capture so the finger can leave the element mid-drag without the
       // readout dying — you're aiming at a 2px line on a phone.
-      e.currentTarget.setPointerCapture(e.pointerId);
-      updateFromClientX(e.clientX);
+      el.setPointerCapture(e.pointerId);
+      boxRef.current = { left: rect.left, width: rect.width };
+      setTrackWidth(rect.width);
+      // Straight to state, no frame of delay: a tap should land instantly.
+      setFrac(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)));
     },
     onPointerMove: (e: React.PointerEvent<T>) => {
-      // A mouse hovering with no button held isn't scrubbing.
-      if (e.buttons === 0 && e.pointerType === "mouse") return;
-      if (frac != null || e.buttons !== 0) updateFromClientX(e.clientX);
+      // Only a gesture that started on the track scrubs — a mouse merely
+      // hovering across isn't dragging anything.
+      if (!boxRef.current) return;
+      pendingX.current = e.clientX;
+      if (rafRef.current == null) rafRef.current = requestAnimationFrame(flush);
     },
-    onPointerUp: () => setFrac(null),
-    onPointerCancel: () => setFrac(null),
+    onPointerUp: end,
+    onPointerCancel: end,
     onPointerLeave: (e: React.PointerEvent<T>) => {
       // Touch keeps its readout until release; a mouse leaving means done.
-      if (e.pointerType === "mouse") setFrac(null);
+      if (e.pointerType === "mouse") end();
     },
   };
 
