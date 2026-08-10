@@ -141,7 +141,30 @@ function normalizeRoutine(parsed: unknown): StretchRoutine | null {
   const title =
     typeof o.title === "string" ? o.title.trim().slice(0, 80) || undefined : undefined;
 
-  return { title, restSec, stretches: stretches.slice(0, 20) };
+  return { title, restSec, stretches: demoteFoamRollPileup(stretches).slice(0, 20) };
+}
+
+// Soft-tissue work is a preamble, not the routine. The coach has a habit of
+// opening a "my glutes and hamstrings are sore" routine with three or four
+// per-side foam rolls — six-plus minutes on the clock before the athlete ever
+// stretches the muscle they asked about, which reads as "it gave me no
+// stretches, just foam rolling". Keep at most the first two rolls up front and
+// slot the rest in after the first real stretch, preserving their relative
+// order. Nothing is dropped — only reordered.
+const LEADING_ROLL_LIMIT = 2;
+
+function demoteFoamRollPileup(stretches: Stretch[]): Stretch[] {
+  let lead = 0;
+  while (lead < stretches.length && stretches[lead].kind === "foamroll") lead++;
+  if (lead <= LEADING_ROLL_LIMIT) return stretches;
+  // Something has to follow the rolls, or there is nothing to demote them past.
+  if (lead >= stretches.length) return stretches;
+  return [
+    ...stretches.slice(0, LEADING_ROLL_LIMIT),
+    stretches[lead],
+    ...stretches.slice(LEADING_ROLL_LIMIT, lead),
+    ...stretches.slice(lead + 1),
+  ];
 }
 
 // Parse a JSON string into a StretchRoutine, tolerating the most common model
