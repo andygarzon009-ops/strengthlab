@@ -105,10 +105,12 @@ const SIDE_LABEL: Record<"left" | "right", string> = {
 };
 
 // Modality label / color / countdown-verb for a mixed routine. Foam rolling,
-// dynamic mobility, and breathing each read distinctly in the live player.
+// dynamic mobility, loaded end-range work, and breathing each read distinctly
+// in the live player.
 const KIND_META: Record<StretchKind, { label: string; color: string; verb: string }> = {
   static: { label: "Stretch", color: "#22c55e", verb: "hold" },
   dynamic: { label: "Mobility", color: "#60a5fa", verb: "keep moving" },
+  loaded: { label: "Loaded", color: "#f59e0b", verb: "work" },
   foamroll: { label: "Foam roll", color: "#f97316", verb: "roll" },
   breathing: { label: "Breathe", color: "#a78bfa", verb: "breathe" },
 };

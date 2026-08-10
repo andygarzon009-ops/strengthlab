@@ -20,7 +20,12 @@ export type StretchSide = "both" | "left" | "right";
 // mixed routine (foam roll → dynamic → static) reads clearly. Everything is
 // still timed; "dynamic" just means keep moving for the window rather than
 // holding a position.
-export type StretchKind = "static" | "dynamic" | "foamroll" | "breathing";
+export type StretchKind =
+  | "static"
+  | "dynamic"
+  | "loaded"
+  | "foamroll"
+  | "breathing";
 
 export type Stretch = {
   name: string;
@@ -54,6 +59,7 @@ const VALID_SIDES = new Set<StretchSide>(["both", "left", "right"]);
 const VALID_KINDS = new Set<StretchKind>([
   "static",
   "dynamic",
+  "loaded",
   "foamroll",
   "breathing",
 ]);
@@ -65,6 +71,18 @@ function coerceKind(v: unknown): StretchKind | null {
   const k = v.trim().toLowerCase().replace(/[\s_-]/g, "");
   if (VALID_KINDS.has(k as StretchKind)) return k as StretchKind;
   if (k === "mobility" || k === "movement" || k === "activation") return "dynamic";
+  // Loaded / active-flexibility work — strengthening the end range rather than
+  // relaxing into it (Jefferson curl, 90/90 isometrics, weighted butterfly).
+  if (
+    k === "load" ||
+    k === "weighted" ||
+    k === "active" ||
+    k === "isometric" ||
+    k === "isometrics" ||
+    k === "eccentric" ||
+    k === "strength"
+  )
+    return "loaded";
   if (k === "foamrolling" || k === "smr" || k === "roll" || k === "release")
     return "foamroll";
   if (k === "breath" || k === "breathwork" || k === "downregulation") return "breathing";
@@ -199,7 +217,7 @@ export type StretchStep =
       name: string;
       durationSec: number;
       side?: "left" | "right" | null;
-      modality?: StretchKind | null; // the item's kind (static/dynamic/foamroll/breathing)
+      modality?: StretchKind | null; // the item's kind (static/dynamic/loaded/foamroll/breathing)
       instructions?: string;
       pose?: StretchPose | null; // animated figure to show for this hold
       stretchIndex: number; // which stretch (0-based) this hold belongs to

@@ -81,6 +81,10 @@ export const STRETCH_POSES = [
   "deep-squat",
   "glute-bridge",
   "shoulder-pass-through",
+  // loaded / active end-range work
+  "bar-hang",
+  "crab-bridge",
+  "down-dog",
   // soft tissue
   "foamroll-quad",
   "foamroll-hamstring",
@@ -557,6 +561,67 @@ export const POSES: Record<StretchPose, PoseDef> = {
     ],
   },
 
+  // ---- loaded / active end-range ------------------------------------------
+
+  // Dead hang from a bar: arms straight overhead, shoulders relaxed up toward
+  // the ears, whole body long. Feet stay clear of the floor.
+  "bar-hang": {
+    motion: "sway",
+    props: [{ kind: "floor" }, { kind: "handbar" }],
+    frames: [
+      {
+        head: [60, 30],
+        headR: 7,
+        neck: [60, 41],
+        hip: [60, 64],
+        armA: [[52, 44], [50, 26], [50, 9]],
+        armB: [[68, 44], [70, 26], [70, 9]],
+        legA: [[60, 64], [57, 76], [56, 88]],
+        legB: [[60, 64], [64, 76], [65, 88]],
+      },
+    ],
+  },
+
+  // Crab bridge / reverse plank: hands behind, chest open, hips pressed up to
+  // parallel. Two frames so the hips visibly drive up and lower.
+  "crab-bridge": {
+    props: FLOOR,
+    frames: [
+      {
+        head: [34, 62],
+        neck: [40, 70],
+        hip: [64, 82],
+        armA: [[40, 70], [33, 81], [28, 92]],
+        legA: [[64, 82], [86, 74], [90, 92]],
+      },
+      {
+        head: [30, 52],
+        neck: [38, 58],
+        hip: [64, 64],
+        spineCtl: [50, 58],
+        armA: [[38, 58], [31, 75], [28, 92]],
+        legA: [[64, 64], [86, 66], [90, 92]],
+      },
+    ],
+  },
+
+  // Downward dog: hips high, spine long, chest pressed back toward the thighs,
+  // heels reaching for the floor.
+  "down-dog": {
+    motion: "breathe",
+    props: FLOOR,
+    frames: [
+      {
+        head: [40, 48],
+        neck: [46, 44],
+        hip: [76, 22],
+        armA: [[46, 44], [36, 66], [27, 90]],
+        legA: [[76, 22], [86, 56], [92, 91]],
+        legB: [[76, 23], [83, 57], [88, 91]],
+      },
+    ],
+  },
+
   // ---- soft tissue -------------------------------------------------------
 
   // Quads on the roller: prone, propped on the forearms, rolling thigh to hip.
@@ -776,6 +841,9 @@ const KEYWORDS: [string[], StretchPose][] = [
   [["deep squat", "squat hold", "malasana", "third world squat", "cossack"], "deep-squat"],
   [["glute bridge", "hip bridge", "bridge"], "glute-bridge"],
   [["pass-through", "pass through", "shoulder dislocate", "band dislocate"], "shoulder-pass-through"],
+  [["hang", "dead hang", "bar hang"], "bar-hang"],
+  [["crab", "reverse plank", "table top", "tabletop"], "crab-bridge"],
+  [["down dog", "downward dog", "down-dog", "adho mukha"], "down-dog"],
   // static
   [["figure-4", "figure 4", "figure four"], "figure-4"],
   [["pigeon", "90/90", "lizard"], "pigeon"],
@@ -801,6 +869,9 @@ const ROLL_WORDS = ["foam roll", "foam-roll", "roller", "roll ", "smr", "release
 const GENERIC: Record<string, StretchPose> = {
   static: "generic-static",
   dynamic: "generic-dynamic",
+  // Loaded work is movement under load — the dynamic figure reads closer than
+  // a passive hold when no specific pose matches.
+  loaded: "generic-dynamic",
   foamroll: "generic-foamroll",
   breathing: "generic-breathing",
 };
