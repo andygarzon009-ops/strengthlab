@@ -65,9 +65,12 @@ export async function GET(
   );
 
   const [weightPR, repsPR] = await Promise.all([
+    // Weight, then reps, then recency — the logger writes a fresh WEIGHT PR
+    // row when the athlete matches their best load for more reps, so ordering
+    // on `value` alone can surface the older, weaker row on a tie.
     prisma.personalRecord.findFirst({
       where: { userId, exerciseId: { in: siblingIds }, type: "WEIGHT" },
-      orderBy: { value: "desc" },
+      orderBy: [{ value: "desc" }, { reps: "desc" }, { date: "desc" }],
     }),
     // For REPS PRs, `reps` holds the rep count and `value` holds the weight
     // at which those reps were performed.

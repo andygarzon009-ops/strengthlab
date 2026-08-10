@@ -21,6 +21,7 @@ import GoalsSection, {
 import WeakSpots from "@/components/WeakSpots";
 import { computeWeakSpots } from "@/lib/weakSpots";
 import {
+  isBetterWeightPR,
   normalizeExerciseName,
   similarExerciseIds,
 } from "@/lib/exerciseIdentity";
@@ -324,7 +325,7 @@ export default async function AnalyticsPage() {
       (acc, pr) => {
         const key =
           normalizeExerciseName(pr.exercise.name) || pr.exerciseId;
-        if (!acc[key] || pr.value > acc[key].value) {
+        if (isBetterWeightPR(pr, acc[key])) {
           acc[key] = pr;
         }
         return acc;

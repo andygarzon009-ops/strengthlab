@@ -5,7 +5,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { format, subDays, addDays, differenceInDays } from "date-fns";
 import { NextRequest } from "next/server";
 import { shapeForType, labelForType, formatDuration } from "@/lib/exercises";
-import { normalizeExerciseName } from "@/lib/exerciseIdentity";
+import { isBetterWeightPR, normalizeExerciseName } from "@/lib/exerciseIdentity";
 import { parseLiveLog } from "@/lib/parseLiveLog";
 import { computeWeakSpots, formatWeakSpotsForPrompt } from "@/lib/weakSpots";
 import { hasValidPlan } from "@/lib/workoutPlan";
@@ -348,7 +348,9 @@ export async function POST(req: NextRequest) {
         // Collapse duplicate exercise rows into a single canonical bucket.
         const key =
           normalizeExerciseName(pr.exercise.name) || pr.exerciseId;
-        if (!acc[key] || pr.value > acc[key].value) {
+        // Weight, then reps, then recency — a same-load/more-reps row is the
+        // newer record and must not lose the tie to the older one.
+        if (isBetterWeightPR(pr, acc[key])) {
           acc[key] = pr;
         }
         return acc;
@@ -1005,6 +1007,7 @@ How to use weak spots:
 
 DATA-USE RULES (MANDATORY — the PRE-FLIGHT review above is how you satisfy these):
 - Never invent a PR, load, or session that isn't in the data. If the log doesn't contain the answer, say "I don't see that in your log yet" and ask the athlete to confirm — never guess.
+- WHEN THE ATHLETE CONTRADICTS THE DATA, DO NOT CAVE. Their memory is not a source of truth and you must never restate their claim back as a confirmed fact. Re-read the blocks above first. If their number IS there, you misread it — correct yourself and cite the session and date. If it is NOT there, say so plainly: "My log shows 235lb × 4 on May 12 — I don't have a 235 × 5 in there. If you hit it, it never got logged; want to add it?" Then either coach from the logged number or ask them to log the missing set. Never apologize for an "oversight", never say "you're absolutely right" and adopt their figure, and never invent a date ("5 days ago") for a session that isn't in your data. Being wrong about their history is worse than disagreeing with them.
 - A grind set of a lift flagged with a plateau or rep-stall must not be repeated — switch the stimulus (rep range, tempo, variation). A push day can't be emitted while back is flagged undertrained without addressing the conflict.
 - When you give a load or progression call, briefly name the phase assumption behind it (e.g. "Because you're cutting, we're holding 225 for a clean 5 instead of pushing 230.").
 ${

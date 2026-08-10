@@ -282,3 +282,22 @@ export function findExistingExerciseByName<
   }
   return null;
 }
+
+// Rank two WEIGHT PR rows for the same lift. A WEIGHT PR row stores the
+// heaviest set (`value` = load, `reps` = reps at that load), and the logger
+// writes a NEW row when the athlete matches their best load for MORE reps —
+// 235lb×5 is a real progression over 235lb×4. Collapsing PR rows by `value`
+// alone therefore drops the better record on a tie, which is how the coach
+// ended up quoting a stale "235lb × 4" back to an athlete who had already
+// hit 235lb × 5. Compare load, then reps, then recency.
+export function isBetterWeightPR(
+  a: { value: number; reps: number | null; date: Date | string },
+  b: { value: number; reps: number | null; date: Date | string } | null | undefined
+): boolean {
+  if (!b) return true;
+  if (a.value !== b.value) return a.value > b.value;
+  const aReps = a.reps ?? 0;
+  const bReps = b.reps ?? 0;
+  if (aReps !== bReps) return aReps > bReps;
+  return new Date(a.date).getTime() > new Date(b.date).getTime();
+}

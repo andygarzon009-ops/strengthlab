@@ -291,9 +291,12 @@ export async function detectAndSavePRs(
     const weightAtMaxRepSet = highestRepSet.weight ?? 0;
 
     const [weightPR, repsPR] = await Promise.all([
+      // Order on weight, then reps, then recency so the "bar to beat" is the
+      // strongest historical row — on equal load the higher-rep row is the
+      // real record, and ordering by `value` alone can return the weaker one.
       prisma.personalRecord.findFirst({
         where: { userId, exerciseId: { in: siblingIds }, type: "WEIGHT" },
-        orderBy: { value: "desc" },
+        orderBy: [{ value: "desc" }, { reps: "desc" }, { date: "desc" }],
       }),
       // For REPS PRs, `reps` holds the rep count and `value` holds the
       // weight at which those reps were performed. Order by reps first,
