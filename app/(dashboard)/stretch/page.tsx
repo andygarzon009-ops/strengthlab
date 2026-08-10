@@ -4,13 +4,33 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import GuidedStretch from "@/components/GuidedStretch";
-import { tryParseRoutine, type StretchRoutine } from "@/lib/stretchRoutine";
+import {
+  tryParseRoutine,
+  DEFAULT_REST_SEC,
+  SWITCH_SEC,
+  GET_READY_SEC,
+  type StretchRoutine,
+} from "@/lib/stretchRoutine";
 import { readStretchRoutineRaw, clearStretchSession } from "@/lib/stretchSession";
+import { TEMPLATES } from "@/lib/mobilityLibrary";
 
 // The coach's "Do this stretching routine" button stashes the routine JSON in
 // sessionStorage and navigates over — same handoff pattern as the "Do this
 // workout" voice-draft. Reading it on the client avoids threading a big
 // payload through the URL. lib/stretchSession owns the keys.
+//
+// With no routine handed over, the page offers the standing routines from the
+// mobility library instead of dead-ending. They don't depend on the coach
+// having generated anything, so the good sessions are always one tap away.
+
+function runtimeMinutes(r: StretchRoutine): number {
+  const rest = r.restSec ?? DEFAULT_REST_SEC;
+  const total = r.stretches.reduce((sum, s) => {
+    const perSide = s.side === "both" ? s.durationSec * 2 + SWITCH_SEC : s.durationSec;
+    return sum + perSide + rest;
+  }, GET_READY_SEC);
+  return Math.round(total / 60);
+}
 
 export default function StretchPage() {
   const router = useRouter();
@@ -37,16 +57,47 @@ export default function StretchPage() {
 
   if (!routine) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-8 text-center">
-        <h1 className="text-[18px] font-bold mb-1">No routine loaded</h1>
-        <p className="text-[13px] mb-6" style={{ color: "var(--fg-dim)" }}>
-          Ask the coach for a stretching routine, then tap “Do this stretching
-          routine.”
+      <div className="min-h-screen px-5 pt-10 pb-16">
+        <h1 className="text-[20px] font-bold mb-1">Mobility</h1>
+        <p className="text-[13px] mb-6" style={{ color: "var(--fg-muted)" }}>
+          Pick a routine, or ask the coach for one built around what’s tight
+          today.
         </p>
+
+        <div className="flex flex-col gap-3">
+          {TEMPLATES.map((t) => (
+            <button
+              key={t.slug}
+              onClick={() => setRoutine(t.routine)}
+              className="w-full rounded-2xl px-4 py-3.5 text-left active:opacity-70"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+            >
+              <div className="flex items-baseline justify-between gap-3 mb-1">
+                <span className="text-[15px] font-semibold">
+                  {t.routine.title}
+                </span>
+                <span
+                  className="text-[11px] font-medium shrink-0"
+                  style={{ color: "var(--fg-dim)" }}
+                >
+                  ~{runtimeMinutes(t.routine)} min ·{" "}
+                  {t.routine.stretches.length} drills
+                </span>
+              </div>
+              <p
+                className="text-[12px] leading-snug"
+                style={{ color: "var(--fg-muted)" }}
+              >
+                {t.framing}
+              </p>
+            </button>
+          ))}
+        </div>
+
         <Link
           href="/"
-          className="rounded-xl px-5 py-2.5 text-[13px] font-semibold"
-          style={{ background: "var(--accent)", color: "#0a0a0a" }}
+          className="mt-8 block text-center text-[13px] font-semibold"
+          style={{ color: "var(--fg-dim)" }}
         >
           Back to home
         </Link>

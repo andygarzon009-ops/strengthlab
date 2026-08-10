@@ -85,6 +85,10 @@ export const STRETCH_POSES = [
   "bar-hang",
   "crab-bridge",
   "down-dog",
+  "bretzel",
+  "ninety-ninety",
+  "butchers-block",
+  "crawl",
   // soft tissue
   "foamroll-quad",
   "foamroll-hamstring",
@@ -622,6 +626,83 @@ export const POSES: Record<StretchPose, PoseDef> = {
     ],
   },
 
+  // Bretzel: side-lying twist — top knee stays down at 90 in front, bottom
+  // heel pulled to the butt, top shoulder rotating back toward the floor.
+  "bretzel": {
+    motion: "breathe",
+    props: FLOOR,
+    frames: [
+      {
+        head: [26, 64],
+        neck: [37, 70],
+        hip: [72, 82],
+        armA: [[37, 70], [48, 62], [59, 55]],
+        legA: [[72, 82], [52, 88], [37, 90]],
+        legB: [[72, 82], [92, 84], [85, 65]],
+      },
+    ],
+  },
+
+  // Seated 90/90: front shin across the body, back shin turned in behind,
+  // torso stacked tall over the hips.
+  "ninety-ninety": {
+    motion: "breathe",
+    props: FLOOR,
+    frames: [
+      {
+        head: [44, 24],
+        neck: [46, 34],
+        hip: [50, 66],
+        armA: [[46, 36], [64, 50], [80, 58]],
+        legA: [[50, 66], [78, 74], [96, 86]],
+        legB: [[50, 66], [30, 78], [18, 88]],
+      },
+    ],
+  },
+
+  // Butcher's block: kneeling with the elbows up on a bench, chest falling
+  // through toward the floor while the spine stays hollow.
+  "butchers-block": {
+    motion: "breathe",
+    props: FLOOR,
+    frames: [
+      {
+        head: [26, 50],
+        neck: [37, 53],
+        hip: [77, 52],
+        armA: [[37, 53], [27, 57], [16, 60]],
+        legA: [[77, 52], [82, 72], [72, 91]],
+        legB: [[77, 53], [86, 72], [78, 91]],
+      },
+    ],
+  },
+
+  // Basic crawl: quadruped with the knees just off the floor, opposite hand
+  // and foot swapping forward.
+  "crawl": {
+    props: FLOOR,
+    frames: [
+      {
+        head: [22, 52],
+        neck: [34, 56],
+        hip: [78, 60],
+        armA: [[34, 56], [30, 73], [26, 89]],
+        armB: [[34, 56], [46, 68], [56, 80]],
+        legA: [[78, 60], [88, 74], [94, 89]],
+        legB: [[78, 60], [68, 70], [60, 82]],
+      },
+      {
+        head: [22, 52],
+        neck: [34, 56],
+        hip: [78, 60],
+        armA: [[34, 56], [40, 70], [46, 84]],
+        armB: [[34, 56], [34, 74], [34, 89]],
+        legA: [[78, 60], [82, 76], [86, 89]],
+        legB: [[78, 60], [74, 68], [68, 78]],
+      },
+    ],
+  },
+
   // ---- soft tissue -------------------------------------------------------
 
   // Quads on the roller: prone, propped on the forearms, rolling thigh to hip.
@@ -844,6 +925,10 @@ const KEYWORDS: [string[], StretchPose][] = [
   [["hang", "dead hang", "bar hang"], "bar-hang"],
   [["crab", "reverse plank", "table top", "tabletop"], "crab-bridge"],
   [["down dog", "downward dog", "down-dog", "adho mukha"], "down-dog"],
+  [["bretzel"], "bretzel"],
+  [["90/90", "90-90", "ninety"], "ninety-ninety"],
+  [["butcher"], "butchers-block"],
+  [["crawl"], "crawl"],
   // static
   [["figure-4", "figure 4", "figure four"], "figure-4"],
   [["pigeon", "90/90", "lizard"], "pigeon"],

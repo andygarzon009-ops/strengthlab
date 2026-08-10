@@ -10,6 +10,10 @@ import { parseLiveLog } from "@/lib/parseLiveLog";
 import { computeWeakSpots, formatWeakSpotsForPrompt } from "@/lib/weakSpots";
 import { hasValidPlan } from "@/lib/workoutPlan";
 import { STRETCH_POSES } from "@/lib/stretchPoses";
+import {
+  formatMobilityLibraryForPrompt,
+  matchTemplate,
+} from "@/lib/mobilityLibrary";
 import { getTodayFuel } from "@/lib/nutritionToday";
 import {
   periodizationState,
@@ -674,6 +678,21 @@ Use this: you can see the actual foods, so coach the FOOD, not just the macros �
       }
     })();
 
+    // The drill catalog + named routines the coach prescribes mobility from.
+    // Only carried when the message is actually about stretching — it's a big
+    // block and it has no bearing on "what should I bench today".
+    const wantsMobility =
+      /\b(stretch|stretching|mobility|flexib|foam roll|rolling|prehab|warm[- ]?up|cool[- ]?down|wind[- ]?down|tight|sore|stiff|limber|loosen|split[s]?\b|hip opener|range of motion|rom)\b/i.test(
+        message
+      );
+    const requestedTemplate = wantsMobility ? matchTemplate(message) : null;
+    const mobilityLibraryBlock = wantsMobility
+      ? `\n${formatMobilityLibraryForPrompt()}\n`
+      : "";
+    const templateRequestNote = requestedTemplate
+      ? `\n   THE ATHLETE IS ASKING FOR "${requestedTemplate.routine.title}" BY NAME. Emit that template's roster exactly — same drills, same order, same durations, same cues — and frame it with: "${requestedTemplate.framing}" Do not substitute drills or reorder it.\n`
+      : "";
+
     const systemPrompt = `You are an elite strength, hypertrophy, and performance coach chatbot.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
@@ -833,6 +852,8 @@ Use a "### Exercise Name" heading per lift, then 3–4 bold-labeled bullets unde
    {"title":"Sore Hamstrings & Glutes","restSec":15,"stretches":[{"name":"Hamstring Foam Roll","durationSec":45,"side":"both","kind":"foamroll","pose":"foamroll-hamstring","instructions":"Slow passes, pause on tender spots"},{"name":"World's Greatest Stretch","durationSec":40,"side":"both","kind":"dynamic","pose":"worlds-greatest","instructions":"Lunge, rotate up, reach for the ceiling"},{"name":"Jefferson Curl","durationSec":45,"kind":"loaded","pose":"hamstring-hinge","instructions":"5–10lb, curl down one vertebra at a time — go lighter and deeper, not heavier"},{"name":"Standing Hamstring Stretch","durationSec":60,"side":"both","kind":"static","pose":"hamstring-hinge","instructions":"Hinge at the hips, flat back, pull the toes back — bend the knee if the back rounds"},{"name":"Seated Figure-4","durationSec":60,"side":"both","kind":"static","pose":"figure-4","instructions":"Drive the down-hip into the floor, lift the ribcage, settle on each exhale"},{"name":"Diaphragmatic Breathing","durationSec":45,"kind":"breathing","pose":"breathing-supine","instructions":"Long exhales, let the hips settle"}]}
    \`\`\`
 
+${mobilityLibraryBlock}
+${templateRequestNote}
    COACH MOBILITY LIKE STRENGTH TRAINING (these principles govern every routine you emit):
    - LOAD AND ACTIVE ENGAGEMENT BEAT PASSIVE HANGING OUT. Real range comes from OWNING the end position, not draping into it. For anyone chasing actual flexibility gains — not just a warm-up or a wind-down — build the routine around loaded/active end-range work and use passive holds as support around it. Canonical loaded drills: Jefferson curl (light, 5–10lb to start), straight-leg good morning / hip hinge, weighted butterfly (dumbbells on the knees, press the knees back UP against them), 90/90 hip internal-rotation isometrics (5s press down, 5s lift against resistance), elevated pigeon hinge for reps, crab press / reverse plank, butcher's block, loaded couch stretch with the glute squeezed, dead hang. Tag these \`"kind":"loaded"\`.
    - EVEN PASSIVE HOLDS ARE ACTIVE. Give a contraction cue on nearly every static item — squeeze the glute, tuck the tailbone, drive the down-hip into the floor, actively pull the shoulder back, lift the ribcage, press the arch of the foot down. "Relax into it" applies only to the breath, never the position.
