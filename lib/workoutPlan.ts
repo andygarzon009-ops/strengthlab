@@ -11,10 +11,25 @@ export type WorkoutPlanSet = {
   rir?: number | string | null;
 };
 
+/// Optional prep block the coach can attach to a session — light cardio,
+/// mobility, activation drills. Fields are as the model emits them; the
+/// strict sanitize happens in /api/coach-plan when the plan is logged, so
+/// anything reading this straight off the reply must stay tolerant.
+export type WorkoutPlanWarmup = {
+  items?: {
+    kind?: "cardio" | "mobility" | "activation";
+    name?: string;
+    durationSec?: number;
+    reps?: number;
+    instructions?: string;
+  }[];
+};
+
 export type WorkoutPlan = {
   title?: string;
   type?: string;
   split?: string | null;
+  warmup?: WorkoutPlanWarmup;
   exercises: {
     name: string;
     restSeconds?: number;

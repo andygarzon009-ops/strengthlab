@@ -5,8 +5,10 @@
 // workout" button — it carries every load, rep and rest — so the athlete was
 // reading a markdown bullet list that restated data we had in structured form.
 //
-// Warm-up ramp sets get their own quiet line: they belong to the lift and go
-// to the log, but they aren't the prescription.
+// Everything that happens before the working sets is collected into one
+// warm-up section at the top: the coach's prep drills, and the ramp sets that
+// climb to the main lift. That's the order the session is actually performed
+// in, and it keeps each lift's line about the work.
 
 import type { WorkoutPlan, WorkoutPlanSet } from "@/lib/workoutPlan";
 
@@ -66,9 +68,39 @@ function restLabel(seconds: number | undefined): string | null {
   return s === 0 ? `${m}:00` : `${m}:${String(s).padStart(2, "0")}`;
 }
 
+/// "5:00" for a timed drill, "8 reps" for a counted one.
+function drillLabel(item: {
+  durationSec?: number;
+  reps?: number;
+}): string | null {
+  if (item.durationSec && item.durationSec > 0) {
+    const m = Math.floor(item.durationSec / 60);
+    const s = item.durationSec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  }
+  if (item.reps && item.reps > 0) return `${item.reps} reps`;
+  return null;
+}
+
 export default function CoachPlanCard({ plan }: { plan: WorkoutPlan }) {
   const totalSets = plan.exercises.reduce((n, e) => n + (e.sets?.length ?? 0), 0);
-  const warmupItems = plan.exercises.length;
+  const exerciseCount = plan.exercises.length;
+
+  // Prep drills the coach attached to the session, if any.
+  const drills = (plan.warmup?.items ?? []).filter(
+    (it) => typeof it?.name === "string" && it.name.trim().length > 0,
+  );
+
+  // Ramp sets, lifted out of their exercises and attributed by lift so the
+  // reader knows what they're ramping toward.
+  const ramps = plan.exercises
+    .map((ex) => ({
+      name: ex.name,
+      sets: group((ex.sets ?? []).filter((s) => s.type === "WARMUP")),
+    }))
+    .filter((r) => r.sets.length > 0);
+
+  const hasWarmup = drills.length > 0 || ramps.length > 0;
 
   return (
     <div
@@ -89,14 +121,63 @@ export default function CoachPlanCard({ plan }: { plan: WorkoutPlan }) {
           className="label nums text-[10px] shrink-0"
           style={{ color: "var(--fg-dim)" }}
         >
-          {warmupItems} ex · {totalSets} set{totalSets === 1 ? "" : "s"}
+          {exerciseCount} ex · {totalSets} set{totalSets === 1 ? "" : "s"}
         </span>
       </div>
+
+      {hasWarmup && (
+        <div
+          className="px-3.5 py-2.5"
+          style={{ borderBottom: "1px solid var(--border)" }}
+        >
+          <div className="label text-[10px] mb-1.5" style={{ color: "var(--fg-dim)" }}>
+            Warm-up
+          </div>
+          <ul className="space-y-1">
+            {drills.map((it, i) => {
+              const detail = drillLabel(it);
+              return (
+                <li
+                  key={`d${i}`}
+                  className="flex items-baseline justify-between gap-3 text-[12px]"
+                >
+                  <span className="min-w-0 truncate">{it.name}</span>
+                  {detail && (
+                    <span
+                      className="nums text-[11px] shrink-0"
+                      style={{
+                        color: "var(--fg-dim)",
+                        fontFamily: "var(--font-geist-mono)",
+                      }}
+                    >
+                      {detail}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+            {ramps.map((r, i) => (
+              <li key={`r${i}`} className="text-[12px]">
+                <span style={{ color: "var(--fg-muted)" }}>{r.name}</span>
+                <div
+                  className="nums text-[11px] mt-0.5"
+                  style={{
+                    color: "var(--fg-dim)",
+                    fontFamily: "var(--font-geist-mono)",
+                  }}
+                >
+                  {r.sets.map(warmupLabel).join(" · ")}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <ol>
         {plan.exercises.map((ex, i) => {
           const sets = ex.sets ?? [];
-          const warm = group(sets.filter((s) => s.type === "WARMUP"));
+          // Ramp sets live in the warm-up section above; this line is the work.
           const work = group(sets.filter((s) => s.type !== "WARMUP"));
           const rest = restLabel(ex.restSeconds);
 
@@ -146,18 +227,6 @@ export default function CoachPlanCard({ plan }: { plan: WorkoutPlan }) {
                 </div>
               )}
 
-              {warm.length > 0 && (
-                <div
-                  className="nums text-[11px] mt-1 ml-[18px] leading-relaxed"
-                  style={{
-                    color: "var(--fg-dim)",
-                    fontFamily: "var(--font-geist-mono)",
-                  }}
-                >
-                  <span className="label">warm-up</span>{" "}
-                  {warm.map(warmupLabel).join(" · ")}
-                </div>
-              )}
             </li>
           );
         })}
