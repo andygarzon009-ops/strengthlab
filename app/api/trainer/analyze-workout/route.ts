@@ -5,7 +5,13 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import { shapeForType } from "@/lib/exercises";
 import { ageFromBirthDate, estimateMaxHr } from "@/lib/hrZones";
-import { readSetHeartRate, formatSetHr, type HrSample } from "@/lib/setHeartRate";
+import {
+  readSetHeartRate,
+  formatSetHr,
+  zoneDistribution,
+  formatZoneDistribution,
+  type HrSample,
+} from "@/lib/setHeartRate";
 
 export const maxDuration = 60;
 
@@ -145,9 +151,14 @@ export async function POST(req: NextRequest) {
       })
       .join("\n");
 
+    const zoneLine = samples.length
+      ? formatZoneDistribution(zoneDistribution(samples, maxHr))
+      : "";
+
     const userReport =
       `I just finished the workout you wrote me — "${workout.title}". Here's the log:\n\n` +
       (exerciseLines || "(no sets logged)") +
+      (zoneLine ? `\n\n${zoneLine}` : "") +
       (workout.feeling ? `\n\nFelt: ${workout.feeling}` : "") +
       (workout.notes?.trim() ? `\nNotes: ${workout.notes.trim()}` : "");
 
@@ -157,7 +168,7 @@ export async function POST(req: NextRequest) {
 
     // Only explain the notation when it's actually present in the log above.
     const hrLegend = samples.length
-      ? ` Working sets carry the heart rate recorded during them: \`hr<peak>\` is the highest bpm in the window around that set, \`Z<n>\` its zone against an estimated max of ~${maxHr}bpm (Z4 = 80–90%, Z5 = 90%+), and \`-<n>/60s\` the beats shed in the minute after the peak, where the rest was long enough to measure it. Use it to judge how hard each set actually was, not just what was lifted: peaks climbing across sets at one load means fatigue was accumulating; a Z4/Z5 peak on a set they logged as easy means effort was under-reported or rest was short; a recovery drop under ~12bpm means they started the next set under-recovered. Name the one or two sets where the HR tells a different story than the numbers, and let it shape the adjustment you recommend. It lags the effort and moves with caffeine, heat and sleep — treat it as a signal beside load and RIR, never above them, and never assume an unannotated set was easy.`
+      ? ` Working sets carry the heart rate recorded during them: \`hr<peak>\` is the highest bpm in the window around that set, \`Z<n>\` its zone against an estimated max of ~${maxHr}bpm (Z4 = 80–90%, Z5 = 90%+), and \`-<n>/60s\` the beats shed in the minute after the peak, where the rest was long enough to measure it. Use it to judge how hard each set actually was, not just what was lifted: peaks climbing across sets at one load means fatigue was accumulating; a Z4/Z5 peak on a set they logged as easy means effort was under-reported or rest was short; a recovery drop under ~12bpm means they started the next set under-recovered. Name the one or two sets where the HR tells a different story than the numbers, and let it shape the adjustment you recommend. It lags the effort and moves with caffeine, heat and sleep — treat it as a signal beside load and RIR, never above them, and never assume an unannotated set was easy.${zoneLine ? ` The "HR zones" line is measured time in each zone across the part of the session the watch covered — quote those numbers as they are, and if the athlete asks for the breakdown, lay it out as a markdown table (Zone | HR range | Time | % of session), hardest zone first.` : ""}`
       : "";
 
     const prompt = `${userReport}\n\n[Auto-analysis: ${analysisInstruction}${hrLegend}]`;

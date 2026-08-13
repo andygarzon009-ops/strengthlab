@@ -14,7 +14,7 @@
 //
 // Pure functions — no DB, no client/server split.
 
-import { hrZone } from "@/lib/hrZones";
+import { hrZone, hrZoneBands } from "@/lib/hrZones";
 
 export type HrSample = { timestamp: Date; bpm: number };
 
@@ -127,6 +127,96 @@ export function formatSetHr(r: SetHrReading | null): string {
   if (!r) return "";
   const drop = r.dropBpm != null ? ` -${r.dropBpm}/60s` : "";
   return ` hr${r.peakBpm} Z${r.zone}${drop}`;
+}
+
+// --- Time in zone ---------------------------------------------------------
+//
+// How long the session actually spent at each intensity. The coach can't
+// derive this — it never sees the raw trace — so it's computed here and handed
+// over as finished numbers.
+
+export type ZoneSlice = {
+  zone: 1 | 2 | 3 | 4 | 5;
+  label: string;
+  minBpm: number;
+  /** null on the open-ended top zone. */
+  maxBpm: number | null;
+  seconds: number;
+  /** Share of the covered time, 0–100, rounded to one decimal. */
+  pct: number;
+};
+
+export type ZoneDistribution = {
+  /** Total seconds the trace covers — not the workout's wall-clock length. */
+  totalSeconds: number;
+  /** Only zones with time in them, hardest first. */
+  slices: ZoneSlice[];
+};
+
+// Each reading owns the span until the next one. A watch that drops out for
+// ten minutes would otherwise donate all ten to whatever zone it was in when
+// it stopped, so a span longer than this counts as a gap and is discarded.
+const MAX_SPAN_MS = 60_000;
+
+export function zoneDistribution(
+  samples: HrSample[],
+  maxHr: number,
+): ZoneDistribution | null {
+  if (samples.length < 2 || maxHr <= 0) return null;
+
+  const bands = hrZoneBands(maxHr);
+  const seconds = new Map<number, number>();
+  let total = 0;
+
+  for (let i = 0; i < samples.length - 1; i++) {
+    const span =
+      samples[i + 1].timestamp.getTime() - samples[i].timestamp.getTime();
+    if (span <= 0 || span > MAX_SPAN_MS) continue;
+    const { zone } = hrZone(samples[i].bpm, maxHr);
+    seconds.set(zone, (seconds.get(zone) ?? 0) + span / 1000);
+    total += span / 1000;
+  }
+  if (total <= 0) return null;
+
+  const slices = bands
+    .map((b) => ({
+      zone: b.zone,
+      label: b.label,
+      minBpm: b.minBpm,
+      maxBpm: b.maxBpm,
+      seconds: Math.round(seconds.get(b.zone) ?? 0),
+      pct: Math.round(((seconds.get(b.zone) ?? 0) / total) * 1000) / 10,
+    }))
+    .filter((s) => s.seconds > 0)
+    .sort((a, b) => b.zone - a.zone);
+
+  return { totalSeconds: Math.round(total), slices };
+}
+
+function mmss(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/**
+ * One line carrying everything a time-in-zone table needs: the zone, its BPM
+ * range, how long was spent there, and the share of the session.
+ */
+export function formatZoneDistribution(d: ZoneDistribution | null): string {
+  if (!d) return "";
+  const parts = d.slices.map((s) => {
+    // The bottom zone is open downward and the top zone open upward; only the
+    // middle ones are a true span.
+    const range =
+      s.maxBpm == null
+        ? `${s.minBpm}+bpm`
+        : s.minBpm <= 0
+          ? `<${s.maxBpm}bpm`
+          : `${s.minBpm}-${s.maxBpm - 1}bpm`;
+    return `Z${s.zone} ${s.label} ${range} ${mmss(s.seconds)} ${s.pct}%`;
+  });
+  return `HR zones over ${mmss(d.totalSeconds)} of trace: ${parts.join(" | ")}`;
 }
 
 /// Group a flat sample list by workout, preserving ascending order.

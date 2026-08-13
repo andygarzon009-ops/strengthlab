@@ -180,6 +180,35 @@ const MD_COMPONENTS: Components = {
       {children}
     </blockquote>
   ),
+  // Tables arrive from the coach for time-in-zone breakdowns and the like.
+  // The bubble is ~90% of a phone screen, so the table gets its own scroll
+  // container rather than forcing the whole message wide.
+  table: ({ children }) => (
+    <div className="-mx-1 my-3 overflow-x-auto">
+      <table className="w-full border-collapse text-[13px]">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead>{children}</thead>,
+  tbody: ({ children }) => <tbody>{children}</tbody>,
+  tr: ({ children }) => (
+    <tr style={{ borderBottom: "1px solid var(--border)" }}>{children}</tr>
+  ),
+  th: ({ children }) => (
+    <th
+      className="label text-[10px] font-semibold text-left py-1.5 px-2 whitespace-nowrap"
+      style={{ color: "var(--fg-dim)" }}
+    >
+      {children}
+    </th>
+  ),
+  td: ({ children }) => (
+    <td
+      className="nums py-1.5 px-2 align-top whitespace-nowrap"
+      style={{ fontFamily: "var(--font-geist-mono)" }}
+    >
+      {children}
+    </td>
+  ),
   a: ({ children, href }) => (
     <a
       href={href}

@@ -19,6 +19,8 @@ import { ageFromBirthDate, estimateMaxHr } from "@/lib/hrZones";
 import {
   readSetHeartRate,
   formatSetHr,
+  zoneDistribution,
+  formatZoneDistribution,
   groupSamplesByWorkout,
   type HrSample,
 } from "@/lib/setHeartRate";
@@ -263,14 +265,14 @@ export async function POST(req: NextRequest) {
       );
     const recentSessionsCount = wantsDeepHistory ? 15 : 5;
 
-    // Per-set heart rate for the strength sessions we're about to print
-    // set-by-set. This runs after the parallel batch because it needs the
-    // workout ids, and it's a single indexed read on a route that then spends
-    // seconds streaming a reply — the extra round trip doesn't register.
-    // Empty (and free) for anyone without a watch connected.
+    // Heart rate for the sessions we're about to print. Strength sessions use
+    // it per set; every session type gets a time-in-zone breakdown, which is
+    // the whole story on a run or a ride. This runs after the parallel batch
+    // because it needs the workout ids, and it's a single indexed read on a
+    // route that then spends seconds streaming a reply — the extra round trip
+    // doesn't register. Empty (and free) for anyone without a watch.
     const hrWorkoutIds = workouts
       .slice(0, recentSessionsCount)
-      .filter((w) => shapeForType(w.type) === "STRENGTH")
       .map((w) => w.id);
     const hrRows = hrWorkoutIds.length
       ? await prisma.workoutHeartRateSample.findMany({
@@ -316,6 +318,13 @@ export async function POST(req: NextRequest) {
         );
       };
 
+      // Time in zone for the whole session — the only place these numbers
+      // exist, since the raw trace never reaches the model.
+      const zoneLine = samples.length
+        ? formatZoneDistribution(zoneDistribution(samples, maxHr))
+        : "";
+      const zoneStr = zoneLine ? `\n    ${zoneLine}` : "";
+
       const daysAgo = differenceInDays(new Date(), new Date(w.date));
       const when = daysAgo === 0 ? "today" : `${daysAgo}d ago`;
       const whenFmt = format(new Date(w.date), "EEE MMM d");
@@ -356,7 +365,7 @@ export async function POST(req: NextRequest) {
         if (w.activeZoneMin) hrParts.push(`${w.activeZoneMin} zone min`);
         if (w.duration) hrParts.push(formatDuration(w.duration));
         const metricsStr = hrParts.length ? ` · ${hrParts.join(" · ")}` : "";
-        return `- [${typeLbl}]${tagStr} ${w.title} (${when}, ${whenFmt}) — ${workingSets.length} working sets${metricsStr}${noteStr}\n${exerciseLines}`;
+        return `- [${typeLbl}]${tagStr} ${w.title} (${when}, ${whenFmt}) — ${workingSets.length} working sets${metricsStr}${noteStr}${zoneStr}\n${exerciseLines}`;
       }
 
       if (shape === "DISTANCE") {
@@ -367,7 +376,7 @@ export async function POST(req: NextRequest) {
         if (w.avgHeartRate) parts.push(`avg HR ${w.avgHeartRate}`);
         if (w.maxHeartRate) parts.push(`max HR ${w.maxHeartRate}`);
         if (w.elevation) parts.push(`${w.elevation}m gain`);
-        return `- [${typeLbl}]${tagStr} ${w.title} (${when}, ${whenFmt}): ${parts.join(" · ")}${noteStr}`;
+        return `- [${typeLbl}]${tagStr} ${w.title} (${when}, ${whenFmt}): ${parts.join(" · ")}${noteStr}${zoneStr}`;
       }
 
       // DURATION
@@ -377,7 +386,7 @@ export async function POST(req: NextRequest) {
       if (w.rpe) parts.push(`RPE ${w.rpe}`);
       if (w.avgHeartRate) parts.push(`avg HR ${w.avgHeartRate}`);
       if (w.maxHeartRate) parts.push(`max HR ${w.maxHeartRate}`);
-      return `- [${typeLbl}]${tagStr} ${w.title} (${when}, ${whenFmt}): ${parts.join(" · ") || "logged"}${noteStr}`;
+      return `- [${typeLbl}]${tagStr} ${w.title} (${when}, ${whenFmt}): ${parts.join(" · ") || "logged"}${noteStr}${zoneStr}`;
     });
 
     // Teach the model to read the per-set annotation — and only when there's
@@ -394,6 +403,15 @@ What to do with it:
 - Recovery drop under ~12bpm ⇒ they went into the next set under-recovered; prescribe longer rest before any load increase. A drop of 25+ ⇒ good conditioning and room to shorten rest or superset.
 - Compare like with like: the same lift at the same load across sessions. A peak that climbs week over week at an unchanged load is a fatigue or conditioning signal worth naming.
 Caveats, and they matter: lifting HR lags the effort, and it moves with caffeine, heat, illness, sleep, and how hard they were breathing between sets. It is one signal beside load, reps, and RIR — never let it override what the bar did. Sets with no annotation simply had no watch data; never read an unannotated set as easy, and never invent a number for one.
+
+TIME IN ZONE: sessions with a trace also carry an "HR zones over M:SS of trace" line — each zone, its bpm range, the time spent there, and the share of the session. Those numbers are measured, not estimated; use them verbatim.
+When the athlete asks how their heart rate behaved in a session — "what was my heart rate on leg day", "how much time in zone 2", "how hard was that session", a breakdown, a distribution — answer with a markdown table, one row per zone, hardest zone first:
+
+| Zone | HR range | Time | % of session |
+|---|---|---|---|
+| Z4 Hard | 152–170bpm | 8:33 | 14.2% |
+
+Only include zones that actually have time in them. Lead with one line of plain reading ("74% of that hour sat in Z2 or higher") and follow the table with what it means for training — aerobic base, rest length, whether the session did what it was meant to do. Never build this table from anything but the zone line for that specific session; if a session has no zone line, say the watch wasn't recording for it rather than estimating. The "trace" length is how much of the session the watch actually covered, which can be shorter than the session itself — don't present it as the session's duration.
 `
       : "";
 
