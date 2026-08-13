@@ -12,6 +12,7 @@ import {
 } from "@/lib/stretchRoutine";
 import { clearStretchProgress, saveStretchRoutineRaw } from "@/lib/stretchSession";
 import { HR_ZONE_COLORS } from "@/lib/hrZones";
+import CoachPlanCard from "@/components/CoachPlanCard";
 
 type LoggedSummary = {
   workoutId: string;
@@ -1059,6 +1060,7 @@ export default function AITrainer() {
                     </div>
                     {m.plan && (
                       <>
+                        <CoachPlanCard plan={m.plan} />
                         <LogPlanButton
                           plan={m.plan}
                           onNavigate={() => {
