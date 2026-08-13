@@ -23,7 +23,7 @@ import {
 import ExerciseLogger from "@/components/ExerciseLogger";
 import WorkoutTimerStrip from "@/components/WorkoutTimerStrip";
 import LiveHRWidget from "@/components/LiveHRWidget";
-import GuidedWarmup from "@/components/GuidedWarmup";
+import GuidedWarmup, { type WarmupProgress } from "@/components/GuidedWarmup";
 import { useTransition, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -184,7 +184,17 @@ export default function WorkoutForm({
 
   // Coach-prescribed warmup (cardio + mobility + activation items). Carried
   // through to the workout row on save so the detail page can replay it.
-  const warmup = initial?.warmup ?? null;
+  // State, not a derived constant: the plan arrives once through the
+  // sessionStorage handoff, so it has to ride along in the draft or a reload
+  // (or a trip to another tab) loses the warm-up entirely.
+  const [warmup, setWarmup] = useState<WorkoutFormInitial["warmup"]>(
+    initial?.warmup ?? null,
+  );
+  // How far into that warm-up the athlete has got. Lives here rather than
+  // inside GuidedWarmup so it's persisted with everything else.
+  const [warmupProgress, setWarmupProgress] = useState<WarmupProgress | null>(
+    null,
+  );
 
   // Drives the elapsed clock in the pinned header. Only ticks while a session
   // is actually running.
@@ -249,6 +259,14 @@ export default function WorkoutForm({
     if (typeof d.level === "string") setLevel(d.level);
     if (typeof d.rpe === "string") setRpe(d.rpe);
     if (typeof d.startedAt === "string") setStartedAt(new Date(d.startedAt));
+    // Restore the prescribed warm-up and the athlete's position in it. Both
+    // are optional — drafts written before this existed simply have neither.
+    if (d.warmup && typeof d.warmup === "object") {
+      setWarmup(d.warmup as WorkoutFormInitial["warmup"]);
+    }
+    if (d.warmupProgress && typeof d.warmupProgress === "object") {
+      setWarmupProgress(d.warmupProgress as WarmupProgress);
+    }
   };
 
   useEffect(() => {
@@ -317,6 +335,8 @@ export default function WorkoutForm({
     setSpeed("");
     setLevel("");
     setRpe("");
+    setWarmup(null);
+    setWarmupProgress(null);
     setStep("type");
     baselineRef.current = null;
   };
@@ -351,6 +371,8 @@ export default function WorkoutForm({
       level,
       rpe,
       startedAt: startedAt ? startedAt.toISOString() : null,
+      warmup,
+      warmupProgress,
     };
     const serialized = JSON.stringify(draft);
 
@@ -421,6 +443,8 @@ export default function WorkoutForm({
     level,
     rpe,
     startedAt,
+    warmup,
+    warmupProgress,
   ]);
 
   const shape: WorkoutShape = workoutType ? shapeForType(workoutType) : "STRENGTH";
@@ -1028,6 +1052,8 @@ export default function WorkoutForm({
           // "Begin workout" tap. Guard so replaying the warm-up doesn't
           // reset an already-running timer.
           onStart={() => setStartedAt((cur) => cur ?? new Date())}
+          progress={warmupProgress}
+          onProgressChange={setWarmupProgress}
         />
       )}
 

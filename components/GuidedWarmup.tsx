@@ -78,6 +78,45 @@ type Item = {
 
 type Mode = "idle" | "running" | "done";
 
+// Where the athlete is in the warm-up. Owned by the parent so it rides along
+// in the workout draft (localStorage + server autosave) — leaving the page or
+// closing the app mid-warm-up used to drop every bit of this and drop the
+// athlete back on "Start warm-up".
+export type WarmupProgress = {
+  mode: Mode;
+  idx: number;
+  counting: boolean;
+  // Absolute epoch ms, so a restored countdown stays honest about real time
+  // spent away rather than resuming from where the clock froze.
+  endsAt: number | null;
+};
+
+// Bring a restored position back to something coherent for `items`:
+// clamp a stale index, and settle any countdown that ran out while the app
+// was closed by stepping to the next item (which waits on its own Start tap).
+function normalize(p: WarmupProgress | null | undefined, items: Item[]): WarmupProgress {
+  const fallback: WarmupProgress = {
+    mode: "idle",
+    idx: 0,
+    counting: false,
+    endsAt: null,
+  };
+  if (!p || items.length === 0) return fallback;
+  if (p.mode !== "running") return { ...fallback, mode: p.mode };
+  if (p.idx < 0 || p.idx >= items.length) return { ...fallback, mode: "done" };
+  if (p.counting && p.endsAt !== null && p.endsAt <= Date.now()) {
+    const next = p.idx + 1;
+    if (next >= items.length) return { ...fallback, mode: "done" };
+    return { mode: "running", idx: next, counting: false, endsAt: null };
+  }
+  return {
+    mode: "running",
+    idx: p.idx,
+    counting: p.counting,
+    endsAt: p.counting ? p.endsAt : null,
+  };
+}
+
 const KIND_LABEL: Record<NonNullable<Item["kind"]>, string> = {
   cardio: "Cardio",
   mobility: "Mobility",
@@ -145,28 +184,54 @@ export function WarmupSummary({ items }: { items: Item[] }) {
 export default function GuidedWarmup({
   items,
   onStart,
+  progress,
+  onProgressChange,
 }: {
   items: Item[];
   // Fired the moment the athlete begins (Start or Skip) so the parent can
   // kick off the workout session timer — no separate "Begin workout" step.
   onStart?: () => void;
+  // Saved position to resume from. Read once, on mount — after that this
+  // component owns the position and reports it back via onProgressChange.
+  progress?: WarmupProgress | null;
+  onProgressChange?: (p: WarmupProgress) => void;
 }) {
-  const [mode, setMode] = useState<Mode>("idle");
-  const [idx, setIdx] = useState(0);
+  const restored = useRef(normalize(progress, items)).current;
+
+  const [mode, setMode] = useState<Mode>(restored.mode);
+  const [idx, setIdx] = useState(restored.idx);
   // A timed item's countdown only runs once the athlete taps Start — gives
   // them time to set up equipment before the clock moves. Reset to false on
   // every new item so the next one waits too.
-  const [counting, setCounting] = useState(false);
+  const [counting, setCounting] = useState(restored.counting);
   // Wall-clock anchor for the running countdown. Decrementing a counter on a
   // 1s setInterval freezes the moment the app is backgrounded (browsers
   // throttle/pause timers), so the warm-up "paused" when the user switched
   // apps. Instead we pin the end time and derive remaining from real elapsed
   // time — switching away and back keeps the clock honest.
-  const [endsAt, setEndsAt] = useState<number | null>(null);
+  const [endsAt, setEndsAt] = useState<number | null>(restored.endsAt);
   const [now, setNow] = useState(() => Date.now());
   // Tracks the last whole-second we beeped so the 3-2-1 countdown fires once
   // per second, not on every 250ms tick.
   const lastBeepRef = useRef<number | null>(null);
+
+  // Push every position change up to the parent, which folds it into the
+  // workout draft. Held in a ref so a parent that re-creates the callback
+  // each render doesn't re-fire this.
+  const reportRef = useRef(onProgressChange);
+  reportRef.current = onProgressChange;
+  // The mount pass is skipped: it would only echo back the position the
+  // parent just handed us, and on a freshly prescribed workout that echo
+  // would look like an edit and start autosaving a draft the athlete hasn't
+  // touched yet.
+  const reportedOnceRef = useRef(false);
+  useEffect(() => {
+    if (!reportedOnceRef.current) {
+      reportedOnceRef.current = true;
+      return;
+    }
+    reportRef.current?.({ mode, idx, counting, endsAt });
+  }, [mode, idx, counting, endsAt]);
 
   const current = items[idx];
   const fullDur = current?.durationSec ?? 0;

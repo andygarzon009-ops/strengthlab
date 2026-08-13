@@ -25,6 +25,12 @@ export type WorkoutDraftPayload = {
   speed: string;
   level: string;
   rpe: string;
+  startedAt?: string | null;
+  // The coach-prescribed warm-up and how far into it the athlete is. Both
+  // optional: only coach-planned sessions have one, and drafts written before
+  // warm-ups were persisted have neither.
+  warmup?: unknown;
+  warmupProgress?: unknown;
 };
 
 export async function saveWorkoutDraft(payload: WorkoutDraftPayload) {
