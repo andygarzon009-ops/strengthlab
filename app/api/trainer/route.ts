@@ -15,6 +15,13 @@ import {
   matchTemplate,
 } from "@/lib/mobilityLibrary";
 import { getTodayFuel } from "@/lib/nutritionToday";
+import { ageFromBirthDate, estimateMaxHr } from "@/lib/hrZones";
+import {
+  readSetHeartRate,
+  formatSetHr,
+  groupSamplesByWorkout,
+  type HrSample,
+} from "@/lib/setHeartRate";
 import {
   periodizationState,
   describeState,
@@ -230,16 +237,19 @@ export async function POST(req: NextRequest) {
       getTodayFuel(userId).catch(() => null),
     ]);
 
-    const formatSet = (s: {
-      weight: number | null;
-      reps: number | null;
-      rir: number | null;
-      notes: string | null;
-    }) => {
+    const formatSet = (
+      s: {
+        weight: number | null;
+        reps: number | null;
+        rir: number | null;
+        notes: string | null;
+      },
+      hr = "",
+    ) => {
       const base = `${s.weight ?? 0}lb×${s.reps ?? 0}`;
       const rir = s.rir != null ? `@RIR${s.rir}` : "";
       const note = s.notes?.trim() ? `(${s.notes.trim()})` : "";
-      return [base, rir, note].filter(Boolean).join("");
+      return [base, rir, note].filter(Boolean).join("") + hr;
     };
 
     // Keep the full set-by-set RECENT SESSIONS block tight (last 5) for speed —
@@ -252,7 +262,60 @@ export async function POST(req: NextRequest) {
         message
       );
     const recentSessionsCount = wantsDeepHistory ? 15 : 5;
+
+    // Per-set heart rate for the strength sessions we're about to print
+    // set-by-set. This runs after the parallel batch because it needs the
+    // workout ids, and it's a single indexed read on a route that then spends
+    // seconds streaming a reply — the extra round trip doesn't register.
+    // Empty (and free) for anyone without a watch connected.
+    const hrWorkoutIds = workouts
+      .slice(0, recentSessionsCount)
+      .filter((w) => shapeForType(w.type) === "STRENGTH")
+      .map((w) => w.id);
+    const hrRows = hrWorkoutIds.length
+      ? await prisma.workoutHeartRateSample.findMany({
+          where: { workoutId: { in: hrWorkoutIds } },
+          select: { workoutId: true, timestamp: true, bpm: true },
+          orderBy: { timestamp: "asc" },
+        })
+      : [];
+    const samplesByWorkout = groupSamplesByWorkout(hrRows);
+
+    // Max HR resolved the same way the charts and the live widget do it, so a
+    // set's zone in the coach's context matches the zone the athlete saw.
+    let observedMaxHr = 0;
+    for (const r of hrRows) if (r.bpm > observedMaxHr) observedMaxHr = r.bpm;
+    for (const w of workouts) {
+      if (w.maxHeartRate && w.maxHeartRate > observedMaxHr) {
+        observedMaxHr = w.maxHeartRate;
+      }
+    }
+    const maxHr = estimateMaxHr(
+      ageFromBirthDate(user?.birthDate),
+      observedMaxHr || null,
+    );
+
+    // Every tick in a session, in order — a set's recovery window has to end
+    // where the NEXT set begins, and that set often lives on another exercise.
+    const ticksFor = (w: (typeof workouts)[number]): number[] =>
+      w.exercises
+        .flatMap((e) => e.sets)
+        .map((s) => s.loggedAt?.getTime())
+        .filter((t): t is number => t != null)
+        .sort((a, b) => a - b);
+
     const recentWorkouts = workouts.slice(0, recentSessionsCount).map((w) => {
+      const samples: HrSample[] = samplesByWorkout.get(w.id) ?? [];
+      const ticks = samples.length ? ticksFor(w) : [];
+      const setHr = (loggedAt: Date | null): string => {
+        if (!loggedAt || samples.length === 0) return "";
+        const t = loggedAt.getTime();
+        const next = ticks.find((x) => x > t);
+        return formatSetHr(
+          readSetHeartRate(loggedAt, samples, maxHr, next ? new Date(next) : null),
+        );
+      };
+
       const daysAgo = differenceInDays(new Date(), new Date(w.date));
       const when = daysAgo === 0 ? "today" : `${daysAgo}d ago`;
       const whenFmt = format(new Date(w.date), "EEE MMM d");
@@ -275,9 +338,13 @@ export async function POST(req: NextRequest) {
             const working = e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"));
             const parts: string[] = [];
             if (warmups.length)
-              parts.push(`warmup ${warmups.map(formatSet).join(", ")}`);
+              parts.push(`warmup ${warmups.map((s) => formatSet(s)).join(", ")}`);
             if (working.length)
-              parts.push(`working ${working.map(formatSet).join(", ")}`);
+              parts.push(
+                `working ${working
+                  .map((s) => formatSet(s, setHr(s.loggedAt)))
+                  .join(", ")}`,
+              );
             const exNote = e.notes?.trim() ? ` [${e.notes.trim()}]` : "";
             return `    • ${e.exercise.name}${exNote}: ${parts.join(" | ")}`;
           })
@@ -312,6 +379,23 @@ export async function POST(req: NextRequest) {
       if (w.maxHeartRate) parts.push(`max HR ${w.maxHeartRate}`);
       return `- [${typeLbl}]${tagStr} ${w.title} (${when}, ${whenFmt}): ${parts.join(" · ") || "logged"}${noteStr}`;
     });
+
+    // Teach the model to read the per-set annotation — and only when there's
+    // an annotation to read, so an athlete with no watch doesn't pay for a
+    // block about data that isn't there.
+    const setHrLegend = hrRows.length
+      ? `
+HOW TO READ THE PER-SET HEART RATE (present only on sets recorded while a watch was running):
+Working sets carry \`hr<peak> Z<zone>\`, plus \`-<n>/60s\` when the rest was long enough to measure recovery — the beats shed in the minute after that peak. The peak is the highest reading in a window straddling the set, because HR keeps climbing for several seconds after the bar is racked; it is NOT the reading at the moment the set was ticked. Zones are % of this athlete's estimated max HR (~${maxHr}bpm): Z1 <60%, Z2 60–70%, Z3 70–80%, Z4 80–90%, Z5 90%+.
+What to do with it:
+- Same load, climbing peaks across sets ⇒ fatigue is accumulating. Cut the last set, extend rest, or hold the load rather than adding.
+- A Z4/Z5 peak on a set the athlete logged as easy (RIR 3+) ⇒ effort is being under-reported, or rest was too short. Say so, and fix the rest before touching the load.
+- A modest peak on a top set of a main lift ⇒ there's likely more in the tank; that's your green light to add load or density next time.
+- Recovery drop under ~12bpm ⇒ they went into the next set under-recovered; prescribe longer rest before any load increase. A drop of 25+ ⇒ good conditioning and room to shorten rest or superset.
+- Compare like with like: the same lift at the same load across sessions. A peak that climbs week over week at an unchanged load is a fatigue or conditioning signal worth naming.
+Caveats, and they matter: lifting HR lags the effort, and it moves with caffeine, heat, illness, sleep, and how hard they were breathing between sets. It is one signal beside load, reps, and RIR — never let it override what the bar did. Sets with no annotation simply had no watch data; never read an unannotated set as easy, and never invent a number for one.
+`
+      : "";
 
     // Per-exercise progression: last 6 top working sets for every strength exercise the athlete has hit
     const exerciseHistory = new Map<
@@ -752,7 +836,8 @@ PRE-FLIGHT — RUN THIS BEFORE EVERY SUGGESTION, PRESCRIPTION, OR EDIT (non-nego
 Before you recommend, prescribe, or modify ANY workout, silently review the live data blocks further down this prompt — in this order:
 1. RECOVERY & SLEEP — if recovery / HRV / resting-HR / sleep data is present, let it set today's intensity ceiling: low recovery, poor or short sleep, suppressed HRV, or elevated resting HR ⇒ pull load back, trim volume, or steer toward a lighter / mobility day — and say so in one line. If it reads "not available," don't assume anything about rest; proceed on the training data alone.
 2. RECENT SESSIONS + PER-EXERCISE PROGRESSION — pull the athlete's actual last 2–3 sessions for the muscles and lifts in play. Anchor every prescribed load to their real most-recent top set, never a generic number or made-up 1RM percentage.
-3. WEAK SPOTS + CURRENT TRAINING PHASE — cross-check the plan against both before emitting it.
+3. PER-SET HEART RATE — where the recent sets carry hr annotations, read them before setting today's load, rest, and set count. They are the only record of how hard a set actually was, as opposed to what was lifted.
+4. WEAK SPOTS + CURRENT TRAINING PHASE — cross-check the plan against both before emitting it.
 Never prescribe or edit a workout "blind." If you're about to hand over numbers without having looked at the data above, stop and look first. Keep the review silent — surface only the one or two data points that actually shaped the call, not a recap of everything you read.
 
 CORE COACHING BEHAVIOR:
@@ -1027,7 +1112,7 @@ Sessions are logged across categories — weight training, running, hiking, cycl
 
 RECENT SESSIONS (the last ${recentSessionsCount} logged, most recent first, full set-by-set breakdown — USE THIS DATA when giving advice; do not make up numbers, reference actual loads, reps, and trends. For each lift's longer arc, use the PER-EXERCISE PROGRESSION block below; if the athlete references a session older than what's shown here, say you'd need them to pull it up rather than guessing):
 ${recentWorkouts.join("\n\n") || "No sessions logged yet."}
-
+${setHrLegend}
 PER-EXERCISE PROGRESSION (each lift's top working set across its most recent appearances — use these to judge whether the athlete is progressing, stalling, or regressing on any given movement):
 ${progressionLines || "No strength exercises logged yet."}
 
