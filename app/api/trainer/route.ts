@@ -1206,6 +1206,33 @@ ${user.coachPrompt.trim()}`
     const SYNTH_MODEL = "gemini-2.5-flash";
 
     let liveMessage = message;
+
+    // The prescription format lives in the system prompt, thousands of words
+    // from where the model starts writing, and Flash reliably drifts back to
+    // its habits — a "Here's your session:" lead-in, a bold "Coaching Points:"
+    // header, paragraphs that bury the call. Restating the contract next to
+    // the athlete's own message is what actually holds it, the same trick the
+    // pending-log spotter mode below uses. Phrased conditionally, so a false
+    // positive on a non-prescription question costs nothing.
+    const WANTS_SESSION =
+      /\b(what should i (?:train|do)|train (?:today|tomorrow|push|pull|legs?|upper|lower|arms?|chest|back|shoulders?|full[- ]body|core)|plan (?:my|me|today|tomorrow)|give me (?:a|my)|build me|write me|suggest (?:my|a)|next workout|prescribe|workout for|session for|(?:push|pull|leg|legs|upper|lower|arm|arms|chest|back|shoulder|full[- ]body|core)\s*(?:day|session|workout))\b/i;
+    // Spotter mode below owns the message when the athlete reported sets —
+    // that's not a prescription, and its own directive replaces this one.
+    if (pendingParsed.length === 0 && WANTS_SESSION.test(message)) {
+      liveMessage = `${message}
+
+[Format contract — if this reply prescribes a session, it MUST look exactly like this, and this overrides any other habit:
+
+## <Session Title>
+
+- **<Block name> · Week X of Y** — one line on what that position plus their recovery means for today. Take the block and week verbatim from the TRAINING BLOCK section; if none is configured, label this bullet **Today** and give the recovery read.
+- two to four more bullets, each ONE line, each "- **Label** — the reason". A lift earns a bullet only when something changed or a stall is being attacked, and the bullet must carry WHY, never just its numbers.
+
+Then the workout-plan block.
+
+BANNED in a prescription reply: any multi-sentence paragraph; the strings "Here's your session", "Coaching Points", "Notes:", "Key Focus"; a closing or motivational line; listing the lifts as a rundown; restating sets, reps, loads or rest that the card already shows.]`;
+    }
+
     if (pendingParsed.length > 0) {
       const reported = pendingParsed
         .map((e) => {
