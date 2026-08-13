@@ -11,6 +11,7 @@ import {
   type StretchRoutine,
 } from "@/lib/stretchRoutine";
 import { clearStretchProgress, saveStretchRoutineRaw } from "@/lib/stretchSession";
+import { HR_ZONE_COLORS } from "@/lib/hrZones";
 
 type LoggedSummary = {
   workoutId: string;
@@ -108,6 +109,18 @@ function splitLoggedMarker(raw: string): {
   return { logged, pendingLog, text };
 }
 
+/// The zone a table cell names, when it opens with one ("Z4 Hard"). Only the
+/// leading cell of an HR breakdown matches; everything else renders neutral.
+function zoneOfCell(children: React.ReactNode): 1 | 2 | 3 | 4 | 5 | null {
+  const text = Array.isArray(children)
+    ? children.filter((c) => typeof c === "string").join("")
+    : typeof children === "string"
+      ? children
+      : "";
+  const m = /^\s*Z([1-5])\b/.exec(text);
+  return m ? (Number(m[1]) as 1 | 2 | 3 | 4 | 5) : null;
+}
+
 const MD_COMPONENTS: Components = {
   h1: ({ children }) => (
     <h1 className="text-[20px] font-bold tracking-tight leading-tight mt-3 mb-2">
@@ -201,14 +214,23 @@ const MD_COMPONENTS: Components = {
       {children}
     </th>
   ),
-  td: ({ children }) => (
-    <td
-      className="nums py-1.5 px-2 align-top whitespace-nowrap"
-      style={{ fontFamily: "var(--font-geist-mono)" }}
-    >
-      {children}
-    </td>
-  ),
+  td: ({ children }) => {
+    // A heart-rate breakdown leads each row with "Z3 Moderate". Tint that cell
+    // in the zone's own colour — the same scale the HR charts use — so the
+    // table is readable at a glance instead of four columns of grey.
+    const zone = zoneOfCell(children);
+    return (
+      <td
+        className="nums py-1.5 px-2 align-top whitespace-nowrap"
+        style={{
+          fontFamily: "var(--font-geist-mono)",
+          ...(zone ? { color: HR_ZONE_COLORS[zone - 1] } : null),
+        }}
+      >
+        {children}
+      </td>
+    );
+  },
   a: ({ children, href }) => (
     <a
       href={href}
