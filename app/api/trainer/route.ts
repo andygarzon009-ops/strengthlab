@@ -415,10 +415,18 @@ Only include zones that actually have time in them. Lead with one line of plain 
 `
       : "";
 
-    // Per-exercise progression: last 6 top working sets for every strength exercise the athlete has hit
+    // Per-exercise progression: last 6 top working sets for every strength
+    // exercise the athlete has hit. `workouts` is newest-first, so the first
+    // entry pushed for a lift is its most recent appearance — that one gets
+    // labelled LAST and carries an explicit "beat this" target, because
+    // prescribing off the most recent session is the whole job and the model
+    // otherwise anchors to whatever number is largest or most memorable. A
+    // real case: the athlete's hip thrust read 270×5 (28d ago), 160×6, then
+    // 250×4 (8d ago), and the coach prescribed 270×6 off the old peak. She
+    // logged 230. The bar for "progress" is the LAST line, not the best line.
     const exerciseHistory = new Map<
       string,
-      { name: string; entries: string[] }
+      { name: string; lastSeenDays: number; entries: string[] }
     >();
     for (const w of workouts) {
       if (shapeForType(w.type) !== "STRENGTH") continue;
@@ -433,19 +441,38 @@ Only include zones that actually have time in them. Lead with one line of plain 
         // Group by canonical name so duplicate rows collapse to one lift.
         const key = normalizeExerciseName(e.exercise.name) || e.exerciseId;
         if (!exerciseHistory.has(key)) {
-          exerciseHistory.set(key, { name: e.exercise.name, entries: [] });
+          exerciseHistory.set(key, {
+            name: e.exercise.name,
+            lastSeenDays: daysAgo,
+            entries: [],
+          });
         }
         const slot = exerciseHistory.get(key)!;
         if (slot.entries.length < 6) {
+          const isLast = slot.entries.length === 0;
+          const rir = topSet.rir != null ? `@RIR${topSet.rir}` : "";
+          const line = `${working.length}×(top ${topSet.weight ?? 0}lb×${topSet.reps}${rir})`;
+          // The floor for today, stated in the athlete's own numbers rather
+          // than an invented increment — the size of a sensible jump depends
+          // on the lift, the block and the bar, which the coach judges, not us.
+          const beat =
+            topSet.weight && topSet.weight > 0
+              ? ` → BEAT THIS: more reps at ${topSet.weight}lb, or more load at ×${topSet.reps}. Never prescribe under ${topSet.weight}lb without naming the reason.`
+              : ` → BEAT THIS: more than ${topSet.reps} reps, or add load.`;
           slot.entries.push(
-            `${daysAgo}d ago: ${working.length}×(top ${topSet.weight}lb×${topSet.reps}${topSet.rir != null ? `@RIR${topSet.rir}` : ""})`
+            isLast ? `LAST (${daysAgo}d ago): ${line}${beat}` : `${daysAgo}d ago: ${line}`
           );
         }
       }
     }
+    // Recency-ordered, not frequency-ordered: the cap used to drop a lift the
+    // athlete trained last week in favour of one they did six times in April,
+    // which left the coach with no anchor for the very session it was about
+    // to prescribe. 30 covers the full working vocabulary of both current
+    // athletes (33 and 41 distinct lifts, most of them one-offs).
     const progressionLines = Array.from(exerciseHistory.values())
-      .sort((a, b) => b.entries.length - a.entries.length)
-      .slice(0, 20)
+      .sort((a, b) => a.lastSeenDays - b.lastSeenDays)
+      .slice(0, 30)
       .map((x) => `- ${x.name}:\n    ${x.entries.join("\n    ")}`)
       .join("\n");
 
@@ -853,7 +880,7 @@ PRE-FLIGHT — RUN THIS BEFORE EVERY SUGGESTION, PRESCRIPTION, OR EDIT (non-nego
 ━━━━━━━━━━━━━━━━━━━━━━━━
 Before you recommend, prescribe, or modify ANY workout, silently review the live data blocks further down this prompt — in this order:
 1. RECOVERY & SLEEP — if recovery / HRV / resting-HR / sleep data is present, let it set today's intensity ceiling: low recovery, poor or short sleep, suppressed HRV, or elevated resting HR ⇒ pull load back, trim volume, or steer toward a lighter / mobility day — and say so in one line. If it reads "not available," don't assume anything about rest; proceed on the training data alone.
-2. RECENT SESSIONS + PER-EXERCISE PROGRESSION — pull the athlete's actual last 2–3 sessions for the muscles and lifts in play. Anchor every prescribed load to their real most-recent top set, never a generic number or made-up 1RM percentage.
+2. RECENT SESSIONS + PER-EXERCISE PROGRESSION — for EVERY lift you are about to prescribe, find its "LAST" line and prescribe forward from it. That number, not a generic percentage, not a made-up 1RM, not an old PR, is the anchor. If a lift you want to program has no LAST line, either swap it for one that does or tell the athlete you're calibrating it fresh. Do this lift by lift; a session where even one load was pulled out of the air is a failed prescription.
 3. PER-SET HEART RATE — where the recent sets carry hr annotations, read them before setting today's load, rest, and set count. They are the only record of how hard a set actually was, as opposed to what was lifted.
 4. WEAK SPOTS + CURRENT TRAINING PHASE — cross-check the plan against both before emitting it.
 Never prescribe or edit a workout "blind." If you're about to hand over numbers without having looked at the data above, stop and look first. Keep the review silent — surface only the one or two data points that actually shaped the call, not a recap of everything you read.
@@ -923,6 +950,7 @@ Use a "### Exercise Name" heading per lift, then 3–4 bold-labeled bullets unde
    - Emit one object in "sets" per WORKING set, even when the prescription is "3×5 at 225" — the athlete needs to check off each set individually. So 3×5 at 225 = 3 set objects with the same weight/reps. Drop sets, top sets + back-offs, and AMRAPs each get their own explicit set object with the weight/reps you're prescribing.
    - ONE OBJECT IN "exercises" PER LIFT — never emit the same exercise name twice in a plan. A top set and its back-offs are ONE exercise: put every set, at every load, in that single exercise's "sets" array, heaviest work first. E.g. a 270 top single followed by two back-off sets at 250 is ONE entry: "sets":[{"type":"WORKING","weight":270,"reps":6},{"type":"WORKING","weight":250,"reps":8},{"type":"WORKING","weight":250,"reps":8}] — NOT two entries named "Hip Thrust Machine". Same for drop sets and AMRAP finishers. "restSeconds" is per-exercise, so when a top set and its back-offs want different rests, set it to the LONGER one; splitting the lift in two to carry two rest values renders it as two separate exercises on the athlete's card and in their log.
    - Warm-up sets (type:"WARMUP") belong in the plan block even though the prose stays tight — they get pushed to the athlete's log to check off, NOT described in text. On the session's MAIN compound barbell lift (the first heavy compound — bench, squat, deadlift, overhead press, barbell row, front squat, RDL), prepend a FULL RAMP-UP — multiple progressively heavier warm-up sets that climb from the empty bar up toward (but never reaching) the working weight, with descending reps. A typical ramp is ~4–5 sets: empty bar (45 lb) × ~10, then roughly 55% × 5, 70% × 3, 85% × 2, 92% × 1 of the working load (rounded to the nearest 5 lb, each set strictly lighter than the working weight). That is exactly what the Barbell Bench Press example above shows for a 225 working weight: 45×10 → 125×5 → 160×3 → 190×2 → 205×1, then the working sets. Scale the number of ramp sets to the load — a heavy 5-plate squat earns the full ramp; a light 95 lb lift needs only the bar and a set or two. Only the main lift gets the ramp — accessories do NOT. Skip it entirely for isolation/pump work, machines, deloads, and bodyweight movements. Do NOT add any warm-up prose; the sets live only in the plan block.
+   - EVERY "weight" AND "reps" MUST TRACE BACK TO THE LIFT'S "LAST" LINE in PER-EXERCISE PROGRESSION. Before you write a load, find that lift's LAST line and move it forward — more reps at that load, more load at those reps, or an extra set. Do not copy the LAST line unchanged unless you're explicitly holding (deload, cut, bad recovery, athlete's request), and do not reach past it to an older, heavier session or a PR. A lift with no LAST line is one the athlete has never logged: start conservative and say so.
    - "weight" is in pounds. For bodyweight movements (Pull-Up, Push-Up, Dip, etc.) use weight:0 unless you're prescribing added load. For timed holds, put the held seconds in "reps".
    - "reps" is REQUIRED on EVERY set — never omit it, never leave it null, never emit it as a range or word. It MUST be a single positive integer (e.g. 5, 8, 12). For a prescribed range like "8–12", pick the lower bound (8). For AMRAPs / "to failure" / "max reps", commit to a concrete target the athlete should aim for (the lowest realistic rep count, e.g. 8 for an 8+ AMRAP) and call out the AMRAP intent in the prose. Never emit strings like "AMRAP", "max", "to failure", "8-12", or an object — the athlete's log will render blank reps fields and they'll have to type every number in by hand.
    - "title" must describe the SESSION CONTENT, never the weekday. Use the split label ("Push Day", "Pull Day", "Legs Day", "Upper Day", "Lower Day", "Full Body", etc.) or a focus ("Bench-Focused Push", "Squat Day"). Never include weekday names ("Monday", "Tuesday", "Wed", …) — the athlete may run Monday's plan on a Tuesday and the log must stay accurate to what was trained.
@@ -1136,10 +1164,18 @@ Sessions are logged across categories — weight training, running, hiking, cycl
 RECENT SESSIONS (the last ${recentSessionsCount} logged, most recent first, full set-by-set breakdown — USE THIS DATA when giving advice; do not make up numbers, reference actual loads, reps, and trends. For each lift's longer arc, use the PER-EXERCISE PROGRESSION block below; if the athlete references a session older than what's shown here, say you'd need them to pull it up rather than guessing):
 ${recentWorkouts.join("\n\n") || "No sessions logged yet."}
 ${setHrLegend}
-PER-EXERCISE PROGRESSION (each lift's top working set across its most recent appearances — use these to judge whether the athlete is progressing, stalling, or regressing on any given movement):
+PER-EXERCISE PROGRESSION (each lift's top working set across its most recent appearances, lifts most recently trained first — use these to judge whether the athlete is progressing, stalling, or regressing on any given movement):
 ${progressionLines || "No strength exercises logged yet."}
 
-PERSONAL RECORDS (best weight per lift, with the rep count it was achieved at):
+HOW TO USE THE LINE MARKED "LAST" — this is the single most important rule for prescribing loads:
+- The LAST line is what the athlete ACTUALLY DID the last time they trained that lift. It is the ONLY valid anchor for today's prescription. Every working load and rep target you prescribe must be derived from it.
+- The other lines are the TREND — read them to see whether the lift is climbing, stalling, or regressing, and to decide HOW to progress. Never prescribe off them directly.
+- NEVER anchor to a heavier number further down the list, and never to the PERSONAL RECORDS block. A load they hit once a month ago is not where they are today; the LAST line is. Prescribing an old peak sets them up to miss it and log something lower than they're capable of.
+- Progress the LAST line every session: add reps at the same load, add load at the same reps, add a set, or tighten execution (slower eccentric, longer pause, less rest). Pick ONE per lift — small, repeatable, and specific to what the trend shows. A stalled lift gets a change of variable, not more of the same.
+- Prescribing a load BELOW the LAST line is a regression and is banned unless there's a stated reason — a deload week, a cut, a bad recovery read, an injury, or the athlete asking to go lighter. When one of those applies, say so in the briefing bullets and give the reason in the same line. Silent regressions are the worst thing you can do to an athlete.
+- If a lift has no LAST line, the athlete has never logged it. Say you're starting conservative and give them a load to calibrate from, then progress it next session.
+
+PERSONAL RECORDS (best weight per lift, with the rep count it was achieved at — this is the athlete's ALL-TIME best, a milestone to beat eventually, NOT a starting point for today's session; prescribe off the LAST line above):
 ${topPRs || "No PRs yet."}
 
 WEAK SPOTS (the same flags the athlete sees on the analytics Check-up cards — these are HARD INPUTS into every prescription, not optional context):
@@ -1230,6 +1266,8 @@ ${user.coachPrompt.trim()}`
 - two to four more bullets, each ONE line, each "- **Label** — the reason". A lift earns a bullet only when something changed or a stall is being attacked, and the bullet must carry WHY, never just its numbers.
 
 Then the workout-plan block.
+
+LOADS: every weight and rep target in that block must come from moving the lift's "LAST" line in PER-EXERCISE PROGRESSION forward — more reps at that load, more load at those reps, or an extra set. Do not anchor to an older heavier session or to a PR; do not prescribe under the LAST line without naming the reason (deload, cut, recovery, injury, their request) in a bullet.
 
 BANNED in a prescription reply: any multi-sentence paragraph; the strings "Here's your session", "Coaching Points", "Notes:", "Key Focus"; a closing or motivational line; listing the lifts as a rundown; restating sets, reps, loads or rest that the card already shows.]`;
     }
