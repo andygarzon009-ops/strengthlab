@@ -120,6 +120,17 @@ export function ensureRampUpWarmup(plan: WorkoutPlan): WorkoutPlan {
   return plan;
 }
 
+// Loose identity for spotting the same lift emitted twice in a row. Case,
+// spacing and punctuation only — deliberately NOT the alias-aware
+// canonicalExerciseKey, which is server-only and would collapse genuinely
+// distinct variants ("Barbell RDL" vs "Dumbbell RDL") we must keep apart.
+function mergeKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 // Sanitize a parsed plan into a shape every consumer can trust. The model
 // drifts most when EDITING a prescription — asked to swap, remove, or
 // reorder a lift it may leave a null hole in the exercises array, drop the
@@ -128,9 +139,21 @@ export function ensureRampUpWarmup(plan: WorkoutPlan): WorkoutPlan {
 // the app. We drop non-object / nameless exercises and coerce sets to an
 // array of set objects, so a botched edit degrades gracefully instead of
 // taking down the chat. Returns null if nothing usable survives.
+//
+// We also FOLD CONSECUTIVE DUPLICATES of the same lift into one entry. A top
+// set plus its back-offs is one exercise, but `restSeconds` lives on the
+// exercise rather than the set — so a prescription wanting 3:00 on the top
+// set and 2:00 on the back-offs has no way to say it except by emitting the
+// lift twice. That renders as two numbered exercises on the card and pushes
+// two blocks into the log, and in /api/coach-plan the second entry's rest
+// silently overwrites the first (restPrefs is keyed by exercise id), handing
+// the heaviest set the back-off's shorter timer. Merging restores the intent;
+// the longer rest wins, since under-resting a top set is the costlier error.
+// Only ADJACENT duplicates merge — a lift that legitimately reappears later
+// in a circuit keeps its place in the running order.
 function normalizePlan(parsed: WorkoutPlan | null): WorkoutPlan | null {
   if (!parsed || !Array.isArray(parsed.exercises)) return null;
-  const exercises = [];
+  const exercises: WorkoutPlan["exercises"] = [];
   for (const ex of parsed.exercises) {
     if (!ex || typeof ex !== "object") continue;
     const name = typeof ex.name === "string" ? ex.name.trim() : "";
@@ -139,9 +162,21 @@ function normalizePlan(parsed: WorkoutPlan | null): WorkoutPlan | null {
     const sets = rawSets.filter(
       (s): s is WorkoutPlanSet => !!s && typeof s === "object"
     );
+    const rest = typeof ex.restSeconds === "number" ? ex.restSeconds : undefined;
+
+    const prev = exercises[exercises.length - 1];
+    if (prev && mergeKey(prev.name) === mergeKey(name)) {
+      prev.sets = [...prev.sets, ...sets];
+      if (rest !== undefined) {
+        prev.restSeconds =
+          prev.restSeconds !== undefined ? Math.max(prev.restSeconds, rest) : rest;
+      }
+      continue;
+    }
+
     exercises.push({
       name,
-      ...(typeof ex.restSeconds === "number" ? { restSeconds: ex.restSeconds } : {}),
+      ...(rest !== undefined ? { restSeconds: rest } : {}),
       sets,
     });
   }
