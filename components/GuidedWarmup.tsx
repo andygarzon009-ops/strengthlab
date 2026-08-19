@@ -1,52 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  unlockAudio,
+  resumeAudio,
+  releaseAudio,
+  tone as playTone,
+} from "@/lib/timerSound";
 
-// --- Audio cues (mirrors components/Timer.tsx) --------------------------
-// Web Audio beeps for the timed warm-up countdown. The context is created
-// lazily and resumed on every access: browsers start it "suspended" and
-// auto-suspend it on tab-switch / screen-lock, after which tones are silent
-// until a gesture resumes it. ensureAudio() runs from the Start tap so audio
-// unlocks reliably.
-type AudioBag = { ctx: AudioContext };
-let audioBag: AudioBag | null = null;
-
-function ensureAudio(): AudioBag | null {
-  if (typeof window === "undefined") return null;
-  if (audioBag) {
-    if (audioBag.ctx.state === "suspended") void audioBag.ctx.resume();
-    return audioBag;
-  }
-  try {
-    type W = Window & { webkitAudioContext?: typeof AudioContext };
-    const AC = window.AudioContext ?? (window as W).webkitAudioContext;
-    if (!AC) return null;
-    const ctx = new AC();
-    if (ctx.state === "suspended") void ctx.resume();
-    audioBag = { ctx };
-    return audioBag;
-  } catch {
-    return null;
-  }
-}
-
-function tone(freq: number, durationMs: number, gainPeak = 0.22) {
-  const bag = ensureAudio();
-  if (!bag) return;
-  const { ctx } = bag;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = "sine";
-  osc.frequency.value = freq;
-  const now = ctx.currentTime;
-  const dur = durationMs / 1000;
-  gain.gain.setValueAtTime(0, now);
-  gain.gain.linearRampToValueAtTime(gainPeak, now + 0.01);
-  gain.gain.linearRampToValueAtTime(0, now + dur);
-  osc.connect(gain).connect(ctx.destination);
-  osc.start(now);
-  osc.stop(now + dur + 0.05);
-}
+// --- Audio cues (shared with the rest timer and the stretch player) ------
+// Audio lives in lib/timerSound — one context and one playback session shared
+// with every other timer, plus the watchdog that repairs it after an
+// interruption (the ring switch flipped off and back on, a call, Siri).
+const tone = (freq: number, durationMs: number, gainPeak = 0.22) =>
+  playTone(freq, durationMs, gainPeak);
 
 // 3-2-1 countdown tick before a timed item ends.
 const cueCountdown = () => tone(660, 120, 0.18);
@@ -242,6 +209,15 @@ export default function GuidedWarmup({
 
   // Drive the displayed countdown from the wall clock, and re-sync the
   // instant the app returns to the foreground so a background stint doesn't
+  // Hold the audio session for as long as the warm-up is actually running.
+  // unlockAudio starts the watchdog that re-arms audio after an interruption;
+  // releasing on done/idle and on unmount stops it polling once we're through.
+  useEffect(() => {
+    if (mode === "running") unlockAudio();
+    else releaseAudio();
+  }, [mode]);
+  useEffect(() => () => releaseAudio(), []);
+
   // leave a stale number on screen.
   useEffect(() => {
     if (mode !== "running" || !counting || endsAt === null) return;
@@ -250,7 +226,7 @@ export default function GuidedWarmup({
     const id = setInterval(tick, 250);
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        ensureAudio();
+        resumeAudio();
         tick();
       }
     };
@@ -296,7 +272,7 @@ export default function GuidedWarmup({
 
   function start() {
     onStart?.();
-    ensureAudio(); // unlock audio within the Start gesture
+    unlockAudio(); // unlock audio within the Start gesture
     setMode("running");
     setIdx(0);
     setEndsAt(null);
@@ -305,7 +281,7 @@ export default function GuidedWarmup({
 
   // Begin the current timed item's countdown (its own Start button).
   function beginCountdown() {
-    ensureAudio(); // unlock audio within the Start gesture
+    unlockAudio(); // unlock audio within the Start gesture
     const dur = items[idx]?.durationSec ?? 0;
     lastBeepRef.current = null;
     setNow(Date.now());

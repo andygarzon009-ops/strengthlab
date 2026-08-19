@@ -1,48 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { tone } from "@/lib/timerSound";
 
 const PERMISSION_ASKED_KEY = "sl:notifPermAsked.v1";
 
 // Web Audio chime that mirrors Timer.tsx's `cueDone` so the rest-end
-// notification has the same "ding" the in-app FAB plays. The page must
-// have produced audio at least once already (the Timer's set-logging
-// sound counts) for this to play on iOS PWA.
-type AudioBag = { ctx: AudioContext };
-let audioBag: AudioBag | null = null;
-function ensureAudio(): AudioBag | null {
-  if (audioBag) return audioBag;
-  if (typeof window === "undefined") return null;
-  try {
-    type W = Window & { webkitAudioContext?: typeof AudioContext };
-    const AC = window.AudioContext ?? (window as W).webkitAudioContext;
-    if (!AC) return null;
-    audioBag = { ctx: new AC() };
-    return audioBag;
-  } catch {
-    return null;
-  }
-}
-function chime() {
-  const bag = ensureAudio();
-  if (!bag) return;
-  const { ctx } = bag;
-  // Resume in case the browser suspended the context while backgrounded.
-  if (ctx.state === "suspended") ctx.resume().catch(() => {});
-  // Mirrors `cueDone` in Timer.tsx — single 440 Hz sine, 260 ms, 0.2 gain.
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = "sine";
-  osc.frequency.value = 440;
-  const start = ctx.currentTime;
-  const dur = 0.26;
-  gain.gain.setValueAtTime(0, start);
-  gain.gain.linearRampToValueAtTime(0.2, start + 0.01);
-  gain.gain.linearRampToValueAtTime(0, start + dur);
-  osc.connect(gain).connect(ctx.destination);
-  osc.start(start);
-  osc.stop(start + dur + 0.05);
-}
+// notification has the same "ding" the in-app FAB plays — single 440 Hz sine,
+// 260 ms, 0.2 gain. Shares lib/timerSound's context with every other timer, so
+// it inherits the playback session and the interruption watchdog rather than
+// keeping a second context that nothing repairs.
+const chime = () => tone(440, 260, 0.2);
 function buzz(pattern: number | number[]) {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
     try {

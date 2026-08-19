@@ -21,51 +21,19 @@ import {
   clearStretchProgress,
 } from "@/lib/stretchSession";
 import StretchFigure from "./StretchFigure";
+import {
+  unlockAudio,
+  resumeAudio,
+  releaseAudio,
+  tone as playTone,
+} from "@/lib/timerSound";
 
-// --- Audio cues (mirrors components/GuidedWarmup.tsx) --------------------
-// Web Audio beeps for the countdown. The context is created lazily and
-// resumed on every access: browsers start it "suspended" and auto-suspend on
-// tab-switch / screen-lock, after which tones are silent until a gesture
-// resumes it. ensureAudio() runs from the Start tap so audio unlocks reliably.
-type AudioBag = { ctx: AudioContext };
-let audioBag: AudioBag | null = null;
-
-function ensureAudio(): AudioBag | null {
-  if (typeof window === "undefined") return null;
-  if (audioBag) {
-    if (audioBag.ctx.state === "suspended") void audioBag.ctx.resume();
-    return audioBag;
-  }
-  try {
-    type W = Window & { webkitAudioContext?: typeof AudioContext };
-    const AC = window.AudioContext ?? (window as W).webkitAudioContext;
-    if (!AC) return null;
-    const ctx = new AC();
-    if (ctx.state === "suspended") void ctx.resume();
-    audioBag = { ctx };
-    return audioBag;
-  } catch {
-    return null;
-  }
-}
-
-function tone(freq: number, durationMs: number, gainPeak = 0.22) {
-  const bag = ensureAudio();
-  if (!bag) return;
-  const { ctx } = bag;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = "sine";
-  osc.frequency.value = freq;
-  const now = ctx.currentTime;
-  const dur = durationMs / 1000;
-  gain.gain.setValueAtTime(0, now);
-  gain.gain.linearRampToValueAtTime(gainPeak, now + 0.01);
-  gain.gain.linearRampToValueAtTime(0, now + dur);
-  osc.connect(gain).connect(ctx.destination);
-  osc.start(now);
-  osc.stop(now + dur + 0.05);
-}
+// --- Audio cues (shared with the rest timer and the guided warm-up) ------
+// Audio lives in lib/timerSound — one context and one playback session shared
+// with every other timer, plus the watchdog that repairs it after an
+// interruption (the ring switch flipped off and back on, a call, Siri).
+const tone = (freq: number, durationMs: number, gainPeak = 0.22) =>
+  playTone(freq, durationMs, gainPeak);
 
 // 3-2-1 tick before a hold or rest ends.
 const cueCountdown = () => tone(660, 120, 0.18);
@@ -200,6 +168,15 @@ export default function GuidedStretch({
   const exitingRef = useRef(false);
 
   const [mode, setMode] = useState<Mode>(() => (boot() ? "running" : "idle"));
+
+  // Hold the audio session while the player is running. unlockAudio starts the
+  // watchdog that re-arms audio after an interruption; releasing on done/idle
+  // and on unmount stops it polling once the routine is over.
+  useEffect(() => {
+    if (mode === "running") unlockAudio();
+    else releaseAudio();
+  }, [mode]);
+  useEffect(() => () => releaseAudio(), []);
   const [idx, setIdx] = useState(() => boot()?.idx ?? 0);
   const [paused, setPaused] = useState(() => !!boot());
   // Whether the finished session has been saved to the workout log.
@@ -302,7 +279,7 @@ export default function GuidedStretch({
     const id = setInterval(tick, 200);
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        ensureAudio();
+        resumeAudio();
         void acquireWakeLock();
         tick();
       }
@@ -386,7 +363,7 @@ export default function GuidedStretch({
   }, [mode, logSession]);
 
   function start() {
-    ensureAudio(); // unlock audio within the Start gesture
+    unlockAudio(); // unlock audio within the Start gesture
     void acquireWakeLock();
     setMode("running");
     setPaused(false);
@@ -399,7 +376,7 @@ export default function GuidedStretch({
       const rem = pausedRemainingRef.current ?? (current?.durationSec ?? 0) * 1000;
       pausedRemainingRef.current = null;
       lastBeepRef.current = null;
-      ensureAudio();
+      unlockAudio();
       void acquireWakeLock();
       setNow(Date.now());
       setEndsAt(Date.now() + rem);
