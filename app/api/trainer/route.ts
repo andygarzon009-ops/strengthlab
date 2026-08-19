@@ -239,6 +239,49 @@ export async function POST(req: NextRequest) {
       getTodayFuel(userId).catch(() => null),
     ]);
 
+    // Anchor "today" to the athlete's local timezone, not the server's
+    // (Vercel runs in UTC). Falls back to UTC if we haven't captured
+    // the user's tz yet — the TimezoneSync component on the dashboard
+    // posts it silently on the first page load.
+    const tz = user?.timezone || "UTC";
+    const now = new Date();
+    const fmtLong = (d: Date) =>
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      }).format(d);
+    // en-CA gives ISO YYYY-MM-DD when given timeZone — handy for isoToday
+    const fmtIso = (d: Date) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(d);
+
+    const todayStr = fmtLong(now);
+    const isoToday = fmtIso(now);
+    // Explicit relative days so the model NEVER has to compute a weekday
+    // itself (LLMs reliably get "today + 1 day → which weekday" wrong).
+    const tomorrowStr = fmtLong(addDays(now, 1));
+    const tomorrowIso = fmtIso(addDays(now, 1));
+    const yesterdayStr = fmtLong(subDays(now, 1));
+    const twoWeeksAgoStr = fmtLong(subDays(now, 14));
+    const oneWeekAgoStr = fmtLong(subDays(now, 7));
+    const thirtyDaysAgoStr = fmtLong(subDays(now, 30));
+
+    // Where the athlete is in their declared cycle. Resolved HERE, above the
+    // per-exercise progression, because the block decides which rep range each
+    // lift's "beat this" target should be aimed at — a strength block's top
+    // triple is not the thing to beat during a hypertrophy week.
+    const blockCfg = user?.periodization as PeriodizationConfig | null;
+    const blockState = isValidConfig(blockCfg)
+      ? periodizationState(blockCfg, isoToday)
+      : null;
+
     const formatSet = (
       s: {
         weight: number | null;
@@ -455,10 +498,24 @@ Only include zones that actually have time in them. Lead with one line of plain 
           // The floor for today, stated in the athlete's own numbers rather
           // than an invented increment — the size of a sensible jump depends
           // on the lift, the block and the bar, which the coach judges, not us.
+          //
+          // With one exception, and it is the one that actually hurts: a top
+          // set logged at RIR 0–1 was taken to (or to within a rep of)
+          // failure, which means that LOAD is at its ceiling and "more reps at
+          // the same weight" is not a progression, it is a miss. Andrés's
+          // weighted pull-up read 90lb×3 @RIR0; the line said "more reps at
+          // 90lb", the coach prescribed 90×5, and he got 3 then 2 — again at
+          // RIR 0. Name the ceiling and send the progression somewhere the
+          // athlete can actually reach: another set, or reps at a lighter load.
+          const maxedOut = topSet.rir != null && topSet.rir <= 1;
           const beat =
             topSet.weight && topSet.weight > 0
-              ? ` → BEAT THIS: more reps at ${topSet.weight}lb, or more load at ×${topSet.reps}. Never prescribe under ${topSet.weight}lb without naming the reason.`
-              : ` → BEAT THIS: more than ${topSet.reps} reps, or add load.`;
+              ? maxedOut
+                ? ` → CEILING: that top set went to RIR${topSet.rir} — ${topSet.weight}lb is maxed at ×${topSet.reps}, so do NOT prescribe more reps at ${topSet.weight}lb. Progress it with an extra set, or with reps at a lighter load in this block's rep range.`
+                : ` → BEAT THIS: more reps at ${topSet.weight}lb, or more load at ×${topSet.reps}. Never prescribe under ${topSet.weight}lb without naming the reason.`
+              : maxedOut
+                ? ` → CEILING: that set went to RIR${topSet.rir} — add a set or slow the tempo rather than assuming more reps are there.`
+                : ` → BEAT THIS: more than ${topSet.reps} reps, or add load.`;
           slot.entries.push(
             isLast ? `LAST (${daysAgo}d ago): ${line}${beat}` : `${daysAgo}d ago: ${line}`
           );
@@ -518,39 +575,6 @@ Only include zones that actually have time in them. Lead with one line of plain 
       ? differenceInDays(new Date(), new Date(lastWorkout.date))
       : null;
 
-    // Anchor "today" to the athlete's local timezone, not the server's
-    // (Vercel runs in UTC). Falls back to UTC if we haven't captured
-    // the user's tz yet — the TimezoneSync component on the dashboard
-    // posts it silently on the first page load.
-    const tz = user?.timezone || "UTC";
-    const now = new Date();
-    const fmtLong = (d: Date) =>
-      new Intl.DateTimeFormat("en-US", {
-        timeZone: tz,
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      }).format(d);
-    // en-CA gives ISO YYYY-MM-DD when given timeZone — handy for isoToday
-    const fmtIso = (d: Date) =>
-      new Intl.DateTimeFormat("en-CA", {
-        timeZone: tz,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(d);
-
-    const todayStr = fmtLong(now);
-    const isoToday = fmtIso(now);
-    // Explicit relative days so the model NEVER has to compute a weekday
-    // itself (LLMs reliably get "today + 1 day → which weekday" wrong).
-    const tomorrowStr = fmtLong(addDays(now, 1));
-    const tomorrowIso = fmtIso(addDays(now, 1));
-    const yesterdayStr = fmtLong(subDays(now, 1));
-    const twoWeeksAgoStr = fmtLong(subDays(now, 14));
-    const oneWeekAgoStr = fmtLong(subDays(now, 7));
-    const thirtyDaysAgoStr = fmtLong(subDays(now, 30));
 
     // Athlete's preferred warmup routine by split, set in Profile → Preferred
     // warm-ups. When prescribing a session whose split matches one of these
@@ -641,9 +665,9 @@ Calibrate today's intensity and volume to this: a low recovery score, short or p
     // a 4-day-a-week lifter), which can't see a block boundary or the last
     // deload, and guessing at them produces confident wrong programming.
     const periodizationBlock = (() => {
-      const cfg = user?.periodization as PeriodizationConfig | null;
+      const cfg = blockCfg;
       if (!isValidConfig(cfg)) return "";
-      const state = periodizationState(cfg, isoToday);
+      const state = blockState;
       if (!state) {
         return `
 ⚑ TRAINING BLOCK: configured, but the cycle starts ${cfg.startDate} — it hasn't begun yet. Program normally and mention the start date if programming comes up. ⚑`;
@@ -1164,7 +1188,9 @@ Sessions are logged across categories — weight training, running, hiking, cycl
 RECENT SESSIONS (the last ${recentSessionsCount} logged, most recent first, full set-by-set breakdown — USE THIS DATA when giving advice; do not make up numbers, reference actual loads, reps, and trends. For each lift's longer arc, use the PER-EXERCISE PROGRESSION block below; if the athlete references a session older than what's shown here, say you'd need them to pull it up rather than guessing):
 ${recentWorkouts.join("\n\n") || "No sessions logged yet."}
 ${setHrLegend}
-PER-EXERCISE PROGRESSION (each lift's top working set across its most recent appearances, lifts most recently trained first — use these to judge whether the athlete is progressing, stalling, or regressing on any given movement):
+PER-EXERCISE PROGRESSION (each lift's top working set across its most recent appearances, lifts most recently trained first — use these to judge whether the athlete is progressing, stalling, or regressing on any given movement).
+THE BLOCK OWNS THE REP RANGE; THE LAST LINE OWNS THE LOAD. When a lift's LAST reps sit outside the range today's TRAINING BLOCK calls for, re-anchor that lift into the block's range: that is a change of range, not a regression, and the load which supports it will usually be LIGHTER than the LAST line. Name it in one bullet ("moving off the strength triples into 8s") and move on. The "never prescribe under" clause guards against drifting down inside the same rep range — it never forces a strength block's load into a hypertrophy week.
+A lift marked CEILING instead of BEAT THIS had its top set taken to failure: that load is spent for now, and asking for more reps at it prescribes a set the athlete cannot hit.
 ${progressionLines || "No strength exercises logged yet."}
 
 HOW TO USE THE LINE MARKED "LAST" — this is the single most important rule for prescribing loads:
@@ -1172,7 +1198,9 @@ HOW TO USE THE LINE MARKED "LAST" — this is the single most important rule for
 - The other lines are the TREND — read them to see whether the lift is climbing, stalling, or regressing, and to decide HOW to progress. Never prescribe off them directly.
 - NEVER anchor to a heavier number further down the list, and never to the PERSONAL RECORDS block. A load they hit once a month ago is not where they are today; the LAST line is. Prescribing an old peak sets them up to miss it and log something lower than they're capable of.
 - Progress the LAST line every session: add reps at the same load, add load at the same reps, add a set, or tighten execution (slower eccentric, longer pause, less rest). Pick ONE per lift — small, repeatable, and specific to what the trend shows. A stalled lift gets a change of variable, not more of the same.
-- Prescribing a load BELOW the LAST line is a regression and is banned unless there's a stated reason — a deload week, a cut, a bad recovery read, an injury, or the athlete asking to go lighter. When one of those applies, say so in the briefing bullets and give the reason in the same line. Silent regressions are the worst thing you can do to an athlete.
+- Prescribing a load BELOW the LAST line is a regression and is banned unless there's a stated reason — a deload week, a cut, a bad recovery read, an injury, a MOVE INTO A HIGHER-REP BLOCK, or the athlete asking to go lighter. When one of those applies, say so in the briefing bullets and give the reason in the same line. Silent regressions are the worst thing you can do to an athlete.
+- A lighter load carrying MORE reps is not a regression at all, and the block change is the common case: a lift last done as a strength triple, prescribed for a hypertrophy week at 8–12, MUST come down in load to get there. Working out what that load is, from the triple and the movement, is your job — not a reason to keep the triple.
+- A LAST line marked CEILING means that top set was taken to RIR 0–1. The load is spent: more reps at it is a set they will miss. Progress it with an extra set, a lighter load for more reps, or tighter execution — and if the block wants the same low reps again, hold the load and add a set rather than reaching.
 - If a lift has no LAST line, the athlete has never logged it. Say you're starting conservative and give them a load to calibrate from, then progress it next session.
 
 PERSONAL RECORDS (best weight per lift, with the rep count it was achieved at — this is the athlete's ALL-TIME best, a milestone to beat eventually, NOT a starting point for today's session; prescribe off the LAST line above):
@@ -1251,6 +1279,18 @@ ${user.coachPrompt.trim()}`
     // the athlete's own message is what actually holds it, the same trick the
     // pending-log spotter mode below uses. Phrased conditionally, so a false
     // positive on a non-prescription question costs nothing.
+    // The block is stated thousands of words upstream, as one bullet, while
+    // every lift's "BEAT THIS" line sits right on top of the numbers and reads
+    // like an order. That asymmetry is how a hypertrophy week came back as a
+    // 90lb×5 weighted pull-up off a strength block's triple. Restate the rep
+    // range next to the athlete's message, where the format contract already
+    // proved things actually hold.
+    const blockDirective = blockState
+      ? blockState.isDeloadWeek
+        ? `REP RANGE: this is a DELOAD week. Cut load and/or volume; no PR attempts, no sets to failure.\n`
+        : `REP RANGE: the athlete is in ${blockState.blockName}, week ${blockState.weekInBlock} of ${blockState.blockWeeks} — every working set's rep target must match what that block calls for (power-building: one heavy top set at 3–5 then volume work; hypertrophy: 6–12 near failure; pure strength: 1–5, long rests, low volume). A lift whose LAST line sits in a different range is CHANGING RANGE, not regressing: put it in this block's range and take the load down to whatever supports those reps. The block beats the LAST line on reps; the LAST line still anchors the load.\n`
+      : "";
+
     const WANTS_SESSION =
       /\b(what should i (?:train|do)|train (?:today|tomorrow|push|pull|legs?|upper|lower|arms?|chest|back|shoulders?|full[- ]body|core)|plan (?:my|me|today|tomorrow)|give me (?:a|my)|build me|write me|suggest (?:my|a)|next workout|prescribe|workout for|session for|(?:push|pull|leg|legs|upper|lower|arm|arms|chest|back|shoulder|full[- ]body|core)\s*(?:day|session|workout))\b/i;
     // Spotter mode below owns the message when the athlete reported sets —
@@ -1267,7 +1307,8 @@ ${user.coachPrompt.trim()}`
 
 Then the workout-plan block.
 
-LOADS: every weight and rep target in that block must come from moving the lift's "LAST" line in PER-EXERCISE PROGRESSION forward — more reps at that load, more load at those reps, or an extra set. Do not anchor to an older heavier session or to a PR; do not prescribe under the LAST line without naming the reason (deload, cut, recovery, injury, their request) in a bullet.
+LOADS: every weight and rep target in that block must come from moving the lift's "LAST" line in PER-EXERCISE PROGRESSION forward — more reps at that load, more load at those reps, or an extra set. Do not anchor to an older heavier session or to a PR; do not prescribe under the LAST line without naming the reason (deload, cut, recovery, injury, a move into a higher-rep block, their request) in a bullet.
+${blockDirective}NEVER prescribe more reps at a load whose LAST line is marked CEILING — that set was taken to failure and the load is spent. Add a set, or drop the load and take the reps there.
 
 BANNED in a prescription reply: any multi-sentence paragraph; the strings "Here's your session", "Coaching Points", "Notes:", "Key Focus"; a closing or motivational line; listing the lifts as a rundown; restating sets, reps, loads or rest that the card already shows.]`;
     }
