@@ -29,6 +29,7 @@ import {
   describeState,
   isValidConfig,
   blockSpec,
+  blockRules,
   deloadSpec,
   type PeriodizationConfig,
 } from "@/lib/periodization";
@@ -709,7 +710,7 @@ The athlete's cycle, repeating, with a deload every ${cfg.deloadEveryWeeks ?? "â
 ${cycle}
 These week numbers are CALCULATED from the athlete's declared start date â€” they are authoritative. Do not re-derive the block from session history, and never contradict them.
 
-${state.isDeloadWeek ? deloadSpec(cfg.deloadReductionPct) : blockSpec(state.blockName).detail}
+${blockRules(state.isDeloadWeek ? deloadSpec(cfg.deloadReductionPct) : blockSpec(state.blockName).detail)}
 
 ${
   state.isDeloadWeek
