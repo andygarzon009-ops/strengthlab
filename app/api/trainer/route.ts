@@ -28,6 +28,8 @@ import {
   periodizationState,
   describeState,
   isValidConfig,
+  blockSpec,
+  deloadSpec,
   type PeriodizationConfig,
 } from "@/lib/periodization";
 
@@ -672,24 +674,53 @@ Calibrate today's intensity and volume to this: a low recovery score, short or p
         return `
 ⚑ TRAINING BLOCK: configured, but the cycle starts ${cfg.startDate} — it hasn't begun yet. Program normally and mention the start date if programming comes up. ⚑`;
       }
+      // The whole cycle, one line per block, each carrying its own house
+      // prescription in brief. The block being run this week gets the full
+      // spec below; the others are here so the coach can answer "what's
+      // coming" and can see today's work as part of an arc.
       const cycle = cfg.blocks
-        .map((b) => `${b.name} (${b.weeks}w)`)
-        .join(" → ");
+        .map((b, i) => {
+          // Matched on index, not name: the default cycle runs Hypertrophy
+          // twice, and matching on name would flag both.
+          const here =
+            i !== state.blockIndex
+              ? ""
+              : state.isDeloadWeek
+                ? " ← PAUSED HERE FOR THE DELOAD"
+                : " ← YOU ARE HERE";
+          return `  ${i + 1}. ${b.name} — ${b.weeks} weeks — ${blockSpec(b.name).oneLine}${here}`;
+        })
+        .join("\n");
+      // Late-block weeks are where the hardest work belongs, so say where in
+      // the arc this week sits rather than making the coach infer it.
+      const weekPosition = (() => {
+        if (state.blockWeeks <= 1) return "the only week of this block.";
+        if (state.weekInBlock === 1)
+          return "the FIRST week of this block — introduce the block's work, keep a rep in reserve beyond the target, and leave room to grow into it.";
+        if (state.weekInBlock >= state.blockWeeks)
+          return "the LAST week of this block — this is where its hardest, heaviest, or highest-volume work belongs.";
+        return "a middle week of this block — the ramp between where it started and where it peaks.";
+      })();
       return `
 ━━━━━━━━━━━━━━━━━━━━━━━━
 ⚑ TRAINING BLOCK — ${describeState(state, cfg)} ⚑
 ━━━━━━━━━━━━━━━━━━━━━━━━
-The athlete's cycle: ${cycle}, repeating, with a deload every ${cfg.deloadEveryWeeks ?? "—"} training weeks.
+The athlete's cycle, repeating, with a deload every ${cfg.deloadEveryWeeks ?? "—"} training weeks:
+${cycle}
 These week numbers are CALCULATED from the athlete's declared start date — they are authoritative. Do not re-derive the block from session history, and never contradict them.
 
-How to use the block (this drives the shape of every session you prescribe):
+${state.isDeloadWeek ? deloadSpec(cfg.deloadReductionPct) : blockSpec(state.blockName).detail}
+
 ${
   state.isDeloadWeek
-    ? `- THIS IS A DELOAD WEEK. Cut working loads and/or set volume by ~${cfg.deloadReductionPct}% versus their recent sessions. Keep the movements and the groove, drop the fatigue. Explicitly tell the athlete this is a deload and why. Do NOT prescribe PR attempts, AMRAPs, or sets taken near failure. Use the lighter loads to clean up technique, and say what you want them to focus on.`
-    : `- Match intensity and rep ranges to the ${state.blockName} block. Power-building = a heavy top set in the 3–5 range before normal volume work. Hypertrophy = 6–12 with the volume and proximity to failure that drives growth. Pure strength = 1–5 heavy, longer rests, lower total volume.
-- Week ${state.weekInBlock} of ${state.blockWeeks}: early block weeks build in, late block weeks are where the block's hardest work belongs.
-- ${state.weeksUntilDeload === 0 ? "Next week is a deload, so this week can be the hardest of the block." : state.weeksUntilDeload != null ? `${state.weeksUntilDeload} training week${state.weeksUntilDeload === 1 ? "" : "s"} until the deload — pace accumulated fatigue accordingly.` : "No scheduled deload; watch the recovery data for when one is earned."}`
+    ? `WHERE THIS WEEK SITS: a scheduled deload. The block is PAUSED, not advanced — after this week they return to ${state.nextUp}.`
+    : `WHERE THIS WEEK SITS: week ${state.weekInBlock} of ${state.blockWeeks} — ${weekPosition}
+- ${state.weeksUntilDeload === 0 ? "Next week is a deload, so this week can be the hardest of the block — spend the fatigue, it gets refunded." : state.weeksUntilDeload != null ? `${state.weeksUntilDeload} training week${state.weeksUntilDeload === 1 ? "" : "s"} until the deload — pace accumulated fatigue accordingly.` : "No scheduled deload; watch the recovery data for when one is earned."}`
 }
+
+Applying the block:
+- The numbers above are the DEFAULT shape of a session in this block. The athlete's own coaching instructions, the recovery data, and a lift's CEILING line all override them — when you depart from the block's spec, say in one clause why.
+- Every load you prescribe still comes from their logged top sets and the BEAT THIS / CEILING lines in the PROGRESSION data. The block decides which REP RANGE and which RIR that progression aims at; it never licenses a number you made up.
 - When the athlete asks what to do today, say which block and week they're in, in one short clause. Don't lecture them about periodization they already chose.
 - This block is a real calendar and you MAY refer to it — the "no fixed program calendar" rule below applies to weekday schedules you'd otherwise invent, not to this cycle.`;
     })();
