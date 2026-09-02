@@ -203,13 +203,14 @@ export function describeState(
 // differently every time, so two Tuesdays in the same block could come back
 // with 5×5 at RIR3 and 3×12 at RIR0.
 //
-// Note on how loads are expressed. The coach does NOT receive a 1RM or an
-// e1RM for any lift — its load evidence is the logged top sets in the
-// PROGRESSION block ("top 225lb×5@RIR2") plus the BEAT THIS / CEILING targets
-// derived from them. So every spec below drives load from RIR and from the
-// athlete's own logged numbers, and quotes %1RM only as a parenthetical for
-// calibration. Writing the rules in %1RM would invite the model to invent the
-// 1RM it needs to apply them.
+// Note on how loads and intensity are expressed. The coach does NOT receive a
+// 1RM or an e1RM for any lift — its load evidence is the logged top sets in
+// the PROGRESSION block ("top 225lb×5@RIR2") plus the BEAT THIS / CEILING
+// targets derived from them. So every spec below anchors load to the LAST
+// line rather than to a percentage: writing the rules in %1RM would invite
+// the model to invent the 1RM it needs to apply them. Intensity is RIR
+// throughout, the same scale the logger stores and the PROGRESSION lines
+// render, so nothing has to be converted between the rules and the data.
 //
 // Block names are free text in the editor, so specs are matched on keywords
 // with a generic fallback rather than looked up by exact name.
@@ -223,18 +224,18 @@ export type BlockSpec = {
 
 const POWER_BUILDING: BlockSpec = {
   oneLine:
-    "one heavy top set of 3-5 @RPE8-9, then 65-75% back-offs and 8-12 accessories",
+    "one heavy top set of 3-5 @RIR1-2, then 65-75% back-offs and 8-12 accessories",
   detail: `— POWER-BUILDING —
 Every compound lift gets one heavy top set, then volume work under it.
 
-Top set: 3-5 reps at RPE 8-9. Prescribe equal or greater load than LAST's
+Top set: 3-5 reps at RIR 1-2. Prescribe equal or greater load than LAST's
 top set unless naming a reason not to.
 
-Back-off sets: 3-4 sets at 65-75% of the top set load, 6-10 reps, RPE 7-8.
+Back-off sets: 3-4 sets at 65-75% of the top set load, 6-10 reps, RIR 2-3.
 This is where the volume lives — the top set is a strength test, not the
 stimulus.
 
-Isolation/accessory work: 2-3 sets, 8-12 reps, RPE 8-9, stop 1-2 reps
+Isolation/accessory work: 2-3 sets, 8-12 reps, RIR 1-2 — stop 1-2 reps
 short of failure. Straight sets only, no top-set structure.
 
 Rest: 3-5 min after the top set, 2-3 min on back-off sets, 60-90s on
@@ -247,10 +248,10 @@ top-set attempts.`,
 
 const HYPERTROPHY: BlockSpec = {
   oneLine:
-    "no top sets, everything 6-12 @RPE8-9, 10-20 weekly sets per muscle",
+    "no top sets, everything 6-12 @RIR1-2, 10-20 weekly sets per muscle",
   detail: `— HYPERTROPHY —
-No top-set structure. Every working set in the 6-12 rep range, RPE 8-9
-(1-2 reps in reserve), last set of each exercise may go to RPE 9-10.
+No top-set structure. Every working set in the 6-12 rep range at RIR 1-2,
+last set of each exercise may go to RIR 0-1.
 
 Sets: 3-4 working sets per compound, 3 per isolation exercise. Weekly
 sets per muscle group: 10-20, ramping across the block — lower end early
@@ -269,43 +270,40 @@ same joint angle back to back early in the session.
 Rest: 60-90s on isolation, 90-120s on compounds. Do not let rest drift
 past 2 min on volume work.
 
-Failure policy: last set of an exercise can go to true failure. Sets
-before that stop at RPE 8-9. Never prescribe failure on every set.`,
+Failure policy: last set of an exercise can go to true failure (RIR 0).
+Sets before that stop at RIR 1-2. Never prescribe failure on every set.`,
 };
 
 const PURE_STRENGTH: BlockSpec = {
-  oneLine: "3-5 sets of 1-5 @RPE7-9, long rests, minimal accessories",
+  oneLine: "3-5 sets of 1-5 @RIR1-3, long rests, minimal accessories",
   detail: `— PURE STRENGTH —
 Lower total volume, heavier average load, longer rest. Trade reps for
 load, not the reverse.
 
-Sets: 3-5 sets per compound lift, 1-5 reps, RPE 7-9. No AMRAPs unless the
+Sets: 3-5 sets per compound lift, 1-5 reps, RIR 1-3. No AMRAPs unless the
 week is explicitly programmed as a testing week.
 
-Load: match LAST's load at the same or lower RPE, or add load only if
-LAST was completed at RPE 7 or below with reps in reserve. Never add load
-on top of an RPE 9-10 LAST without naming why.
+Load: match LAST's load at the same or higher RIR, or add load only if
+LAST was completed at RIR 3 or more with reps left in the tank. Never add
+load on top of an RIR 0-1 LAST without naming why.
 
-Accessory work: 2-3 sets, 6-10 reps, RPE 7-8. Minimal — maintain
+Accessory work: 2-3 sets, 6-10 reps, RIR 2-3. Minimal — maintain
 positions and address named weak points only, not additional stimulus.
 
 Rest: 3-5 min on primary lifts, non-negotiable. Do not compress rest to
 save session time.
 
-Weekly structure: no more than one true heavy attempt (RPE 9+) per lift
-per week. The rest of that lift's weekly work stays submaximal and
+Weekly structure: no more than one true heavy attempt (RIR 1 or less) per
+lift per week. The rest of that lift's weekly work stays submaximal and
 technical.`,
 };
 
-/// The three canonical blocks, always emitted together under the header
-/// below so the coach can see the block it is in as one option among three.
 const CANONICAL: BlockSpec[] = [POWER_BUILDING, HYPERTROPHY, PURE_STRENGTH];
 
-/// Preamble for the rules section. The RPE/RIR bridge is not decoration: the
-/// specs are written in RPE, every set this app has ever logged is stored as
-/// RIR, and the PROGRESSION lines the specs point at render as "@RIR2". With
-/// no mapping the coach has to guess which direction the scale runs, and it
-/// guesses wrong often enough to inverse the intensity of a whole session.
+/// Preamble for the rules section. Written in RIR to match the logger: every
+/// set this app stores is RIR, and the PROGRESSION lines these rules point at
+/// render as "@RIR2". Keeping one scale end to end removes a conversion the
+/// coach would otherwise have to do in its head, and get backwards.
 export const BLOCK_RULES_HEADER = `BLOCK-SPECIFIC PRESCRIPTION RULES:
 Apply the section below matching the computed block. Loads always trace
 forward from each lift's LAST line. The block sets the rep range; LAST
@@ -313,11 +311,9 @@ anchors the load. Never prescribe under LAST without naming a reason
 (deload, missed reps last time, flagged joint pain, declining recovery
 score).
 
-These rules are written in RPE. The athlete's logged data is in RIR, and
-every set in the PROGRESSION and RECENT SESSIONS blocks renders as @RIRn.
-Convert: RPE 10 = RIR 0 (failure), RPE 9 = RIR 1, RPE 8 = RIR 2,
-RPE 7 = RIR 3. When you TALK to the athlete use RIR, because that is what
-they log and what the app asks them for.`;
+Intensity is RIR throughout — reps left in reserve, where RIR 0 is failure
+and a higher number is easier. It is the scale the athlete logs, so use it
+when you talk to them too.`;
 
 /// Every canonical section, with the computed one marked. `activeDetail` is
 /// the spec that actually applies this week — usually one of the three, but a
@@ -339,17 +335,17 @@ export function blockRules(activeDetail: string): string {
 }
 
 const PEAKING: BlockSpec = {
-  oneLine: "singles and doubles at RPE 8-9, minimal volume, freshness first",
+  oneLine: "singles and doubles at RIR 1-2, minimal volume, freshness first",
   detail: `— PEAKING —
 The competition or test lifts only, plus the bare minimum to stay healthy.
 Nothing novel — this is not the block to introduce an exercise.
 
-Primary: work up to 1-3 singles or doubles at RPE 8-9 off LAST's top set.
+Primary: work up to 1-3 singles or doubles at RIR 1-2 off LAST's top set.
 Stop the moment bar speed or position degrades.
 
 Back-off: 1-2 sets of 2-3 at ~85% of the day's top, only if it moved well.
 
-Accessory work: 1-2 easy sets at RPE 7 or below, or skip entirely.
+Accessory work: 1-2 easy sets at RIR 3 or more, or skip entirely.
 Accumulated fatigue is the enemy for the whole block.
 
 Rest: 4-8 min between heavy attempts. Full recovery, every time.
@@ -360,11 +356,11 @@ no failure, no "one more if it feels good".`,
 };
 
 const ENDURANCE: BlockSpec = {
-  oneLine: "12-20+ reps at RPE 8-9, short rest, work capacity",
+  oneLine: "12-20+ reps at RIR 1-2, short rest, work capacity",
   detail: `— MUSCULAR ENDURANCE / WORK CAPACITY —
 Circuits or paired supersets, moderate loads, continuous work.
 
-Sets: 3-4 sets of 12-20+ reps at RPE 8-9. Pick loads that let the rep
+Sets: 3-4 sets of 12-20+ reps at RIR 1-2. Pick loads that let the rep
 target be hit with clean technique on the last set.
 
 Rest: 30-75s. The short rest IS the training stimulus — do not lengthen it
@@ -384,7 +380,7 @@ The athlete named this block themselves, so there is no house prescription
 for it. Program it from its name, their coaching instructions, and their
 recent sessions.
 
-Default to 3-4 working sets of 6-10 reps at RPE 8-9 unless the block's name
+Default to 3-4 working sets of 6-10 reps at RIR 1-2 unless the block's name
 or their instructions clearly imply otherwise.
 
 Anchor every load to LAST for that lift. Keep the shape of a session
@@ -420,9 +416,9 @@ dropping weight does. A ${reductionPct}% cut on a normal 4-set exercise is
 2-3 sets. If you cut load instead, take 20-30% off recent working weight
 and keep the sets.
 
-Every set finishes at RPE 6 or easier (RIR 4+). Nothing goes above RPE 7,
-ever. This is the one block where prescribing UNDER LAST is correct and
-needs no further justification beyond naming the deload.
+Every set finishes at RIR 4 or more. Nothing goes below RIR 3, ever. This
+is the one block where prescribing UNDER LAST is correct and needs no
+justification beyond naming the deload.
 
 Reps: stay in the middle, 5-8. Neither heavy singles nor high-rep burnouts.
 
