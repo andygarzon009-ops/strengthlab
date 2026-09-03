@@ -5,6 +5,7 @@ import Link from "next/link";
 import ProfileForm from "@/components/ProfileForm";
 import { type PeriodizationConfig } from "@/lib/periodization";
 import { localDateKey } from "@/lib/blockStamp";
+import { advancesTrainingCycle } from "@/lib/exercises";
 import TutorialLauncher from "@/components/TutorialLauncher";
 import ChangePasswordCard from "@/components/ChangePasswordCard";
 import FriendWorkoutNotifyToggle from "@/components/FriendWorkoutNotifyToggle";
@@ -23,12 +24,16 @@ export default async function ProfilePage() {
   // programmed for another.
   const logged = await prisma.workout.findMany({
     where: { userId, date: { gte: new Date(Date.now() - 540 * 86_400_000) } },
-    select: { date: true },
+    select: { date: true, type: true },
     orderBy: { date: "asc" },
   });
   const tz = user.timezone || "UTC";
   const trainedDates = [
-    ...new Set(logged.map((w) => localDateKey(w.date, tz))),
+    ...new Set(
+      logged
+        .filter((w) => advancesTrainingCycle(w.type))
+        .map((w) => localDateKey(w.date, tz)),
+    ),
   ];
 
   return (

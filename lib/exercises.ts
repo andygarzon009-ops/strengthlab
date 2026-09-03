@@ -1079,6 +1079,19 @@ export function shapeForType(type: string): WorkoutShape {
   return WORKOUT_TYPES.find((t) => t.value === type)?.shape ?? "STRENGTH";
 }
 
+/// Does a logged session count as having trained a week of the block cycle?
+///
+/// Only resistance work does. Every block in lib/periodization.ts prescribes
+/// sets, reps and RIR — a mobility flow, a hike or a run is not a week of
+/// hypertrophy, and letting one count means a travel week where the athlete
+/// only stretched silently advances the block past work they never did.
+///
+/// (The corollary: an athlete whose cycle is genuinely a conditioning block
+/// would need this widened. Nothing in the app programs one today.)
+export function advancesTrainingCycle(type: string): boolean {
+  return shapeForType(type) === "STRENGTH";
+}
+
 export function labelForType(type: string): string {
   if (LEGACY_STRENGTH_TYPES.includes(type)) return "Weight training";
   return WORKOUT_TYPES.find((t) => t.value === type)?.label ?? type;

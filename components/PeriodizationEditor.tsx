@@ -130,8 +130,8 @@ export default function PeriodizationEditor({
                   className="text-[11px] mt-1 leading-snug"
                   style={{ color: "var(--fg-dim)" }}
                 >
-                  {preview.weeksOff} week{preview.weeksOff === 1 ? "" : "s"} with
-                  nothing logged {preview.weeksOff === 1 ? "was" : "were"} skipped
+                  {preview.weeksOff} week{preview.weeksOff === 1 ? "" : "s"} without
+                  a lifting session {preview.weeksOff === 1 ? "was" : "were"} skipped
                   — the block pauses instead of advancing, so this is training week{" "}
                   {preview.weekNumber} of calendar week {preview.calendarWeek}.
                 </p>

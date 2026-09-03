@@ -232,19 +232,20 @@ export function describeTimeOff(state: PeriodizationState): string {
   if (state.weeksOffBefore > 0) {
     const n = state.weeksOffBefore;
     return (
-      `They logged NOTHING for the ${n} week${n === 1 ? "" : "s"} before this one, ` +
-      `so the block was PAUSED there and did not advance — this is week ` +
-      `${state.weekNumber} of training, not calendar week ${state.calendarWeek}. ` +
-      `Treat this as a return from a layoff: ease the first session or two back in, ` +
-      `expect some load to have gone backwards, and don't program off the last logged ` +
-      `week as though it were seven days ago.`
+      `They did NO resistance training at all for the ${n} week${n === 1 ? "" : "s"} ` +
+      `before this one (mobility, cardio and rest days don't advance a block whose ` +
+      `prescriptions are sets, reps and RIR), so the block was PAUSED there and did ` +
+      `not advance — this is week ${state.weekNumber} of training, not calendar week ` +
+      `${state.calendarWeek}. Treat this as a return from a layoff: ease the first ` +
+      `session or two back in, expect some load to have gone backwards, and don't ` +
+      `program off the last lifting week as though it were seven days ago.`
     );
   }
   if (state.weeksOff > 0) {
     return (
-      `${state.weeksOff} earlier week${state.weeksOff === 1 ? "" : "s"} had nothing ` +
-      `logged and were skipped, which is why the training week is ${state.weekNumber} ` +
-      `and the calendar week is ${state.calendarWeek}.`
+      `${state.weeksOff} earlier week${state.weeksOff === 1 ? "" : "s"} had no ` +
+      `resistance training and were skipped, which is why the training week is ` +
+      `${state.weekNumber} and the calendar week is ${state.calendarWeek}.`
     );
   }
   return "";

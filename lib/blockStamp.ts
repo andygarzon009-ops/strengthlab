@@ -7,6 +7,7 @@
 /// drift into disagreeing about what week it is.
 
 import { prisma } from "@/lib/db";
+import { advancesTrainingCycle } from "@/lib/exercises";
 import {
   isValidConfig,
   periodizationState,
@@ -61,13 +62,17 @@ export async function resolveBlock(
 
   const rows = await prisma.workout.findMany({
     where: { userId, date: { gte: since } },
-    select: { date: true },
+    select: { date: true, type: true },
     orderBy: { date: "asc" },
   });
 
+  // Only resistance sessions advance the cycle — a week of mobility flows on
+  // holiday is not a week of the block. See `advancesTrainingCycle`.
   const trained = trainedWeekSet(
     config.startDate,
-    rows.map((r) => localDateKey(r.date, tz)),
+    rows
+      .filter((r) => advancesTrainingCycle(r.type))
+      .map((r) => localDateKey(r.date, tz)),
   );
   const state = periodizationState(config, onDate, trained);
   return state ? { config, state } : null;

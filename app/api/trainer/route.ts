@@ -4,7 +4,12 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import { format, subDays, addDays, differenceInDays } from "date-fns";
 import { NextRequest } from "next/server";
-import { shapeForType, labelForType, formatDuration } from "@/lib/exercises";
+import {
+  shapeForType,
+  labelForType,
+  formatDuration,
+  advancesTrainingCycle,
+} from "@/lib/exercises";
 import { isBetterWeightPR, normalizeExerciseName } from "@/lib/exerciseIdentity";
 import { parseLiveLog } from "@/lib/parseLiveLog";
 import { computeWeakSpots, formatWeakSpotsForPrompt } from "@/lib/weakSpots";
@@ -250,7 +255,7 @@ export async function POST(req: NextRequest) {
       // nothing next to the seconds this route spends streaming.
       prisma.workout.findMany({
         where: { userId, date: { gte: subDays(new Date(), 540) } },
-        select: { date: true },
+        select: { date: true, type: true },
         orderBy: { date: "asc" },
       }),
     ]);
@@ -304,7 +309,11 @@ export async function POST(req: NextRequest) {
           isoToday,
           trainedWeekSet(
             blockCfg.startDate,
-            workoutDates.map((w) => fmtIso(w.date)),
+            // Resistance sessions only: a week of mobility or cardio doesn't
+            // advance a block whose every prescription is sets, reps and RIR.
+            workoutDates
+              .filter((w) => advancesTrainingCycle(w.type))
+              .map((w) => fmtIso(w.date)),
           ),
         )
       : null;

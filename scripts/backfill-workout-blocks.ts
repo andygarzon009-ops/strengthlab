@@ -29,6 +29,7 @@ import {
   type PeriodizationConfig,
 } from "../lib/periodization";
 import { blockStampColumns, localDateKey } from "../lib/blockStamp";
+import { advancesTrainingCycle } from "../lib/exercises";
 
 type Stamp = ReturnType<typeof blockStampColumns>;
 
@@ -60,13 +61,18 @@ async function main() {
     // the middle of the history would be read as time off that it wasn't.
     const workouts = await prisma.workout.findMany({
       where: { userId: u.id, date: { gte: new Date(`${cfg.startDate}T00:00:00Z`) } },
-      select: { id: true, date: true, blockName: true },
+      select: { id: true, date: true, type: true, blockName: true },
       orderBy: { date: "asc" },
     });
 
+    // Which weeks the cycle advanced through — resistance sessions only, the
+    // same rule the coach and the logger use. Mobility and cardio still GET a
+    // stamp (they happened during that block), they just don't move it.
     const trained = trainedWeekSet(
       cfg.startDate,
-      workouts.map((w) => localDateKey(w.date, tz)),
+      workouts
+        .filter((w) => advancesTrainingCycle(w.type))
+        .map((w) => localDateKey(w.date, tz)),
     );
 
     // One update per distinct stamp rather than per workout: a 4-day week is
