@@ -376,6 +376,19 @@ model Workout {
   endedAt      DateTime?
   /// Coach-prescribed warmup payload: { items: [{ kind, name, durationSec?, reps?, instructions? }] }
   warmup       Json?
+  /// Where in the training cycle this session was run, stamped at log time
+  /// from the athlete's periodization config (lib/periodization.ts). Frozen
+  /// history: editing or restarting the cycle later must not rewrite what a
+  /// past session was. Null for sessions logged with no cycle configured, and
+  /// for everything logged before this was added.
+  blockName      String?
+  /// Week within `blockName`, 1-based (0 on a deload, when the block pauses).
+  blockWeek      Int?
+  /// Length of that block in weeks, so the label reads "week 2 of 4".
+  blockWeeks     Int?
+  /// Training-week ordinal across the whole cycle — weeks with nothing logged
+  /// are not counted, so this is not the calendar week.
+  blockCycleWeek Int?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

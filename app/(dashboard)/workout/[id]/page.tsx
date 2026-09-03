@@ -1,3 +1,4 @@
+import { blockLabel } from "@/lib/periodization";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import {
@@ -221,6 +222,17 @@ export default async function WorkoutDetailPage({
               }}
             >
               {feeling.label}
+            </span>
+          )}
+          {blockLabel(workout) && (
+            <span
+              className="label text-[9px] px-2 py-1 rounded-md"
+              style={{
+                background: "var(--accent-dim)",
+                color: "var(--accent)",
+              }}
+            >
+              {blockLabel(workout)}
             </span>
           )}
           {workout.isDeload && (

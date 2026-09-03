@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/app/generated/prisma";
 import { isValidConfig, type PeriodizationConfig } from "@/lib/periodization";
+import { blockStampColumns, localDateKey, resolveBlock } from "@/lib/blockStamp";
 import { requireAuth } from "@/lib/session";
 import { similarExerciseIds } from "@/lib/exerciseIdentity";
 import { revalidatePath } from "next/cache";
@@ -76,9 +77,35 @@ export type CreateWorkoutInput = {
 export async function createWorkout(data: CreateWorkoutInput) {
   const userId = await requireAuth();
 
+  // Freeze where in the cycle this session sits, so history can say "that was
+  // Hypertrophy week 2" without re-deriving it from a config the athlete may
+  // since have edited or restarted. Resolved against the session's OWN date,
+  // not today, so a backdated entry lands in the week it was trained.
+  // Best-effort: a session is worth more than its label, so any failure here
+  // logs the workout unstamped rather than losing it.
+  const stamp = await (async () => {
+    try {
+      const u = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { periodization: true, timezone: true },
+      });
+      if (!u) return blockStampColumns(null);
+      const tz = u.timezone || "UTC";
+      const resolved = await resolveBlock(
+        userId,
+        localDateKey(new Date(data.date), tz),
+        { periodization: u.periodization, timezone: tz },
+      );
+      return blockStampColumns(resolved?.state ?? null);
+    } catch {
+      return blockStampColumns(null);
+    }
+  })();
+
   const workout = await prisma.workout.create({
     data: {
       userId,
+      ...stamp,
       title: data.title,
       type: data.type,
       split: data.split ?? null,

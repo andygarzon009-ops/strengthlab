@@ -40,7 +40,15 @@ type UserProfile = {
   calf: number | null;
 };
 
-export default function ProfileForm({ user }: { user: UserProfile }) {
+export default function ProfileForm({
+  user,
+  /// Local dates (YYYY-MM-DD) the athlete logged something on, so the cycle
+  /// editor's preview skips untrained weeks exactly as the coach does.
+  trainedDates = [],
+}: {
+  user: UserProfile;
+  trainedDates?: string[];
+}) {
   const [pending, startTransition] = useTransition();
   // Both detail sections start collapsed so the profile opens clean — tap a
   // header to expand. Form state lives in `form`, so collapsing never loses
@@ -368,7 +376,11 @@ export default function ProfileForm({ user }: { user: UserProfile }) {
             />
           </div>
 
-          <PeriodizationEditor value={periodization} onChange={setPeriodization} />
+          <PeriodizationEditor
+            value={periodization}
+            onChange={setPeriodization}
+            trainedDates={trainedDates}
+          />
 
           <div>
             <div className="flex items-baseline justify-between mb-1.5">

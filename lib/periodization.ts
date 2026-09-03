@@ -29,8 +29,18 @@ export type PeriodizationConfig = {
 };
 
 export type PeriodizationState = {
-  /// Weeks since the cycle started, 1-based, counting deloads.
+  /// Training weeks completed plus this one, 1-based, counting deloads but
+  /// NOT weeks with nothing logged. This is the number the athlete means when
+  /// they say "week 3" — a fortnight in Portugal doesn't advance it.
   weekNumber: number;
+  /// Weeks since `startDate` on the calendar, 1-based. Equals `weekNumber`
+  /// when nothing was ever missed; the gap between them is time off.
+  calendarWeek: number;
+  /// Calendar weeks since the cycle started with nothing logged at all.
+  weeksOff: number;
+  /// Of those, the run immediately before this week — what the athlete
+  /// experienced as "I was away". 0 if they trained last week.
+  weeksOffBefore: number;
   /// The block being run this week — or "Deload" during a deload week.
   blockName: string;
   /// Index of that block in `config.blocks`. Needed because a cycle may run
@@ -89,17 +99,45 @@ export function weeksBetween(startDate: string, onDate: string): number {
   return Math.floor((b - a) / (7 * 86_400_000));
 }
 
+/// The cycle weeks the athlete actually trained in, from their logged workout
+/// dates (local YYYY-MM-DD). A week is "trained" if anything at all was logged
+/// in it — one session counts. Weeks before the cycle started are ignored.
+export function trainedWeekSet(
+  startDate: string,
+  workoutDates: readonly string[],
+): Set<number> {
+  const weeks = new Set<number>();
+  for (const d of workoutDates) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+    const w = weeksBetween(startDate, d);
+    if (w >= 0) weeks.add(w);
+  }
+  return weeks;
+}
+
 /// Resolves the cycle to the week containing `onDate`.
 ///
 /// Deloads are *inserted* between training weeks rather than consuming one:
 /// during a deload the block pauses and resumes where it left off, which is how
-/// the athlete described it ("deload every ~6–8 weeks" running across blocks
+/// the athlete described it ("deload every ~6-8 weeks" running across blocks
 /// rather than being carved out of one). Walking the weeks one at a time is
 /// what keeps that honest — with an inserted week the position isn't a modulo,
 /// because deloads and block boundaries drift relative to each other.
+///
+/// `trainedWeeks` (from `trainedWeekSet`) makes the cycle advance on weeks the
+/// athlete trained rather than on weeks the calendar turned. Pass it and a week
+/// with nothing logged is SKIPPED: the block neither advances nor is consumed,
+/// so two weeks on holiday leave you where you were, not two weeks deeper into
+/// a block you didn't run. A skipped week does reset the deload counter — a
+/// week of zero training is more of a deload than a deload week is. The week
+/// containing `onDate` is never skipped: it is the week being programmed, and
+/// nothing has been logged in it yet at the moment the coach is asked.
+///
+/// Omit `trainedWeeks` for the pure-calendar behaviour.
 export function periodizationState(
   config: PeriodizationConfig,
   onDate: string,
+  trainedWeeks?: ReadonlySet<number> | null,
 ): PeriodizationState | null {
   if (!isValidConfig(config)) return null;
   const elapsed = weeksBetween(config.startDate, onDate);
@@ -113,19 +151,39 @@ export function periodizationState(
   let blockIdx = 0;
   let weekInBlock = 0; // completed weeks of the current block
   let sinceDeload = 0; // training weeks since the last deload
+  let trainedSoFar = 0; // weeks that actually happened, before this one
+  let weeksOff = 0; // calendar weeks skipped for want of any logged session
+  let weeksOffBefore = 0; // ...of which, the run ending just before this week
 
   // Replay every week up to and including the target so the state is the
   // product of the whole history, not a formula that assumes nothing shifted.
   for (let w = 0; w <= Math.min(elapsed, MAX_WEEKS); w++) {
+    // A past week with nothing logged never happened as far as the cycle is
+    // concerned. Checked before the deload test so a missed week can't be
+    // spent as the deload the athlete never took.
+    if (w < elapsed && trainedWeeks && !trainedWeeks.has(w)) {
+      weeksOff++;
+      weeksOffBefore++;
+      sinceDeload = 0;
+      continue;
+    }
+    if (w < elapsed) weeksOffBefore = 0;
+
     const isDeload = deloadEvery != null && sinceDeload >= deloadEvery;
 
     if (w === elapsed) {
       const block = config.blocks[blockIdx];
+      const common = {
+        weekNumber: trainedSoFar + 1,
+        calendarWeek: elapsed + 1,
+        weeksOff,
+        weeksOffBefore,
+        blockIndex: blockIdx,
+      };
       if (isDeload) {
         return {
-          weekNumber: elapsed + 1,
+          ...common,
           blockName: "Deload",
-          blockIndex: blockIdx,
           isDeloadWeek: true,
           weekInBlock: 0,
           blockWeeks: 0,
@@ -137,9 +195,8 @@ export function periodizationState(
       const finishesBlock = weekInBlock + 1 >= block.weeks;
       const nextBlock = config.blocks[(blockIdx + 1) % config.blocks.length];
       return {
-        weekNumber: elapsed + 1,
+        ...common,
         blockName: block.name,
-        blockIndex: blockIdx,
         isDeloadWeek: false,
         weekInBlock: weekInBlock + 1,
         blockWeeks: block.weeks,
@@ -153,6 +210,7 @@ export function periodizationState(
     }
 
     // Advance past week w.
+    trainedSoFar++;
     if (isDeload) {
       sinceDeload = 0; // the block is paused, not advanced
     } else {
@@ -165,6 +223,31 @@ export function periodizationState(
     }
   }
   return null;
+}
+
+/// How the athlete's time away reads in a sentence, or "" if they've been
+/// training straight through. Kept next to the arithmetic so the prompt, the
+/// editor and the workout stamp all describe a layoff the same way.
+export function describeTimeOff(state: PeriodizationState): string {
+  if (state.weeksOffBefore > 0) {
+    const n = state.weeksOffBefore;
+    return (
+      `They logged NOTHING for the ${n} week${n === 1 ? "" : "s"} before this one, ` +
+      `so the block was PAUSED there and did not advance — this is week ` +
+      `${state.weekNumber} of training, not calendar week ${state.calendarWeek}. ` +
+      `Treat this as a return from a layoff: ease the first session or two back in, ` +
+      `expect some load to have gone backwards, and don't program off the last logged ` +
+      `week as though it were seven days ago.`
+    );
+  }
+  if (state.weeksOff > 0) {
+    return (
+      `${state.weeksOff} earlier week${state.weeksOff === 1 ? "" : "s"} had nothing ` +
+      `logged and were skipped, which is why the training week is ${state.weekNumber} ` +
+      `and the calendar week is ${state.calendarWeek}.`
+    );
+  }
+  return "";
 }
 
 /// One-line summary for the coach prompt, e.g.
@@ -190,6 +273,23 @@ export function describeState(
     `Week ${state.weekNumber} — ${state.blockName} block, week ${state.weekInBlock} of ` +
     `${state.blockWeeks}. ${deload} Next up: ${state.nextUp}.`
   );
+}
+
+/// The short label a logged session carries, e.g. "Hypertrophy · week 2 of 4".
+/// Built from the columns stamped on the workout rather than recomputed, so a
+/// session keeps saying what block it was run in even after the athlete edits
+/// or restarts their cycle.
+export function blockLabel(w: {
+  blockName: string | null;
+  blockWeek: number | null;
+  blockWeeks: number | null;
+  isDeload?: boolean;
+}): string | null {
+  if (!w.blockName) return null;
+  if (w.blockWeek == null || w.blockWeeks == null || w.blockWeeks <= 0) {
+    return w.blockName;
+  }
+  return `${w.blockName} · week ${w.blockWeek} of ${w.blockWeeks}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

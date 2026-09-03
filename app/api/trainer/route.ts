@@ -27,7 +27,9 @@ import {
 import {
   periodizationState,
   describeState,
+  describeTimeOff,
   isValidConfig,
+  trainedWeekSet,
   blockSpec,
   blockRules,
   deloadSpec,
@@ -191,7 +193,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "AI trainer not configured" }, { status: 500 });
     }
 
-    const [user, workouts, prs, history, goals, healthAccount, fuel] =
+    const [user, workouts, prs, history, goals, healthAccount, fuel, workoutDates] =
       await Promise.all([
       prisma.user.findUnique({ where: { id: userId } }),
       prisma.workout.findMany({
@@ -240,6 +242,17 @@ export async function POST(req: NextRequest) {
       // (not serially after) so it never adds latency before the coach can
       // start streaming. Degrades to null on any failure.
       getTodayFuel(userId).catch(() => null),
+      // Just the dates, ~18 months back: enough to tell which weeks of the
+      // cycle were actually trained. The `take: 30` workouts above can't
+      // answer that — 30 sessions is ~7 weeks for a 4-day lifter, and a gap
+      // at the far end of that window is indistinguishable from the window
+      // simply ending. Date-only on the [userId, date] index, so it costs
+      // nothing next to the seconds this route spends streaming.
+      prisma.workout.findMany({
+        where: { userId, date: { gte: subDays(new Date(), 540) } },
+        select: { date: true },
+        orderBy: { date: "asc" },
+      }),
     ]);
 
     // Anchor "today" to the athlete's local timezone, not the server's
@@ -281,8 +294,19 @@ export async function POST(req: NextRequest) {
     // lift's "beat this" target should be aimed at — a strength block's top
     // triple is not the thing to beat during a hypertrophy week.
     const blockCfg = user?.periodization as PeriodizationConfig | null;
+    // Gated on the weeks the athlete actually logged something in. Two weeks
+    // away used to advance the cycle two weeks — the coach would open week 5
+    // of a block whose weeks 3 and 4 never happened. A week with nothing in it
+    // pauses the block instead.
     const blockState = isValidConfig(blockCfg)
-      ? periodizationState(blockCfg, isoToday)
+      ? periodizationState(
+          blockCfg,
+          isoToday,
+          trainedWeekSet(
+            blockCfg.startDate,
+            workoutDates.map((w) => fmtIso(w.date)),
+          ),
+        )
       : null;
 
     const formatSet = (
@@ -692,6 +716,11 @@ Calibrate today's intensity and volume to this: a low recovery score, short or p
           return `  ${i + 1}. ${b.name} — ${b.weeks} weeks — ${blockSpec(b.name).oneLine}${here}`;
         })
         .join("\n");
+      // Weeks with nothing logged are skipped rather than counted, so the
+      // coach has to be told when that happened — otherwise "week 3" after a
+      // fortnight away reads as continuous training and it programs the jump
+      // the athlete never earned.
+      const timeOff = describeTimeOff(state);
       // Late-block weeks are where the hardest work belongs, so say where in
       // the arc this week sits rather than making the coach infer it.
       const weekPosition = (() => {
@@ -708,7 +737,8 @@ Calibrate today's intensity and volume to this: a low recovery score, short or p
 ━━━━━━━━━━━━━━━━━━━━━━━━
 The athlete's cycle, repeating, with a deload every ${cfg.deloadEveryWeeks ?? "—"} training weeks:
 ${cycle}
-These week numbers are CALCULATED from the athlete's declared start date — they are authoritative. Do not re-derive the block from session history, and never contradict them.
+These week numbers are CALCULATED from the athlete's declared start date and the weeks they actually LOGGED training in — they are authoritative. Do not re-derive the block from session history, and never contradict them.
+A week with nothing logged does NOT advance the cycle: the block pauses and resumes where it left off, so time off never skips them forward into work they haven't done.${timeOff ? `\n${timeOff}` : ""}
 
 ${blockRules(state.isDeloadWeek ? deloadSpec(cfg.deloadReductionPct) : blockSpec(state.blockName).detail)}
 

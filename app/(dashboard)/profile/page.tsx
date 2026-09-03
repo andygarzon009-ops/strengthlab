@@ -4,6 +4,7 @@ import { logout } from "@/lib/actions/auth";
 import Link from "next/link";
 import ProfileForm from "@/components/ProfileForm";
 import { type PeriodizationConfig } from "@/lib/periodization";
+import { localDateKey } from "@/lib/blockStamp";
 import TutorialLauncher from "@/components/TutorialLauncher";
 import ChangePasswordCard from "@/components/ChangePasswordCard";
 import FriendWorkoutNotifyToggle from "@/components/FriendWorkoutNotifyToggle";
@@ -15,6 +16,20 @@ export default async function ProfilePage() {
   const user = await prisma.user.findUnique({ where: { id: userId } });
 
   if (!user) return null;
+
+  // Local dates of everything logged in the last 18 months. The cycle editor's
+  // "right now your coach sees" preview has to run the same trained-week
+  // arithmetic the coach does, or the athlete reads one week here and gets
+  // programmed for another.
+  const logged = await prisma.workout.findMany({
+    where: { userId, date: { gte: new Date(Date.now() - 540 * 86_400_000) } },
+    select: { date: true },
+    orderBy: { date: "asc" },
+  });
+  const tz = user.timezone || "UTC";
+  const trainedDates = [
+    ...new Set(logged.map((w) => localDateKey(w.date, tz))),
+  ];
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
@@ -43,6 +58,7 @@ export default async function ProfilePage() {
       </div>
 
       <ProfileForm
+        trainedDates={trainedDates}
         user={{
           name: user.name,
           email: user.email,

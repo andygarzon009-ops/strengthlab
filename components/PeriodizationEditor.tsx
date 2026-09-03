@@ -5,9 +5,11 @@
 // workouts with nothing marking a block start or a deload — so the athlete
 // states the cycle here and the week is computed from it.
 
+import { useMemo } from "react";
 import {
   DEFAULT_PERIODIZATION,
   periodizationState,
+  trainedWeekSet,
   isValidConfig,
   type PeriodizationConfig,
 } from "@/lib/periodization";
@@ -42,9 +44,13 @@ function thisMondayISO(): string {
 export default function PeriodizationEditor({
   value,
   onChange,
+  trainedDates = [],
 }: {
   value: PeriodizationConfig | null;
   onChange: (v: PeriodizationConfig | null) => void;
+  /// Local dates the athlete logged on. Weeks absent from this list didn't
+  /// happen, and the cycle doesn't advance through them.
+  trainedDates?: string[];
 }) {
   const enabled = value != null;
   const cfg = value;
@@ -62,8 +68,16 @@ export default function PeriodizationEditor({
       blocks: cfg.blocks.map((b, j) => (j === i ? { ...b, ...p } : b)),
     });
 
-  const preview =
-    cfg && isValidConfig(cfg) ? periodizationState(cfg, todayLocalISO()) : null;
+  // Recomputed as the athlete edits the start date, so the preview always
+  // answers for the cycle currently on screen rather than the saved one.
+  const preview = useMemo(() => {
+    if (!cfg || !isValidConfig(cfg)) return null;
+    return periodizationState(
+      cfg,
+      todayLocalISO(),
+      trainedWeekSet(cfg.startDate, trainedDates),
+    );
+  }, [cfg, trainedDates]);
 
   return (
     <div>
@@ -111,6 +125,17 @@ export default function PeriodizationEditor({
               <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-muted)" }}>
                 Next up: {preview.nextUp}
               </p>
+              {preview.weeksOff > 0 && (
+                <p
+                  className="text-[11px] mt-1 leading-snug"
+                  style={{ color: "var(--fg-dim)" }}
+                >
+                  {preview.weeksOff} week{preview.weeksOff === 1 ? "" : "s"} with
+                  nothing logged {preview.weeksOff === 1 ? "was" : "were"} skipped
+                  — the block pauses instead of advancing, so this is training week{" "}
+                  {preview.weekNumber} of calendar week {preview.calendarWeek}.
+                </p>
+              )}
             </div>
           )}
 
