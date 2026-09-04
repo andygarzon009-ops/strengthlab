@@ -2,13 +2,61 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import type { Projection } from "@/lib/projections";
 
-type Projection = {
-  exerciseName: string;
-  baseWeight: number;
-  baseReps: number;
-  oneRepMax: number;
-};
+/// Compact est.-1RM trend for one lift. Deliberately axis-free — it sits in a
+/// list row, so it only has to answer "climbing, flat, or slipping"; the
+/// drilldown has the real chart.
+function Sparkline({ trend }: { trend: Projection["trend"] }) {
+  const W = 56;
+  const H = 20;
+  if (trend.length < 2) {
+    return (
+      <span
+        className="shrink-0 text-[9px] tabular-nums"
+        style={{ width: W, color: "var(--fg-dim)" }}
+      >
+        1 session
+      </span>
+    );
+  }
+
+  const vals = trend.map((p) => p.e1rm);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const span = max - min || 1;
+  const step = W / (vals.length - 1);
+  const pts = vals.map((v, i) => {
+    const x = i * step;
+    // 1.5px inset top and bottom so the stroke isn't clipped at the extremes.
+    const y = H - 1.5 - ((v - min) / span) * (H - 3);
+    return [x, y] as const;
+  });
+  const d = pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+  const [lastX, lastY] = pts[pts.length - 1];
+
+  // Colour by where the lift is now versus its recent baseline: the last point
+  // against the median of everything before it.
+  const prior = vals.slice(0, -1).sort((a, b) => a - b);
+  const median = prior[Math.floor(prior.length / 2)];
+  const last = vals[vals.length - 1];
+  const rising = last > median * 1.01;
+  const falling = last < median * 0.99;
+  const stroke = rising ? "#22c55e" : falling ? "#f97316" : "var(--fg-muted)";
+
+  return (
+    <svg
+      width={W}
+      height={H}
+      viewBox={`0 0 ${W} ${H}`}
+      className="shrink-0 overflow-visible"
+      aria-hidden="true"
+    >
+      <path d={d} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={lastX} cy={lastY} r="2" fill={stroke} />
+    </svg>
+  );
+}
 
 /// `href`, when set, turns the card into an entry point for a dedicated
 /// strength page: the header links there and the footer swaps its inline
@@ -56,9 +104,10 @@ export default function Projections({
 
       <div className="space-y-2">
         {visible.map((p, i) => (
-          <div
+          <Link
             key={p.exerciseName}
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5"
+            href={`/strength/${encodeURIComponent(p.exerciseId)}`}
+            className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors active:opacity-70"
             style={{
               background: "var(--bg-elevated)",
               border: "1px solid var(--border)",
@@ -87,8 +136,9 @@ export default function Projections({
                 from {p.baseWeight} × {p.baseReps}
               </p>
             </div>
+            <Sparkline trend={p.trend} />
             <p
-              className="nums text-[15px] font-bold shrink-0"
+              className="nums text-[15px] font-bold shrink-0 w-[52px] text-right"
               style={{
                 fontFamily: "var(--font-geist-mono)",
                 color: "var(--accent)",
@@ -99,7 +149,7 @@ export default function Projections({
                 lb
               </span>
             </p>
-          </div>
+          </Link>
         ))}
       </div>
 
@@ -138,7 +188,7 @@ export default function Projections({
         className="text-[10px] mt-3"
         style={{ color: "var(--fg-dim)" }}
       >
-        Epley formula · weight × (1 + reps ÷ 30)
+        Epley formula · weight × (1 + reps ÷ 30) · tap a lift for its full trend
       </p>
     </div>
   );

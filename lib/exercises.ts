@@ -862,7 +862,7 @@ export function specificMuscleFor(name: string): string {
 
   // --- Shoulders (granular) — check first so we catch moves often
   // bucketed under Back or Chest in the old taxonomy.
-  if (/\brear[- ]?delt\b|\bface pull\b|\breverse fly\b/.test(n))
+  if (/\brear[- ]?delts?\b|\bface pulls?\b|\breverse fly\b|\b[yt]-raises?\b/.test(n))
     return "Rear Delts";
   // Exclude "iso-lateral" (Hammer Strength machine naming) and lower-body
   // moves like "lateral lunge/bound/walk" from matching the lateral regex.
@@ -874,6 +874,15 @@ export function specificMuscleFor(name: string): string {
   )
     return "Side Delts";
   if (/\bfront raise\b/.test(n)) return "Front Delts";
+  // Overhead pressing with words in between — "Standing Overhead Barbell
+  // Press" — which the fixed-phrase list below misses. Triceps extensions
+  // that happen to say "overhead" are excluded and fall through to Arms.
+  if (
+    /\boverhead\b/.test(n) &&
+    /\bpress\b/.test(n) &&
+    !/\btricep\b|\bskullcrusher\b|\bfrench press\b|\bextension\b/.test(n)
+  )
+    return "Front Delts";
   if (
     /\bshoulder press\b|\boverhead press\b|\bohp\b|\barnold press\b|\bmilitary press\b|\bpush press\b|\bhandstand push\b|\bpike push\b|\bz press\b|\blandmine press\b/.test(
       n
@@ -888,6 +897,11 @@ export function specificMuscleFor(name: string): string {
       n
     )
   )
+    return "Pec Major";
+  // Bench-pattern pressing named without the word "bench" — e.g. "Incline
+  // Dumbbell Press". Overhead/shoulder presses are claimed above, so what
+  // reaches here on an incline/decline/flat angle is chest work.
+  if (/\b(?:incline|decline|flat)\b/.test(n) && /\bpress\b/.test(n))
     return "Pec Major";
 
   // --- Back
@@ -909,14 +923,14 @@ export function specificMuscleFor(name: string): string {
 
   // --- Arms
   if (
-    /\btricep\b|\bskullcrusher\b|\bjm press\b|\bclose-?grip\b|\bpushdown\b|\bdiamond push\b|\btate press\b|\boverhead extension\b|\boverhead (rope )?tricep\b|\bfrench press\b|\bkickback \(tricep\)\b/.test(
+    /\btriceps?\b|\bskullcrusher\b|\bjm press\b|\bclose-?grip\b|\bpush-? ?downs?\b|\bdiamond push\b|\btate press\b|\boverhead\b[^|]*\bextensions?\b|\boverhead (rope )?triceps?\b|\bfrench press\b|\bkickback \(triceps?\)\b/.test(
       n
     )
   )
     return "Triceps";
-  if (/\bhammer curl\b|\breverse curl\b|\bzottman\b/.test(n))
+  if (/\bhammer curls?\b|\breverse curls?\b|\bzottman\b/.test(n))
     return "Brachialis";
-  if (/\bcurl\b/.test(n)) return "Biceps";
+  if (/\bcurls?\b/.test(n)) return "Biceps";
   if (/\bwrist\b|\bfarmer carry\b|\bplate pinch\b/.test(n)) return "Forearms";
 
   // --- Core
@@ -927,7 +941,7 @@ export function specificMuscleFor(name: string): string {
   )
     return "Obliques";
   if (
-    /\bplank\b|\bhollow\b|\bcrunch\b|\bsit-?up\b|\bleg raise\b|\bknee raise\b|\bab wheel\b|\bdead bug\b|\bv-up\b|\bv-sit\b|\btoes-to-bar\b|\bl-sit\b|\bdragon flag\b|\bmountain climber\b|\barch hold\b/.test(
+    /\bplanks?\b|\bhollow\b|\bcrunch(?:es)?\b|\bsit-? ?ups?\b|\bleg raises?\b|\bknee raises?\b|\bab wheel\b|\bab rollout\b|\brollouts?\b|\bdead bug\b|\bv-up\b|\bv-sit\b|\btoes-to-bar\b|\bl-sit\b|\bdragon flag\b|\bmountain climber\b|\barch hold\b/.test(
       n
     )
   )
@@ -953,7 +967,7 @@ export function specificMuscleFor(name: string): string {
     return "Hamstrings";
   if (/\bdeadlift\b/.test(n)) return "Hamstrings"; // conventional/trap-bar primary
   if (
-    /\bsquat\b|\blunge\b|\bstep-?up\b|\bleg press\b|\bhack squat\b|\bpendulum\b|\bbelt squat\b|\bv-squat\b|\bbulgarian\b|\bsissy\b|\bleg extension\b/.test(
+    /\bsquats?\b|\blunges?\b|\bstep-? ?(?:up|down)s?\b|\bleg press\b|\bhack squat\b|\bpendulum\b|\bbelt squat\b|\bv-squat\b|\bbulgarian\b|\bsissy\b|\bleg extension\b/.test(
       n
     )
   )
@@ -990,6 +1004,69 @@ const BROAD_OF_SPECIFIC: Record<string, string> = {
   Abs: "Core",
   Obliques: "Core",
 };
+
+/// The 11 groups the body-scan coverage bars render, in head-to-toe order.
+export const SCAN_GROUPS = [
+  "Chest",
+  "Back",
+  "Shoulders",
+  "Biceps",
+  "Triceps",
+  "Forearms",
+  "Core",
+  "Quads",
+  "Hamstrings",
+  "Glutes",
+  "Calves",
+] as const;
+
+// Map specific muscle → the 11-group taxonomy the body-scan coverage bars
+// render. Finer than the 6 broad groups (arms and legs stay split), because
+// the scan is meant to show that triceps got skipped while biceps did not.
+const SCAN_OF_SPECIFIC: Record<string, string> = {
+  "Pec Major": "Chest",
+  "Pec Minor": "Chest",
+  Serratus: "Chest",
+  Lats: "Back",
+  Traps: "Back",
+  Rhomboids: "Back",
+  "Lower Back": "Back",
+  Teres: "Back",
+  "Front Delts": "Shoulders",
+  "Side Delts": "Shoulders",
+  "Rear Delts": "Shoulders",
+  Biceps: "Biceps",
+  Brachialis: "Biceps",
+  Triceps: "Triceps",
+  Forearms: "Forearms",
+  Abs: "Core",
+  Obliques: "Core",
+  Quads: "Quads",
+  Hamstrings: "Hamstrings",
+  Glutes: "Glutes",
+  Adductors: "Glutes",
+  Abductors: "Glutes",
+  Calves: "Calves",
+  Tibialis: "Calves",
+};
+
+/// Body-scan muscle group for a lift, from its stored `muscleGroup` when the
+/// catalog has one and from the name otherwise. Ad-hoc lifts (voice logging,
+/// coach plans) are created without a muscleGroup, and dropping them silently
+/// understated coverage — a push day could lose all four of its accessory
+/// lifts. Returns null only for movements with no scan group at all.
+export function scanGroupFor(
+  name: string,
+  muscleGroup?: string | null
+): string | null {
+  if (muscleGroup === "Lower Back") return "Back";
+  // Anything outside the scan vocabulary — "Other", the coarse "Arms"/"Legs",
+  // and stray split names like "Push" that got saved into this column — falls
+  // through to inference rather than being dropped.
+  if (muscleGroup && (SCAN_GROUPS as readonly string[]).includes(muscleGroup))
+    return muscleGroup;
+  return SCAN_OF_SPECIFIC[specificMuscleFor(name)] ?? null;
+}
 
 export function broadGroupForSpecific(
   specific: string | null | undefined

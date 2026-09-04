@@ -7,6 +7,7 @@ import StrengthScoreChart, {
   type ScorePoint,
 } from "@/components/StrengthScoreChart";
 import Projections from "@/components/Projections";
+import { buildProjections } from "@/lib/projections";
 import BackButton from "@/components/BackButton";
 
 export const dynamic = "force-dynamic";
@@ -32,40 +33,7 @@ export default async function StrengthOverviewPage() {
   });
 
   // ---- Projections list (best straight working set per lift, reps ≤ 10) ----
-  const bestByExercise = new Map<
-    string,
-    { exerciseName: string; weight: number; reps: number; oneRM: number }
-  >();
-  for (const w of workouts) {
-    for (const ex of w.exercises) {
-      if (isMachineExercise(ex.exercise.name)) continue;
-      const key = normalizeExerciseName(ex.exercise.name) || ex.exercise.id;
-      for (const s of ex.sets) {
-        if (s.type !== "WORKING") continue;
-        const weight = s.weight ?? 0;
-        const reps = s.reps ?? 0;
-        if (weight <= 0 || reps <= 0 || reps > 10) continue;
-        const oneRM = weight * (1 + reps / 30);
-        const prev = bestByExercise.get(key);
-        if (!prev || oneRM > prev.oneRM) {
-          bestByExercise.set(key, {
-            exerciseName: ex.exercise.name,
-            weight,
-            reps,
-            oneRM,
-          });
-        }
-      }
-    }
-  }
-  const projections = [...bestByExercise.values()]
-    .sort((a, b) => b.oneRM - a.oneRM)
-    .map((p) => ({
-      exerciseName: p.exerciseName,
-      baseWeight: p.weight,
-      baseReps: p.reps,
-      oneRepMax: p.oneRM,
-    }));
+  const projections = buildProjections(workouts);
 
   // ---- Strength score series (current form, not all-time) ----
   // Each lift contributes its best est. 1RM from the trailing 6 weeks; the

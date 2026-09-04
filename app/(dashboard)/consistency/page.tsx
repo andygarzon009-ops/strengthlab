@@ -3,14 +3,19 @@ import { format, subDays, differenceInDays } from "date-fns";
 import Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { shapeForType, labelForType, isMachineExercise } from "@/lib/exercises";
+import {
+  shapeForType,
+  labelForType,
+  scanGroupFor,
+  SCAN_GROUPS,
+} from "@/lib/exercises";
 import { mergeLiftsWithTargets } from "@/lib/strengthProgression";
-import { normalizeExerciseName } from "@/lib/exerciseIdentity";
 import { computeWeakSpots } from "@/lib/weakSpots";
 import TopLiftsCard from "@/components/TopLiftsCard";
 import CoverageBars, { type MuscleCoverage } from "@/components/CoverageBars";
 import MomentumBars, { type MomentumStats } from "@/components/MomentumBars";
 import Projections from "@/components/Projections";
+import { buildProjections } from "@/lib/projections";
 import WeakSpots from "@/components/WeakSpots";
 import BackButton from "@/components/BackButton";
 
@@ -19,32 +24,24 @@ export const maxDuration = 30;
 
 const DAY_ABBR_MON_FIRST = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-// Muscle groups the body scan renders. "Lower Back" folds into Back and
-// "Other"/null are dropped — see normalizeMuscle.
-const SCAN_MUSCLES = [
-  "Chest",
-  "Back",
-  "Shoulders",
-  "Biceps",
-  "Triceps",
-  "Forearms",
-  "Core",
-  "Quads",
-  "Hamstrings",
-  "Glutes",
-  "Calves",
-] as const;
+// Muscle groups the body scan renders. "Lower Back" folds into Back; "Other",
+// the coarse "Arms"/"Legs", and untagged lifts fold in via scanGroupFor, which
+// infers the group from the lift name.
+const SCAN_MUSCLES = SCAN_GROUPS;
 
-function normalizeMuscle(mg: string | null | undefined): string | null {
-  if (!mg) return null;
-  if (mg === "Lower Back") return "Back";
-  if (mg === "Other") return null;
-  return mg;
+// Scan group for a logged lift. Prefers the stored muscleGroup and falls back
+// to inferring from the name, so ad-hoc lifts logged by voice or prescribed by
+// the coach — created with no muscleGroup — still count toward coverage.
+function normalizeMuscle(
+  name: string,
+  mg: string | null | undefined,
+): string | null {
+  return scanGroupFor(name, mg);
 }
 
 type SetLike = { type: string };
 type ExerciseLike = {
-  exercise: { muscleGroup: string | null };
+  exercise: { name: string; muscleGroup: string | null };
   sets: SetLike[];
 };
 type WorkoutLikeForCoverage = { exercises: ExerciseLike[] };
@@ -60,7 +57,7 @@ function setsByMuscle(
   const out: Record<string, number> = {};
   for (const w of sessions) {
     for (const e of w.exercises) {
-      const m = normalizeMuscle(e.exercise.muscleGroup);
+      const m = normalizeMuscle(e.exercise.name, e.exercise.muscleGroup);
       if (!m) continue;
       const n = workingSetCount(e.sets);
       if (n > 0) out[m] = (out[m] ?? 0) + n;
@@ -268,44 +265,9 @@ export default async function ConsistencyDetailPage() {
   }
 
   // ---- Projections (estimated 1RM via Epley) ----
-  // Best straight WORKING set per lift where reps ≤ 10 (Epley is unreliable
-  // higher). Machine lifts and near-duplicate names are collapsed so a
-  // single movement doesn't split across rows. Drawn from the 12-week
-  // history already in memory — recent maxes, no extra query.
-  const bestByExercise = new Map<
-    string,
-    { exerciseName: string; weight: number; reps: number; oneRM: number }
-  >();
-  for (const w of liftHistory) {
-    for (const ex of w.exercises) {
-      if (isMachineExercise(ex.exercise.name)) continue;
-      const key = normalizeExerciseName(ex.exercise.name) || ex.exercise.id;
-      for (const s of ex.sets) {
-        if (s.type !== "WORKING") continue;
-        const weight = s.weight ?? 0;
-        const reps = s.reps ?? 0;
-        if (weight <= 0 || reps <= 0 || reps > 10) continue;
-        const oneRM = weight * (1 + reps / 30);
-        const prev = bestByExercise.get(key);
-        if (!prev || oneRM > prev.oneRM) {
-          bestByExercise.set(key, {
-            exerciseName: ex.exercise.name,
-            weight,
-            reps,
-            oneRM,
-          });
-        }
-      }
-    }
-  }
-  const projections = [...bestByExercise.values()]
-    .sort((a, b) => b.oneRM - a.oneRM)
-    .map((p) => ({
-      exerciseName: p.exerciseName,
-      baseWeight: p.weight,
-      baseReps: p.reps,
-      oneRepMax: p.oneRM,
-    }));
+  // Best straight working set per lift, plus each lift's session-by-session
+  // trend for the row sparkline. See lib/projections.ts.
+  const projections = buildProjections(liftHistory);
 
   // ---- Training streak — consecutive days ending today or yesterday ----
   const streakDays = (() => {
@@ -350,7 +312,7 @@ export default async function ConsistencyDetailPage() {
   for (const w of liftHistory) {
     const at = (w.endedAt ?? w.startedAt ?? w.date).getTime();
     for (const e of w.exercises) {
-      const m = normalizeMuscle(e.exercise.muscleGroup);
+      const m = normalizeMuscle(e.exercise.name, e.exercise.muscleGroup);
       if (!m) continue;
       if (workingSetCount(e.sets) === 0) continue;
       if (at > (lastTrainedByMuscle[m] ?? 0)) lastTrainedByMuscle[m] = at;

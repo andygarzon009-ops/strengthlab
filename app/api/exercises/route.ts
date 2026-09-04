@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { NextRequest } from "next/server";
 import { findExistingExerciseByName } from "@/lib/exerciseIdentity";
+import { scanGroupFor } from "@/lib/exercises";
 
 export async function GET() {
   const userId = await requireAuth();
@@ -39,7 +40,9 @@ export async function POST(req: NextRequest) {
   const exercise = await prisma.exercise.create({
     data: {
       name: trimmed,
-      muscleGroup,
+      // Fall back to inferring from the name — an untagged lift disappears
+      // from the coverage scan and the split breakdown.
+      muscleGroup: muscleGroup || scanGroupFor(trimmed),
       splits,
       isCustom: true,
       ownerId: userId,

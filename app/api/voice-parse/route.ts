@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest } from "next/server";
-import { WORKOUT_TYPES, STRENGTH_SPLITS } from "@/lib/exercises";
+import { WORKOUT_TYPES, STRENGTH_SPLITS, scanGroupFor } from "@/lib/exercises";
 import { findExistingExerciseByName } from "@/lib/exerciseIdentity";
 
 export const maxDuration = 30;
@@ -159,7 +159,14 @@ Output ONLY the JSON object. No prose, no markdown, no code fences.`;
         let match = findExistingExerciseByName(name, exercises) ?? undefined;
         if (!match) {
           match = await prisma.exercise.create({
-            data: { name, isCustom: true, ownerId: userId },
+            data: {
+              name,
+              // Infer from the name — an untagged lift disappears from the
+              // coverage scan and the split breakdown.
+              muscleGroup: scanGroupFor(name),
+              isCustom: true,
+              ownerId: userId,
+            },
           });
         }
         return {

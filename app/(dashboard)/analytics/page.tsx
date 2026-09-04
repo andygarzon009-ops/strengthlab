@@ -15,6 +15,7 @@ import { format, subDays, differenceInDays } from "date-fns";
 import PRList from "@/components/PRList";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import Projections from "@/components/Projections";
+import { buildProjections } from "@/lib/projections";
 import GoalsSection, {
   type GoalWithProgress,
 } from "@/components/GoalsSection";
@@ -336,48 +337,10 @@ export default async function AnalyticsPage() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
 
-  // ---------- Projections (estimated 1RM via Epley) ----------
-  // Base on the best working set per exercise where reps ≤ 10 (Epley is
-  // unreliable at higher reps). Collapse near-duplicate exercise names so
-  // minor misspellings don't split a lift across rows.
-  const bestByExercise = new Map<
-    string,
-    { exerciseName: string; weight: number; reps: number; oneRM: number }
-  >();
-  for (const w of workouts) {
-    for (const ex of w.exercises) {
-      if (isMachineExercise(ex.exercise.name)) continue;
-      const key =
-        normalizeExerciseName(ex.exercise.name) || ex.exerciseId;
-      for (const s of ex.sets) {
-        // 1RM projections are based on straight WORKING sets — SUPERSET
-        // sets are deliberately lighter for volume, so feeding them into
-        // Epley would understate the athlete's true projected max.
-        if (s.type !== "WORKING") continue;
-        const weight = s.weight ?? 0;
-        const reps = s.reps ?? 0;
-        if (weight <= 0 || reps <= 0 || reps > 10) continue;
-        const oneRM = weight * (1 + reps / 30);
-        const prev = bestByExercise.get(key);
-        if (!prev || oneRM > prev.oneRM) {
-          bestByExercise.set(key, {
-            exerciseName: ex.exercise.name,
-            weight,
-            reps,
-            oneRM,
-          });
-        }
-      }
-    }
-  }
-  const projections = [...bestByExercise.values()]
-    .sort((a, b) => b.oneRM - a.oneRM)
-    .map((p) => ({
-      exerciseName: p.exerciseName,
-      baseWeight: p.weight,
-      baseReps: p.reps,
-      oneRepMax: p.oneRM,
-    }));
+  // ---- Projections (estimated 1RM via Epley) ----
+  // Best straight working set per lift, plus each lift's session-by-session
+  // trend for the row sparkline. See lib/projections.ts.
+  const projections = buildProjections(workouts);
 
   // Training streak — consecutive days ending today or yesterday
   const streakDays = (() => {
