@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import ChartScrubTrack from "@/components/ChartScrubTrack";
 
 export type ScorePoint = { at: string; score: number; isPR: boolean };
 
@@ -15,6 +16,14 @@ const RANGE_SUBTITLE: Record<Range, string> = {
 
 const COLOR = "#22c55e";
 const PR_COLOR = "#eab308";
+
+// Plot box inside the 320-unit viewBox. The scrub maps its fraction through
+// these, so they have to match what LineChart draws with.
+const CHART_W = 320;
+const PAD_L = 8;
+const PAD_R = 36;
+const PLOT_PAD_L = PAD_L / CHART_W;
+const PLOT_PAD_R = PAD_R / CHART_W;
 
 export default function StrengthScoreChart({
   points,
@@ -34,6 +43,22 @@ export default function StrengthScoreChart({
     const cutoff = now - days * 24 * 60 * 60 * 1000;
     return points.filter((p) => new Date(p.at).getTime() >= cutoff);
   }, [points, range, now]);
+
+  // Each sample's position across the plot, which is what the scrub matches
+  // against. "All" starts at the first sample; the fixed ranges start at the
+  // cutoff, so a sparse window still reads correctly.
+  const xFracs = useMemo(() => {
+    if (filtered.length === 0) return [];
+    const days = RANGE_DAYS[range];
+    const start =
+      days === null
+        ? new Date(filtered[0].at).getTime()
+        : now - days * 24 * 60 * 60 * 1000;
+    const span = Math.max(1, now - start);
+    return filtered.map((p) =>
+      Math.max(0, Math.min(1, (new Date(p.at).getTime() - start) / span)),
+    );
+  }, [filtered, range, now]);
 
   const current = points.length ? points[points.length - 1].score : 0;
   const peak = points.reduce((m, p) => (p.score > m ? p.score : m), 0);
@@ -107,10 +132,6 @@ export default function StrengthScoreChart({
         >
           Overall strength · trend
         </p>
-        <p className="text-[11px] mb-3" style={{ color: "var(--fg-dim)" }}>
-          {RANGE_SUBTITLE[range]} · best est. 1RM per lift over the last 6
-          weeks, summed — dips when you fall behind
-        </p>
         {filtered.length < 2 ? (
           <p
             className="text-[12px] py-8 text-center"
@@ -119,7 +140,27 @@ export default function StrengthScoreChart({
             Log a few more strength sessions to see your trend.
           </p>
         ) : (
-          <LineChart points={filtered} range={range} now={now} />
+          <ChartScrubTrack
+            xFracs={xFracs}
+            padLeft={PLOT_PAD_L}
+            padRight={PLOT_PAD_R}
+            hint={
+              <p className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+                {RANGE_SUBTITLE[range]} · best est. 1RM per lift over the last 6
+                weeks, summed — hold and drag to read a week
+              </p>
+            }
+            readout={(i) => <Readout point={filtered[i]} />}
+          >
+            {(activeIndex) => (
+              <LineChart
+                points={filtered}
+                range={range}
+                now={now}
+                activeIndex={activeIndex}
+              />
+            )}
+          </ChartScrubTrack>
         )}
       </div>
     </div>
@@ -165,19 +206,54 @@ const MONTH_ABBR = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
+/// What a scrubbed sample reads as: the score that week, and when.
+function Readout({ point }: { point: ScorePoint }) {
+  const d = new Date(point.at);
+  return (
+    <div className="flex items-baseline gap-2">
+      <span className="text-[15px] font-bold tabular-nums">
+        {Math.round(point.score).toLocaleString()}
+        <span
+          className="text-[10px] font-normal ml-0.5"
+          style={{ color: "var(--fg-muted)" }}
+        >
+          lb
+        </span>
+      </span>
+      {point.isPR && (
+        <span
+          className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+          style={{
+            background: "rgba(234,179,8,0.15)",
+            color: PR_COLOR,
+            border: "1px solid rgba(234,179,8,0.35)",
+          }}
+        >
+          PEAK
+        </span>
+      )}
+      <span className="text-[11px] ml-auto" style={{ color: "var(--fg-dim)" }}>
+        {d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+      </span>
+    </div>
+  );
+}
+
 function LineChart({
   points,
   range,
   now,
+  activeIndex,
 }: {
   points: ScorePoint[];
   range: Range;
   now: number;
+  activeIndex: number | null;
 }) {
-  const W = 320;
+  const W = CHART_W;
   const H = 200;
-  const padL = 8;
-  const padR = 36;
+  const padL = PAD_L;
+  const padR = PAD_R;
   const padT = 14;
   const padB = 22;
   const plotW = W - padL - padR;
@@ -311,6 +387,18 @@ function LineChart({
         stroke="var(--bg-card)"
         strokeWidth={1.5}
       />
+
+      {/* The sample under the scrub, so the header reading is tied to a point. */}
+      {activeIndex != null && points[activeIndex] && (
+        <circle
+          cx={xFor(points[activeIndex].at)}
+          cy={yFor(points[activeIndex].score)}
+          r={5}
+          fill={points[activeIndex].isPR ? PR_COLOR : COLOR}
+          stroke="var(--bg-card)"
+          strokeWidth={2}
+        />
+      )}
     </svg>
   );
 }

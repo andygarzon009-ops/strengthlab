@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import ChartScrubTrack from "@/components/ChartScrubTrack";
 
 type SessionRow = {
   workoutId: string;
@@ -29,6 +30,14 @@ const RANGE_SUBTITLE: Record<Range, string> = {
 const COLOR = "#22c55e";
 const PR_COLOR = "#eab308";
 
+// Plot box inside the 320-unit viewBox. The scrub maps its fraction through
+// these, so they have to match what LineChart draws with.
+const CHART_W = 320;
+const PAD_L = 8;
+const PAD_R = 32;
+const PLOT_PAD_L = PAD_L / CHART_W;
+const PLOT_PAD_R = PAD_R / CHART_W;
+
 function formatRelative(d: Date): string {
   const sec = Math.floor((Date.now() - d.getTime()) / 1000);
   if (sec < 60 * 60) return `${Math.max(1, Math.floor(sec / 60))}m ago`;
@@ -48,11 +57,28 @@ export default function LiftDrilldownChart({
   // When the user taps a dot, we highlight the corresponding row in the
   // sessions list and scroll it into view rather than navigating away.
   const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(null);
+  // Capture "now" once so the scrub and the plot agree on where the window
+  // ends (calling Date.now() in render bodies is impure).
+  const [now] = useState(() => Date.now());
 
-  const filtered = useMemo(() => {
-    const cutoff = Date.now() - RANGE_DAYS[range] * 24 * 60 * 60 * 1000;
-    return sessions.filter((s) => new Date(s.at).getTime() >= cutoff);
-  }, [sessions, range]);
+  const timeWindow = useMemo(() => {
+    const end = now;
+    return { start: end - RANGE_DAYS[range] * 24 * 60 * 60 * 1000, end };
+  }, [range, now]);
+
+  const filtered = useMemo(
+    () => sessions.filter((s) => new Date(s.at).getTime() >= timeWindow.start),
+    [sessions, timeWindow.start],
+  );
+
+  // Each session's position across the plot, which is what the scrub matches
+  // against — sessions are spaced by date, not evenly.
+  const xFracs = useMemo(() => {
+    const span = Math.max(1, timeWindow.end - timeWindow.start);
+    return filtered.map((s) =>
+      Math.max(0, Math.min(1, (new Date(s.at).getTime() - timeWindow.start) / span)),
+    );
+  }, [filtered, timeWindow]);
 
   const latest = sessions.length ? sessions[sessions.length - 1] : null;
   const bestEver = sessions.reduce((m, s) => (s.topE1rm > m ? s.topE1rm : m), 0);
@@ -130,13 +156,6 @@ export default function LiftDrilldownChart({
         >
           Est. 1RM (lb) · trend
         </p>
-        <p
-          className="text-[11px] mb-3"
-          style={{ color: "var(--fg-dim)" }}
-        >
-          {RANGE_SUBTITLE[range]} · {filtered.length} session
-          {filtered.length === 1 ? "" : "s"} · faint dots are working sets, bold dots are session tops
-        </p>
         {filtered.length === 0 ? (
           <p
             className="text-[12px] py-8 text-center"
@@ -145,14 +164,37 @@ export default function LiftDrilldownChart({
             No sessions in this window.
           </p>
         ) : (
-          <LineChart
-            sessions={filtered}
-            range={range}
-            selectedWorkoutId={selectedWorkoutId}
-            onSelect={(id) =>
-              setSelectedWorkoutId((cur) => (cur === id ? null : id))
+          <ChartScrubTrack
+            xFracs={xFracs}
+            padLeft={PLOT_PAD_L}
+            padRight={PLOT_PAD_R}
+            hint={
+              <p className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+                {RANGE_SUBTITLE[range]} · {filtered.length} session
+                {filtered.length === 1 ? "" : "s"} · hold and drag the chart to
+                read a session
+              </p>
             }
-          />
+            readout={(i) => <Readout session={filtered[i]} />}
+            onTap={(i) =>
+              setSelectedWorkoutId((cur) =>
+                cur === filtered[i].workoutId ? null : filtered[i].workoutId,
+              )
+            }
+          >
+            {(activeIndex) => (
+              <LineChart
+                sessions={filtered}
+                range={range}
+                timeWindow={timeWindow}
+                activeIndex={activeIndex}
+                selectedWorkoutId={selectedWorkoutId}
+                onSelect={(id) =>
+                  setSelectedWorkoutId((cur) => (cur === id ? null : id))
+                }
+              />
+            )}
+          </ChartScrubTrack>
         )}
       </div>
 
@@ -303,29 +345,66 @@ function Tile({
   );
 }
 
+/// What a scrubbed session reads as: the top set, its est. 1RM, and when.
+function Readout({ session }: { session: SessionRow }) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <span className="text-[15px] font-bold tabular-nums">
+        {Math.round(session.topE1rm)}
+        <span className="text-[10px] font-normal ml-0.5" style={{ color: "var(--fg-muted)" }}>
+          lb e1RM
+        </span>
+      </span>
+      <span className="text-[11px] tabular-nums" style={{ color: "var(--fg-dim)" }}>
+        {session.topWeight} × {session.topReps}
+      </span>
+      {session.isPR && (
+        <span
+          className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+          style={{
+            background: "rgba(234,179,8,0.15)",
+            color: PR_COLOR,
+            border: "1px solid rgba(234,179,8,0.35)",
+          }}
+        >
+          PR
+        </span>
+      )}
+      <span className="text-[11px] ml-auto" style={{ color: "var(--fg-dim)" }}>
+        {formatRelative(new Date(session.at))}
+      </span>
+    </div>
+  );
+}
+
 function LineChart({
   sessions,
   range,
+  timeWindow,
+  activeIndex,
   selectedWorkoutId,
   onSelect,
 }: {
   sessions: SessionRow[];
   range: Range;
+  timeWindow: { start: number; end: number };
+  activeIndex: number | null;
   selectedWorkoutId: string | null;
+  /// Keyboard-only activation. Pointer taps come from the scrub track, so
+  /// wiring onClick here too would toggle the selection twice.
   onSelect: (workoutId: string) => void;
 }) {
-  const W = 320;
+  const W = CHART_W;
   const H = 200;
-  const padL = 8;
-  const padR = 32;
+  const padL = PAD_L;
+  const padR = PAD_R;
   const padT = 12;
   const padB = 22;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
 
-  const cutoff = Date.now() - RANGE_DAYS[range] * 24 * 60 * 60 * 1000;
-  const windowStart = cutoff;
-  const windowEnd = Date.now();
+  const windowStart = timeWindow.start;
+  const windowEnd = timeWindow.end;
   const span = Math.max(1, windowEnd - windowStart);
 
   // Smart axis: bracket the actual e1rm range to use the full plot height.
@@ -473,19 +552,19 @@ function LineChart({
         const cx = xFor(s.at);
         const cy = yFor(s.topE1rm);
         const isSelected = s.workoutId === selectedWorkoutId;
-        const onActivate = () => onSelect(s.workoutId);
-        // Selected dot ring expands to make the highlight unambiguous; PR
-        // dots are slightly larger by default.
-        const r = isSelected ? 6 : s.isPR ? 4 : 2.5;
-        const ringR = isSelected ? r + 3 : 0;
+        const isActive = i === activeIndex;
+        // Selected dot ring expands to make the highlight unambiguous; the
+        // dot under the scrub swells the same way so the reading in the
+        // header is unmistakably tied to a point. PR dots start larger.
+        const r = isSelected || isActive ? 6 : s.isPR ? 4 : 2.5;
+        const ringR = isSelected || isActive ? r + 3 : 0;
         return (
           <g
             key={i}
-            onClick={onActivate}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                onActivate();
+                onSelect(s.workoutId);
               }
             }}
             role="button"
@@ -512,8 +591,8 @@ function LineChart({
               cy={cy}
               r={r}
               fill={s.isPR ? PR_COLOR : COLOR}
-              stroke={isSelected || s.isPR ? "var(--bg-card)" : "none"}
-              strokeWidth={isSelected ? 2 : s.isPR ? 1.5 : 0}
+              stroke={isSelected || isActive || s.isPR ? "var(--bg-card)" : "none"}
+              strokeWidth={isSelected || isActive ? 2 : s.isPR ? 1.5 : 0}
             />
           </g>
         );
