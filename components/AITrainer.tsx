@@ -6,6 +6,18 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { extractPlan, type WorkoutPlan } from "@/lib/workoutPlan";
 import {
+  COACH_ADJUST_EVENT,
+  COACH_LOG_EVENT,
+  extractAdjust,
+  type DraftExercise,
+  type ReportedExercise,
+  type WorkoutAdjust,
+} from "@/lib/workoutAdjust";
+import {
+  applyCoachAdjustToDraft,
+  appendLoggedSetsToDraft,
+} from "@/lib/actions/workoutDrafts";
+import {
   extractStretchRoutine,
   routineDurationSec,
   type StretchRoutine,
@@ -17,6 +29,9 @@ import CoachPlanCard from "@/components/CoachPlanCard";
 type LoggedSummary = {
   workoutId: string;
   created: boolean;
+  // Set when the sets went into the session the athlete is currently
+  // logging, rather than into a standalone workout of their own.
+  intoLive?: boolean;
   summary: {
     exerciseName: string;
     sets: { weight: string; reps: string; type: "WARMUP" | "WORKING" }[];
@@ -49,22 +64,29 @@ type Message = {
   pendingLog?: PendingLog;
   pendingDismissed?: boolean;
   plan?: WorkoutPlan;
+  adjust?: WorkoutAdjust;
   routine?: StretchRoutine;
 };
 
-// Pull both the workout plan and the stretch routine out of a raw coach reply.
-// extractPlan strips its own fence first; the stretch fence is stripped from
-// whatever text remains, so a reply can't carry both but the order is safe
-// either way. One helper keeps the streaming preview, final parse, and history
+// Pull the workout plan, the mid-session adjustment and the stretch routine
+// out of a raw coach reply. Order matters: the adjustment fence comes off
+// FIRST, because extractPlan's fallback pass claims any fenced block whose
+// JSON carries an `exercises` array — leave the adjustment in and it renders
+// as "Do this workout", starting the second workout this feature exists to
+// prevent. One helper keeps the streaming preview, final parse, and history
 // hydration in lockstep.
 function extractCoachBlocks(raw: string): {
   text: string;
   plan: WorkoutPlan | null;
+  adjust: WorkoutAdjust | null;
   routine: StretchRoutine | null;
 } {
-  const { text: afterPlan, plan } = extractPlan(raw);
+  const { text: afterAdjust, adjust } = extractAdjust(raw);
+  const { text: afterPlan, plan } = extractPlan(afterAdjust);
   const { text, routine } = extractStretchRoutine(afterPlan);
-  return { text, plan, routine };
+  // A reply carrying both is the model hedging. The adjustment wins — it's
+  // the one that keeps the athlete in the session they're standing in.
+  return { text, plan: adjust ? null : plan, adjust, routine };
 }
 
 function splitLoggedMarker(raw: string): {
@@ -484,11 +506,14 @@ export default function AITrainer() {
         if (!Array.isArray(data)) return [];
         const hydrated: Message[] = data.map((m: Message) => {
           if (m.role !== "assistant") return m;
-          const { text, plan, routine } = extractCoachBlocks(m.content ?? "");
+          const { text, plan, adjust, routine } = extractCoachBlocks(
+            m.content ?? "",
+          );
           return {
             ...m,
             content: text,
             plan: plan ?? undefined,
+            adjust: adjust ?? undefined,
             routine: routine ?? undefined,
           };
         });
@@ -650,6 +675,54 @@ export default function AITrainer() {
   }, [visibleMessages]);
 
   const confirmPendingLog = async (messageId: string, pending: PendingLog) => {
+    // A set reported in chat while a workout is open belongs to THAT workout.
+    // Before falling through to the standalone-log path, offer it to the
+    // session in progress: the mounted logger first, then the stored draft if
+    // the athlete is chatting from somewhere else in the app. Only when
+    // there's no session at all does this become its own workout.
+    const markLogged = (intoLive: boolean) => {
+      const logged: LoggedSummary = {
+        workoutId: "",
+        created: false,
+        intoLive,
+        summary: pending.parsed.map((e) => ({
+          exerciseName: e.exerciseName,
+          sets: e.sets.map((s) => ({
+            weight: s.weight,
+            reps: s.reps,
+            type: s.type,
+          })),
+        })),
+      };
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, pendingLog: undefined, logged } : m,
+        ),
+      );
+    };
+
+    const reported: ReportedExercise[] = pending.parsed;
+    const detail: { parsed: ReportedExercise[]; handled: boolean } = {
+      parsed: reported,
+      handled: false,
+    };
+    window.dispatchEvent(new CustomEvent(COACH_LOG_EVENT, { detail }));
+    if (detail.handled) {
+      markLogged(true);
+      return;
+    }
+    try {
+      const toDraft = await appendLoggedSetsToDraft(reported);
+      if (toDraft.ok) {
+        markLogged(true);
+        return;
+      }
+    } catch (err) {
+      // Draft write failed — fall through to the standalone log rather than
+      // dropping the athlete's sets on the floor.
+      console.error("append-to-draft failed:", err);
+    }
+
     try {
       const res = await fetch("/api/trainer/confirm-log", {
         method: "POST",
@@ -739,7 +812,12 @@ export default function AITrainer() {
       }
 
       const { logged, pendingLog, text: postLogged } = splitLoggedMarker(full);
-      const { text: finalText, plan, routine } = extractCoachBlocks(postLogged);
+      const {
+        text: finalText,
+        plan,
+        adjust,
+        routine,
+      } = extractCoachBlocks(postLogged);
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
@@ -748,6 +826,7 @@ export default function AITrainer() {
         logged: logged ?? undefined,
         pendingLog: pendingLog ?? undefined,
         plan: plan ?? undefined,
+        adjust: adjust ?? undefined,
         routine: routine ?? undefined,
       };
       setMessages((prev) => [...prev, assistantMsg]);
@@ -1090,6 +1169,23 @@ export default function AITrainer() {
                         </button>
                       </>
                     )}
+                    {m.adjust && (
+                      <>
+                        <CoachPlanCard
+                          plan={{
+                            title: m.adjust.note || "Updated session",
+                            exercises: m.adjust.exercises,
+                          }}
+                        />
+                        <ApplyAdjustButton
+                          adjust={m.adjust}
+                          onNavigate={() => {
+                            setOpen(false);
+                            router.push("/log");
+                          }}
+                        />
+                      </>
+                    )}
                     {m.routine && (
                       <StretchRoutineButton
                         routine={m.routine}
@@ -1379,6 +1475,139 @@ function StretchRoutineButton({
   );
 }
 
+/// "Update my workout" — the mid-session counterpart to "Do this workout".
+///
+/// Same first step as the plan button: /api/coach-plan resolves the coach's
+/// exercise names against the athlete's library and hands back rows in the
+/// exact shape WorkoutForm holds. From there the two diverge. The plan button
+/// stashes those rows as a brand-new draft; this one merges them into the
+/// session already underway, so the sets the athlete has ticked off stay
+/// exactly as they were logged and only the work still ahead changes.
+function ApplyAdjustButton({
+  adjust,
+  onNavigate,
+}: {
+  adjust: WorkoutAdjust;
+  onNavigate: () => void;
+}) {
+  const [pending, setPending] = useState(false);
+  const [applied, setApplied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onClick = async () => {
+    if (pending || applied) return;
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/coach-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: { exercises: adjust.exercises } }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body?.initial?.exercises) {
+        throw new Error(body?.error || "Couldn't apply the change");
+      }
+      const exercises = body.initial.exercises as DraftExercise[];
+
+      // Rest prescriptions travel with the change — a lighter back-off set
+      // usually wants a different timer than the one that just failed.
+      const REST_KEY = "strengthlab.rest.byExercise.v1";
+      const restPrefs = (body.restPrefs ?? {}) as Record<string, number>;
+      if (Object.keys(restPrefs).length > 0) {
+        try {
+          const raw = localStorage.getItem(REST_KEY);
+          const cur = raw ? (JSON.parse(raw) as Record<string, number>) : {};
+          localStorage.setItem(
+            REST_KEY,
+            JSON.stringify({ ...cur, ...restPrefs }),
+          );
+        } catch {
+          // ignore storage errors — the rest pill keeps its current value
+        }
+      }
+
+      // The athlete is almost always standing on the log screen when this
+      // happens, with the form mounted right behind the chat. Hand it the
+      // change in memory so the sets update under them; its own autosave
+      // persists it. `handled` comes back set because CustomEvent dispatch
+      // runs listeners synchronously.
+      const detail: { exercises: DraftExercise[]; handled: boolean } = {
+        exercises,
+        handled: false,
+      };
+      window.dispatchEvent(new CustomEvent(COACH_ADJUST_EVENT, { detail }));
+
+      if (detail.handled) {
+        setApplied(true);
+        setPending(false);
+        return;
+      }
+
+      // Chatting from elsewhere in the app — rewrite the stored draft and
+      // take them to it.
+      const result = await applyCoachAdjustToDraft(exercises);
+      if (!result.ok) throw new Error(result.reason || "No workout in progress");
+      setApplied(true);
+      onNavigate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+      setPending(false);
+    }
+  };
+
+  const changedCount = adjust.exercises.length;
+
+  return (
+    <div className="space-y-1">
+      <button
+        onClick={onClick}
+        disabled={pending || applied}
+        className="w-full rounded-xl px-4 py-3 text-[14px] font-semibold flex items-center justify-between gap-3 active:scale-[0.99] transition-transform disabled:opacity-60"
+        style={{
+          background: applied ? "var(--bg-elevated)" : "var(--accent)",
+          color: applied ? "var(--fg-muted)" : "#0a0a0a",
+          border: `1px solid ${applied ? "var(--border-strong)" : "var(--accent)"}`,
+        }}
+      >
+        <span className="flex items-center gap-2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            {applied ? (
+              <path d="M20 6 9 17l-5-5" />
+            ) : (
+              <path d="M3 12a9 9 0 0 1 15.3-6.4L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.3 6.4L3 16M3 21v-5h5" />
+            )}
+          </svg>
+          {applied
+            ? "Workout updated"
+            : pending
+              ? "Updating…"
+              : "Update my workout"}
+        </span>
+        <span className="text-[11px] opacity-80 text-right leading-tight">
+          {applied ? "sets already done kept" : "rest of today's session"}
+          <br />
+          {changedCount} ex
+        </span>
+      </button>
+      {error && (
+        <p className="text-[11px] px-1" style={{ color: "#ef4444" }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function LogPlanButton({
   plan,
   onNavigate,
@@ -1621,7 +1850,11 @@ function LoggedChip({ logged }: { logged: LoggedSummary }) {
       <span className="shrink-0">✓</span>
       <div className="min-w-0">
         <p className="font-semibold">
-          {logged.created ? "Started a live session" : "Logged"}{" "}
+          {logged.intoLive
+            ? "Added to your session"
+            : logged.created
+              ? "Started a live session"
+              : "Logged"}{" "}
           · {totalSets} set{totalSets === 1 ? "" : "s"}
         </p>
         <p

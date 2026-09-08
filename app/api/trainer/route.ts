@@ -13,6 +13,7 @@ import {
 import { isBetterWeightPR, normalizeExerciseName } from "@/lib/exerciseIdentity";
 import { parseLiveLog } from "@/lib/parseLiveLog";
 import { computeWeakSpots, formatWeakSpotsForPrompt } from "@/lib/weakSpots";
+import { extractAdjust } from "@/lib/workoutAdjust";
 import { hasValidPlan } from "@/lib/workoutPlan";
 import { STRETCH_POSES } from "@/lib/stretchPoses";
 import {
@@ -198,8 +199,17 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "AI trainer not configured" }, { status: 500 });
     }
 
-    const [user, workouts, prs, history, goals, healthAccount, fuel, workoutDates] =
-      await Promise.all([
+    const [
+      user,
+      workouts,
+      prs,
+      history,
+      goals,
+      healthAccount,
+      fuel,
+      workoutDates,
+      liveDraft,
+    ] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId } }),
       prisma.workout.findMany({
         where: { userId },
@@ -258,6 +268,11 @@ export async function POST(req: NextRequest) {
         select: { date: true, type: true },
         orderBy: { date: "asc" },
       }),
+      // The workout the athlete is standing in the middle of right now, if
+      // there is one. Without this the coach answers "I only got 6 of the 8"
+      // by prescribing a fresh session, because a fresh session is the only
+      // thing it knows how to hand back.
+      prisma.workoutDraft.findUnique({ where: { userId } }),
     ]);
 
     // Anchor "today" to the athlete's local timezone, not the server's
@@ -902,6 +917,86 @@ Use this: you can see the actual foods, so coach the FOOD, not just the macros �
       }
     })();
 
+    // The session the athlete is in the middle of, rendered set by set with
+    // what's been ticked off and what's still ahead. This is the difference
+    // between a coach who can answer "that last set only went for 6" and one
+    // who can only ever start a new workout.
+    const liveSession = (() => {
+      const payload = liveDraft?.payload as
+        | {
+            title?: string;
+            workoutType?: string;
+            split?: string;
+            startedAt?: string | null;
+            exercises?: {
+              exerciseName?: string;
+              sets?: {
+                type?: string;
+                weight?: string;
+                reps?: string;
+                rir?: string;
+                completed?: boolean;
+              }[];
+            }[];
+          }
+        | null
+        | undefined;
+      const exercises = Array.isArray(payload?.exercises) ? payload.exercises : [];
+      if (exercises.length === 0) return { block: "", active: false };
+
+      let doneCount = 0;
+      let remainingCount = 0;
+      const lines: string[] = [];
+      for (const ex of exercises) {
+        const name = typeof ex?.exerciseName === "string" ? ex.exerciseName : "";
+        if (!name) continue;
+        const sets = Array.isArray(ex.sets) ? ex.sets : [];
+        const rendered = sets.map((s, i) => {
+          const w = s?.weight ? `${s.weight}lb` : "BW";
+          const r = s?.reps ? `${s.reps}` : "?";
+          const rir = s?.rir ? ` RIR${s.rir}` : "";
+          const tag = s?.type === "WARMUP" ? " (warm-up)" : "";
+          if (s?.completed) {
+            doneCount += 1;
+            return `      ${i + 1}. DONE — ${w} × ${r}${rir}${tag}`;
+          }
+          remainingCount += 1;
+          return `      ${i + 1}. not yet — ${w} × ${r}${rir}${tag}`;
+        });
+        if (rendered.length === 0) continue;
+        lines.push(`    ${name}:\n${rendered.join("\n")}`);
+      }
+      if (lines.length === 0) return { block: "", active: false };
+
+      const started = payload?.startedAt ? new Date(payload.startedAt) : null;
+      const elapsedMin =
+        started && !Number.isNaN(started.getTime())
+          ? Math.max(0, Math.round((Date.now() - started.getTime()) / 60000))
+          : null;
+      const header = [
+        payload?.title || "Untitled session",
+        payload?.split ? `split ${payload.split}` : null,
+        elapsedMin != null ? `${elapsedMin} min in` : null,
+        `${doneCount} set${doneCount === 1 ? "" : "s"} done, ${remainingCount} to go`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+
+      return {
+        active: true,
+        block: `
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+LIVE SESSION IN PROGRESS (the athlete is training RIGHT NOW — this is open on their phone)
+━━━━━━━━━━━━━━━━━━━━━━━━
+${header}
+
+${lines.join("\n\n")}
+
+Sets marked DONE are already logged and are FACT — never re-prescribe, re-order, or rewrite them. Sets marked "not yet" are the work still ahead, and are yours to change.`,
+      };
+    })();
+
     // The drill catalog + named routines the coach prescribes mobility from.
     // Only carried when the message is actually about stretching — it's a big
     // block and it has no bearing on "what should I bench today".
@@ -935,7 +1030,7 @@ Every recent session above is tagged with "Xd ago" relative to today. When the a
 
 
 LIVE LOGGING CAPABILITY (IMPORTANT — DO NOT DENY THIS):
-This app can log sets the athlete reports in chat. When they say things like "225 for 5", "hit 3x8 at 135", "benched 185 for 6 reps", a background parser detects the sets and surfaces a small confirm chip above your reply ("Log N sets?") with a Log / Dismiss button. The athlete taps Log to commit it to today's workout. Nothing is committed until they tap.
+This app can log sets the athlete reports in chat. When they say things like "225 for 5", "hit 3x8 at 135", "benched 185 for 6 reps", a background parser detects the sets and surfaces a small confirm chip above your reply ("Log N sets?") with a Log / Dismiss button. The athlete taps Log to commit it. Nothing is committed until they tap. When a session is in progress, the chip writes into THAT session — each reported set ticks off the next unchecked slot for that lift with the numbers they actually hit — so reporting a set in chat and logging it on the card are the same workout, never two.
 
 This means:
 - You CAN log sets through this confirm flow. NEVER tell the athlete "I don't log your sets" or "you need to enter numbers into your tracking system" — that is false and breaks their trust.
@@ -946,6 +1041,9 @@ This means:
 - Treat the chat as both a coaching conversation AND a training-log entry point. The athlete is in control of what gets committed.
 
 
+${liveSession.active ? `
+SESSION IS LIVE RIGHT NOW: there is a LIVE SESSION IN PROGRESS block further down with the athlete's set-by-set state. If they ask you to change anything about today's training, adjust THAT session with a \`workout-adjust\` block (section 4b) — never a \`workout-plan\` block, which would start a second workout and strand what they've logged.
+` : ""}
 Sound like a real high-level coach — a smart gym mentor who knows progression, recovery, and exercise selection, tracks performance carefully, and pushes athletes while keeping them healthy. Be confident, direct, encouraging, intelligent, conversational (not robotic or clinical), and slightly intense when it fits. Coaching should feel highly personalized, structured, realistic, and performance-driven — supportive without being soft, never generic or vague.
 
 STYLE RULES:
@@ -1075,6 +1173,28 @@ Use a "### Exercise Name" heading per lift, then 3–4 bold-labeled bullets unde
    - TOTAL durationSec across all items MUST stay under 600 (10 minutes). The whole warmup should ideally come in around 5–8 minutes — the athlete is here to lift, not jog.
    - Order matters: cardio first → mobility → activation. Specific to the muscles being trained today (push day = shoulders, T-spine, chest; legs day = hips, ankles, glutes; pull day = lats, scaps, rotator cuff).
    - When the prescription is just a chat reply, deload, mobility session, or analysis — omit the warmup block entirely. Do not invent one to fill space.
+
+4b. MID-SESSION ADJUSTMENT (use this INSTEAD of a workout-plan block whenever a LIVE SESSION IN PROGRESS block appears above):
+   The single most common thing an athlete says mid-workout is that the prescription didn't survive contact: "only got 6 of the 8", "that felt way too heavy", "the squat rack is taken", "my shoulder's pinching on the incline". They are asking you to rewrite the REST OF THE SESSION THEY ARE STANDING IN — not to hand them a second workout.
+
+   A \`workout-plan\` block starts a NEW workout. If you emit one while a session is live, the athlete gets a "Do this workout" button that opens a blank second session and strands everything they've already logged. NEVER do that mid-session. Emit a \`workout-adjust\` block instead:
+
+   \`\`\`workout-adjust
+   {"note":"Dropped to 205 for the last two","exercises":[{"name":"Barbell Bench Press","restSeconds":180,"sets":[{"type":"WORKING","weight":225,"reps":6},{"type":"WORKING","weight":205,"reps":6},{"type":"WORKING","weight":205,"reps":6}]},{"name":"Incline Dumbbell Press","restSeconds":90,"sets":[{"type":"WORKING","weight":70,"reps":10},{"type":"WORKING","weight":70,"reps":10},{"type":"WORKING","weight":70,"reps":10}]}]}
+   \`\`\`
+
+   This renders the updated session plus an "Update my workout" button that edits the live workout in place. Rules:
+   - EMIT THE WHOLE SESSION AS IT SHOULD NOW STAND — every exercise that remains, in the order shown in the LIVE SESSION block, not just the lift that changed. Carry the untouched lifts over exactly as they are (same loads, reps, restSeconds). An exercise you leave out is REMOVED from the athlete's session, so only omit one you actually mean to cut.
+   - INCLUDE THE SETS ALREADY MARKED DONE, verbatim and in order, at the head of that exercise's "sets" array. They are locked — the app keeps what was really logged and only replaces the sets still ahead — but re-emitting them keeps your numbering aligned with what the athlete sees.
+   - "note" is one short clause naming the change ("Dropped to 205 for the last two", "Swapped to leg press"). It headlines the card.
+   - Same field rules as the workout-plan block: integer "reps" on every set, "weight" in pounds (0 for bodyweight), "restSeconds" ∈ {60, 90, 120, 180, 240}, valid minified JSON, one object per lift and one per working set.
+   - Do NOT add a warm-up ramp. The athlete is warm; they're already lifting.
+   - No "warmup", "title", "type" or "split" keys — an adjustment inherits all of that from the session in progress.
+   - Keep the prose to a couple of lines: what you're changing and why, in a coach's voice ("Six at 225 with that grind means the tank's low — take 205 for the last two and keep the reps crisp."). No title heading, no bulleted briefing — they already read that when the session was prescribed.
+   - Do NOT mention the block or the button in your prose. They just appear.
+   - If the athlete reports a miss but nothing about the remaining work should change ("got 7 instead of 8" on the last set of the day, and you'd hold the same load), say so plainly and emit NOTHING — an adjustment that changes nothing is noise.
+   - When the athlete is asking about NEXT time, a future session, or tomorrow — not about the work left today — that's a normal prescription: use a \`workout-plan\` block as usual.
+   - Reported sets still flow through the confirm chip described above. The chip logs what they DID; the adjustment changes what's LEFT. They work together, so don't tell the athlete to pick one.
 
 5. STRETCH / MOBILITY ROUTINE APPENDIX (emit when the athlete asks for a stretch, mobility, foam-rolling, flexibility, warm-up-mobility, prehab, or cool-down routine to DO right now):
    Triggers: "give me a stretching routine", "quick stretch", "cool down", "mobility routine", "foam roll my legs", "stretch out my hips/hamstrings/back", "I'm tight/sore, help me loosen up", "my knees have been bugging me, prehab", "10 minutes of mobility before I lift", "wind-down before bed", etc. End your reply with a structured block formatted EXACTLY like this, on its own lines, after your prose:
@@ -1214,6 +1334,7 @@ BODY METRICS (inches unless noted, optional — may be blank):
 ${recoveryContext}
 
 ${nutritionContext}
+${liveSession.block}
 
 ACTIVE GOALS (explicit targets the athlete is chasing):
 ${
@@ -1597,7 +1718,15 @@ EXCEPTION — if the athlete's message ALSO contains a real question, planning r
           // uses to render the button), not on mere fence presence — a
           // fence wrapped around broken JSON would otherwise suppress the
           // rescue and leave the athlete with no button.
-          const alreadyHasPlan = hasValidPlan(fullResponse);
+          // A mid-session adjustment counts as "the coach answered with a
+          // session" — rescuing a workout-plan block on top of it would hand
+          // the athlete the second-workout button this whole path exists to
+          // avoid. Strip the adjustment before the plan check either way, so
+          // its JSON can't be mistaken for a plan by extractPlan's fallback.
+          const { text: withoutAdjust, adjust: liveAdjust } =
+            extractAdjust(fullResponse);
+          const alreadyHasPlan =
+            liveAdjust !== null || hasValidPlan(withoutAdjust);
           // Score signals that the coach is prescribing a session, not just
           // chatting. Covers weighted (NxM @ Wlb/kg/#), bodyweight ("3 sets
           // of 10 push-ups"), and cardio/rep-only prose ("8 reps", "for 30

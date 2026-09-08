@@ -3,6 +3,12 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import type { Prisma } from "@/app/generated/prisma";
+import {
+  applyLoggedSets,
+  mergeCoachAdjust,
+  type DraftExercise,
+  type ReportedExercise,
+} from "@/lib/workoutAdjust";
 
 export type WorkoutDraftPayload = {
   workoutType: string;
@@ -54,4 +60,64 @@ export async function loadWorkoutDraft(): Promise<WorkoutDraftPayload | null> {
 export async function clearWorkoutDraft() {
   const userId = await requireAuth();
   await prisma.workoutDraft.deleteMany({ where: { userId } });
+}
+
+/// Apply a coach adjustment to the draft on the server.
+///
+/// This is the fallback path for when the athlete is chatting from somewhere
+/// other than the log screen — no WorkoutForm is mounted to take the change
+/// in memory, so we rewrite the stored draft and let the form hydrate it on
+/// arrival. Refuses when there's nothing in progress: an adjustment has no
+/// meaning without a session to adjust, and quietly inventing one here would
+/// be the "separate workout" bug wearing a different hat.
+export async function applyCoachAdjustToDraft(
+  exercises: DraftExercise[],
+): Promise<{ ok: boolean; reason?: string }> {
+  const userId = await requireAuth();
+  const row = await prisma.workoutDraft.findUnique({ where: { userId } });
+  const payload = (row?.payload ?? null) as WorkoutDraftPayload | null;
+  if (!payload || !Array.isArray(payload.exercises)) {
+    return { ok: false, reason: "No workout in progress" };
+  }
+  const merged = mergeCoachAdjust(
+    payload.exercises as DraftExercise[],
+    exercises,
+  );
+  await prisma.workoutDraft.update({
+    where: { userId },
+    data: {
+      payload: {
+        ...payload,
+        exercises: merged,
+      } as unknown as Prisma.InputJsonValue,
+    },
+  });
+  return { ok: true };
+}
+
+/// Write chat-reported sets into the stored draft.
+///
+/// The fallback for when no WorkoutForm is mounted to take them in memory.
+/// Returns ok:false when there's no session in progress, which sends the
+/// caller back to appendLiveSets — the path that logs a standalone workout
+/// for an athlete who's reporting sets without using the logger at all.
+export async function appendLoggedSetsToDraft(
+  reported: ReportedExercise[],
+): Promise<{ ok: boolean }> {
+  const userId = await requireAuth();
+  const row = await prisma.workoutDraft.findUnique({ where: { userId } });
+  const payload = (row?.payload ?? null) as WorkoutDraftPayload | null;
+  if (!payload || !Array.isArray(payload.exercises)) return { ok: false };
+
+  const merged = applyLoggedSets(payload.exercises as DraftExercise[], reported);
+  await prisma.workoutDraft.update({
+    where: { userId },
+    data: {
+      payload: {
+        ...payload,
+        exercises: merged,
+      } as unknown as Prisma.InputJsonValue,
+    },
+  });
+  return { ok: true };
 }

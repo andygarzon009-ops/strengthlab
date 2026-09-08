@@ -24,6 +24,14 @@ import ExerciseLogger from "@/components/ExerciseLogger";
 import WorkoutTimerStrip from "@/components/WorkoutTimerStrip";
 import LiveHRWidget from "@/components/LiveHRWidget";
 import GuidedWarmup, { type WarmupProgress } from "@/components/GuidedWarmup";
+import {
+  COACH_ADJUST_EVENT,
+  COACH_LOG_EVENT,
+  applyLoggedSets,
+  mergeCoachAdjust,
+  type DraftExercise,
+  type ReportedExercise,
+} from "@/lib/workoutAdjust";
 import { useTransition, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -446,6 +454,57 @@ export default function WorkoutForm({
     warmup,
     warmupProgress,
   ]);
+
+  // The coach rewriting THIS session, live. When the athlete tells the coach
+  // mid-workout that a set didn't go to plan ("only got 6 of the 8"), it
+  // replies with an adjustment rather than a whole new prescription — and
+  // this is where that lands. The event is dispatched synchronously, so
+  // flipping `handled` tells the coach a form was mounted to receive it and
+  // it doesn't need to fall back to rewriting the stored draft.
+  //
+  // Edit mode and an untouched form are deliberately excluded: an
+  // adjustment needs a session in progress to adjust, and a form still on
+  // the type picker isn't one.
+  useEffect(() => {
+    if (mode !== "create" || !workoutType) return;
+    const onAdjust = (e: Event) => {
+      const detail = (e as CustomEvent<{
+        exercises?: DraftExercise[];
+        handled?: boolean;
+      }>).detail;
+      if (!detail || !Array.isArray(detail.exercises)) return;
+      const incoming = detail.exercises;
+      setExercises(
+        (cur) => mergeCoachAdjust(cur as DraftExercise[], incoming) as ExerciseData[],
+      );
+      detail.handled = true;
+    };
+    window.addEventListener(COACH_ADJUST_EVENT, onAdjust);
+    return () => window.removeEventListener(COACH_ADJUST_EVENT, onAdjust);
+  }, [mode, workoutType]);
+
+  // Sets the athlete reported to the coach in chat and confirmed. They land
+  // on this form's sets rather than in a standalone workout of their own —
+  // each one filling the next unticked slot for that lift, with the numbers
+  // actually achieved.
+  useEffect(() => {
+    if (mode !== "create" || !workoutType) return;
+    const onLog = (e: Event) => {
+      const detail = (e as CustomEvent<{
+        parsed?: ReportedExercise[];
+        handled?: boolean;
+      }>).detail;
+      if (!detail || !Array.isArray(detail.parsed) || detail.parsed.length === 0)
+        return;
+      const reported = detail.parsed;
+      setExercises(
+        (cur) => applyLoggedSets(cur as DraftExercise[], reported) as ExerciseData[],
+      );
+      detail.handled = true;
+    };
+    window.addEventListener(COACH_LOG_EVENT, onLog);
+    return () => window.removeEventListener(COACH_LOG_EVENT, onLog);
+  }, [mode, workoutType]);
 
   const shape: WorkoutShape = workoutType ? shapeForType(workoutType) : "STRENGTH";
 
