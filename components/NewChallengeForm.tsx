@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createChallenge } from "@/lib/actions/crewChallenges";
 import { CHALLENGE_TYPES, type ChallengeType } from "@/lib/crewChallenges";
+import { PLATE_WEIGHT_LB, plateSides, usesPlates } from "@/lib/exercises";
 
 type Person = { id: string; name: string };
 type Exercise = { id: string; name: string };
@@ -29,6 +30,14 @@ export default function NewChallengeForm({
   );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  // A plate-loaded lift takes its target the way it gets loaded — plates per
+  // side — and converts to the rack total the scorer compares against.
+  const racedLift = exercises.find((e) => e.id === exerciseId);
+  const targetInPlates = !!racedLift && usesPlates(racedLift.name);
+  const targetMultiplier = racedLift
+    ? PLATE_WEIGHT_LB * plateSides(racedLift.name)
+    : 1;
 
   const autoName = () => {
     if (type === "LIFT_RACE") {
@@ -64,7 +73,9 @@ export default function NewChallengeForm({
         type,
         exerciseId: type === "LIFT_RACE" ? exerciseId : null,
         targetValue:
-          type === "LIFT_RACE" && target ? parseFloat(target) : null,
+          type === "LIFT_RACE" && target
+            ? parseFloat(target) * (targetInPlates ? targetMultiplier : 1)
+            : null,
         endsAt: endsAtISO(),
         memberIds: [...selected],
       });
@@ -136,13 +147,23 @@ export default function NewChallengeForm({
             </select>
           </div>
           <div>
-            <p className="label mb-1.5">Target weight (optional)</p>
+            <p className="label mb-1.5">
+              {targetInPlates
+                ? plateSides(racedLift!.name) === 1
+                  ? "Target plates (optional)"
+                  : "Target plates per side (optional)"
+                : "Target weight (optional)"}
+            </p>
             <input
               type="number"
               inputMode="decimal"
               value={target}
               onChange={(e) => setTarget(e.target.value)}
-              placeholder="e.g. 315 — flags who hits it"
+              placeholder={
+                targetInPlates
+                  ? "e.g. 4 — flags who hits it"
+                  : "e.g. 315 — flags who hits it"
+              }
               className="w-full rounded-xl px-4 py-3 text-[15px] focus:outline-none nums"
               style={{ ...fieldStyle, fontFamily: "var(--font-geist-mono)" }}
             />

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { shapeForType } from "@/lib/exercises";
+import { shapeForType, formatLoad } from "@/lib/exercises";
 import { loadChallengesForUser } from "@/lib/loadChallenges";
 import { timeLeft } from "@/lib/crewChallenges";
 import GrowCrew from "@/components/GrowCrew";
@@ -270,9 +270,10 @@ export default async function CrewPage() {
       id: p.id,
       who: nameById.get(p.userId) ?? "Athlete",
       image: imageById.get(p.userId) ?? null,
-      subtitle: `PR'd ${p.exercise.name} ${Math.round(p.value)}${
-        p.reps ? ` × ${p.reps}` : ""
-      } · ${ago(p.date)}`,
+      subtitle: `PR'd ${p.exercise.name} ${formatLoad(
+        p.exercise.name,
+        Math.round(p.value),
+      )}${p.reps ? ` × ${p.reps}` : ""} · ${ago(p.date)}`,
       workoutId: wid,
       count: cheerCount.get(wid) ?? 0,
       cheered: iCheered.has(wid),

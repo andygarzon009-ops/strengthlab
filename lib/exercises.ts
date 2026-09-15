@@ -750,7 +750,13 @@ const SINGLE_LOADED_PATTERNS = [/\bt-bar row\b/i];
 
 export const PLATE_WEIGHT_LB = 45;
 
+// A name that says "pin" outright is a selectorized stack, whatever else it
+// says — "Seated Leg Press (pin)" is set with a pin, not loaded with plates,
+// and a plate pattern would otherwise claim it off the "leg press".
+const PIN_MARKER_PATTERNS = [/\(pin\)/i, /\bpin-loaded\b/i, /\bselectorized\b/i];
+
 export function usesPlates(name: string): boolean {
+  if (PIN_MARKER_PATTERNS.some((re) => re.test(name))) return false;
   return PLATE_LOADED_PATTERNS.some((re) => re.test(name));
 }
 
@@ -1190,7 +1196,9 @@ const PIN_LOADED_PATTERNS = [
 ];
 
 export function isPinLoaded(name: string): boolean {
-  if (usesPlates(name)) return false; // Smith / plate-loaded take priority
+  // Smith / plate-loaded take priority — except where the name says "(pin)",
+  // which usesPlates already defers on.
+  if (usesPlates(name)) return false;
   return PIN_LOADED_PATTERNS.some((re) => re.test(name));
 }
 

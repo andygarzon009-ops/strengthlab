@@ -7,6 +7,7 @@ import {
   formatScore,
   timeLeft,
 } from "@/lib/crewChallenges";
+import { formatLoad } from "@/lib/exercises";
 import BackButton from "@/components/BackButton";
 import ChallengeActions from "@/components/ChallengeActions";
 
@@ -32,7 +33,7 @@ export default async function ChallengeDetailPage({
     if (c.type === "LIFT_RACE" && c.exerciseName) {
       parts.push(
         c.targetValue
-          ? `${c.exerciseName} → ${Math.round(c.targetValue)} lb`
+          ? `${c.exerciseName} → ${formatLoad(c.exerciseName, Math.round(c.targetValue))}`
           : c.exerciseName,
       );
     }
