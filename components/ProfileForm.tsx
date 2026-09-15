@@ -6,6 +6,8 @@ import ImageUpload from "@/components/ImageUpload";
 import UsernameField from "@/components/UsernameField";
 import PeriodizationEditor from "@/components/PeriodizationEditor";
 import { type PeriodizationConfig } from "@/lib/periodization";
+import { formatDelta } from "@/lib/bodyMeasurements";
+import type { MeasurementReport } from "@/lib/actions/workouts";
 
 type UserProfile = {
   name: string;
@@ -70,6 +72,17 @@ const show = (n: number) => Math.round(n * 10) / 10;
 const inToCm = (inches: number) => show(inches * CM_PER_IN);
 const cmToIn = (cm: number) => show(cm / CM_PER_IN);
 
+// Which direction counts as progress, per field. A waist or a body-fat
+// reading going down is the win; a limb or the chest going up is. Bodyweight
+// is deliberately neutral — whether up is good depends entirely on the phase
+// the athlete is in, and the interpretation line says which.
+function progressColor(key: string, delta: number): string {
+  if (key === "bodyweight") return "var(--fg)";
+  const goodDown = key === "waist" || key === "bodyFat";
+  const good = goodDown ? delta < 0 : delta > 0;
+  return good ? "var(--accent)" : "#f97316";
+}
+
 export default function ProfileForm({
   user,
   /// Local dates (YYYY-MM-DD) the athlete logged something on, so the cycle
@@ -86,6 +99,9 @@ export default function ProfileForm({
   const [showTraining, setShowTraining] = useState(false);
   const [showMeasurements, setShowMeasurements] = useState(false);
   const [unit, setUnit] = useState<MeasureUnit>("in");
+  // What the last save did to the tape. Null until a save actually moves
+  // something — a profile edit that doesn't touch measurements says nothing.
+  const [report, setReport] = useState<MeasurementReport | null>(null);
   const [saved, setSaved] = useState(false);
   const [image, setImage] = useState<string | null>(user.image);
   const [coverImage, setCoverImage] = useState<string | null>(user.coverImage);
@@ -171,6 +187,12 @@ export default function ProfileForm({
   // height in centimetres.
   const ph = (inches: number) => String(unit === "cm" ? inToCm(inches) : inches);
 
+  // The report renders in whatever unit is on screen.
+  const lengthDisplay =
+    unit === "cm"
+      ? { convert: (i: number) => i * CM_PER_IN, label: "cm" }
+      : { convert: (i: number) => i, label: "in" };
+
   // Photos persist immediately on upload so they feel instant — no need to
   // hit Save. (The main Save also includes them, harmlessly.)
   const saveImage = (next: string | null) => {
@@ -203,7 +225,7 @@ export default function ProfileForm({
     };
 
     startTransition(async () => {
-      await updateProfileAction({
+      const res = await updateProfileAction({
         name: form.name,
         image,
         coverImage,
@@ -235,6 +257,7 @@ export default function ProfileForm({
         thigh: lengthInches(form.thigh),
         calf: lengthInches(form.calf),
       });
+      setReport(res?.measurements ?? null);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     });
@@ -708,6 +731,46 @@ export default function ProfileForm({
               </div>
             )}
           </div>
+
+          {report && (
+            <div
+              className="rounded-xl p-4 animate-slide-up"
+              style={{
+                background: "var(--accent-dim)",
+                border: "1px solid var(--accent)",
+              }}
+            >
+              <p className="label text-[9px]" style={{ color: "var(--accent)" }}>
+                Since{" "}
+                {new Date(report.since).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </p>
+              <div className="mt-2 space-y-1">
+                {report.deltas.map((d) => (
+                  <p
+                    key={d.key}
+                    className="text-[12px] nums"
+                    style={{
+                      fontFamily: "var(--font-geist-mono)",
+                      color: progressColor(d.key, d.delta),
+                    }}
+                  >
+                    {formatDelta(d, lengthDisplay)}
+                  </p>
+                ))}
+              </div>
+              {report.reading && (
+                <p
+                  className="text-[12px] mt-3 leading-relaxed"
+                  style={{ color: "var(--fg-muted)" }}
+                >
+                  {report.reading}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center gap-2 pt-2">
             <button

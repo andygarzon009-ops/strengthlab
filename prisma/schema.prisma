@@ -27,36 +27,36 @@ model TrainerMessage {
 }
 
 model User {
-  id             String   @id @default(cuid())
-  name           String
-  email          String   @unique
-  username       String?  @unique
-  password       String
-  image          String?
-  coverImage     String?
-  bodyweight     Float?
-  birthDate      DateTime?
-  sex            String?
-  goals          String?
-  preferredSplit String?
-  timezone       String?
-  bio            String?
-  experienceLevel String?
-  primaryFocus   String?
-  trainingPhase  String?
-  trainingDays   Int?
-  injuries       String?
-  coachPrompt    String?
+  id                   String    @id @default(cuid())
+  name                 String
+  email                String    @unique
+  username             String?   @unique
+  password             String
+  image                String?
+  coverImage           String?
+  bodyweight           Float?
+  birthDate            DateTime?
+  sex                  String?
+  goals                String?
+  preferredSplit       String?
+  timezone             String?
+  bio                  String?
+  experienceLevel      String?
+  primaryFocus         String?
+  trainingPhase        String?
+  trainingDays         Int?
+  injuries             String?
+  coachPrompt          String?
   // Block periodization the coach programs against: { blocks:[{name,weeks}],
   // startDate:"YYYY-MM-DD", deloadEveryWeeks, deloadReductionPct }.
   // Shape is PeriodizationConfig in lib/periodization.ts.
-  periodization  Json?
-  preferredWarmups Json?
-  moveGoalKcal     Int?
-  exerciseGoalMin  Int?
-  notifyFriendWorkouts Boolean @default(true)
+  periodization        Json?
+  preferredWarmups     Json?
+  moveGoalKcal         Int?
+  exerciseGoalMin      Int?
+  notifyFriendWorkouts Boolean   @default(true)
   /// Opt-out for the "you've been away longer than usual" nudge.
-  notifyInactivity     Boolean @default(true)
+  notifyInactivity     Boolean   @default(true)
   /// When that nudge last fired, so it can't fire more than once a week.
   lastNudgedAt         DateTime?
   /// End of the rest period currently being timed, if any. A queued rest push
@@ -64,49 +64,82 @@ model User {
   /// matches this — which is what stops a superseded rest (another set logged
   /// mid-rest) from notifying while the newer one is still running.
   restEndsAt           DateTime?
-  weeklyAnalysisCache Json?
-  height         Float?
-  bodyFat        Float?
-  restingHR      Int?
-  waist          Float?
-  hips           Float?
-  chest          Float?
-  shoulders      Float?
-  neck           Float?
-  arm            Float?
-  forearm        Float?
-  thigh          Float?
-  calf           Float?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  weeklyAnalysisCache  Json?
+  height               Float?
+  bodyFat              Float?
+  restingHR            Int?
+  waist                Float?
+  hips                 Float?
+  chest                Float?
+  shoulders            Float?
+  neck                 Float?
+  arm                  Float?
+  forearm              Float?
+  thigh                Float?
+  calf                 Float?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
-  workouts        Workout[]
-  prs             PersonalRecord[]
-  goalList        Goal[]
-  groupMembers    GroupMember[]
-  comments        Comment[]
-  reactions       Reaction[]
-  trainerMessages TrainerMessage[]
-  groupPosts      GroupPost[]
-  postComments    PostComment[]
-  postReactions   PostReaction[]
-  challenges      Challenge[]           @relation("ChallengeCreator")
-  challengeJoins  ChallengeParticipant[]
-  workoutDraft    WorkoutDraft?
-  customExercises Exercise[]            @relation("ExerciseOwner")
-  passwordResetTokens PasswordResetToken[]
-  healthAccount   HealthAccount?
-  following       Follow[]              @relation("Following")
-  followers       Follow[]              @relation("Followers")
-  crewChallenges       CrewChallenge[]       @relation("CrewChallengeCreator")
-  crewChallengeMembers CrewChallengeMember[]
-  sentFriendRequests     FriendRequest[]    @relation("FriendRequestFrom")
-  receivedFriendRequests FriendRequest[]    @relation("FriendRequestTo")
+  workouts               Workout[]
+  prs                    PersonalRecord[]
+  goalList               Goal[]
+  groupMembers           GroupMember[]
+  comments               Comment[]
+  reactions              Reaction[]
+  trainerMessages        TrainerMessage[]
+  groupPosts             GroupPost[]
+  postComments           PostComment[]
+  postReactions          PostReaction[]
+  challenges             Challenge[]              @relation("ChallengeCreator")
+  challengeJoins         ChallengeParticipant[]
+  workoutDraft           WorkoutDraft?
+  customExercises        Exercise[]               @relation("ExerciseOwner")
+  passwordResetTokens    PasswordResetToken[]
+  healthAccount          HealthAccount?
+  following              Follow[]                 @relation("Following")
+  followers              Follow[]                 @relation("Followers")
+  crewChallenges         CrewChallenge[]          @relation("CrewChallengeCreator")
+  crewChallengeMembers   CrewChallengeMember[]
+  sentFriendRequests     FriendRequest[]          @relation("FriendRequestFrom")
+  receivedFriendRequests FriendRequest[]          @relation("FriendRequestTo")
   ambientHeartRates      AmbientHeartRateSample[]
   pushSubscriptions      PushSubscription[]
   recoveryDays           RecoveryDay[]
-  notifications          Notification[]        @relation("NotificationRecipient")
-  notificationsActed     Notification[]        @relation("NotificationActor")
+  notifications          Notification[]           @relation("NotificationRecipient")
+  notificationsActed     Notification[]           @relation("NotificationActor")
+  bodyMeasurements       BodyMeasurement[]
+}
+
+/// A dated snapshot of the athlete's tape measurements. The User.* columns
+/// hold only the latest values and are overwritten on every save, which used
+/// to destroy the previous reading — so there was nothing to compare and the
+/// coach could never say whether a waist was coming down or going up.
+///
+/// One row is written per save that actually changes something, carrying the
+/// FULL set of values rather than a diff. Snapshots make "what changed since
+/// July" a single comparison instead of a replay, and the rows are tiny.
+/// Lengths are inches, bodyweight is pounds, bodyFat is a percentage — the
+/// same units User.* stores, since the profile's cm switch is display-only.
+model BodyMeasurement {
+  id         String   @id @default(cuid())
+  userId     String
+  takenAt    DateTime @default(now())
+  bodyweight Float?
+  height     Float?
+  neck       Float?
+  shoulders  Float?
+  chest      Float?
+  arm        Float?
+  forearm    Float?
+  waist      Float?
+  hips       Float?
+  thigh      Float?
+  calf       Float?
+  bodyFat    Float?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, takenAt])
 }
 
 /// Persistent in-app notification (the inbox). Survives even when a Web Push
@@ -114,9 +147,9 @@ model User {
 /// crew request. `read` flips once the recipient opens /notifications.
 model Notification {
   id        String   @id @default(cuid())
-  userId    String   // recipient
-  type      String   // FRIEND_ACCEPT (extensible)
-  actorId   String?  // who triggered it (for avatar/name)
+  userId    String // recipient
+  type      String // FRIEND_ACCEPT (extensible)
+  actorId   String? // who triggered it (for avatar/name)
   body      String
   url       String?
   read      Boolean  @default(false)
@@ -135,7 +168,7 @@ model Notification {
 model RecoveryDay {
   id        String   @id @default(cuid())
   userId    String
-  dateKey   String   // local YYYY-MM-DD
+  dateKey   String // local YYYY-MM-DD
   score     Int
   band      String?
   sleepMin  Int?
@@ -170,12 +203,12 @@ model PushSubscription {
 /// attached to a logged workout. Deduped per (user, timestamp) so the device
 /// can re-send overlapping windows safely.
 model AmbientHeartRateSample {
-  id         String   @id @default(cuid())
-  userId     String
-  timestamp  DateTime
-  bpm        Int
-  sourceApp  String?  // originating Health Connect package, for provenance
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  timestamp DateTime
+  bpm       Int
+  sourceApp String? // originating Health Connect package, for provenance
+  createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -258,14 +291,14 @@ model Follow {
 /// proxies data from the user's Fitbit device through Google, so this single
 /// account also covers Fitbit reads — there's no separate Fitbit OAuth.
 model HealthAccount {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  provider        String   @default("google_health")
-  accessToken     String
-  refreshToken    String
-  expiresAt       DateTime
-  scope           String
-  lastSyncedAt    DateTime?
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  provider          String    @default("google_health")
+  accessToken       String
+  refreshToken      String
+  expiresAt         DateTime
+  scope             String
+  lastSyncedAt      DateTime?
   // Last-known resting HR, persisted during sync so the feed reads it instantly
   // instead of waiting on a live Google Health call.
   restingHr         Int?
@@ -274,10 +307,10 @@ model HealthAccount {
   restingBaselineHr Int?
   restingHrAt       DateTime?
   // Recovery snapshot (HRV + RHR based; sleep added later). Computed on sync.
-  recoveryScore     Int?      // 0–100
-  recoveryBand      String?   // low | moderate | primed
-  hrvMs             Float?    // latest night RMSSD
-  hrvBaselineMs     Float?    // trailing baseline RMSSD
+  recoveryScore     Int? // 0–100
+  recoveryBand      String? // low | moderate | primed
+  hrvMs             Float? // latest night RMSSD
+  hrvBaselineMs     Float? // trailing baseline RMSSD
   recoveryAt        DateTime?
   // Last night's sleep: { asleepMin, inBedMin, deepMin, remMin, lightMin,
   // awakeMin, startUtc, endUtc, offsetSec }. nightKey = local date of wake.
@@ -286,8 +319,8 @@ model HealthAccount {
   // Last ~30 nights for the weekly/monthly sleep chart:
   // [{ date:"YYYY-MM-DD", asleepMin, deepMin, remMin, lightMin, awakeMin }]
   sleepHistory      Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -318,12 +351,12 @@ model FitbitExerciseSession {
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -331,51 +364,51 @@ model PasswordResetToken {
 }
 
 model Goal {
-  id           String    @id @default(cuid())
-  userId       String
-  type         String
-  title        String
-  exerciseId   String?
-  targetValue  Float
-  targetReps   Int?
-  unit         String?
-  deadline     DateTime?
-  completed    Boolean   @default(false)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  userId      String
+  type        String
+  title       String
+  exerciseId  String?
+  targetValue Float
+  targetReps  Int?
+  unit        String?
+  deadline    DateTime?
+  completed   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   exercise Exercise? @relation(fields: [exerciseId], references: [id])
 }
 
 model Workout {
-  id           String   @id @default(cuid())
-  userId       String
-  title        String
-  type         String
-  split        String?
-  date         DateTime @default(now())
-  notes        String?
-  feeling      String?
-  isDeload     Boolean  @default(false)
-  duration     Int?
-  distance     Float?
-  pace         String?
-  avgHeartRate Int?
-  maxHeartRate Int?
-  rounds       Int?
-  elevation    Int?
-  incline      Float?   // treadmill incline %
-  speed        Float?   // treadmill speed (km/h)
-  level        Int?     // indoor machine resistance / intensity level (bike, elliptical, stair)
-  calories     Int?
-  steps        Int?
-  activeZoneMin Int?
-  rpe          Int?
-  startedAt    DateTime?
-  endedAt      DateTime?
+  id             String    @id @default(cuid())
+  userId         String
+  title          String
+  type           String
+  split          String?
+  date           DateTime  @default(now())
+  notes          String?
+  feeling        String?
+  isDeload       Boolean   @default(false)
+  duration       Int?
+  distance       Float?
+  pace           String?
+  avgHeartRate   Int?
+  maxHeartRate   Int?
+  rounds         Int?
+  elevation      Int?
+  incline        Float? // treadmill incline %
+  speed          Float? // treadmill speed (km/h)
+  level          Int? // indoor machine resistance / intensity level (bike, elliptical, stair)
+  calories       Int?
+  steps          Int?
+  activeZoneMin  Int?
+  rpe            Int?
+  startedAt      DateTime?
+  endedAt        DateTime?
   /// Coach-prescribed warmup payload: { items: [{ kind, name, durationSec?, reps?, instructions? }] }
-  warmup       Json?
+  warmup         Json?
   /// Where in the training cycle this session was run, stamped at log time
   /// from the athlete's periodization config (lib/periodization.ts). Frozen
   /// history: editing or restarting the cycle later must not rewrite what a
@@ -389,14 +422,14 @@ model Workout {
   /// Training-week ordinal across the whole cycle — weeks with nothing logged
   /// are not counted, so this is not the calendar week.
   blockCycleWeek Int?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  user           User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exercises      WorkoutExercise[]
-  comments       Comment[]
-  reactions      Reaction[]
-  posts          GroupPost[]
+  user             User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises        WorkoutExercise[]
+  comments         Comment[]
+  reactions        Reaction[]
+  posts            GroupPost[]
   heartRateSamples WorkoutHeartRateSample[]
 
   // Nearly every feed/crew/profile/challenge query filters by user and a date
@@ -425,7 +458,7 @@ model Exercise {
   isCustom    Boolean @default(false)
   ownerId     String?
 
-  owner            User?              @relation("ExerciseOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  owner            User?             @relation("ExerciseOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   workoutExercises WorkoutExercise[]
   prs              PersonalRecord[]
   goals            Goal[]
@@ -513,17 +546,17 @@ model GroupPost {
 }
 
 model Challenge {
-  id           String    @id @default(cuid())
-  groupId      String
-  creatorId    String
-  type         String
-  exerciseId   String?
-  targetValue  Float
-  targetReps   Int?
-  deadline     DateTime?
-  resolved     Boolean   @default(false)
-  winnerId     String?
-  createdAt    DateTime  @default(now())
+  id          String    @id @default(cuid())
+  groupId     String
+  creatorId   String
+  type        String
+  exerciseId  String?
+  targetValue Float
+  targetReps  Int?
+  deadline    DateTime?
+  resolved    Boolean   @default(false)
+  winnerId    String?
+  createdAt   DateTime  @default(now())
 
   group        Group                  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   creator      User                   @relation("ChallengeCreator", fields: [creatorId], references: [id], onDelete: Cascade)
@@ -533,10 +566,10 @@ model Challenge {
 }
 
 model ChallengeParticipant {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   challengeId String
   userId      String
-  joinedAt    DateTime  @default(now())
+  joinedAt    DateTime @default(now())
 
   challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)

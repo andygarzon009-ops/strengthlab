@@ -11,6 +11,14 @@ import { redirect } from "next/navigation";
 import { sendPushToUser } from "@/lib/push";
 import { createNotification } from "@/lib/notifications";
 import type { StretchRoutine } from "@/lib/stretchRoutine";
+import {
+  MEASUREMENT_KEYS,
+  diffSnapshots,
+  interpret,
+  type MeasurementDelta,
+  type MeasurementKey,
+  type Snapshot,
+} from "@/lib/bodyMeasurements";
 
 type SetInput = {
   type: string;
@@ -541,9 +549,23 @@ export async function updateProfile(data: {
   forearm?: number | null;
   thigh?: number | null;
   calf?: number | null;
-}) {
+}): Promise<{ measurements: MeasurementReport | null }> {
   const userId = await requireAuth();
   const { birthDate, periodization, ...rest } = data;
+
+  // The measurements as they stand before this save. Needed for the comparison
+  // below, and as the baseline for an athlete who has no history rows yet.
+  const before = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      updatedAt: true,
+      ...(Object.fromEntries(MEASUREMENT_KEYS.map((k) => [k, true])) as Record<
+        (typeof MEASUREMENT_KEYS)[number],
+        true
+      >),
+    },
+  });
+
   await prisma.user.update({
     where: { id: userId },
     data: {
@@ -564,9 +586,65 @@ export async function updateProfile(data: {
             : null,
     },
   });
+
+  const measurements = before
+    ? await recordMeasurementSnapshot(userId, before, data)
+    : null;
+
   revalidatePath("/profile");
   revalidatePath("/group");
   revalidatePath(`/u/${userId}`);
+  return { measurements };
+}
+
+/// What a save has to say about the tape: what moved, since when, and what the
+/// pair of bodyweight and waist means together.
+export type MeasurementReport = {
+  /// When the reading it was compared against was taken.
+  since: string;
+  deltas: MeasurementDelta[];
+  /// The composition read, when bodyweight and waist support one.
+  reading: string | null;
+};
+
+/// Append a dated snapshot when a save actually moves the tape, and report
+/// what changed.
+///
+/// The comparison is against the most recent snapshot rather than the User row
+/// the save just overwrote, because that's what carries a date — "since Jul 3"
+/// is the part that makes the number mean something. The overwritten User row
+/// is the fallback for an athlete with no history yet, dated to when the
+/// profile was last touched.
+async function recordMeasurementSnapshot(
+  userId: string,
+  before: Record<string, unknown> & { updatedAt: Date },
+  data: Record<string, unknown>,
+): Promise<MeasurementReport | null> {
+  // The values after this save: whatever the save supplied, else what stood.
+  // Kept as a bare field map (no takenAt) so it doubles as the insert payload.
+  const next = {} as Record<MeasurementKey, number | null>;
+  for (const key of MEASUREMENT_KEYS) {
+    const supplied = data[key];
+    const value = supplied === undefined ? before[key] : supplied;
+    next[key] = typeof value === "number" && Number.isFinite(value) ? value : null;
+  }
+
+  const latest = await prisma.bodyMeasurement.findFirst({
+    where: { userId },
+    orderBy: { takenAt: "desc" },
+  });
+
+  const prev: Snapshot = latest ?? (before as Snapshot);
+  const since = (latest?.takenAt ?? before.updatedAt).toISOString();
+
+  const deltas = diffSnapshots(prev, next);
+  if (deltas.length === 0) return null;
+
+  await prisma.bodyMeasurement.create({
+    data: { userId, ...next },
+  });
+
+  return { since, deltas, reading: interpret(prev, next) };
 }
 
 /// Toggle whether the signed-in user gets pinged when a crew friend logs a

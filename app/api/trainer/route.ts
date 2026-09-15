@@ -12,6 +12,7 @@ import {
 } from "@/lib/exercises";
 import { isBetterWeightPR, normalizeExerciseName } from "@/lib/exerciseIdentity";
 import { parseLiveLog } from "@/lib/parseLiveLog";
+import { diffSnapshots, formatDelta, interpret } from "@/lib/bodyMeasurements";
 import { computeWeakSpots, formatWeakSpotsForPrompt } from "@/lib/weakSpots";
 import { extractAdjust } from "@/lib/workoutAdjust";
 import { hasValidPlan } from "@/lib/workoutPlan";
@@ -209,6 +210,7 @@ export async function POST(req: NextRequest) {
       fuel,
       workoutDates,
       liveDraft,
+      measurementHistory,
     ] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId } }),
       prisma.workout.findMany({
@@ -273,6 +275,16 @@ export async function POST(req: NextRequest) {
       // by prescribing a fresh session, because a fresh session is the only
       // thing it knows how to hand back.
       prisma.workoutDraft.findUnique({ where: { userId } }),
+      // Tape measurements over the last ~16 weeks. A single reading says
+      // nothing — the coach needs the trend to tell a surplus that's working
+      // from one that's just adding fat.
+      prisma.bodyMeasurement.findMany({
+        where: {
+          userId,
+          takenAt: { gte: new Date(Date.now() - 112 * 86_400_000) },
+        },
+        orderBy: { takenAt: "asc" },
+      }),
     ]);
 
     // Anchor "today" to the athlete's local timezone, not the server's
@@ -783,6 +795,31 @@ Applying the block:
     // Today's nutrition (live from Google Health) as a hard input. Best-effort:
     // any failure degrades to a "not available" note rather than breaking chat.
     // `fuel` was fetched in parallel above, so this is now pure formatting.
+    // What the tape has done lately. A snapshot can't be coached against —
+    // "Waist: 32" is neither good nor bad — but a direction can: a waist
+    // climbing through a hypertrophy block means the surplus is too big, and a
+    // limb that hasn't moved in three months means that lift needs volume, not
+    // encouragement. Oldest reading in the window against the newest, so the
+    // comparison spans real time rather than two saves a day apart.
+    const measurementTrend = (() => {
+      if (measurementHistory.length < 2) return "";
+      const first = measurementHistory[0];
+      const last = measurementHistory[measurementHistory.length - 1];
+      const deltas = diffSnapshots(first, last);
+      if (deltas.length === 0) return "";
+      const weeks = Math.max(
+        1,
+        Math.round(
+          (last.takenAt.getTime() - first.takenAt.getTime()) / (7 * 86_400_000),
+        ),
+      );
+      const lines = deltas.map((d) => `  - ${formatDelta(d)}`).join("\n");
+      const reading = interpret(first, last);
+      return `- CHANGE over the last ${weeks} week${weeks === 1 ? "" : "s"} (measured, not estimated):
+${lines}${reading ? `\n  Read: ${reading}` : ""}
+  Use this. A waist trending up in a growth block means the surplus is too aggressive; a limb flat for months means that lift needs volume. Cite the number when you act on it, and never contradict it.`;
+    })();
+
     const nutritionContext = (() => {
       try {
         const f = fuel;
@@ -1330,6 +1367,7 @@ BODY METRICS (inches unless noted, optional — may be blank):
 - Neck: ${user?.neck ?? "—"} | Shoulders: ${user?.shoulders ?? "—"} | Chest: ${user?.chest ?? "—"}
 - Arm: ${user?.arm ?? "—"} | Forearm: ${user?.forearm ?? "—"} | Waist: ${user?.waist ?? "—"}
 - Hips: ${user?.hips ?? "—"} | Thigh: ${user?.thigh ?? "—"} | Calf: ${user?.calf ?? "—"}
+${measurementTrend}
 
 ${recoveryContext}
 
