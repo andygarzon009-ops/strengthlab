@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatLoad } from "@/lib/exercises";
 
 type StreakTier = {
   days: number;
@@ -154,7 +155,7 @@ export default function Celebrations() {
                 color: "var(--accent)",
               }}
             >
-              {current.weight}lb × {current.reps}
+              {formatLoad(current.exerciseName, current.weight)} × {current.reps}
             </p>
             <p
               className="text-[13px] leading-relaxed mb-6"

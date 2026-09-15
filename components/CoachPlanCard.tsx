@@ -10,6 +10,7 @@
 // climb to the main lift. That's the order the session is actually performed
 // in, and it keeps each lift's line about the work.
 
+import { formatPlates } from "@/lib/exercises";
 import type { WorkoutPlan, WorkoutPlanSet } from "@/lib/workoutPlan";
 
 function num(v: number | string | null | undefined): number | null {
@@ -21,9 +22,12 @@ function num(v: number | string | null | undefined): number | null {
   return null;
 }
 
-/// "225 lb", or "BW" for an unloaded movement.
-function load(weight: number | null): string {
-  return weight && weight > 0 ? `${weight} lb` : "BW";
+/// "225 lb", "4 plates" on a plate-loaded apparatus, or "BW" for an unloaded
+/// movement. The load is prescribed in whatever the athlete will be reading
+/// off the machine when they go to set it up.
+function load(name: string, weight: number | null): string {
+  if (!weight || weight <= 0) return "BW";
+  return formatPlates(name, weight) || `${weight} lb`;
 }
 
 type Group = { count: number; reps: number | null; weight: number | null; rir: number | null };
@@ -47,16 +51,19 @@ function group(sets: WorkoutPlanSet[]): Group[] {
   return out;
 }
 
-function workingLabel(g: Group): string {
+function workingLabel(name: string, g: Group): string {
   const scheme = `${g.count}×${g.reps ?? "?"}`;
   const rir = g.rir != null ? ` RIR${g.rir}` : "";
-  return `${scheme} @ ${load(g.weight)}${rir}`;
+  return `${scheme} @ ${load(name, g.weight)}${rir}`;
 }
 
 /// Ramp sets drop the unit — five of them in a row reads as noise, and the
 /// working line right above has already established the scale.
-function warmupLabel(g: Group): string {
-  const w = g.weight && g.weight > 0 ? String(g.weight) : "BW";
+function warmupLabel(name: string, g: Group): string {
+  const w =
+    g.weight && g.weight > 0
+      ? formatPlates(name, g.weight) || String(g.weight)
+      : "BW";
   const each = `${w}×${g.reps ?? "?"}`;
   return g.count > 1 ? `${each} ×${g.count}` : each;
 }
@@ -166,7 +173,7 @@ export default function CoachPlanCard({ plan }: { plan: WorkoutPlan }) {
                     fontFamily: "var(--font-geist-mono)",
                   }}
                 >
-                  {r.sets.map(warmupLabel).join(" · ")}
+                  {r.sets.map((g) => warmupLabel(r.name, g)).join(" · ")}
                 </div>
               </li>
             ))}
@@ -223,7 +230,7 @@ export default function CoachPlanCard({ plan }: { plan: WorkoutPlan }) {
                     fontFamily: "var(--font-geist-mono)",
                   }}
                 >
-                  {work.map(workingLabel).join(" · ")}
+                  {work.map((g) => workingLabel(ex.name, g)).join(" · ")}
                 </div>
               )}
 

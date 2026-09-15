@@ -2,7 +2,12 @@ import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { e1rm } from "@/lib/strengthProgression";
-import { isMachineExercise, labelForType, formatDuration } from "@/lib/exercises";
+import {
+  isMachineExercise,
+  labelForType,
+  formatDuration,
+  formatLoad,
+} from "@/lib/exercises";
 import { normalizeExerciseName } from "@/lib/exerciseIdentity";
 import Link from "next/link";
 import BackButton from "@/components/BackButton";
@@ -242,7 +247,7 @@ export default async function PublicProfilePage({
                       className="text-[11px] tabular-nums"
                       style={{ color: "var(--fg-dim)" }}
                     >
-                      from {l.weight} × {l.reps}
+                      from {formatLoad(l.name, l.weight)} × {l.reps}
                     </p>
                   </div>
                   <p

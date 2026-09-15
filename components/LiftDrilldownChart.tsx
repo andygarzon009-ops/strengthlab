@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import ChartScrubTrack from "@/components/ChartScrubTrack";
+import { formatLoad } from "@/lib/exercises";
 
 type SessionRow = {
   workoutId: string;
@@ -50,8 +51,12 @@ function formatRelative(d: Date): string {
 
 export default function LiftDrilldownChart({
   sessions,
+  exerciseName,
 }: {
   sessions: SessionRow[];
+  /// The lift being drilled into — plate-loaded apparatuses read their top
+  /// sets in plates rather than pounds.
+  exerciseName: string;
 }) {
   const [range, setRange] = useState<Range>("M");
   // When the user taps a dot, we highlight the corresponding row in the
@@ -175,7 +180,9 @@ export default function LiftDrilldownChart({
                 read a session
               </p>
             }
-            readout={(i) => <Readout session={filtered[i]} />}
+            readout={(i) => (
+              <Readout session={filtered[i]} exerciseName={exerciseName} />
+            )}
             onTap={(i) =>
               setSelectedWorkoutId((cur) =>
                 cur === filtered[i].workoutId ? null : filtered[i].workoutId,
@@ -185,6 +192,7 @@ export default function LiftDrilldownChart({
             {(activeIndex) => (
               <LineChart
                 sessions={filtered}
+                exerciseName={exerciseName}
                 range={range}
                 timeWindow={timeWindow}
                 activeIndex={activeIndex}
@@ -202,6 +210,7 @@ export default function LiftDrilldownChart({
       {filtered.length > 0 && (
         <SessionList
           sessions={[...filtered].reverse()}
+          exerciseName={exerciseName}
           selectedWorkoutId={selectedWorkoutId}
           onClear={() => setSelectedWorkoutId(null)}
         />
@@ -212,10 +221,12 @@ export default function LiftDrilldownChart({
 
 function SessionList({
   sessions,
+  exerciseName,
   selectedWorkoutId,
   onClear,
 }: {
   sessions: SessionRow[];
+  exerciseName: string;
   selectedWorkoutId: string | null;
   onClear: () => void;
 }) {
@@ -268,7 +279,7 @@ function SessionList({
             >
               <div className="min-w-0">
                 <p className="text-[14px] font-medium tabular-nums">
-                  {s.topWeight} × {s.topReps}
+                  {formatLoad(exerciseName, s.topWeight)} × {s.topReps}
                   {s.isPR && (
                     <span
                       className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded"
@@ -346,7 +357,13 @@ function Tile({
 }
 
 /// What a scrubbed session reads as: the top set, its est. 1RM, and when.
-function Readout({ session }: { session: SessionRow }) {
+function Readout({
+  session,
+  exerciseName,
+}: {
+  session: SessionRow;
+  exerciseName: string;
+}) {
   return (
     <div className="flex items-baseline gap-2">
       <span className="text-[15px] font-bold tabular-nums">
@@ -356,7 +373,7 @@ function Readout({ session }: { session: SessionRow }) {
         </span>
       </span>
       <span className="text-[11px] tabular-nums" style={{ color: "var(--fg-dim)" }}>
-        {session.topWeight} × {session.topReps}
+        {formatLoad(exerciseName, session.topWeight)} × {session.topReps}
       </span>
       {session.isPR && (
         <span
@@ -379,6 +396,7 @@ function Readout({ session }: { session: SessionRow }) {
 
 function LineChart({
   sessions,
+  exerciseName,
   range,
   timeWindow,
   activeIndex,
@@ -386,6 +404,7 @@ function LineChart({
   onSelect,
 }: {
   sessions: SessionRow[];
+  exerciseName: string;
   range: Range;
   timeWindow: { start: number; end: number };
   activeIndex: number | null;
@@ -569,7 +588,7 @@ function LineChart({
             }}
             role="button"
             tabIndex={0}
-            aria-label={`${s.topWeight} × ${s.topReps} session, est 1RM ${Math.round(s.topE1rm)} lb${s.isPR ? ", PR" : ""}`}
+            aria-label={`${formatLoad(exerciseName, s.topWeight)} × ${s.topReps} session, est 1RM ${Math.round(s.topE1rm)} lb${s.isPR ? ", PR" : ""}`}
             style={{ cursor: "pointer", outline: "none" }}
           >
             {/* Invisible hit zone wider than the visible dot so it's easy

@@ -7,6 +7,8 @@ import {
   labelForType,
   shapeForType,
   formatDuration,
+  formatLoad,
+  formatPlates,
 } from "@/lib/exercises";
 import { formatLongDate } from "@/lib/dateFormat";
 import Link from "next/link";
@@ -157,9 +159,23 @@ export default async function WorkoutDetailPage({
   const totalSets = workout.exercises.flatMap((e) =>
     e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"))
   ).length;
-  const topSetWeight = workout.exercises
-    .flatMap((e) => e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET")))
-    .reduce((max, s) => Math.max(max, s.weight ?? 0), 0);
+  const topSet = workout.exercises.reduce(
+    (best, e) => {
+      let found = best;
+      for (const s of e.sets) {
+        if (s.type !== "WORKING" && s.type !== "SUPERSET" && s.type !== "DROP_SET")
+          continue;
+        const w = s.weight ?? 0;
+        if (w > found.weight) found = { weight: w, name: e.exercise.name };
+      }
+      return found;
+    },
+    { weight: 0, name: "" },
+  );
+  const topSetWeight = topSet.weight;
+  // Plate-loaded apparatuses report the top set as plates on the sleeve.
+  const topSetLabel =
+    topSetWeight > 0 ? formatLoad(topSet.name, topSetWeight) : "—";
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
@@ -321,8 +337,7 @@ export default async function WorkoutDetailPage({
                 { label: "Working Sets", value: totalSets },
                 {
                   label: "Top set",
-                  value: topSetWeight > 0 ? topSetWeight : "—",
-                  suffix: topSetWeight > 0 ? "lb" : undefined,
+                  value: topSetLabel,
                 },
               ]
             : shape === "DISTANCE"
@@ -450,10 +465,10 @@ export default async function WorkoutDetailPage({
                   }}
                 >
                   {pr.type === "WEIGHT"
-                    ? `${pr.value}lb`
+                    ? formatLoad(pr.exercise.name, pr.value)
                     : pr.type === "REPS"
                       ? pr.value > 0
-                        ? `${pr.reps ?? 0} reps @ ${pr.value}lb`
+                        ? `${pr.reps ?? 0} reps @ ${formatLoad(pr.exercise.name, pr.value)}`
                         : `${pr.reps ?? 0} reps`
                       : `${pr.value}lb vol`}
                 </span>
@@ -571,6 +586,7 @@ export default async function WorkoutDetailPage({
                             {warmupSets.map((s) => (
                               <SetLine
                                 key={s.id}
+                                exerciseName={ex.exercise.name}
                                 num={s.setNumber}
                                 weight={s.weight}
                                 reps={s.reps}
@@ -595,6 +611,7 @@ export default async function WorkoutDetailPage({
                             {workingChains.map((c, ci) => (
                               <div key={c.parent.id}>
                                 <SetLine
+                                  exerciseName={ex.exercise.name}
                                   num={ci + 1}
                                   weight={c.parent.weight}
                                   reps={c.parent.reps}
@@ -604,6 +621,7 @@ export default async function WorkoutDetailPage({
                                 {c.drops.map((d) => (
                                   <SetLine
                                     key={d.id}
+                                    exerciseName={ex.exercise.name}
                                     num={d.setNumber}
                                     weight={d.weight}
                                     reps={d.reps}
@@ -637,6 +655,7 @@ export default async function WorkoutDetailPage({
                             {supersetChains.map((c, ci) => (
                               <div key={c.parent.id}>
                                 <SetLine
+                                  exerciseName={ex.exercise.name}
                                   num={ci + 1}
                                   weight={c.parent.weight}
                                   reps={c.parent.reps}
@@ -646,6 +665,7 @@ export default async function WorkoutDetailPage({
                                 {c.drops.map((d) => (
                                   <SetLine
                                     key={d.id}
+                                    exerciseName={ex.exercise.name}
                                     num={d.setNumber}
                                     weight={d.weight}
                                     reps={d.reps}
@@ -688,6 +708,7 @@ export default async function WorkoutDetailPage({
 }
 
 function SetLine({
+  exerciseName,
   num,
   weight,
   reps,
@@ -697,6 +718,9 @@ function SetLine({
   isDrop,
 }: {
   num: number;
+  /// The lift this set belongs to — plate-loaded apparatuses render the load
+  /// as plates per side instead of a rack total.
+  exerciseName: string;
   weight: number | null;
   reps: number | null;
   rir: number | null;
@@ -704,6 +728,7 @@ function SetLine({
   isWarmup?: boolean;
   isDrop?: boolean;
 }) {
+  const plates = weight != null ? formatPlates(exerciseName, weight) : "";
   return (
     <div
       className="flex items-center gap-3 mb-1 nums"
@@ -725,13 +750,15 @@ function SetLine({
         className="text-[13px] font-medium"
         style={{ color: isWarmup ? "var(--fg-muted)" : "var(--fg)" }}
       >
-        {weight ?? "—"}
-        <span
-          style={{ color: "var(--fg-dim)", fontSize: "11px" }}
-          className="ml-0.5"
-        >
-          lb
-        </span>
+        {plates || (weight ?? "—")}
+        {!plates && (
+          <span
+            style={{ color: "var(--fg-dim)", fontSize: "11px" }}
+            className="ml-0.5"
+          >
+            lb
+          </span>
+        )}
         <span className="mx-1.5" style={{ color: "var(--fg-dim)" }}>
           ×
         </span>
@@ -902,7 +929,9 @@ function StatsGrid({
           style={{ background: "var(--bg-card)" }}
         >
           <p
-            className="font-semibold text-[20px] leading-none tracking-tight nums"
+            className={`font-semibold leading-none tracking-tight nums ${
+              String(stat.value).length > 6 ? "text-[14px]" : "text-[20px]"
+            }`}
             style={{ fontFamily: "var(--font-geist-mono)" }}
           >
             {stat.value}

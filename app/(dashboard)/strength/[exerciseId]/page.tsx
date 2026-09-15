@@ -136,7 +136,7 @@ export default async function LiftDrilldownPage({
 
       {coachInsight && <CoachInsightCard insight={coachInsight} />}
 
-      <LiftDrilldownChart sessions={sessions} />
+      <LiftDrilldownChart sessions={sessions} exerciseName={exercise.name} />
     </div>
   );
 }

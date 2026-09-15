@@ -716,7 +716,15 @@ const MACHINE_PATTERNS = [
   /\bv-squat\b/i,
 ];
 
+// Movements that trip a machine pattern but still belong in the strength
+// trend. The hip thrust is externally loaded, progressively overloadable and
+// trained for a top set like a barbell lift — whether it's a barbell, a
+// plate-loaded sled or a Smith bar underneath the athlete doesn't change
+// that — so excluding the machine versions split one lift's history in half.
+const MACHINE_EXEMPT_PATTERNS = [/\bhip thrust\b/i];
+
 export function isMachineExercise(name: string): boolean {
+  if (MACHINE_EXEMPT_PATTERNS.some((re) => re.test(name))) return false;
   return MACHINE_PATTERNS.some((re) => re.test(name));
 }
 
@@ -728,6 +736,7 @@ const PLATE_LOADED_PATTERNS = [
   /\bhack squat\b/i,
   /\bleg press\b/i,
   /\bhip thrust machine\b/i,
+  /\bmachine hip thrust\b/i,
   /\bpendulum squat\b/i,
   /\bbelt squat\b/i,
   /\bv-squat\b/i,
@@ -774,6 +783,40 @@ export function platesPerSideBreakdown(perSideLb: number): string {
   }
   if (remaining > 1e-3) return "";
   return parts.map((p) => (Number.isInteger(p) ? p : p.toFixed(1))).join(" + ");
+}
+
+// Trim a computed load to something a lifter would say out loud: 22.5 stays
+// 22.5, 45.0 becomes 45, 202.503 becomes 202.5.
+function tidyLb(n: number): string {
+  return String(+n.toFixed(2));
+}
+
+/// How a plate-loaded load reads at the rack. `totalLb` is the load the way
+/// it's stored — every plate on the apparatus, the sled or carriage not
+/// counted — and the result is what the lifter actually put on each sleeve:
+/// "4 plates", "4 plates + 25", or "25 a side" when it doesn't reach a full
+/// plate. Single-sleeve movements (T-bar row) drop the per-side language.
+/// Returns "" for a non-plate lift or a zero load so callers fall back to lb.
+export function formatPlates(name: string, totalLb: number): string {
+  if (!usesPlates(name)) return "";
+  if (!Number.isFinite(totalLb) || totalLb <= 0) return "";
+  const sides = plateSides(name);
+  const perSide = totalLb / sides;
+  const full = Math.floor(perSide / PLATE_WEIGHT_LB + 1e-6);
+  const extras = +(perSide - full * PLATE_WEIGHT_LB).toFixed(2);
+  if (full <= 0) {
+    return sides === 1 ? `${tidyLb(extras)} lb` : `${tidyLb(extras)} a side`;
+  }
+  const plates = `${full} plate${full === 1 ? "" : "s"}`;
+  return extras > 0 ? `${plates} + ${tidyLb(extras)}` : plates;
+}
+
+/// The one place a single lift's load becomes text. Plate-loaded apparatuses
+/// read in plates because that's what the athlete loaded and remembers;
+/// everything else reads in pounds. Timed holds and bodyweight-capable
+/// movements carry their own conventions and stay at the call site.
+export function formatLoad(name: string, totalLb: number): string {
+  return formatPlates(name, totalLb) || `${tidyLb(totalLb)} lb`;
 }
 
 // Movements that default to bodyweight but can optionally be loaded with a

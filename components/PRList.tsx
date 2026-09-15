@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import Link from "next/link";
-import { isTimedExercise } from "@/lib/exercises";
+import { formatPlates, isTimedExercise } from "@/lib/exercises";
 
 type PR = {
   id: string;
@@ -16,6 +16,8 @@ export default function PRList({ prs }: { prs: PR[] }) {
     <div className="space-y-0.5">
       {prs.map((pr) => {
         const timed = isTimedExercise(pr.exercise.name);
+        // Plate-loaded records read as what was on the sleeve, not a total.
+        const plates = timed ? "" : formatPlates(pr.exercise.name, pr.value);
         const body = (
           <div className="flex items-center justify-between py-2.5 px-2 -mx-2 rounded-lg transition-colors hover:bg-[var(--bg-elevated)]">
             <div className="min-w-0 flex-1 pr-3">
@@ -38,16 +40,20 @@ export default function PRList({ prs }: { prs: PR[] }) {
             >
               <div>
                 <p
-                  className="font-semibold text-[16px] leading-tight"
+                  className={`font-semibold leading-tight ${
+                    plates ? "text-[13px]" : "text-[16px]"
+                  }`}
                   style={{ color: "var(--accent)" }}
                 >
-                  {pr.value}
-                  <span
-                    className="text-[10px] ml-0.5 font-normal"
-                    style={{ color: "var(--accent)", opacity: 0.6 }}
-                  >
-                    {timed ? "sec" : "lb"}
-                  </span>
+                  {plates || pr.value}
+                  {!plates && (
+                    <span
+                      className="text-[10px] ml-0.5 font-normal"
+                      style={{ color: "var(--accent)", opacity: 0.6 }}
+                    >
+                      {timed ? "sec" : "lb"}
+                    </span>
+                  )}
                 </p>
                 {!timed && (
                   <p

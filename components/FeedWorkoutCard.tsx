@@ -8,6 +8,7 @@ import {
   labelForType,
   shapeForType,
   formatDuration,
+  formatLoad,
 } from "@/lib/exercises";
 import ReactionButtons from "@/components/ReactionButtons";
 import CommentSection from "@/components/CommentSection";
@@ -51,10 +52,23 @@ export default function FeedWorkoutCard({
   const workingSets = workout.exercises.flatMap((e) =>
     e.sets.filter((s) => s.type === "WORKING")
   );
-  const topSetWeight = workingSets.reduce(
-    (max, s) => Math.max(max, s.weight ?? 0),
-    0
+  // The heaviest working set of the session, carrying the lift it came from
+  // so a plate-loaded top set can read in plates rather than rack pounds.
+  const topSet = workout.exercises.reduce(
+    (best, e) => {
+      let found = best;
+      for (const s of e.sets) {
+        if (s.type !== "WORKING") continue;
+        const w = s.weight ?? 0;
+        if (w > found.weight) found = { weight: w, name: e.exercise.name };
+      }
+      return found;
+    },
+    { weight: 0, name: "" }
   );
+  const topSetWeight = topSet.weight;
+  const topSetLabel =
+    topSetWeight > 0 ? formatLoad(topSet.name, topSetWeight) : "";
   const isOwn = workout.userId === currentUserId;
 
   return (
@@ -137,6 +151,7 @@ export default function FeedWorkoutCard({
           exercisesCount={workout.exercises.length}
           workingSets={workingSets.length}
           topSetWeight={topSetWeight}
+          topSetLabel={topSetLabel}
           distance={workout.distance}
           duration={workout.duration}
           pace={workout.pace}
@@ -168,8 +183,7 @@ export default function FeedWorkoutCard({
                 <Stat label="Sets" value={workingSets.length} />
                 <Stat
                   label="Top set"
-                  value={topSetWeight > 0 ? topSetWeight : "—"}
-                  suffix={topSetWeight > 0 ? "lb" : undefined}
+                  value={topSetLabel || "—"}
                 />
               </>
             ) : shape === "DISTANCE" ? (
@@ -271,6 +285,7 @@ function CompactSummary({
   exercisesCount,
   workingSets,
   topSetWeight,
+  topSetLabel,
   distance,
   duration,
   pace,
@@ -283,6 +298,8 @@ function CompactSummary({
   exercisesCount: number;
   workingSets: number;
   topSetWeight: number;
+  /// Pre-formatted top set — "225 lb" or "4 plates" — empty when there isn't one.
+  topSetLabel: string;
   distance: number | null;
   duration: number | null;
   pace: string | null;
@@ -295,7 +312,7 @@ function CompactSummary({
   if (shape === "STRENGTH") {
     bits.push(<Bit key="ex">{exercisesCount} ex</Bit>);
     bits.push(<Bit key="sets">{workingSets} sets</Bit>);
-    if (topSetWeight > 0) bits.push(<Bit key="top">top {topSetWeight}lb</Bit>);
+    if (topSetWeight > 0) bits.push(<Bit key="top">top {topSetLabel}</Bit>);
   } else if (shape === "DISTANCE") {
     if (distance != null) bits.push(<Bit key="d">{distance}km</Bit>);
     if (duration != null) bits.push(<Bit key="t">{formatDuration(duration)}</Bit>);
@@ -346,7 +363,9 @@ function Stat({
       style={{ background: "var(--bg-card)" }}
     >
       <p
-        className="font-semibold text-[18px] leading-none tracking-tight nums"
+        className={`font-semibold leading-none tracking-tight nums ${
+          String(value).length > 6 ? "text-[13px]" : "text-[18px]"
+        }`}
         style={{ fontFamily: "var(--font-geist-mono)" }}
       >
         {value}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   usesPlates,
+  formatPlates,
   PLATE_WEIGHT_LB,
   platesPerSideBreakdown,
   plateSides,
@@ -543,7 +544,7 @@ export default function ExerciseLogger({
                         : (
                           <>
                             {usesPlates(ex.exerciseName)
-                              ? `${(prev.topWeight ?? 0) / (PLATE_WEIGHT_LB * plateSides(ex.exerciseName))} plates`
+                              ? formatPlates(ex.exerciseName, prev.topWeight ?? 0)
                               : isBodyweightCapable(ex.exerciseName)
                                 ? (prev.topWeight ?? 0) > 0
                                   ? `+${prev.topWeight}lb`

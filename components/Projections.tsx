@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { formatLoad } from "@/lib/exercises";
 import type { Projection } from "@/lib/projections";
 
 /// Compact est.-1RM trend for one lift. Deliberately axis-free — it sits in a
@@ -133,7 +134,7 @@ export default function Projections({
                   color: "var(--fg-dim)",
                 }}
               >
-                from {p.baseWeight} × {p.baseReps}
+                from {formatLoad(p.exerciseName, p.baseWeight)} × {p.baseReps}
               </p>
             </div>
             <Sparkline trend={p.trend} />

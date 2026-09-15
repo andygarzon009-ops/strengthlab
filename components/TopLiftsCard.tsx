@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteGoal } from "@/lib/actions/goals";
+import { formatLoad } from "@/lib/exercises";
 import type { LiftTrend } from "@/lib/strengthProgression";
 import AddGoalForm from "@/components/AddGoalForm";
 
@@ -190,7 +191,7 @@ function LiftRowBody({ lift }: { lift: LiftTrend }) {
           >
             {lift.sessions === 0
               ? "No sessions logged yet"
-              : `${lift.currentWeight} × ${lift.currentReps} · ${relativeDate(lift.lastSessionAt)}`}
+              : `${formatLoad(lift.name, lift.currentWeight)} × ${lift.currentReps} · ${relativeDate(lift.lastSessionAt)}`}
           </p>
         </div>
         <div className="text-right tabular-nums shrink-0 flex items-center gap-2">
@@ -225,8 +226,8 @@ function LiftRowBody({ lift }: { lift: LiftTrend }) {
             style={{ color: "var(--fg-dim)" }}
           >
             <span className="text-[10px]">
-              Goal {target.targetWeight} × {target.targetReps} ·{" "}
-              {formatLbs(target.targetE1rm)}
+              Goal {formatLoad(lift.name, target.targetWeight)} ×{" "}
+              {target.targetReps} · {formatLbs(target.targetE1rm)}
             </span>
             <span
               className="text-[10px] font-semibold"

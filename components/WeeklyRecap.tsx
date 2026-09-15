@@ -7,6 +7,7 @@ import {
   isTimedExercise,
   specificMuscleFor,
   broadGroupForSpecific,
+  formatPlates,
 } from "@/lib/exercises";
 
 export default async function WeeklyRecap({ userId }: { userId: string }) {
@@ -153,6 +154,11 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
     }
   }
 
+  // Plate-loaded lifts read as what went on the sleeve; "" for everything else.
+  const biggestLiftPlates = biggestLift
+    ? formatPlates(biggestLift.name, biggestLift.value)
+    : "";
+
   const weekStart = format(weekAgo, "MMM d");
   const weekEnd = format(new Date(), "MMM d");
 
@@ -266,9 +272,9 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
               color: "var(--accent)",
             }}
           >
-            {biggestLift.value}
+            {biggestLiftPlates || biggestLift.value}
             <span className="text-[10px] font-normal opacity-70 ml-0.5">
-              lb × {biggestLift.reps ?? 1}
+              {biggestLiftPlates ? "" : "lb "}× {biggestLift.reps ?? 1}
             </span>
           </p>
           <span
