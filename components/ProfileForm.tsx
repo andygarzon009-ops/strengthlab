@@ -1,7 +1,7 @@
 "use client";
 
 import { updateProfile as updateProfileAction } from "@/lib/actions/workouts";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import ImageUpload from "@/components/ImageUpload";
 import UsernameField from "@/components/UsernameField";
 import PeriodizationEditor from "@/components/PeriodizationEditor";
@@ -40,6 +40,36 @@ type UserProfile = {
   calf: number | null;
 };
 
+// Body measurements are STORED in inches — the coach prompt reads them that
+// way ("BODY METRICS (inches unless noted)") and so does the nutrition model.
+// The cm/in switch is a display-and-entry layer over that: `form` carries
+// whatever unit is on screen, and Save converts back to inches.
+type MeasureUnit = "in" | "cm";
+const MEASURE_UNIT_KEY = "sl:measureUnit";
+const CM_PER_IN = 2.54;
+
+// Every length field on the form. Resting HR and bodyweight are not lengths
+// and never convert.
+const LENGTH_FIELDS = [
+  "height",
+  "neck",
+  "shoulders",
+  "chest",
+  "arm",
+  "forearm",
+  "waist",
+  "hips",
+  "thigh",
+  "calf",
+] as const;
+
+// One decimal on screen: a tape measure doesn't resolve finer than that, and
+// it round-trips — 15in → 38.1cm → 15.0in, 32in → 81.3cm → 32.0in — so
+// flipping the switch back and forth never walks a number off its value.
+const show = (n: number) => Math.round(n * 10) / 10;
+const inToCm = (inches: number) => show(inches * CM_PER_IN);
+const cmToIn = (cm: number) => show(cm / CM_PER_IN);
+
 export default function ProfileForm({
   user,
   /// Local dates (YYYY-MM-DD) the athlete logged something on, so the cycle
@@ -55,6 +85,7 @@ export default function ProfileForm({
   // edits and Save keeps working.
   const [showTraining, setShowTraining] = useState(false);
   const [showMeasurements, setShowMeasurements] = useState(false);
+  const [unit, setUnit] = useState<MeasureUnit>("in");
   const [saved, setSaved] = useState(false);
   const [image, setImage] = useState<string | null>(user.image);
   const [coverImage, setCoverImage] = useState<string | null>(user.coverImage);
@@ -94,6 +125,52 @@ export default function ProfileForm({
   const set = (key: keyof typeof form) => (v: string) =>
     setForm((s) => ({ ...s, [key]: v }));
 
+  // Flipping the unit rewrites what's on screen; the numbers the athlete
+  // already typed keep their meaning instead of being reinterpreted.
+  const switchUnit = (next: MeasureUnit) => {
+    if (next === unit) return;
+    setForm((s) => {
+      const out = { ...s };
+      for (const k of LENGTH_FIELDS) {
+        const v = parseFloat(s[k]);
+        if (!Number.isFinite(v)) continue;
+        out[k] = String(next === "cm" ? inToCm(v) : cmToIn(v));
+      }
+      return out;
+    });
+    setUnit(next);
+    try {
+      localStorage.setItem(MEASURE_UNIT_KEY, next);
+    } catch {
+      // Private windows and blocked site data — the switch still works, it
+      // just won't be remembered.
+    }
+  };
+
+  // The preference is per-device, so it can't be read during render without a
+  // hydration mismatch. It's read when the panel is first opened instead —
+  // nothing inside it is rendered while collapsed, so there's nothing to
+  // convert until then, and an athlete who never opens it saves untouched
+  // inches.
+  const unitLoaded = useRef(false);
+  const toggleMeasurements = () => {
+    const opening = !showMeasurements;
+    setShowMeasurements(opening);
+    if (!opening || unitLoaded.current) return;
+    unitLoaded.current = true;
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem(MEASURE_UNIT_KEY);
+    } catch {
+      return;
+    }
+    if (stored === "cm") switchUnit("cm");
+  };
+
+  // A placeholder has to speak the unit on screen too, or "70" reads as a
+  // height in centimetres.
+  const ph = (inches: number) => String(unit === "cm" ? inToCm(inches) : inches);
+
   // Photos persist immediately on upload so they feel instant — no need to
   // hit Save. (The main Save also includes them, harmlessly.)
   const saveImage = (next: string | null) => {
@@ -117,6 +194,13 @@ export default function ProfileForm({
       v.trim() === "" ? null : parseFloat(v);
     const intOrNull = (v: string) =>
       v.trim() === "" ? null : parseInt(v);
+    // Lengths persist in inches whatever the switch says. Two decimals is
+    // finer than any tape and keeps the cm value it came from intact.
+    const lengthInches = (v: string) => {
+      const n = numOrNull(v);
+      if (n === null || !Number.isFinite(n)) return null;
+      return unit === "cm" ? Math.round((n / CM_PER_IN) * 100) / 100 : n;
+    };
 
     startTransition(async () => {
       await updateProfileAction({
@@ -139,17 +223,17 @@ export default function ProfileForm({
         bio: form.bio,
         coachPrompt: form.coachPrompt,
         periodization,
-        height: numOrNull(form.height),
+        height: lengthInches(form.height),
         restingHR: intOrNull(form.restingHR),
-        waist: numOrNull(form.waist),
-        hips: numOrNull(form.hips),
-        chest: numOrNull(form.chest),
-        shoulders: numOrNull(form.shoulders),
-        neck: numOrNull(form.neck),
-        arm: numOrNull(form.arm),
-        forearm: numOrNull(form.forearm),
-        thigh: numOrNull(form.thigh),
-        calf: numOrNull(form.calf),
+        waist: lengthInches(form.waist),
+        hips: lengthInches(form.hips),
+        chest: lengthInches(form.chest),
+        shoulders: lengthInches(form.shoulders),
+        neck: lengthInches(form.neck),
+        arm: lengthInches(form.arm),
+        forearm: lengthInches(form.forearm),
+        thigh: lengthInches(form.thigh),
+        calf: lengthInches(form.calf),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -432,7 +516,7 @@ export default function ProfileForm({
           >
             <button
               type="button"
-              onClick={() => setShowMeasurements(!showMeasurements)}
+              onClick={toggleMeasurements}
               className="w-full flex items-center justify-between px-4 py-3.5 text-left"
             >
               <div>
@@ -443,7 +527,7 @@ export default function ProfileForm({
                 >
                   {filledMeasurements > 0
                     ? `${filledMeasurements} tracked`
-                    : "Optional — inches"}
+                    : `Optional — ${unit === "cm" ? "centimetres" : "inches"}`}
                 </p>
               </div>
               <svg
@@ -471,20 +555,52 @@ export default function ProfileForm({
                 className="p-4 pt-2 space-y-3 animate-slide-up"
                 style={{ borderTop: "1px solid var(--border)" }}
               >
-                <p
-                  className="label text-[9px]"
-                  style={{ color: "var(--fg-dim)" }}
-                >
-                  Baseline
-                </p>
+                <div className="flex items-center justify-between">
+                  <p
+                    className="label text-[9px]"
+                    style={{ color: "var(--fg-dim)" }}
+                  >
+                    Baseline
+                  </p>
+                  <div
+                    className="flex gap-0.5 p-0.5 rounded-full"
+                    style={{
+                      background: "var(--bg-card)",
+                      border: "1px solid var(--border)",
+                    }}
+                    role="group"
+                    aria-label="Measurement unit"
+                  >
+                    {(["in", "cm"] as MeasureUnit[]).map((u) => {
+                      const active = u === unit;
+                      return (
+                        <button
+                          key={u}
+                          type="button"
+                          onClick={() => switchUnit(u)}
+                          aria-pressed={active}
+                          className="px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-colors"
+                          style={{
+                            background: active
+                              ? "var(--accent-dim)"
+                              : "transparent",
+                            color: active ? "var(--accent)" : "var(--fg-dim)",
+                          }}
+                        >
+                          {u}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Field
                     label="Height"
                     type="number"
                     value={form.height}
                     onChange={set("height")}
-                    placeholder="70"
-                    suffix="in"
+                    placeholder={ph(70)}
+                    suffix={unit}
                     compact
                   />
                   <Field
@@ -502,7 +618,7 @@ export default function ProfileForm({
                   className="label text-[9px] mt-4"
                   style={{ color: "var(--fg-dim)" }}
                 >
-                  Upper body (in)
+                  Upper body ({unit})
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   <Field
@@ -510,7 +626,7 @@ export default function ProfileForm({
                     type="number"
                     value={form.neck}
                     onChange={set("neck")}
-                    placeholder="15"
+                    placeholder={ph(15)}
                     compact
                   />
                   <Field
@@ -518,7 +634,7 @@ export default function ProfileForm({
                     type="number"
                     value={form.shoulders}
                     onChange={set("shoulders")}
-                    placeholder="47"
+                    placeholder={ph(47)}
                     compact
                   />
                   <Field
@@ -526,7 +642,7 @@ export default function ProfileForm({
                     type="number"
                     value={form.chest}
                     onChange={set("chest")}
-                    placeholder="41"
+                    placeholder={ph(41)}
                     compact
                   />
                 </div>
@@ -536,7 +652,7 @@ export default function ProfileForm({
                     type="number"
                     value={form.arm}
                     onChange={set("arm")}
-                    placeholder="15"
+                    placeholder={ph(15)}
                     compact
                   />
                   <Field
@@ -544,7 +660,7 @@ export default function ProfileForm({
                     type="number"
                     value={form.forearm}
                     onChange={set("forearm")}
-                    placeholder="13"
+                    placeholder={ph(13)}
                     compact
                   />
                   <Field
@@ -552,7 +668,7 @@ export default function ProfileForm({
                     type="number"
                     value={form.waist}
                     onChange={set("waist")}
-                    placeholder="32"
+                    placeholder={ph(32)}
                     compact
                   />
                 </div>
@@ -561,7 +677,7 @@ export default function ProfileForm({
                   className="label text-[9px] mt-4"
                   style={{ color: "var(--fg-dim)" }}
                 >
-                  Lower body (in)
+                  Lower body ({unit})
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   <Field
@@ -569,7 +685,7 @@ export default function ProfileForm({
                     type="number"
                     value={form.hips}
                     onChange={set("hips")}
-                    placeholder="39"
+                    placeholder={ph(39)}
                     compact
                   />
                   <Field
@@ -577,7 +693,7 @@ export default function ProfileForm({
                     type="number"
                     value={form.thigh}
                     onChange={set("thigh")}
-                    placeholder="24"
+                    placeholder={ph(24)}
                     compact
                   />
                   <Field
@@ -585,7 +701,7 @@ export default function ProfileForm({
                     type="number"
                     value={form.calf}
                     onChange={set("calf")}
-                    placeholder="16"
+                    placeholder={ph(16)}
                     compact
                   />
                 </div>
