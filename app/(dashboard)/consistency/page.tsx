@@ -13,7 +13,6 @@ import { mergeLiftsWithTargets } from "@/lib/strengthProgression";
 import { computeWeakSpots } from "@/lib/weakSpots";
 import TopLiftsCard from "@/components/TopLiftsCard";
 import CoverageBars, { type MuscleCoverage } from "@/components/CoverageBars";
-import MomentumBars, { type MomentumStats } from "@/components/MomentumBars";
 import Projections from "@/components/Projections";
 import { buildProjections } from "@/lib/projections";
 import WeakSpots from "@/components/WeakSpots";
@@ -66,14 +65,6 @@ function setsByMuscle(
   return out;
 }
 
-// Total working sets across sessions (every muscle, including untagged).
-function totalWorkingSets(sessions: WorkoutLikeForCoverage[]): number {
-  let total = 0;
-  for (const w of sessions) {
-    for (const e of w.exercises) total += workingSetCount(e.sets);
-  }
-  return total;
-}
 
 type SessionForAnalysis = {
   title: string;
@@ -100,11 +91,6 @@ type CoachAnalysis = {
     missed: string[];
     note: string;
   };
-  momentum: {
-    direction: "up" | "flat" | "down";
-    line: string;
-  };
-  nextWeek: string[];
 };
 
 type AnalysisResult =
@@ -145,7 +131,7 @@ export default async function ConsistencyDetailPage() {
   const monday = new Date(now.getTime() - (isoToday - 1) * 24 * 60 * 60 * 1000);
   // Window covers Mon 00:00 → next Mon 00:00 in tz; cheap fetch covers it.
   const weekStart = new Date(
-    monday.getTime() - 7 * 24 * 60 * 60 * 1000, // fetch 14 days for momentum compare
+    monday.getTime() - 7 * 24 * 60 * 60 * 1000, // 14 days: this week + last, for coverage
   );
 
   const recent = await prisma.workout.findMany({
@@ -182,7 +168,7 @@ export default async function ConsistencyDetailPage() {
   const trainedDays = grid.filter((g) => g.sessions.length > 0).length;
   const goalDays = user?.trainingDays ?? null;
 
-  // Last week's totals for the momentum comparison the LLM uses.
+  // Last week's sessions — the per-muscle comparison the coverage bars show.
   const lastWeekStart = new Date(
     monday.getTime() - 7 * 24 * 60 * 60 * 1000,
   );
@@ -208,9 +194,10 @@ export default async function ConsistencyDetailPage() {
     (max, w) => Math.max(max, w.updatedAt.getTime()),
     0,
   );
-  // `v2` bump: momentum now reflects the computed working-set delta (matching
-  // the bars), so older cached analyses must regenerate.
-  const fingerprint = `${weekKey}|${thisWeekSessions.length}|${latestUpdate}|v2`;
+  // `v3` bump: the momentum bars and the next-7-days list are gone, so the
+  // model no longer generates those fields and older cached analyses — which
+  // still carry them — must regenerate.
+  const fingerprint = `${weekKey}|${thisWeekSessions.length}|${latestUpdate}|v3`;
 
   // Top lifts need a longer lookback to compute the 4-week baseline. Pull
   // the last 12 weeks of strength workouts in one query.
@@ -302,7 +289,7 @@ export default async function ConsistencyDetailPage() {
     { trainingDays: user?.trainingDays ?? null },
   );
 
-  // ---- Body-scan coverage + momentum (computed, not model-generated) ----
+  // ---- Body-scan coverage (computed, not model-generated) ----
   const thisWeekByMuscle = setsByMuscle(thisWeekSessions);
   const lastWeekByMuscle = setsByMuscle(lastWeekSessions);
 
@@ -328,13 +315,6 @@ export default async function ConsistencyDetailPage() {
       : null,
   }));
 
-  const momentumStats: MomentumStats = {
-    thisWeekSets: totalWorkingSets(thisWeekSessions),
-    lastWeekSets: totalWorkingSets(lastWeekSessions),
-    thisWeekSessions: thisWeekSessions.length,
-    lastWeekSessions: lastWeekSessions.length,
-  };
-
   let analysis: AnalysisResult;
   const cached = user?.weeklyAnalysisCache as
     | { fingerprint?: string; analysis?: CoachAnalysis }
@@ -354,9 +334,6 @@ export default async function ConsistencyDetailPage() {
         ...g,
         sessions: g.sessions as unknown as SessionForAnalysis[],
       })),
-      lastWeekSessionCount: lastWeekSessions.length,
-      thisWeekSets: momentumStats.thisWeekSets,
-      lastWeekSets: momentumStats.lastWeekSets,
     });
     if (analysis.ok) {
       // Persist so next visit is free. Failures aren't cached — we'll retry.
@@ -374,64 +351,35 @@ export default async function ConsistencyDetailPage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
-      <div className="flex items-center gap-3 mb-5">
+      <div className="flex items-center gap-3 mb-4">
         <BackButton href="/" ariaLabel="Back to feed" />
-        <div className="flex-1 min-w-0">
-          <h1 className="text-[22px] font-bold tracking-tight leading-none">
-            Progress
-          </h1>
-          <p className="text-[12px] mt-1" style={{ color: "var(--fg-dim)" }}>
-            This week ({format(monday, "MMM d")} – {format(new Date(monday.getTime() + 6 * 86400_000), "MMM d")}) ·{" "}
-            {trainedDays}
-            {goalDays ? ` / ${goalDays}` : ""} days trained
-          </p>
-        </div>
-        {streakDays > 0 && (
-          <div
-            className="shrink-0 text-right px-3 py-2 rounded-xl"
-            style={{
-              background: "var(--accent-dim)",
-              border: "1px solid rgba(34,197,94,0.3)",
-            }}
-          >
-            <p className="label text-[9px]" style={{ color: "var(--accent)" }}>
-              Streak
-            </p>
-            <p
-              className="nums font-bold text-[18px] leading-none tracking-tight mt-0.5"
-              style={{
-                color: "var(--accent)",
-                fontFamily: "var(--font-geist-mono)",
-              }}
-            >
-              {streakDays}
-              <span className="text-[11px] font-normal ml-0.5 opacity-70">
-                d
-              </span>
-            </p>
-          </div>
-        )}
+        <h1 className="text-[22px] font-bold tracking-tight leading-none flex-1">
+          Progress
+        </h1>
       </div>
 
-      <WeekStrip grid={grid} />
+      {/* One hero for the week. The page used to open with the same fact three
+          times — a date range in the subtitle, a strip of day dots, and a card
+          headed "This week" — so the week's story is told once, in one card:
+          what you did, how it rates, and the one sentence about it. */}
+      <WeekHero
+        grid={grid}
+        weekStart={monday}
+        trainedDays={trainedDays}
+        goalDays={goalDays}
+        streakDays={streakDays}
+        rhythm={analysis.ok ? analysis.analysis.rhythm : null}
+      />
 
-      {analysis.ok ? (
-        <ThisWeekCard
-          analysis={analysis.analysis}
-          momentumStats={momentumStats}
-        />
-      ) : (
+      {!analysis.ok && (
         <div
-          className="rounded-2xl p-5 mb-3"
+          className="rounded-2xl p-4 mb-3"
           style={{
             background: "var(--bg-card)",
             border: "1px solid var(--border)",
           }}
         >
-          <p
-            className="text-[13px] mb-2"
-            style={{ color: "var(--fg-dim)" }}
-          >
+          <p className="text-[13px] mb-2" style={{ color: "var(--fg-dim)" }}>
             Coach analysis unavailable. Pull to refresh.
           </p>
           <p
@@ -443,9 +391,12 @@ export default async function ConsistencyDetailPage() {
         </div>
       )}
 
-      <TopLiftsCard lifts={topLifts} exercises={exercises} />
+      {/* Everything below the week is a standing view of the training, not of
+          these seven days. One rhythm down the page instead of three different
+          gaps. */}
+      <div className="space-y-3">
+        <TopLiftsCard lifts={topLifts} exercises={exercises} />
 
-      <div className="mt-3 space-y-3">
         <Projections items={projections} href="/strength" />
 
         {/* Coverage — interactive body scan */}
@@ -467,17 +418,30 @@ export default async function ConsistencyDetailPage() {
             note={analysis.ok ? analysis.analysis.coverage.note : ""}
           />
         </div>
-      </div>
 
-      <div className="mt-6">
         <WeakSpots spots={weakSpots} />
       </div>
     </div>
   );
 }
 
-function WeekStrip({
+const VERDICT_COLOR: Record<CoachAnalysis["rhythm"]["verdict"], string> = {
+  Strong: "var(--accent)",
+  Steady: "#3b82f6",
+  Light: "#eab308",
+  Inconsistent: "#f97316",
+};
+
+/// The week, told once. A row of day dots for what happened, the count against
+/// the goal for whether it was enough, the coach's verdict and sentence for
+/// what it means, and the one action that follows from it.
+function WeekHero({
   grid,
+  weekStart,
+  trainedDays,
+  goalDays,
+  streakDays,
+  rhythm,
 }: {
   grid: {
     dateKey: string;
@@ -486,141 +450,151 @@ function WeekStrip({
     isFuture: boolean;
     sessions: unknown[];
   }[];
+  weekStart: Date;
+  trainedDays: number;
+  goalDays: number | null;
+  streakDays: number;
+  rhythm: CoachAnalysis["rhythm"] | null;
 }) {
+  const weekEnd = new Date(weekStart.getTime() + 6 * 86400_000);
+  // The ring fills toward the goal; with no goal set it just reads as trained
+  // days and never pretends to measure progress toward a number nobody chose.
+  const pct = goalDays ? Math.min(1, trainedDays / goalDays) : 0;
+
   return (
     <div
-      className="rounded-2xl p-3 mb-4 flex justify-between items-end"
+      className="rounded-2xl overflow-hidden mb-3"
       style={{
         background: "var(--bg-card)",
         border: "1px solid var(--border)",
       }}
     >
-      {grid.map((g) => {
-        const trained = g.sessions.length > 0;
-        return (
-          <div key={g.dateKey} className="flex flex-col items-center gap-1.5">
-            <span
-              className="text-[10px] uppercase tracking-wider font-semibold"
-              style={{
-                color: g.isToday
-                  ? "var(--accent)"
-                  : g.isFuture
-                    ? "var(--fg-dim)"
-                    : "var(--fg-muted)",
-              }}
-            >
-              {g.weekday}
-            </span>
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold"
-              style={{
-                background: trained
-                  ? "var(--accent)"
-                  : g.isToday
-                    ? "var(--bg-elevated)"
-                    : "transparent",
-                border: trained
-                  ? "none"
-                  : g.isToday
-                    ? "1px solid var(--accent)"
-                    : "1px solid var(--border)",
-                color: trained
-                  ? "#0a0a0a"
-                  : g.isFuture
-                    ? "var(--fg-dim)"
-                    : "var(--fg-muted)",
-                opacity: g.isFuture ? 0.5 : 1,
-              }}
-            >
-              {trained ? g.sessions.length : ""}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function ThisWeekCard({
-  analysis,
-  momentumStats,
-}: {
-  analysis: CoachAnalysis;
-  momentumStats: MomentumStats;
-}) {
-  const verdictColor: Record<CoachAnalysis["rhythm"]["verdict"], string> = {
-    Strong: "var(--accent)",
-    Steady: "#3b82f6",
-    Light: "#eab308",
-    Inconsistent: "#f97316",
-  };
-
-  return (
-    <div
-      className="rounded-2xl p-4 mb-3"
-      style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--border)",
-      }}
-    >
-      {/* Rhythm verdict + line */}
-      <div className="flex items-center justify-between mb-2">
-        <p
-          className="text-[10px] uppercase tracking-wider font-semibold"
-          style={{ color: "var(--fg-dim)" }}
-        >
-          This week
-        </p>
-        <span
-          className="text-[11px] font-bold px-2.5 py-1 rounded-full"
-          style={{
-            background: `${verdictColor[analysis.rhythm.verdict]}22`,
-            border: `1px solid ${verdictColor[analysis.rhythm.verdict]}66`,
-            color: verdictColor[analysis.rhythm.verdict],
-          }}
-        >
-          {analysis.rhythm.verdict}
-        </span>
-      </div>
-      <p className="text-[13px] leading-relaxed">{analysis.rhythm.line}</p>
-
-      {/* Momentum — volume vs last week */}
-      <div
-        className="mt-4 pt-4 border-t"
-        style={{ borderColor: "var(--border)" }}
-      >
-        <MomentumBars stats={momentumStats} line={analysis.momentum.line} />
-      </div>
-
-      {/* Next week */}
-      {analysis.nextWeek.length > 0 && (
-        <div
-          className="mt-4 pt-4 border-t"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <p
-            className="text-[10px] uppercase tracking-wider font-semibold mb-2"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            Next 7 days
+      <div className="px-4 pt-4 pb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="label text-[9px]" style={{ color: "var(--fg-dim)" }}>
+            {format(weekStart, "MMM d")} – {format(weekEnd, "MMM d")}
           </p>
-          <ul className="space-y-2">
-            {analysis.nextWeek.map((b, i) => (
-              <li key={i} className="text-[13px] leading-relaxed flex gap-2">
-                <span
-                  className="shrink-0 w-1.5 h-1.5 rounded-full mt-2"
-                  style={{ background: "var(--accent)" }}
-                />
-                <span>{b}</span>
-              </li>
-            ))}
-          </ul>
+          <p className="mt-1.5 flex items-baseline gap-1.5">
+            <span
+              className="nums font-bold text-[30px] leading-none tracking-tight"
+              style={{ fontFamily: "var(--font-geist-mono)" }}
+            >
+              {trainedDays}
+            </span>
+            <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
+              {goalDays ? `of ${goalDays} days` : trainedDays === 1 ? "day" : "days"}
+            </span>
+          </p>
         </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {streakDays > 0 && (
+            <span
+              className="nums text-[11px] font-bold px-2.5 py-1 rounded-full"
+              style={{
+                background: "var(--accent-dim)",
+                border: "1px solid rgba(34,197,94,0.3)",
+                color: "var(--accent)",
+                fontFamily: "var(--font-geist-mono)",
+              }}
+              title="Consecutive days trained"
+            >
+              🔥 {streakDays}d
+            </span>
+          )}
+          {rhythm && (
+            <span
+              className="text-[11px] font-bold px-2.5 py-1 rounded-full"
+              style={{
+                background: `${VERDICT_COLOR[rhythm.verdict]}22`,
+                border: `1px solid ${VERDICT_COLOR[rhythm.verdict]}66`,
+                color: VERDICT_COLOR[rhythm.verdict],
+              }}
+            >
+              {rhythm.verdict}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Goal progress, as a hairline rather than a third number. */}
+      {goalDays ? (
+        <div className="px-4">
+          <div
+            className="rounded-full overflow-hidden"
+            style={{ height: 3, background: "var(--bg-elevated)" }}
+          >
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${pct * 100}%`,
+                background: "var(--accent)",
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      <div className="px-4 py-3.5 flex justify-between items-end">
+        {grid.map((g) => {
+          const trained = g.sessions.length > 0;
+          return (
+            <div key={g.dateKey} className="flex flex-col items-center gap-1.5">
+              <span
+                className="text-[10px] uppercase tracking-wider font-semibold"
+                style={{
+                  color: g.isToday
+                    ? "var(--accent)"
+                    : g.isFuture
+                      ? "var(--fg-dim)"
+                      : "var(--fg-muted)",
+                }}
+              >
+                {g.weekday}
+              </span>
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold"
+                style={{
+                  background: trained
+                    ? "var(--accent)"
+                    : g.isToday
+                      ? "var(--bg-elevated)"
+                      : "transparent",
+                  border: trained
+                    ? "none"
+                    : g.isToday
+                      ? "1px solid var(--accent)"
+                      : "1px solid var(--border)",
+                  color: trained
+                    ? "#0a0a0a"
+                    : g.isFuture
+                      ? "var(--fg-dim)"
+                      : "var(--fg-muted)",
+                  opacity: g.isFuture ? 0.5 : 1,
+                }}
+              >
+                {trained ? g.sessions.length : ""}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {rhythm?.line && (
+        <p
+          className="px-4 pb-4 text-[13px] leading-relaxed"
+          style={{ color: "var(--fg-muted)" }}
+        >
+          {rhythm.line}
+        </p>
       )}
 
       <Link
         href="/log"
-        className="btn-accent inline-flex items-center mt-4 px-4 py-2 rounded-xl text-[12px]"
+        className="block px-4 py-3 text-[13px] font-semibold text-center transition-colors active:opacity-70"
+        style={{
+          borderTop: "1px solid var(--border)",
+          color: "var(--accent)",
+        }}
       >
         Log next session →
       </Link>
@@ -642,9 +616,6 @@ async function generateAnalysis(args: {
     isFuture: boolean;
     sessions: SessionForAnalysis[];
   }[];
-  lastWeekSessionCount: number;
-  thisWeekSets: number;
-  lastWeekSets: number;
 }): Promise<AnalysisResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     return { ok: false, error: "ANTHROPIC_API_KEY not configured" };
@@ -689,12 +660,6 @@ async function generateAnalysis(args: {
     }
   }
 
-  // The momentum bar the user sees is driven by the working-set delta. Hand
-  // the model the exact numbers + trend so its momentum line can't contradict
-  // the bar sitting right next to it.
-  const setDelta = args.thisWeekSets - args.lastWeekSets;
-  const setTrend = setDelta > 0 ? "up" : setDelta < 0 ? "down" : "flat";
-
   const profile = [
     args.experienceLevel ? `experience ${args.experienceLevel}` : null,
     args.primaryFocus ? `focus ${args.primaryFocus}` : null,
@@ -709,8 +674,6 @@ async function generateAnalysis(args: {
 ATHLETE: ${args.name}
 PROFILE: ${profile || "n/a"}
 DAYS TRAINED THIS WEEK: ${args.trainedDays}${args.goalDays ? ` (goal ${args.goalDays})` : ""}
-SESSIONS LAST WEEK (for momentum): ${args.lastWeekSessionCount}
-WORKING SETS — THIS WEEK vs LAST WEEK: ${args.thisWeekSets} vs ${args.lastWeekSets} (${setDelta >= 0 ? "+" : ""}${setDelta} sets, trend ${setTrend}). This is the exact momentum bar the athlete sees.
 
 THIS WEEK (Mon → Sun, only days up to today):
 ${sessionLines.join("\n")}
@@ -725,22 +688,13 @@ Return JSON exactly in this shape (no markdown fence, no prose):
     "trained": ["Chest", "Back", ...],   // muscle GROUPS hit ≥ 1 working set this week; capitalized, deduped
     "missed": ["Legs", ...],              // muscle GROUPS the athlete normally targets but did not train this week (use their preferred split as the expectation when known)
     "note": "ONE sentence ≤ 18 words explaining the imbalance or confirming balance. Empty string if nothing notable."
-  },
-  "momentum": {
-    "direction": "up" | "flat" | "down",  // MUST equal the working-sets trend given above (${setTrend}) — never contradict the bar
-    "line": "ONE sentence ≤ 22 words explaining the trend. Stay consistent with the ${setDelta >= 0 ? "+" : ""}${setDelta}-set change vs last week — do not claim the opposite direction."
-  },
-  "nextWeek": [
-    "ONE concrete bullet ≤ 20 words — name a specific day or session type, not generic advice.",
-    "OPTIONAL second bullet, same constraint. Skip if not needed."
-  ]
+  }
 }
 
 Rules:
 - Be specific. Reference weekdays and session titles from the data.
 - Do not invent sessions. If the week is sparse, say so and recommend the right next step.
 - Verdicts: Strong = hit goal + variety; Steady = on track but unremarkable; Light = under goal or recovery week; Inconsistent = scattered or skipping common muscles.
-- Momentum MUST match the working-set numbers given (trend ${setTrend}). The athlete sees those two bars; never say volume rose if the trend is down, or vice versa.
 - Output valid JSON only. No commentary.`;
 
   let raw = "";
@@ -783,7 +737,6 @@ Rules:
     }
     if (!Array.isArray(parsed.coverage.trained)) parsed.coverage.trained = [];
     if (!Array.isArray(parsed.coverage.missed)) parsed.coverage.missed = [];
-    if (!Array.isArray(parsed.nextWeek)) parsed.nextWeek = [];
     return { ok: true, analysis: parsed };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

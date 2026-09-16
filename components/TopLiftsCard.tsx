@@ -38,7 +38,8 @@ export default function TopLiftsCard({
   const router = useRouter();
 
   return (
-    <div className="mt-6">
+    // No outer margin: the Progress page owns the spacing between sections.
+    <div>
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-[15px] font-bold tracking-tight">Strength</h2>
         <div className="flex items-center gap-4">
