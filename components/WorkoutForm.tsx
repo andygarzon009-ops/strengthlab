@@ -152,6 +152,10 @@ export default function WorkoutForm({
   const [jointSessionId, setJointSessionId] = useState<string | null>(
     searchParams.get("session"),
   );
+  // The id the page was OPENED with, captured once. Draft restore consults it,
+  // and it must not change underneath that — leaving a session rewrites the
+  // URL, and a restore racing that would read the id as absent.
+  const urlSessionId = useRef<string | null>(searchParams.get("session"));
   const [, startTransition] = useTransition();
   const [pending, setPending] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<
@@ -264,10 +268,7 @@ export default function WorkoutForm({
     // session they're in right now; the draft is a memory of the last one. Let
     // the draft overwrite it and leaving one session to join another silently
     // re-attaches you to the one you left.
-    if (
-      typeof d.sessionId === "string" &&
-      !searchParams.get("session")
-    ) {
+    if (typeof d.sessionId === "string" && !urlSessionId.current) {
       setJointSessionId(d.sessionId);
     }
     if (typeof d.split === "string") setSplit(d.split);
@@ -594,6 +595,31 @@ export default function WorkoutForm({
         st.reps.trim() !== "",
     ),
   );
+
+  /// Sessions whose plan has already been handed over, so it happens once and
+  /// never again. The plan arrives on a five-second poll; re-applying it would
+  /// bulldoze every edit the athlete makes for as long as they're in the
+  /// session.
+  const planApplied = useRef<Set<string>>(new Set());
+
+  /// Take on the session's workout. Called however the athlete got here —
+  /// tapping Join in the logger, accepting on the feed, or simply being a
+  /// member already when the page loaded. That last route is how Morgan ended
+  /// up in her own leftover push day while attached to a lower day: joining on
+  /// the feed fires no join event in the logger, so nothing ever handed her
+  /// the plan.
+  const applySessionPlan = (
+    sessionKey: string | null,
+    planType: string | null,
+    planSplit: string | null,
+    plan: { exerciseId: string; exerciseName: string }[],
+  ) => {
+    if (sessionKey) {
+      if (planApplied.current.has(sessionKey)) return;
+      planApplied.current.add(sessionKey);
+    }
+    handleJoinedSession(planType, planSplit, plan);
+  };
 
   const handleJoinedSession = (
     planType: string | null,
@@ -1467,6 +1493,7 @@ export default function WorkoutForm({
             }
           }}
           onJoined={handleJoinedSession}
+          onPlanAvailable={applySessionPlan}
           onSession={setJointSessionId}
           onLeft={clearSessionParam}
         />

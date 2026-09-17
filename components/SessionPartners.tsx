@@ -63,6 +63,7 @@ export default function SessionPartners({
   onJoined,
   onLeft,
   onSession,
+  onPlanAvailable,
   /// Adds the caller's lifts to this athlete's own log. Only ever offered, and
   /// only while this athlete has logged nothing — see the note on the adopt
   /// button.
@@ -85,6 +86,15 @@ export default function SessionPartners({
   /// id into its draft and onto the saved workout. The caller's id exists
   /// nowhere else — it isn't in their URL.
   onSession?: (sessionId: string) => void;
+  /// Fired once the session's workout is known, however this athlete got into
+  /// the session. The form decides whether taking it on is safe; this only
+  /// reports what the session is doing.
+  onPlanAvailable?: (
+    sessionKey: string | null,
+    planType: string | null,
+    planSplit: string | null,
+    plan: { exerciseId: string; exerciseName: string }[],
+  ) => void;
 }) {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [myStatus, setMyStatus] = useState<string | null>(null);
@@ -154,10 +164,17 @@ export default function SessionPartners({
       setTheirPlan(data.plan ?? []);
       setPlanType(data.planType ?? null);
       setPlanSplit(data.planSplit ?? null);
+      // Hand the session's workout to the form. Being in the session is the
+      // only condition — the athlete may have joined from the feed, or simply
+      // been a member when the page loaded, and neither of those fires a join
+      // event in here.
+      if ((data.plan ?? []).length > 0) {
+        onPlanAvailable?.(liveId, data.planType ?? null, data.planSplit ?? null, data.plan);
+      }
     } catch {
       // A dropped poll in a gym basement is not an error worth showing.
     }
-  }, [liveId, detach]);
+  }, [liveId, detach, onPlanAvailable]);
 
   // Not in a session: watch for one to be offered. This runs regardless of
   // having left a session earlier — walking out of one room is not a reason to
