@@ -8,6 +8,7 @@
 // why that boundary matters.
 
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/app/generated/prisma";
 import { requireAuth } from "@/lib/session";
 import { createNotification } from "@/lib/notifications";
 import { sendPushToUser } from "@/lib/push";
@@ -64,16 +65,30 @@ export async function inviteToSession(
     orderBy: { startedAt: "desc" },
   });
 
+  const planJson =
+    plan.length > 0 ? (plan as unknown as Prisma.InputJsonValue) : undefined;
+
   const session =
     open ??
     (await prisma.trainingSession.create({
       data: {
         createdById: userId,
+        plan: planJson,
         // The creator is a member from the start, already joined — they're the
         // one doing the workout.
         members: { create: { userId, status: "JOINED", respondedAt: new Date() } },
       },
     }));
+
+  // Re-inviting, or inviting a second person, refreshes the frozen plan — the
+  // caller has usually added lifts since the session opened, and the newest
+  // invite should describe what they're actually doing.
+  if (open && planJson) {
+    await prisma.trainingSession.update({
+      where: { id: session.id },
+      data: { plan: planJson },
+    });
+  }
 
   const existing = await prisma.sessionMember.findUnique({
     where: { sessionId_userId: { sessionId: session.id, userId: inviteeId } },

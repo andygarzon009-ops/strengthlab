@@ -124,6 +124,7 @@ export async function GET(
     select: {
       endedAt: true,
       createdById: true,
+      plan: true,
       createdBy: { select: { workoutDraft: { select: { payload: true } } } },
       members: {
         where: { userId: { not: userId }, status: { in: ["INVITED", "JOINED"] } },
@@ -171,7 +172,21 @@ export async function GET(
   // someone's in-progress log would be unforgivable.
   const callersDraft = (session.createdBy?.workoutDraft?.payload ?? {}) as Draft;
   const isCaller = session.createdById === userId;
-  const plan = isCaller ? [] : readPlan(session.createdBy?.workoutDraft?.payload);
+  // The plan frozen at invite time wins: the caller's live draft is empty once
+  // they've saved and moved on, and the joiner was invited to a workout, not to
+  // whatever is on the caller's screen right now.
+  const frozen = Array.isArray(session.plan)
+    ? (session.plan as { exerciseId?: string; exerciseName?: string }[])
+        .filter(
+          (p): p is { exerciseId: string; exerciseName: string } =>
+            !!p?.exerciseId && !!p?.exerciseName,
+        )
+    : [];
+  const plan = isCaller
+    ? []
+    : frozen.length > 0
+      ? frozen
+      : readPlan(session.createdBy?.workoutDraft?.payload);
 
   return Response.json({
     sessionId: id,

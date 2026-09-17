@@ -68,7 +68,11 @@ export default function SessionPartners({
   /// Fired when this athlete accepts the invite, carrying the kind of session
   /// the caller is running so the form can open the log instead of leaving
   /// them on the type picker.
-  onJoined?: (planType: string | null, planSplit: string | null) => void;
+  onJoined?: (
+    planType: string | null,
+    planSplit: string | null,
+    plan: { exerciseId: string; exerciseName: string }[],
+  ) => void;
 }) {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [myStatus, setMyStatus] = useState<string | null>(null);
@@ -160,7 +164,28 @@ export default function SessionPartners({
     setBusy("respond");
     const res = await respondToSessionInvite(liveId, join);
     setBusy(null);
-    if (join && !("error" in res)) onJoined?.(planType, planSplit);
+    if (join && !("error" in res)) {
+      // The plan may not have arrived yet when the invite is answered straight
+      // off a push — the strip mounted moments ago. Ask once more so joining
+      // lands in the workout rather than an empty log.
+      let joinPlan = theirPlan;
+      let joinType = planType;
+      let joinSplit = planSplit;
+      if (joinPlan.length === 0) {
+        try {
+          const res2 = await fetch(`/api/sessions/${liveId}/live`);
+          if (res2.ok) {
+            const data = await res2.json();
+            joinPlan = data.plan ?? [];
+            joinType = data.planType ?? joinType;
+            joinSplit = data.planSplit ?? joinSplit;
+          }
+        } catch {
+          // Land them in an empty log rather than nowhere.
+        }
+      }
+      onJoined?.(joinType, joinSplit, joinPlan);
+    }
     load();
   };
 

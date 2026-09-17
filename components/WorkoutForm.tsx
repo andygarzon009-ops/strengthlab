@@ -514,6 +514,28 @@ export default function WorkoutForm({
 
   const shape: WorkoutShape = workoutType ? shapeForType(workoutType) : "STRENGTH";
 
+  /// A lift taken from someone else's plan: their loads are theirs, so it
+  /// starts with one empty working set and the logger fills in this athlete's
+  /// own last-session hints per lift.
+  const blankExerciseFor = (it: {
+    exerciseId: string;
+    exerciseName: string;
+  }): ExerciseData => ({
+    exerciseId: it.exerciseId,
+    exerciseName: it.exerciseName,
+    notes: "",
+    sets: [
+      {
+        type: "WORKING" as const,
+        setNumber: 1,
+        weight: "",
+        reps: "",
+        rir: "",
+        notes: "",
+      },
+    ],
+  });
+
   const handleTypeSelect = (type: string) => {
     setWorkoutType(type);
     setTitle(titleFor(type, split));
@@ -527,12 +549,19 @@ export default function WorkoutForm({
   const handleJoinedSession = (
     planType: string | null,
     planSplit: string | null,
+    plan: { exerciseId: string; exerciseName: string }[],
   ) => {
     if (step !== "type") return;
     const type = planType || "WEIGHT_TRAINING";
     if (planSplit) setSplit(planSplit);
     setWorkoutType(type);
     setTitle(titleFor(type, planSplit || split));
+    // Land in the workout they accepted, not an empty log. Only when their own
+    // list is empty — which it always is coming off an invite — so this can
+    // never overwrite work already logged.
+    if (plan.length > 0 && exercises.length === 0) {
+      setExercises(plan.map(blankExerciseFor));
+    }
     setStep("log");
   };
 
@@ -1373,28 +1402,7 @@ export default function WorkoutForm({
             exerciseId: e.exerciseId,
             exerciseName: e.exerciseName,
           }))}
-          onAdoptPlan={(items) =>
-            setExercises(
-              items.map((it) => ({
-                exerciseId: it.exerciseId,
-                exerciseName: it.exerciseName,
-                notes: "",
-                // One empty working set each — the partner's loads are theirs,
-                // not a prescription. The logger fills in last-session hints
-                // per lift on its own.
-                sets: [
-                  {
-                    type: "WORKING" as const,
-                    setNumber: 1,
-                    weight: "",
-                    reps: "",
-                    rir: "",
-                    notes: "",
-                  },
-                ],
-              })),
-            )
-          }
+          onAdoptPlan={(items) => setExercises(items.map(blankExerciseFor))}
         />
       )}
 

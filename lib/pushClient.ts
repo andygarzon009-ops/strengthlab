@@ -1,5 +1,34 @@
 // Client-side Web Push subscription helper.
 
+/// A VAPID public key as the environment actually hands it over, which is not
+/// always as it was pasted in. A value stored with surrounding quotes, or with
+/// a trailing newline from a copy-paste, reaches the browser intact and then
+/// blows up inside atob() as "InvalidCharacterError: The string contains
+/// invalid characters" — which is precisely what every device here was hitting,
+/// and why not one of them ever subscribed.
+function sanitizeVapidKey(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/\s+/g, "");
+}
+
+/// Why a key can't be used, or null when it can. Base64url decodes to the 65
+/// bytes of an uncompressed P-256 point; anything else is a different string
+/// that happens to look like a key.
+function vapidKeyProblem(key: string): string | null {
+  if (!key) return "no-vapid-key";
+  const bad = key.replace(/[A-Za-z0-9_-]/g, "");
+  if (bad) return `vapid-key-bad-chars(${bad.length})`;
+  try {
+    const bytes = urlBase64ToUint8Array(key);
+    if (bytes.length !== 65) return `vapid-key-${bytes.length}-bytes-expected-65`;
+  } catch {
+    return "vapid-key-undecodable";
+  }
+  return null;
+}
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -44,8 +73,11 @@ export async function subscribeToPush(): Promise<SubscribeResult> {
   if (Notification.permission !== "granted") {
     return { ok: false, reason: `permission-${Notification.permission}` };
   }
-  const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  if (!vapidKey) return { ok: false, reason: "no-vapid-key" };
+  const vapidKey = sanitizeVapidKey(
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "",
+  );
+  const keyProblem = vapidKeyProblem(vapidKey);
+  if (keyProblem) return { ok: false, reason: keyProblem };
 
   try {
     const reg =

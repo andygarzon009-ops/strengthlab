@@ -126,6 +126,12 @@ model TrainingSession {
   startedAt   DateTime  @default(now())
   endedAt     DateTime?
   createdAt   DateTime  @default(now())
+  /// The lifts the caller had queued when they invited someone, frozen:
+  /// [{ exerciseId, exerciseName }]. Read off their live draft instead and a
+  /// joiner arriving twenty minutes later gets whatever that draft looks like
+  /// NOW — which is empty once the caller has saved and moved on. The invite
+  /// names a workout, so the workout has to outlive the draft that named it.
+  plan        Json?
 
   createdBy User            @relation("SessionCreator", fields: [createdById], references: [id], onDelete: Cascade)
   members   SessionMember[]
