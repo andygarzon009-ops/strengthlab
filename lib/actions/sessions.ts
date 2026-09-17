@@ -10,8 +10,7 @@
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/app/generated/prisma";
 import { requireAuth } from "@/lib/session";
-import { createNotification } from "@/lib/notifications";
-import { sendPushToUser } from "@/lib/push";
+import { notify } from "@/lib/notify";
 import { revalidatePath } from "next/cache";
 
 export type SessionActionResult = { ok: true; sessionId: string } | { error: string };
@@ -118,23 +117,23 @@ export async function inviteToSession(
   const existing = await prisma.sessionMember.findUnique({
     where: { sessionId_userId: { sessionId: session.id, userId: inviteeId } },
   });
-  if (existing && existing.status === "JOINED") {
-    // Already training together. Re-inviting them is not an error — it's how a
-    // caller whose page reloaded gets their strip pointed back at the session
-    // they're already in. Hand back the id and let the client re-attach.
-    return { ok: true, sessionId: session.id };
-  }
-  if (existing) {
-    // Re-inviting someone who declined resets them to invited rather than
-    // stacking a second row.
-    await prisma.sessionMember.update({
-      where: { id: existing.id },
-      data: { status: "INVITED", invitedAt: new Date(), respondedAt: null },
-    });
-  } else {
-    await prisma.sessionMember.create({
-      data: { sessionId: session.id, userId: inviteeId, status: "INVITED" },
-    });
+  // Already training together: re-inviting is how a caller whose page reloaded
+  // gets pointed back at the session they're standing in. Re-attach silently —
+  // the other person doesn't need telling twice about a session they're in.
+  const alreadyIn = existing?.status === "JOINED";
+  if (!alreadyIn) {
+    if (existing) {
+      // Someone who declined, or walked out, gets set back to invited rather
+      // than stacking a second row.
+      await prisma.sessionMember.update({
+        where: { id: existing.id },
+        data: { status: "INVITED", invitedAt: new Date(), respondedAt: null },
+      });
+    } else {
+      await prisma.sessionMember.create({
+        data: { sessionId: session.id, userId: inviteeId, status: "INVITED" },
+      });
+    }
   }
 
   const me = await prisma.user.findUnique({
@@ -151,23 +150,25 @@ export async function inviteToSession(
       : "";
   const url = `/log?session=${session.id}`;
 
-  // Both best-effort by design: an invite that fails to notify is still a real
-  // invite sitting in the session, and neither helper throws.
-  await createNotification({
-    userId: inviteeId,
-    type: "SESSION_INVITE",
-    actorId: userId,
-    body: `${firstName} invited you to train${planNote}`,
-    url,
-  });
-  await sendPushToUser(inviteeId, {
-    title: `${firstName} wants to lift`,
-    body: `Training now${planNote}. Tap to join.`,
-    url,
-    tag: `session-${session.id}`,
-  });
+  if (!alreadyIn) {
+    await notify({
+      userId: inviteeId,
+      type: "SESSION_INVITE",
+      actorId: userId,
+      body: `${firstName} invited you to train${planNote}`,
+      url,
+      push: {
+        title: `${firstName} wants to lift`,
+        body: `Training now${planNote}. Tap to join.`,
+        tag: `session-${session.id}`,
+      },
+    });
+  }
 
-  revalidatePath("/group");
+  // The invitee's pending-invite banner reads off this, so it has to be fresh
+  // the moment they next open the app — which is the delivery path that works
+  // whether or not a notification ever reached their phone.
+  revalidatePath("/", "layout");
   return { ok: true, sessionId: session.id };
 }
 
@@ -195,22 +196,21 @@ export async function respondToSessionInvite(
       select: { name: true },
     });
     const firstName = me?.name?.split(" ")[0] ?? "Someone";
-    await createNotification({
+    await notify({
       userId: member.session.createdById,
       type: "SESSION_JOIN",
       actorId: userId,
       body: `${firstName} joined your session`,
       url: `/log?session=${sessionId}`,
-    });
-    await sendPushToUser(member.session.createdById, {
-      title: `${firstName} is in`,
-      body: "They joined your session.",
-      url: `/log?session=${sessionId}`,
-      tag: `session-${sessionId}`,
+      push: {
+        title: `${firstName} is in`,
+        body: "They joined your session.",
+        tag: `session-${sessionId}`,
+      },
     });
   }
 
-  revalidatePath("/notifications");
+  revalidatePath("/", "layout");
   return { ok: true, sessionId };
 }
 

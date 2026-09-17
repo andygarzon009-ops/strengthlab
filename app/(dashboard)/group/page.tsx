@@ -5,6 +5,8 @@ import { shapeForType, formatLoad } from "@/lib/exercises";
 import { loadChallengesForUser } from "@/lib/loadChallenges";
 import { timeLeft } from "@/lib/crewChallenges";
 import GrowCrew from "@/components/GrowCrew";
+import PendingInvites from "@/components/PendingInvites";
+import EnablePushButton from "@/components/EnablePushButton";
 import PullToRefresh from "@/components/PullToRefresh";
 import Avatar from "@/components/Avatar";
 import FriendRequests, { type IncomingRequest } from "@/components/FriendRequests";
@@ -413,6 +415,15 @@ export default async function CrewPage() {
           </span>
         </a>
       </div>
+
+      {/* Same banner as the feed. The Crew page is the other place someone
+          looks when they think a friend is trying to reach them. */}
+      <PendingInvites userId={userId} />
+
+      {/* Asking here rather than only on the notifications page, which nobody
+          opens: this is the screen you're on when you expect a friend to be
+          able to reach you. It renders nothing once push is actually working. */}
+      <EnablePushButton />
 
       <FriendRequests requests={incoming} />
 

@@ -7,6 +7,7 @@ import DailyGlanceCard from "@/components/DailyGlanceCard";
 import HeartRateCard from "@/components/HeartRateCard";
 import PullToRefresh from "@/components/PullToRefresh";
 import ConsistencyCard from "@/components/ConsistencyCard";
+import PendingInvites from "@/components/PendingInvites";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
 
@@ -115,6 +116,12 @@ export default async function FeedPage({
           {/* Each card streams in independently. HeartRate/ActivityRings make
               live Google Health calls — Suspense keeps them from blocking the
               rest of the feed. */}
+          {/* A waiting invite outranks everything: somebody is in a gym right
+              now waiting on an answer. Streams on its own so it can't be held
+              up by anything below it. */}
+          <Suspense fallback={null}>
+            <PendingInvites userId={userId} />
+          </Suspense>
           {/* Progress leads: it's the reason the page gets opened, and it was
               sitting fourth, below two cards that depend on a Google Health
               round-trip. */}

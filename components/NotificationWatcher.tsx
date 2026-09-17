@@ -110,9 +110,17 @@ export default function NotificationWatcher() {
             seen.current.add(item.id);
             if (!primed.current) continue; // first pass: record, don't announce
             if (new Date(item.createdAt).getTime() < fresh) continue;
-            // Looking right at the app? The inbox and the bell already say so,
-            // and a banner over the top is the noise the rest timer avoids.
-            if (document.visibilityState === "visible") continue;
+            // Looking right at the app? Usually the inbox and the badge have
+            // it covered, and a banner on top is the noise the rest timer
+            // deliberately avoids. An invite is the exception: somebody is
+            // standing in a gym waiting on an answer, and the athlete may be
+            // three screens away from anywhere that shows it.
+            if (
+              document.visibilityState === "visible" &&
+              item.type !== "SESSION_INVITE"
+            ) {
+              continue;
+            }
             await announce(item);
           }
           saveSeen(seen.current);
