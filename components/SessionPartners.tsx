@@ -99,6 +99,15 @@ export default function SessionPartners({
   // session — where the other athlete is still happily JOINED — and puts the
   // partner straight back on screen a moment after you walked out.
   const [gone, setGone] = useState(false);
+  /// An invite waiting for this athlete while they're not in a session. Polled
+  /// so it reaches them mid-workout, on a screen that has no banner — and so
+  /// that leaving one session never locks them out of being asked into the
+  /// next one.
+  const [pendingInvite, setPendingInvite] = useState<{
+    sessionId: string;
+    from: string;
+    plan: { exerciseId: string; exerciseName: string }[];
+  } | null>(null);
   /// The session caller's queued lifts, for the adopt button.
   const [theirPlan, setTheirPlan] = useState<
     { exerciseId: string; exerciseName: string }[]
@@ -130,6 +139,39 @@ export default function SessionPartners({
     } catch {
       // A dropped poll in a gym basement is not an error worth showing.
     }
+  }, [liveId]);
+
+  // Not in a session: watch for one to be offered. This runs regardless of
+  // having left a session earlier — walking out of one room is not a reason to
+  // stop hearing the door of the next.
+  useEffect(() => {
+    // Already in a session: nothing to watch for. The stale invite is dropped
+    // at render rather than here, so this effect never sets state on its way in.
+    if (liveId) return;
+    let stopped = false;
+    let timer: number | undefined;
+    const tick = async () => {
+      try {
+        const res = await fetch("/api/sessions/pending", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          setPendingInvite(data.invite ?? null);
+        }
+      } catch {
+        // offline; try again
+      }
+      if (!stopped) timer = window.setTimeout(tick, 15_000);
+    };
+    timer = window.setTimeout(tick, 0);
+    const onFocus = () => {
+      void tick();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      stopped = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [liveId]);
 
   // Self-scheduling rather than setInterval: the next poll is only queued once
@@ -222,6 +264,31 @@ export default function SessionPartners({
       onJoined?.(joinType, joinSplit, joinPlan);
     }
     load();
+  };
+
+  /// Accept an invite that arrived while this athlete wasn't in a session.
+  const acceptPending = async () => {
+    if (!pendingInvite) return;
+    setBusy("pending");
+    const res = await respondToSessionInvite(pendingInvite.sessionId, true);
+    setBusy(null);
+    if ("error" in res) {
+      setError(res.error);
+      return;
+    }
+    setGone(false);
+    setLocalSessionId(pendingInvite.sessionId);
+    onSession?.(pendingInvite.sessionId);
+    onJoined?.(null, null, pendingInvite.plan);
+    setPendingInvite(null);
+  };
+
+  const declinePending = async () => {
+    if (!pendingInvite) return;
+    setBusy("pending");
+    await respondToSessionInvite(pendingInvite.sessionId, false);
+    setBusy(null);
+    setPendingInvite(null);
   };
 
   const leave = async () => {
@@ -331,9 +398,63 @@ export default function SessionPartners({
   // most workouts are solo. A full card announcing "Training alone" is a card
   // spent saying nothing, so this collapses to the one thing worth offering.
   const solo = !invited && active.length === 0 && pending.length === 0;
+  // An invite only means anything while this athlete isn't already in a
+  // session — joining one makes any other offer stale on the spot.
+  const offered = liveId ? null : pendingInvite;
   // What the partner is doing that this athlete isn't.
   const mine = new Set(plan.map((p) => p.exerciseId));
   const missingFromMine = theirPlan.filter((p) => !mine.has(p.exerciseId));
+
+  if (solo && offered) {
+    const firstName = offered.from.split(" ")[0];
+    return (
+      <div
+        className="rounded-2xl p-4 mb-3"
+        style={{
+          background: "var(--accent-dim)",
+          border: "1px solid var(--accent)",
+        }}
+      >
+        <p className="label text-[9px]" style={{ color: "var(--accent)" }}>
+          Training invite
+        </p>
+        <p className="text-[14px] font-semibold mt-0.5">
+          {firstName} wants to lift
+        </p>
+        {offered.plan.length > 0 && (
+          <p
+            className="text-[11px] mt-0.5 truncate"
+            style={{ color: "var(--fg-muted)" }}
+          >
+            {offered.plan.map((p) => p.exerciseName).join(" · ")}
+          </p>
+        )}
+        <div className="flex gap-2 mt-3">
+          <button
+            type="button"
+            onClick={declinePending}
+            disabled={busy !== null}
+            className="px-4 h-9 rounded-xl text-[13px] font-semibold disabled:opacity-60"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              color: "var(--fg-muted)",
+            }}
+          >
+            Not today
+          </button>
+          <button
+            type="button"
+            onClick={acceptPending}
+            disabled={busy !== null}
+            className="btn-accent flex-1 h-9 rounded-xl text-[13px] font-semibold disabled:opacity-60"
+          >
+            {busy === "pending" ? "Joining…" : "Join"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (solo) {
     return (

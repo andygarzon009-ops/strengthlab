@@ -260,7 +260,16 @@ export default function WorkoutForm({
       setWorkoutType(d.workoutType);
       setStep("log");
     }
-    if (typeof d.sessionId === "string") setJointSessionId(d.sessionId);
+    // The URL wins. Arriving at /log?session=<id> is the athlete saying which
+    // session they're in right now; the draft is a memory of the last one. Let
+    // the draft overwrite it and leaving one session to join another silently
+    // re-attaches you to the one you left.
+    if (
+      typeof d.sessionId === "string" &&
+      !searchParams.get("session")
+    ) {
+      setJointSessionId(d.sessionId);
+    }
     if (typeof d.split === "string") setSplit(d.split);
     if (typeof d.title === "string") setTitle(d.title);
     if (typeof d.notes === "string") setNotes(d.notes);
