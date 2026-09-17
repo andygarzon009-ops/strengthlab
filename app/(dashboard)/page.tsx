@@ -115,6 +115,15 @@ export default async function FeedPage({
           {/* Each card streams in independently. HeartRate/ActivityRings make
               live Google Health calls — Suspense keeps them from blocking the
               rest of the feed. */}
+          {/* Progress leads: it's the reason the page gets opened, and it was
+              sitting fourth, below two cards that depend on a Google Health
+              round-trip. */}
+          <Suspense fallback={<CardSkeleton height={120} />}>
+            <ConsistencyCard
+              userId={userId}
+              trainingDaysGoal={currentUser?.trainingDays ?? null}
+            />
+          </Suspense>
           <Suspense fallback={<CardSkeleton height={132} />}>
             <WeeklyRecap userId={userId} />
           </Suspense>
@@ -125,12 +134,6 @@ export default async function FeedPage({
           </Suspense>
           <Suspense fallback={<CardSkeleton height={148} />}>
             <HeartRateCard userId={userId} />
-          </Suspense>
-          <Suspense fallback={<CardSkeleton height={120} />}>
-            <ConsistencyCard
-              userId={userId}
-              trainingDaysGoal={currentUser?.trainingDays ?? null}
-            />
           </Suspense>
         </>
       )}
