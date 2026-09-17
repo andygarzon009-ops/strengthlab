@@ -178,10 +178,13 @@ export default function SessionPartners({
       setError(res.error);
       return;
     }
+    // Inviting after having left re-enters the session, so the latch that
+    // stopped the poll has to come off — otherwise liveId stays null, nothing
+    // polls, and a successful invite looks like a dead button.
+    setGone(false);
     setLocalSessionId(res.sessionId);
     onSession?.(res.sessionId);
     setPicking(false);
-    load();
   };
 
   const respond = async (join: boolean) => {
@@ -264,6 +267,11 @@ export default function SessionPartners({
           <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
             Crew who follow you back
           </p>
+          {error && (
+            <p className="text-[11px] mt-1.5" style={{ color: "#f87171" }}>
+              {error}
+            </p>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto overscroll-contain p-2">
           {crew === null ? (

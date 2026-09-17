@@ -100,11 +100,29 @@ export async function inviteToSession(
     });
   }
 
+  // The caller's own place in the session, in case they'd walked out of it
+  // earlier — inviting somebody is rejoining by definition, and without this
+  // the caller stays LEFT, sees a 403 on the live feed and saves an untagged
+  // log despite standing in the gym with the person they just invited.
+  await prisma.sessionMember.upsert({
+    where: { sessionId_userId: { sessionId: session.id, userId } },
+    create: {
+      sessionId: session.id,
+      userId,
+      status: "JOINED",
+      respondedAt: new Date(),
+    },
+    update: { status: "JOINED" },
+  });
+
   const existing = await prisma.sessionMember.findUnique({
     where: { sessionId_userId: { sessionId: session.id, userId: inviteeId } },
   });
   if (existing && existing.status === "JOINED") {
-    return { error: "They're already in this session." };
+    // Already training together. Re-inviting them is not an error — it's how a
+    // caller whose page reloaded gets their strip pointed back at the session
+    // they're already in. Hand back the id and let the client re-attach.
+    return { ok: true, sessionId: session.id };
   }
   if (existing) {
     // Re-inviting someone who declined resets them to invited rather than
