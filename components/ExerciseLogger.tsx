@@ -179,6 +179,45 @@ export default function ExerciseLogger({
   // to REST_SECONDS_DEFAULT when an exercise has no saved preference.
   const [restPrefs, setRestPrefs] = useState<Record<string, number>>({});
 
+  // ---- Drag to reorder ---------------------------------------------------
+  // Mid-session the plan changes: the squat rack is taken, so the lift you
+  // meant to do third happens first. Hold a card and drag it where it
+  // actually happened. A whole card moves, which means a superset travels as
+  // one unit — its members have to stay adjacent or they stop being a
+  // superset at all.
+  //
+  // Hand-rolled on pointer events rather than a drag-and-drop library: the
+  // list is one column, the cards are the only draggable thing on the page,
+  // and HTML5 drag-and-drop doesn't fire on touch at all.
+  const [drag, setDrag] = useState<{
+    /// Cluster being carried.
+    ci: number;
+    /// Pointer y where the press began, in client coords.
+    startY: number;
+    /// How far it's been dragged since.
+    dy: number;
+    /// Card geometry captured at pick-up, so a re-render mid-drag can't move
+    /// the targets out from under the finger.
+    rects: { top: number; height: number }[];
+  } | null>(null);
+  /// Index the carried card would land at if released now.
+  const [dropCi, setDropCi] = useState<number | null>(null);
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const pressTimer = useRef<number | null>(null);
+  const pressOrigin = useRef<{ x: number; y: number; ci: number } | null>(null);
+
+  const CARD_GAP = 12; // matches the space-y-3 between cards
+  const LONG_PRESS_MS = 320;
+  const PRESS_SLOP_PX = 10;
+
+  const cancelPress = () => {
+    if (pressTimer.current !== null) {
+      window.clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+    pressOrigin.current = null;
+  };
+
   useEffect(() => {
     setRestPrefs(loadRestPrefs());
   }, []);
@@ -480,6 +519,124 @@ export default function ExerciseLogger({
     }
   }
 
+  // Rebuild the exercise list with one cluster moved. Clusters carry their
+  // members' indices, so flattening the reordered list of clusters keeps every
+  // superset contiguous and every set attached to its own lift.
+  const moveCluster = (from: number, to: number) => {
+    if (from === to) return;
+    const order = clusters.map((c) => c.indices);
+    const [moved] = order.splice(from, 1);
+    order.splice(to, 0, moved);
+    setExercises(order.flat().map((i) => exercises[i]));
+  };
+
+  const beginDrag = (ci: number, startY: number) => {
+    const rects = cardRefs.current
+      .slice(0, clusters.length)
+      .map((el) => {
+        const r = el?.getBoundingClientRect();
+        return { top: r?.top ?? 0, height: r?.height ?? 0 };
+      });
+    setDrag({ ci, startY, dy: 0, rects });
+    setDropCi(ci);
+    // A card lifting off the page with no physical feedback reads as a bug on
+    // a phone. Vibration is unsupported on iOS Safari, hence the guard.
+    navigator.vibrate?.(12);
+  };
+
+  const onCardPointerDown = (ci: number, e: React.PointerEvent) => {
+    // Reordering one card is meaningless, and a press that lands on a control
+    // belongs to that control — a weight field, a set's done tick, Remove.
+    if (clusters.length < 2) return;
+    if (
+      (e.target as HTMLElement).closest(
+        "input, button, a, textarea, select, [contenteditable]",
+      )
+    ) {
+      return;
+    }
+    pressOrigin.current = { x: e.clientX, y: e.clientY, ci };
+    const startY = e.clientY;
+    pressTimer.current = window.setTimeout(() => {
+      pressTimer.current = null;
+      if (pressOrigin.current?.ci === ci) beginDrag(ci, startY);
+    }, LONG_PRESS_MS);
+  };
+
+  // Moving before the press matures means the athlete is scrolling the page,
+  // not picking a card up.
+  const onCardPointerMove = (e: React.PointerEvent) => {
+    const origin = pressOrigin.current;
+    if (!origin || pressTimer.current === null) return;
+    if (
+      Math.abs(e.clientY - origin.y) > PRESS_SLOP_PX ||
+      Math.abs(e.clientX - origin.x) > PRESS_SLOP_PX
+    ) {
+      cancelPress();
+    }
+  };
+
+  // While a card is in hand, the gesture is tracked on the window — a finger
+  // easily leaves the card it started on — and touchmove is swallowed
+  // non-passively, which is the only thing that reliably stops iOS from
+  // scrolling the page out from under the drag.
+  useEffect(() => {
+    if (!drag) return;
+
+    const centers = drag.rects.map((r) => r.top + r.height / 2);
+
+    const onMove = (e: PointerEvent) => {
+      const dy = e.clientY - drag.startY;
+      const carried = centers[drag.ci] + dy;
+      let target = drag.ci;
+      while (target > 0 && carried < centers[target - 1]) target--;
+      while (target < centers.length - 1 && carried > centers[target + 1])
+        target++;
+      setDrag((d) => (d ? { ...d, dy } : d));
+      setDropCi(target);
+
+      // Nudge the page when the card is dragged against an edge, so a list
+      // taller than the screen can still be reordered end to end.
+      const EDGE = 90;
+      if (e.clientY < EDGE) window.scrollBy({ top: -14 });
+      else if (e.clientY > window.innerHeight - EDGE) window.scrollBy({ top: 14 });
+    };
+
+    const onUp = () => {
+      setDrag((d) => {
+        if (d) moveCluster(d.ci, dropCi ?? d.ci);
+        return null;
+      });
+      setDropCi(null);
+    };
+
+    const blockScroll = (e: TouchEvent) => e.preventDefault();
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    document.addEventListener("touchmove", blockScroll, { passive: false });
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      document.removeEventListener("touchmove", blockScroll);
+    };
+    // dropCi is read in onUp; moveCluster closes over the current list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drag, dropCi]);
+
+  /// Where a card sits while another is being carried: the carried one follows
+  /// the finger, and the cards it has displaced slide into the gap it left.
+  const cardShift = (i: number): number => {
+    if (!drag || dropCi === null) return 0;
+    if (i === drag.ci) return drag.dy;
+    const h = drag.rects[drag.ci].height + CARD_GAP;
+    if (drag.ci < i && i <= dropCi) return -h;
+    if (dropCi <= i && i < drag.ci) return h;
+    return 0;
+  };
+
   const renderExerciseBody = (
     exIdx: number,
     withDividerAbove: boolean,
@@ -520,6 +677,24 @@ export default function ExerciseLogger({
       >
         <div className="p-4 pb-3">
               <div className="flex items-start justify-between gap-2">
+                {/* Grip: the only thing on the card that says it can be
+                    picked up. Shown on a cluster's first lift once there's
+                    more than one card to put it in front of. */}
+                {!withDividerAbove && clusters.length > 1 && (
+                  <span
+                    aria-hidden="true"
+                    className="shrink-0 select-none leading-none"
+                    style={{
+                      color: "var(--fg-dim)",
+                      fontSize: 13,
+                      opacity: 0.55,
+                      marginTop: 2,
+                    }}
+                    title="Hold to drag this exercise into a new spot"
+                  >
+                    ⠿
+                  </span>
+                )}
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-[15px] tracking-tight truncate">
                     {ex.exerciseName}
@@ -813,15 +988,36 @@ export default function ExerciseLogger({
         // and cues persist on the first member's notes field.
         const firstIdx = cluster.indices[0];
         const firstEx = exercises[firstIdx];
+        const carried = drag?.ci === ci;
         return (
           <div
             key={`${ci}-${cluster.groupId ?? "solo"}`}
+            ref={(el) => {
+              cardRefs.current[ci] = el;
+            }}
+            onPointerDown={(e) => onCardPointerDown(ci, e)}
+            onPointerMove={onCardPointerMove}
+            onPointerUp={cancelPress}
+            onPointerCancel={cancelPress}
             className="card overflow-hidden"
-            style={
-              isSuperset
+            style={{
+              ...(isSuperset
                 ? { borderLeft: "3px solid var(--accent)" }
-                : undefined
-            }
+                : null),
+              transform: `translateY(${cardShift(ci)}px)${carried ? " scale(1.02)" : ""}`,
+              // Only the displaced cards animate. The carried one has to track
+              // the finger exactly — a transition on it feels like lag.
+              transition: carried ? "none" : "transform 160ms ease",
+              zIndex: carried ? 30 : undefined,
+              position: carried ? "relative" : undefined,
+              boxShadow: carried ? "0 12px 32px rgba(0,0,0,0.45)" : undefined,
+              borderColor: carried ? "var(--accent)" : undefined,
+              // Stops the OS text-selection / callout gesture from firing on
+              // the same long press that picks the card up.
+              userSelect: drag ? "none" : undefined,
+              WebkitUserSelect: drag ? "none" : undefined,
+              touchAction: carried ? "none" : undefined,
+            }}
           >
             {isSuperset && (
               <div className="px-4 pt-3 pb-1 flex items-center justify-between gap-2">
