@@ -117,6 +117,17 @@ export default function SessionPartners({
 
   const liveId = gone ? null : (sessionId ?? localSessionId);
 
+  /// Let go of the session: stop polling it, clear it off the screen, and tell
+  /// the form so the draft and the saved workout aren't tagged to it either.
+  const detach = useCallback(() => {
+    setGone(true);
+    setPartners([]);
+    setTheirPlan([]);
+    setMyStatus(null);
+    setLocalSessionId(null);
+    onLeft?.();
+  }, [onLeft]);
+
   const load = useCallback(async () => {
     if (!liveId) return;
     try {
@@ -124,13 +135,20 @@ export default function SessionPartners({
       // 403 means declined or left — stop watching rather than keeping the last
       // known partners on screen forever.
       if (res.status === 403) {
-        setGone(true);
-        setPartners([]);
-        setMyStatus(null);
+        detach();
         return;
       }
       if (!res.ok) return;
       const data = await res.json();
+      // The session is over: everyone saved, or it aged out. Staying attached
+      // to a finished one is worse than useless — the partner list comes back
+      // empty because members who left are filtered out, so it reads as
+      // "training alone", and an attached session is exactly what stops the
+      // logger watching for the NEXT invite. Let go of it.
+      if (data.ended) {
+        detach();
+        return;
+      }
       setPartners(data.partners ?? []);
       setMyStatus(data.myStatus ?? null);
       setTheirPlan(data.plan ?? []);
@@ -139,7 +157,7 @@ export default function SessionPartners({
     } catch {
       // A dropped poll in a gym basement is not an error worth showing.
     }
-  }, [liveId]);
+  }, [liveId, detach]);
 
   // Not in a session: watch for one to be offered. This runs regardless of
   // having left a session earlier — walking out of one room is not a reason to
@@ -156,6 +174,15 @@ export default function SessionPartners({
         if (res.ok) {
           const data = await res.json();
           setPendingInvite(data.invite ?? null);
+          // Already a member of a live session — walk back into it. This is
+          // what rescues an athlete whose form lost the id: joined from the
+          // feed banner, or carrying a draft that points at a session which
+          // has since ended. No prompt; they already said yes.
+          if (!data.invite && data.active) {
+            setGone(false);
+            setLocalSessionId(data.active.sessionId);
+            onSession?.(data.active.sessionId);
+          }
         }
       } catch {
         // offline; try again
@@ -172,7 +199,7 @@ export default function SessionPartners({
       if (timer !== undefined) window.clearTimeout(timer);
       window.removeEventListener("focus", onFocus);
     };
-  }, [liveId]);
+  }, [liveId, onSession]);
 
   // Self-scheduling rather than setInterval: the next poll is only queued once
   // the last one has come back, so a slow connection in a gym basement can't
@@ -235,10 +262,7 @@ export default function SessionPartners({
     const res = await respondToSessionInvite(liveId, join);
     setBusy(null);
     if (!join) {
-      setGone(true);
-      setPartners([]);
-      setMyStatus(null);
-      onLeft?.();
+      detach();
       return;
     }
     if (!("error" in res)) {
@@ -296,14 +320,9 @@ export default function SessionPartners({
     setBusy("leave");
     await leaveSession(liveId);
     setBusy(null);
-    setPartners([]);
-    setTheirPlan([]);
-    setMyStatus(null);
-    setLocalSessionId(null);
-    setGone(true);
-    // The session id also lives in the URL when this athlete arrived from an
-    // invite; left there, a refresh would drop them straight back in.
-    onLeft?.();
+    // Same exit as a session ending: stop polling, clear the strip, and drop
+    // the id from the URL and the draft so a refresh doesn't walk back in.
+    detach();
   };
 
   // The crew sheet. Hoisted into a variable so the slim solo affordance and
