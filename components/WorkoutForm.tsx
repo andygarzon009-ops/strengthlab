@@ -144,7 +144,14 @@ export default function WorkoutForm({
   // this to show the partner and to offer Join; the payload carries it so the
   // finished log is tagged to the session.
   const searchParams = useSearchParams();
-  const jointSessionId = searchParams.get("session");
+  // Arriving from an invite push lands on /log?session=<id>, but the CALLER
+  // never has it in their URL — they opened the session from the invite button.
+  // So it lives in form state and rides along in the draft: without that, the
+  // caller's own log saved untagged (every session in the database had one side
+  // missing) and a mid-workout reload dropped them out of the session entirely.
+  const [jointSessionId, setJointSessionId] = useState<string | null>(
+    searchParams.get("session"),
+  );
   const [, startTransition] = useTransition();
   const [pending, setPending] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<
@@ -253,6 +260,7 @@ export default function WorkoutForm({
       setWorkoutType(d.workoutType);
       setStep("log");
     }
+    if (typeof d.sessionId === "string") setJointSessionId(d.sessionId);
     if (typeof d.split === "string") setSplit(d.split);
     if (typeof d.title === "string") setTitle(d.title);
     if (typeof d.notes === "string") setNotes(d.notes);
@@ -365,6 +373,7 @@ export default function WorkoutForm({
     if (mode !== "create" || !hydratedRef.current) return;
     const draft = {
       workoutType,
+      sessionId: jointSessionId,
       split,
       title,
       notes,
@@ -437,6 +446,10 @@ export default function WorkoutForm({
   }, [
     mode,
     workoutType,
+    // The session id has to re-save the draft on its own: an athlete who
+    // invites someone and then logs nothing else would otherwise have a draft
+    // that doesn't know about the session, and a reload would drop them out.
+    jointSessionId,
     split,
     title,
     notes,
@@ -541,6 +554,7 @@ export default function WorkoutForm({
   // rather than router.replace: this is a URL tidy-up, and a real navigation
   // would remount the form and take the half-logged session with it.
   const clearSessionParam = () => {
+    setJointSessionId(null);
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     if (!url.searchParams.has("session")) return;
@@ -895,6 +909,7 @@ export default function WorkoutForm({
             sessionId={jointSessionId}
             plan={[]}
             onJoined={handleJoinedSession}
+            onSession={setJointSessionId}
             onLeft={clearSessionParam}
           />
         )}
@@ -1416,6 +1431,7 @@ export default function WorkoutForm({
             exerciseName: e.exerciseName,
           }))}
           onAdoptPlan={(items) => setExercises(items.map(blankExerciseFor))}
+          onSession={setJointSessionId}
           onLeft={clearSessionParam}
         />
       )}

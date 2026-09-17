@@ -24,6 +24,7 @@ type Partner = {
   lastSet: string | null;
   lastSetAt: string | null;
   restEndsAt: string | null;
+  finished?: boolean;
 };
 
 type CrewMember = { id: string; name: string; image: string | null };
@@ -61,6 +62,7 @@ export default function SessionPartners({
   plan,
   onJoined,
   onLeft,
+  onSession,
   /// Adds the caller's lifts to this athlete's own log. Only ever offered, and
   /// only while this athlete has logged nothing — see the note on the adopt
   /// button.
@@ -79,6 +81,10 @@ export default function SessionPartners({
   ) => void;
   /// Fired after walking out, so the caller can drop ?session= from the URL.
   onLeft?: () => void;
+  /// Fired when this strip opens or learns a session, so the form can carry the
+  /// id into its draft and onto the saved workout. The caller's id exists
+  /// nowhere else — it isn't in their URL.
+  onSession?: (sessionId: string) => void;
 }) {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [myStatus, setMyStatus] = useState<string | null>(null);
@@ -173,6 +179,7 @@ export default function SessionPartners({
       return;
     }
     setLocalSessionId(res.sessionId);
+    onSession?.(res.sessionId);
     setPicking(false);
     load();
   };
@@ -474,8 +481,12 @@ function PartnerRow({ partner }: { partner: Partner }) {
       <Avatar name={partner.name} image={partner.image} size={28} />
       <div className="min-w-0 flex-1">
         <p className="text-[12px] truncate">
-          {partner.lastSet ?? (
-            <span style={{ color: "var(--fg-dim)" }}>No sets yet</span>
+          {partner.finished ? (
+            <span style={{ color: "var(--accent)" }}>Finished their session</span>
+          ) : (
+            (partner.lastSet ?? (
+              <span style={{ color: "var(--fg-dim)" }}>No sets yet</span>
+            ))
           )}
         </p>
         <p
@@ -486,7 +497,9 @@ function PartnerRow({ partner }: { partner: Partner }) {
           }}
         >
           {partner.setsDone} set{partner.setsDone === 1 ? "" : "s"}
-          {partner.lastSetAt ? ` · ${ago(partner.lastSetAt)}` : ""}
+          {!partner.finished && partner.lastSetAt
+            ? ` · ${ago(partner.lastSetAt)}`
+            : ""}
         </p>
       </div>
       {restLeft !== null && (

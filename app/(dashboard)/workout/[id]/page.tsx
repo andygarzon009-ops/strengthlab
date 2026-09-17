@@ -54,6 +54,15 @@ export default async function WorkoutDetailPage({
       },
       reactions: { include: { user: true } },
       comments: { include: { user: true }, orderBy: { createdAt: "asc" } },
+      // Who else was in the gym for this one.
+      session: {
+        select: {
+          members: {
+            where: { status: "JOINED" },
+            select: { userId: true, user: { select: { id: true, name: true } } },
+          },
+        },
+      },
     },
   });
 
@@ -159,6 +168,10 @@ export default async function WorkoutDetailPage({
   const totalSets = workout.exercises.flatMap((e) =>
     e.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"))
   ).length;
+  const partners = (workout.session?.members ?? []).filter(
+    (m) => m.userId !== workout.userId,
+  );
+
   const topSet = workout.exercises.reduce(
     (best, e) => {
       let found = best;
@@ -229,6 +242,19 @@ export default async function WorkoutDetailPage({
               {splitLabel}
             </span>
           )}
+          {partners.map((m) => (
+            <Link
+              key={m.userId}
+              href={`/u/${m.userId}`}
+              className="label text-[9px] px-2 py-1 rounded-md"
+              style={{
+                background: "var(--accent-dim)",
+                color: "var(--accent)",
+              }}
+            >
+              with {m.user.name.split(" ")[0]}
+            </Link>
+          ))}
           {feeling && (
             <span
               className="label text-[9px] px-2 py-1 rounded-md"

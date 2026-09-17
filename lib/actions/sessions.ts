@@ -59,9 +59,19 @@ export async function inviteToSession(
     return { error: "You can only invite crew who follow you back." };
   }
 
+  // Reuse the session the caller is currently training in, so "invite Morgan,
+  // then invite Sam" puts both in one session rather than starting rivals.
+  // Once the caller has SAVED a log against a session that session is spent —
+  // reusing it for the evening's second workout would overwrite the morning's
+  // link and file two different workouts as one joint session.
   const dayAgo = new Date(Date.now() - 86_400_000);
   const open = await prisma.trainingSession.findFirst({
-    where: { createdById: userId, endedAt: null, startedAt: { gte: dayAgo } },
+    where: {
+      createdById: userId,
+      endedAt: null,
+      startedAt: { gte: dayAgo },
+      members: { some: { userId, workoutId: null } },
+    },
     orderBy: { startedAt: "desc" },
   });
 

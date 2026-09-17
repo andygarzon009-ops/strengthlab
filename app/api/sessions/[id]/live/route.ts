@@ -43,6 +43,9 @@ export type PartnerLive = {
   /// End of their running rest timer, if any. This is the number that matters
   /// when two people are alternating on one rack.
   restEndsAt: string | null;
+  /// They've saved and gone home. Their draft is empty at this point, which is
+  /// not the same as having done nothing.
+  finished: boolean;
 };
 
 /// The newest completed working set in a draft, and how many there are.
@@ -133,6 +136,7 @@ export async function GET(
         select: {
           userId: true,
           status: true,
+          workoutId: true,
           user: {
             select: {
               id: true,
@@ -150,9 +154,47 @@ export async function GET(
     return Response.json({ error: "No such session" }, { status: 404 });
   }
 
+  // A finished partner's set count comes off their saved workout. Their draft
+  // was cleared the moment they hit Save, so reading it would report the person
+  // you just trained beside as having done nothing at all.
+  const finishedIds = session.members
+    .filter((m) => m.workoutId)
+    .map((m) => m.workoutId as string);
+  const finishedCounts = new Map<string, number>();
+  if (finishedIds.length > 0) {
+    const counts = await prisma.set.groupBy({
+      by: ["workoutExerciseId"],
+      where: {
+        type: { not: "WARMUP" },
+        workoutExercise: { workoutId: { in: finishedIds } },
+      },
+      _count: { _all: true },
+      // Needed to attribute each group back to its workout.
+    });
+    const exerciseOwners = await prisma.workoutExercise.findMany({
+      where: { workoutId: { in: finishedIds } },
+      select: { id: true, workoutId: true },
+    });
+    const ownerOf = new Map(exerciseOwners.map((e) => [e.id, e.workoutId]));
+    for (const row of counts) {
+      const workoutId = ownerOf.get(row.workoutExerciseId);
+      if (!workoutId) continue;
+      finishedCounts.set(
+        workoutId,
+        (finishedCounts.get(workoutId) ?? 0) + row._count._all,
+      );
+    }
+  }
+
   const partners: PartnerLive[] = session.members.map((m) => {
-    const read =
-      m.status === "JOINED"
+    const finished = !!m.workoutId;
+    const read = finished
+      ? {
+          setsDone: finishedCounts.get(m.workoutId as string) ?? 0,
+          lastSet: null,
+          lastSetAt: null,
+        }
+      : m.status === "JOINED"
         ? readDraft(m.user.workoutDraft?.payload)
         : { setsDone: 0, lastSet: null, lastSetAt: null };
     return {
@@ -160,10 +202,11 @@ export async function GET(
       name: m.user.name,
       image: m.user.image,
       status: m.status,
+      finished,
       ...read,
       // Only surface a rest timer that hasn't already run out.
       restEndsAt:
-        m.user.restEndsAt && m.user.restEndsAt.getTime() > Date.now()
+        !finished && m.user.restEndsAt && m.user.restEndsAt.getTime() > Date.now()
           ? m.user.restEndsAt.toISOString()
           : null,
     };
