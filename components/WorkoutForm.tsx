@@ -572,23 +572,39 @@ export default function WorkoutForm({
   // the athlete staring at a list of session types — they were invited to a
   // specific workout and already said yes. The caller's own type is the best
   // guess; weight training is the fallback when their draft hasn't got one yet.
+  /// Has anything real been logged yet? A restored draft can carry a full list
+  /// of lifts with not a single number in it — that's a leftover, not work.
+  /// Telling the two apart is what decides whether accepting an invite may
+  /// replace what's on screen.
+  const hasLoggedWork = exercises.some((e) =>
+    e.sets.some(
+      (st) =>
+        st.completed ||
+        st.loggedAt ||
+        st.weight.trim() !== "" ||
+        st.reps.trim() !== "",
+    ),
+  );
+
   const handleJoinedSession = (
     planType: string | null,
     planSplit: string | null,
     plan: { exerciseId: string; exerciseName: string }[],
   ) => {
-    if (step !== "type") return;
+    // Accepting has to work from the log step too. An invitee with a leftover
+    // draft opens straight there — never on the type picker — and that is
+    // exactly the athlete who ends up in the wrong workout: they accepted a
+    // lower day and sat in yesterday's unsaved push day, with no way across.
     const type = planType || "WEIGHT_TRAINING";
-    if (planSplit) setSplit(planSplit);
-    setWorkoutType(type);
-    setTitle(titleFor(type, planSplit || split));
-    // Land in the workout they accepted, not an empty log. Only when their own
-    // list is empty — which it always is coming off an invite — so this can
-    // never overwrite work already logged.
-    if (plan.length > 0 && exercises.length === 0) {
-      setExercises(plan.map(blankExerciseFor));
+    if (!hasLoggedWork) {
+      if (planSplit) setSplit(planSplit);
+      setWorkoutType(type);
+      setTitle(titleFor(type, planSplit || split));
+      if (plan.length > 0) setExercises(plan.map(blankExerciseFor));
     }
-    setStep("log");
+    // Mid-session with real sets down, the invite doesn't get to rewrite the
+    // log — "add their lifts" in the strip is how that athlete crosses over.
+    if (step === "type") setStep("log");
   };
 
   const splitDrivesTitle =
@@ -1430,7 +1446,18 @@ export default function WorkoutForm({
             exerciseId: e.exerciseId,
             exerciseName: e.exerciseName,
           }))}
-          onAdoptPlan={(items) => setExercises(items.map(blankExerciseFor))}
+          onAdoptPlan={(items) => {
+            // Append what isn't already there rather than replacing. Replacing
+            // is only safe on an untouched log, and this button exists for the
+            // case that isn't — someone mid-session who wants their partner's
+            // lifts alongside their own.
+            const have = new Set(exercises.map((e) => e.exerciseId));
+            const missing = items.filter((it) => !have.has(it.exerciseId));
+            if (missing.length > 0) {
+              setExercises([...exercises, ...missing.map(blankExerciseFor)]);
+            }
+          }}
+          onJoined={handleJoinedSession}
           onSession={setJointSessionId}
           onLeft={clearSessionParam}
         />

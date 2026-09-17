@@ -323,6 +323,9 @@ export default function SessionPartners({
   // most workouts are solo. A full card announcing "Training alone" is a card
   // spent saying nothing, so this collapses to the one thing worth offering.
   const solo = !invited && active.length === 0 && pending.length === 0;
+  // What the partner is doing that this athlete isn't.
+  const mine = new Set(plan.map((p) => p.exerciseId));
+  const missingFromMine = theirPlan.filter((p) => !mine.has(p.exerciseId));
 
   if (solo) {
     return (
@@ -438,7 +441,12 @@ export default function SessionPartners({
         {/* Offered, never applied for them: adopting is destructive-adjacent,
             and it's only on the table while this athlete's own list is still
             empty — nobody's half-logged session gets rewritten. */}
-        {onAdoptPlan && theirPlan.length > 0 && plan.length === 0 && (
+        {/* The way across for someone already mid-log. It used to hide the
+            moment this athlete had any lift of their own — which is precisely
+            the athlete who lands in the wrong workout and needs it. It's now
+            offered whenever their partner is doing a lift they aren't, and it
+            adds only what's missing. */}
+        {onAdoptPlan && missingFromMine.length > 0 && (
           <button
             type="button"
             onClick={() => onAdoptPlan(theirPlan)}
@@ -448,13 +456,13 @@ export default function SessionPartners({
               color: "var(--accent)",
             }}
           >
-            + Use their plan · {theirPlan.length} lift
-            {theirPlan.length === 1 ? "" : "s"}
+            + Add their {missingFromMine.length} lift
+            {missingFromMine.length === 1 ? "" : "s"}
             <span
               className="block text-[10px] font-normal mt-0.5"
               style={{ color: "var(--fg-dim)" }}
             >
-              {theirPlan.map((p) => p.exerciseName).join(" · ")}
+              {missingFromMine.map((p) => p.exerciseName).join(" · ")}
             </span>
           </button>
         )}
