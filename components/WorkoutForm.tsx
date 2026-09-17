@@ -536,6 +536,18 @@ export default function WorkoutForm({
     ],
   });
 
+  // Walking out of a session has to take ?session= with it, or a refresh drops
+  // the athlete straight back into the invite they just left. history.replaceState
+  // rather than router.replace: this is a URL tidy-up, and a real navigation
+  // would remount the form and take the half-logged session with it.
+  const clearSessionParam = () => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("session")) return;
+    url.searchParams.delete("session");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  };
+
   const handleTypeSelect = (type: string) => {
     setWorkoutType(type);
     setTitle(titleFor(type, split));
@@ -883,6 +895,7 @@ export default function WorkoutForm({
             sessionId={jointSessionId}
             plan={[]}
             onJoined={handleJoinedSession}
+            onLeft={clearSessionParam}
           />
         )}
 
@@ -1403,6 +1416,7 @@ export default function WorkoutForm({
             exerciseName: e.exerciseName,
           }))}
           onAdoptPlan={(items) => setExercises(items.map(blankExerciseFor))}
+          onLeft={clearSessionParam}
         />
       )}
 

@@ -115,8 +115,10 @@ export async function GET(
     where: { sessionId_userId: { sessionId: id, userId } },
     select: { status: true },
   });
-  if (!me || me.status === "DECLINED") {
-    return Response.json({ error: "Not in this session" }, { status: 403 });
+  // Declined or walked out: the session is no longer yours to watch, and
+  // saying so is what lets the client stop polling and clear the strip.
+  if (!me || me.status === "DECLINED" || me.status === "LEFT") {
+    return Response.json({ error: "Not in this session", gone: true }, { status: 403 });
   }
 
   const session = await prisma.trainingSession.findUnique({
