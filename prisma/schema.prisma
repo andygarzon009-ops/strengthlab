@@ -108,6 +108,50 @@ model User {
   notifications          Notification[]           @relation("NotificationRecipient")
   notificationsActed     Notification[]           @relation("NotificationActor")
   bodyMeasurements       BodyMeasurement[]
+  createdSessions        TrainingSession[]        @relation("SessionCreator")
+  sessionMemberships     SessionMember[]
+}
+
+/// Two or more athletes training together — one session, one log each.
+///
+/// Emphatically NOT a shared Workout. Partners lift different loads, and every
+/// per-athlete number in the app is computed off that athlete's own Workout and
+/// Set rows: PRs, volume, projections, block progression, the fuel score. A
+/// shared row would corrupt all of them. So this model links independent logs
+/// and the thing that syncs between them is the plan and the presence, never
+/// the data.
+model TrainingSession {
+  id          String    @id @default(cuid())
+  createdById String
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime  @default(now())
+
+  createdBy User            @relation("SessionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  members   SessionMember[]
+  workouts  Workout[]
+
+  @@index([createdById, startedAt])
+}
+
+/// One athlete's place in a joint session, from invite through to their saved
+/// log. `workoutId` stays null until they finish — an invite that's accepted
+/// but never logged is a real state (someone bailed on the gym).
+model SessionMember {
+  id          String    @id @default(cuid())
+  sessionId   String
+  userId      String
+  /// INVITED | JOINED | DECLINED | LEFT
+  status      String    @default("INVITED")
+  workoutId   String?
+  invitedAt   DateTime  @default(now())
+  respondedAt DateTime?
+
+  session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@index([userId, status])
 }
 
 /// A dated snapshot of the athlete's tape measurements. The User.* columns
@@ -425,7 +469,13 @@ model Workout {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  /// The joint session this log belongs to, when it was trained with someone.
+  /// Null for a solo session, which is nearly all of them. Each athlete still
+  /// owns their own Workout row — see TrainingSession for why.
+  sessionId String?
+
   user             User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session          TrainingSession?         @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   exercises        WorkoutExercise[]
   comments         Comment[]
   reactions        Reaction[]
@@ -435,6 +485,7 @@ model Workout {
   // Nearly every feed/crew/profile/challenge query filters by user and a date
   // window ordered by date — without this it's a full table scan.
   @@index([userId, date])
+  @@index([sessionId])
 }
 
 /// Heart-rate samples captured during a workout, pulled from Google Health.

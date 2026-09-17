@@ -34,6 +34,11 @@ type WorkoutProp = {
     exercise: { name: string };
     sets: { type: string; weight: number | null; reps: number | null }[];
   }[];
+  /// Joint-session members, when this was trained with crew. The card filters
+  /// out the log's own owner — "trained with myself" is not a thing.
+  session?: {
+    members: { userId: string; user: { name: string } }[];
+  } | null;
   reactions: Parameters<typeof ReactionButtons>[0]["reactions"];
   comments: Parameters<typeof CommentSection>[0]["comments"];
 };
@@ -70,6 +75,9 @@ export default function FeedWorkoutCard({
   const topSetLabel =
     topSetWeight > 0 ? formatLoad(topSet.name, topSetWeight) : "";
   const isOwn = workout.userId === currentUserId;
+  const partners = (workout.session?.members ?? [])
+    .filter((m) => m.userId !== workout.userId)
+    .map((m) => m.user.name.split(" ")[0]);
 
   return (
     <article className="card overflow-hidden animate-slide-up">
@@ -119,6 +127,18 @@ export default function FeedWorkoutCard({
             >
               {typeLabel}
             </span>
+            {partners.length > 0 && (
+              <span
+                className="label text-[9px] px-2 py-1 rounded-md"
+                style={{
+                  background: "var(--accent-dim)",
+                  color: "var(--accent)",
+                }}
+                title={`Trained with ${partners.join(", ")}`}
+              >
+                with {partners.join(", ")}
+              </span>
+            )}
           </div>
         </div>
 

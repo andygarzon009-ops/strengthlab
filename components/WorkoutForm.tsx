@@ -21,6 +21,7 @@ import {
   type WorkoutShape,
 } from "@/lib/exercises";
 import ExerciseLogger from "@/components/ExerciseLogger";
+import SessionPartners from "@/components/SessionPartners";
 import WorkoutTimerStrip from "@/components/WorkoutTimerStrip";
 import LiveHRWidget from "@/components/LiveHRWidget";
 import GuidedWarmup, { type WarmupProgress } from "@/components/GuidedWarmup";
@@ -33,7 +34,7 @@ import {
   type ReportedExercise,
 } from "@/lib/workoutAdjust";
 import { useTransition, useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 const DRAFT_KEY = "sl:workoutDraft";
@@ -139,6 +140,11 @@ export default function WorkoutForm({
   backHref?: string;
 }) {
   const router = useRouter();
+  // Arriving from an invite push lands on /log?session=<id>. The strip reads
+  // this to show the partner and to offer Join; the payload carries it so the
+  // finished log is tagged to the session.
+  const searchParams = useSearchParams();
+  const jointSessionId = searchParams.get("session");
   const [, startTransition] = useTransition();
   const [pending, setPending] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<
@@ -628,6 +634,9 @@ export default function WorkoutForm({
 
     const payload: CreateWorkoutInput = {
       title,
+      // Tags this log as half of a joint session. The server re-checks
+      // membership before trusting it.
+      sessionId: jointSessionId,
       type: workoutType,
       split: shape === "STRENGTH" ? split || null : null,
       date: new Date(`${date}T12:00:00`).toISOString(),
@@ -1327,6 +1336,40 @@ export default function WorkoutForm({
           </label>
         )}
       </div>
+
+      {/* Who you're lifting with. Only on a live strength session — there's
+          nobody to sync with when you're back-filling last Tuesday. */}
+      {shape === "STRENGTH" && mode === "create" && (
+        <SessionPartners
+          sessionId={jointSessionId}
+          plan={exercises.map((e) => ({
+            exerciseId: e.exerciseId,
+            exerciseName: e.exerciseName,
+          }))}
+          onAdoptPlan={(items) =>
+            setExercises(
+              items.map((it) => ({
+                exerciseId: it.exerciseId,
+                exerciseName: it.exerciseName,
+                notes: "",
+                // One empty working set each — the partner's loads are theirs,
+                // not a prescription. The logger fills in last-session hints
+                // per lift on its own.
+                sets: [
+                  {
+                    type: "WORKING" as const,
+                    setNumber: 1,
+                    weight: "",
+                    reps: "",
+                    rir: "",
+                    notes: "",
+                  },
+                ],
+              })),
+            )
+          }
+        />
+      )}
 
       {shape === "STRENGTH" && (
         <ExerciseLogger

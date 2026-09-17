@@ -80,6 +80,10 @@ export type CreateWorkoutInput = {
   // keep frequent, low-signal sessions (e.g. guided stretching) out of the
   // crew feed. PR detection and revalidation still run either way.
   broadcast?: boolean;
+  /// The joint session this log belongs to, when the athlete was training with
+  /// crew. The session is only honoured if they're actually a member of it —
+  /// a client can't attach its log to someone else's session.
+  sessionId?: string | null;
 } & WorkoutMetrics;
 
 export async function createWorkout(data: CreateWorkoutInput) {
@@ -110,10 +114,25 @@ export async function createWorkout(data: CreateWorkoutInput) {
     }
   })();
 
+  // A session id off the client is a claim, not a fact: honour it only if this
+  // athlete really is a member. Otherwise the log saves solo, which is the
+  // right failure — a workout is worth more than its social tag.
+  const sessionMember = data.sessionId
+    ? await prisma.sessionMember.findUnique({
+        where: {
+          sessionId_userId: { sessionId: data.sessionId, userId },
+        },
+        select: { id: true, status: true },
+      })
+    : null;
+  const sessionId =
+    sessionMember && sessionMember.status === "JOINED" ? data.sessionId! : null;
+
   const workout = await prisma.workout.create({
     data: {
       userId,
       ...stamp,
+      sessionId,
       title: data.title,
       type: data.type,
       split: data.split ?? null,
@@ -160,6 +179,19 @@ export async function createWorkout(data: CreateWorkoutInput) {
       exercises: { include: { sets: true, exercise: true } },
     },
   });
+
+  if (sessionId && sessionMember) {
+    // Best-effort: the log is saved either way, and a missing back-reference
+    // only costs the session recap one of its two sides.
+    try {
+      await prisma.sessionMember.update({
+        where: { id: sessionMember.id },
+        data: { workoutId: workout.id },
+      });
+    } catch {
+      // ignore
+    }
+  }
 
   const prs = await detectAndSavePRs(
     userId,

@@ -173,6 +173,16 @@ async function FeedList({
       reactions: { include: { user: true } },
       comments: { include: { user: true }, orderBy: { createdAt: "asc" } },
       _count: { select: { exercises: true } },
+      // Who else was in the gym for this one. Only joined members — an invite
+      // nobody accepted isn't a training partner.
+      session: {
+        select: {
+          members: {
+            where: { status: "JOINED" },
+            select: { userId: true, user: { select: { name: true } } },
+          },
+        },
+      },
     },
     orderBy: { date: "desc" },
     take: 20,
