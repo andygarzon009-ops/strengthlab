@@ -18,6 +18,9 @@ export default function EnablePushButton() {
   const [perm, setPerm] = useState<Perm | "unsupported" | "loading">("loading");
   const [deviceSub, setDeviceSub] = useState<boolean | null>(null);
   const [devices, setDevices] = useState<number | null>(null);
+  /// Server-side key health, so a broken deploy config names itself instead of
+  /// looking like a device problem.
+  const [keyNote, setKeyNote] = useState<string | null>(null);
   const [reason, setReason] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -36,7 +39,29 @@ export default function EnablePushButton() {
     }
     try {
       const res = await fetch("/api/push/status", { cache: "no-store" });
-      if (res.ok) setDevices(((await res.json()) as { devices?: number }).devices ?? 0);
+      if (res.ok) {
+        const data = (await res.json()) as {
+          devices?: number;
+          keys?: {
+            serverPublic: { problem: string | null };
+            browserPublic: { problem: string | null };
+            privateKey: { problem: string | null };
+            publicKeysMatch: boolean;
+            pairValid: boolean;
+          };
+        };
+        setDevices(data.devices ?? 0);
+        const k = data.keys;
+        const faults: string[] = [];
+        if (k) {
+          if (k.browserPublic.problem) faults.push(`browser key ${k.browserPublic.problem}`);
+          if (k.serverPublic.problem) faults.push(`server key ${k.serverPublic.problem}`);
+          if (k.privateKey.problem) faults.push(`private key ${k.privateKey.problem}`);
+          if (!k.publicKeysMatch) faults.push("public keys differ");
+          else if (!k.pairValid) faults.push("key pair mismatched");
+        }
+        setKeyNote(faults.length > 0 ? `server config: ${faults.join(", ")}` : null);
+      }
     } catch {
       // leave unknown
     }
@@ -133,6 +158,7 @@ export default function EnablePushButton() {
           {deviceSub === null ? "?" : deviceSub ? "subscribed" : "no"} · server:{" "}
           {devices ?? "?"}
           {reason ? ` · ${reason}` : ""}
+          {keyNote ? ` · ${keyNote}` : ""}
         </p>
       )}
     </div>
