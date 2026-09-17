@@ -93,32 +93,33 @@ export default function EnablePushButton() {
 
   const working = perm === "granted" && deviceSub === true && (devices ?? 0) > 0;
 
+  // Working is the normal state, and the normal state says nothing. This card
+  // exists to report a problem and offer the fix for it; "Notifications are on"
+  // is a sentence nobody needs to read twice, on two different screens.
+  if (working) return null;
+
   const headline =
     perm === "unsupported"
       ? "Notifications aren't supported here"
       : perm === "denied"
         ? "Notifications are blocked"
-        : working
-          ? "Notifications are on"
-          : "Finish turning on notifications";
+        : "Finish turning on notifications";
 
   const detail =
     perm === "unsupported"
       ? "On an iPhone, push only works once the app is added to your Home Screen."
       : perm === "denied"
         ? "Enable notifications for this site in your browser settings, then come back."
-        : working
-          ? `${devices} device${devices === 1 ? "" : "s"} reachable — invites and rest timers will land with the app closed.`
-          : perm !== "granted"
-            ? "Get pinged when someone invites you to train."
-            : "Permission is granted, but this device isn't subscribed — so nothing can reach you with the app closed.";
+        : perm !== "granted"
+          ? "Get pinged when someone invites you to train."
+          : "Permission is granted, but this device isn't subscribed — so nothing can reach you with the app closed.";
 
   return (
     <div
       className="rounded-2xl px-4 py-3.5 mb-4"
       style={{
         background: "var(--bg-card)",
-        border: `1px solid ${working ? "var(--border)" : "var(--accent)"}`,
+        border: "1px solid var(--accent)",
       }}
     >
       <div className="flex items-center gap-3">
@@ -131,7 +132,7 @@ export default function EnablePushButton() {
             {detail}
           </p>
         </div>
-        {perm !== "denied" && perm !== "unsupported" && !working && (
+        {perm !== "denied" && perm !== "unsupported" && (
           <button
             type="button"
             onClick={enable}
@@ -146,7 +147,7 @@ export default function EnablePushButton() {
 
       {/* The three facts, when something is wrong. Worth showing plainly:
           which one is false decides what the fix even is. */}
-      {!working && perm !== "unsupported" && (
+      {perm !== "unsupported" && (
         <p
           className="text-[10px] mt-2.5 nums"
           style={{
