@@ -60,15 +60,19 @@ export async function inviteToSession(
 
   // Reuse the session the caller is currently training in, so "invite Morgan,
   // then invite Sam" puts both in one session rather than starting rivals.
-  // Once the caller has SAVED a log against a session that session is spent —
-  // reusing it for the evening's second workout would overwrite the morning's
-  // link and file two different workouts as one joint session.
-  const dayAgo = new Date(Date.now() - 86_400_000);
+  //
+  // Three hours, not a day: a gym session is two at the outside, and a stale
+  // one poisons everything downstream. An invite sent this evening was
+  // attaching to this morning's session — where the invitee was still marked
+  // JOINED from that one — and being treated as a re-attach instead of a new
+  // invitation. Once the caller has SAVED against a session it's spent too,
+  // or the evening's workout would overwrite the morning's link.
+  const recently = new Date(Date.now() - 3 * 60 * 60 * 1000);
   const open = await prisma.trainingSession.findFirst({
     where: {
       createdById: userId,
       endedAt: null,
-      startedAt: { gte: dayAgo },
+      startedAt: { gte: recently },
       members: { some: { userId, workoutId: null } },
     },
     orderBy: { startedAt: "desc" },
@@ -117,9 +121,11 @@ export async function inviteToSession(
   const existing = await prisma.sessionMember.findUnique({
     where: { sessionId_userId: { sessionId: session.id, userId: inviteeId } },
   });
-  // Already training together: re-inviting is how a caller whose page reloaded
-  // gets pointed back at the session they're standing in. Re-attach silently —
-  // the other person doesn't need telling twice about a session they're in.
+  // Someone already JOINED keeps that status — they're in, and knocking them
+  // back to INVITED would take the session off their screen. But they are
+  // still told, every time: tapping Invite on a person is an explicit act, and
+  // suppressing the notification for "they're already in" meant a caller who
+  // thought they'd invited someone had in fact sent nothing at all.
   const alreadyIn = existing?.status === "JOINED";
   if (!alreadyIn) {
     if (existing) {
@@ -150,20 +156,21 @@ export async function inviteToSession(
       : "";
   const url = `/log?session=${session.id}`;
 
-  if (!alreadyIn) {
-    await notify({
-      userId: inviteeId,
-      type: "SESSION_INVITE",
-      actorId: userId,
-      body: `${firstName} invited you to train${planNote}`,
-      url,
-      push: {
-        title: `${firstName} wants to lift`,
-        body: `Training now${planNote}. Tap to join.`,
-        tag: `session-${session.id}`,
-      },
-    });
-  }
+  await notify({
+    userId: inviteeId,
+    type: "SESSION_INVITE",
+    actorId: userId,
+    body: alreadyIn
+      ? `${firstName} is training now${planNote}`
+      : `${firstName} invited you to train${planNote}`,
+    url,
+    push: {
+      title: `${firstName} wants to lift`,
+      body: `Training now${planNote}. Tap to join.`,
+      // Per session, so a second tap replaces the banner instead of stacking.
+      tag: `session-${session.id}`,
+    },
+  });
 
   // The invitee's pending-invite banner reads off this, so it has to be fresh
   // the moment they next open the app — which is the delivery path that works

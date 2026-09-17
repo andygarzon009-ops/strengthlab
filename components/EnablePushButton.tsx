@@ -21,12 +21,19 @@ export default function EnablePushButton() {
   /// Server-side key health, so a broken deploy config names itself instead of
   /// looking like a device problem.
   const [keyNote, setKeyNote] = useState<string | null>(null);
+  /// Nothing renders until all three facts are in. Permission is readable
+  /// synchronously while the subscription and the server count are two awaits
+  /// behind it, so rendering on what's known so far meant the card appeared on
+  /// every single load and then vanished — a flash of "something is wrong" on
+  /// a device where nothing is.
+  const [ready, setReady] = useState(false);
   const [reason, setReason] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!pushSupported()) {
       setPerm("unsupported");
+      setReady(true);
       return;
     }
     setPerm(Notification.permission as Perm);
@@ -65,6 +72,7 @@ export default function EnablePushButton() {
     } catch {
       // leave unknown
     }
+    setReady(true);
   }, []);
 
   // Deferred a tick: the refresh sets state, and doing that synchronously in an
@@ -89,7 +97,7 @@ export default function EnablePushButton() {
     }
   };
 
-  if (perm === "loading") return null;
+  if (!ready || perm === "loading") return null;
 
   const working = perm === "granted" && deviceSub === true && (devices ?? 0) > 0;
 

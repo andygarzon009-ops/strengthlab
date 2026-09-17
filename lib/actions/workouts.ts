@@ -188,6 +188,19 @@ export async function createWorkout(data: CreateWorkoutInput) {
         where: { id: sessionMember.id },
         data: { workoutId: workout.id },
       });
+      // Everyone who joined has now saved, so the session is over. Closing it
+      // matters beyond tidiness: an open session lingers as the one the next
+      // invite attaches to, and members still marked JOINED in it make a fresh
+      // invitation look like a re-attach.
+      const unfinished = await prisma.sessionMember.count({
+        where: { sessionId, status: "JOINED", workoutId: null },
+      });
+      if (unfinished === 0) {
+        await prisma.trainingSession.updateMany({
+          where: { id: sessionId, endedAt: null },
+          data: { endedAt: new Date() },
+        });
+      }
     } catch {
       // ignore
     }
