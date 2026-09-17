@@ -22,7 +22,12 @@ type DraftExercise = {
   exerciseName?: string;
   sets?: DraftSet[];
 };
-type Draft = { exercises?: DraftExercise[]; startedAt?: string | null };
+type Draft = {
+  exercises?: DraftExercise[];
+  startedAt?: string | null;
+  workoutType?: string;
+  split?: string | null;
+};
 
 export type PartnerLive = {
   userId: string;
@@ -164,16 +169,20 @@ export async function GET(
   // The lifts whoever called the session has queued. Offered to a joiner as a
   // one-tap adopt rather than merged in automatically — silently rewriting
   // someone's in-progress log would be unforgivable.
-  const plan =
-    session.createdById === userId
-      ? []
-      : readPlan(session.createdBy?.workoutDraft?.payload);
+  const callersDraft = (session.createdBy?.workoutDraft?.payload ?? {}) as Draft;
+  const isCaller = session.createdById === userId;
+  const plan = isCaller ? [] : readPlan(session.createdBy?.workoutDraft?.payload);
 
   return Response.json({
     sessionId: id,
     ended: !!session.endedAt,
     myStatus: me.status,
     plan,
+    // What kind of session the caller is running. An invitee tapping the push
+    // should land in a log, not on the type picker — they already know what
+    // they're being invited to.
+    planType: isCaller ? null : (callersDraft.workoutType ?? null),
+    planSplit: isCaller ? null : (callersDraft.split ?? null),
     partners,
   });
 }

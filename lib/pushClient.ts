@@ -18,13 +18,34 @@ export function pushSupported(): boolean {
   );
 }
 
-/// Subscribe this device to Web Push and persist it server-side. Returns true
-/// on success. Assumes notification permission is already granted (caller
-/// handles the prompt). No-op if VAPID isn't configured.
-export async function subscribeToPush(): Promise<boolean> {
-  if (!pushSupported()) return false;
+export type SubscribeResult = { ok: boolean; reason: string };
+
+/// Subscribe this device to Web Push and persist it server-side. Assumes
+/// notification permission is already granted (caller handles the prompt).
+///
+/// Every failure path reports WHY. It used to return a bare false and swallow
+/// the error, which is how every user in the database ended up with zero
+/// subscriptions and no way to find out what was wrong — on iOS alone this can
+/// be an un-installed PWA, a missing service worker, or a rejected subscribe,
+/// and they need different fixes.
+export async function subscribeToPush(): Promise<SubscribeResult> {
+  if (typeof window === "undefined") return { ok: false, reason: "no-window" };
+  if (!("serviceWorker" in navigator)) {
+    return { ok: false, reason: "no-service-worker" };
+  }
+  if (!("PushManager" in window)) {
+    // iOS only exposes PushManager to an installed PWA — in a Safari tab this
+    // is the answer, and the fix is Add to Home Screen.
+    return { ok: false, reason: "no-pushmanager (install the app?)" };
+  }
+  if (!("Notification" in window)) {
+    return { ok: false, reason: "no-notification-api" };
+  }
+  if (Notification.permission !== "granted") {
+    return { ok: false, reason: `permission-${Notification.permission}` };
+  }
   const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  if (!vapidKey) return false;
+  if (!vapidKey) return { ok: false, reason: "no-vapid-key" };
 
   try {
     const reg =
@@ -48,8 +69,10 @@ export async function subscribeToPush(): Promise<boolean> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
     });
-    return res.ok;
-  } catch {
-    return false;
+    if (!res.ok) return { ok: false, reason: `server-${res.status}` };
+    return { ok: true, reason: "subscribed" };
+  } catch (e) {
+    const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+    return { ok: false, reason: msg.slice(0, 120) };
   }
 }

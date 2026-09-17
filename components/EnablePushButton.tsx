@@ -1,66 +1,139 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { pushSupported, subscribeToPush } from "@/lib/pushClient";
 
-type Status = "loading" | "unsupported" | "granted" | "denied" | "default";
+type Perm = "granted" | "denied" | "default";
 
-/// Prompt to turn on push notifications. Shown on the notifications page only
-/// when there's something to do (permission not yet granted). Once granted it
-/// subscribes and hides itself.
+/// Turning on notifications, and — when they're already on but nothing is
+/// arriving — saying why.
+///
+/// This used to hide itself the moment permission was granted, which made the
+/// actual failure invisible: permission can be granted while the device has no
+/// push subscription at all, and that combination is silent in every direction.
+/// It's how every user in the database ended up unreachable. Now the card stays
+/// and reports the three facts that decide whether a push can land: permission,
+/// a subscription on this device, and a row on the server.
 export default function EnablePushButton() {
-  const [status, setStatus] = useState<Status>("loading");
+  const [perm, setPerm] = useState<Perm | "unsupported" | "loading">("loading");
+  const [deviceSub, setDeviceSub] = useState<boolean | null>(null);
+  const [devices, setDevices] = useState<number | null>(null);
+  const [reason, setReason] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
+  const refresh = useCallback(async () => {
     if (!pushSupported()) {
-      setStatus("unsupported");
+      setPerm("unsupported");
       return;
     }
-    const perm = Notification.permission as "granted" | "denied" | "default";
-    setStatus(perm);
-    if (perm === "granted") void subscribeToPush();
+    setPerm(Notification.permission as Perm);
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration?.();
+      const sub = reg ? await reg.pushManager.getSubscription() : null;
+      setDeviceSub(!!sub);
+    } catch {
+      setDeviceSub(false);
+    }
+    try {
+      const res = await fetch("/api/push/status", { cache: "no-store" });
+      if (res.ok) setDevices(((await res.json()) as { devices?: number }).devices ?? 0);
+    } catch {
+      // leave unknown
+    }
   }, []);
 
-  // Nothing actionable to show.
-  if (status === "loading" || status === "unsupported" || status === "granted") {
-    return null;
-  }
+  // Deferred a tick: the refresh sets state, and doing that synchronously in an
+  // effect body cascades a render. Nothing here is time-critical.
+  useEffect(() => {
+    const id = setTimeout(() => void refresh(), 0);
+    return () => clearTimeout(id);
+  }, [refresh]);
 
   const enable = async () => {
     setBusy(true);
+    setReason(null);
     try {
-      const perm = await Notification.requestPermission();
-      setStatus(perm as Status);
-      if (perm === "granted") await subscribeToPush();
+      if (pushSupported() && Notification.permission === "default") {
+        setPerm((await Notification.requestPermission()) as Perm);
+      }
+      const res = await subscribeToPush();
+      setReason(res.reason);
+      await refresh();
     } finally {
       setBusy(false);
     }
   };
 
+  if (perm === "loading") return null;
+
+  const working = perm === "granted" && deviceSub === true && (devices ?? 0) > 0;
+
+  const headline =
+    perm === "unsupported"
+      ? "Notifications aren't supported here"
+      : perm === "denied"
+        ? "Notifications are blocked"
+        : working
+          ? "Notifications are on"
+          : "Finish turning on notifications";
+
+  const detail =
+    perm === "unsupported"
+      ? "On an iPhone, push only works once the app is added to your Home Screen."
+      : perm === "denied"
+        ? "Enable notifications for this site in your browser settings, then come back."
+        : working
+          ? `${devices} device${devices === 1 ? "" : "s"} reachable — invites and rest timers will land with the app closed.`
+          : perm !== "granted"
+            ? "Get pinged when someone invites you to train."
+            : "Permission is granted, but this device isn't subscribed — so nothing can reach you with the app closed.";
+
   return (
     <div
-      className="rounded-2xl px-4 py-3.5 mb-4 flex items-center gap-3"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+      className="rounded-2xl px-4 py-3.5 mb-4"
+      style={{
+        background: "var(--bg-card)",
+        border: `1px solid ${working ? "var(--border)" : "var(--accent)"}`,
+      }}
     >
-      <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-medium">Turn on notifications</p>
-        <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
-          {status === "denied"
-            ? "Blocked — enable notifications for this site in your browser settings."
-            : "Get pinged when someone adds you to their crew."}
-        </p>
+      <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-medium">{headline}</p>
+          <p
+            className="text-[11px] mt-0.5 leading-relaxed"
+            style={{ color: "var(--fg-dim)" }}
+          >
+            {detail}
+          </p>
+        </div>
+        {perm !== "denied" && perm !== "unsupported" && !working && (
+          <button
+            type="button"
+            onClick={enable}
+            disabled={busy}
+            className="px-3 py-1.5 rounded-lg text-[12px] font-semibold shrink-0 disabled:opacity-60"
+            style={{ background: "var(--accent)", color: "#0a0a0a" }}
+          >
+            {busy ? "…" : "Turn on"}
+          </button>
+        )}
       </div>
-      {status !== "denied" && (
-        <button
-          type="button"
-          onClick={enable}
-          disabled={busy}
-          className="px-3 py-1.5 rounded-lg text-[12px] font-semibold shrink-0 disabled:opacity-60"
-          style={{ background: "var(--accent)", color: "#0a0a0a" }}
+
+      {/* The three facts, when something is wrong. Worth showing plainly:
+          which one is false decides what the fix even is. */}
+      {!working && perm !== "unsupported" && (
+        <p
+          className="text-[10px] mt-2.5 nums"
+          style={{
+            color: "var(--fg-dim)",
+            fontFamily: "var(--font-geist-mono)",
+          }}
         >
-          {busy ? "…" : "Enable"}
-        </button>
+          permission: {perm} · this device:{" "}
+          {deviceSub === null ? "?" : deviceSub ? "subscribed" : "no"} · server:{" "}
+          {devices ?? "?"}
+          {reason ? ` · ${reason}` : ""}
+        </p>
       )}
     </div>
   );

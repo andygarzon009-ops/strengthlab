@@ -520,6 +520,22 @@ export default function WorkoutForm({
     setStep("log");
   };
 
+  // Accepting an invite from the type picker should open the log, not leave
+  // the athlete staring at a list of session types — they were invited to a
+  // specific workout and already said yes. The caller's own type is the best
+  // guess; weight training is the fallback when their draft hasn't got one yet.
+  const handleJoinedSession = (
+    planType: string | null,
+    planSplit: string | null,
+  ) => {
+    if (step !== "type") return;
+    const type = planType || "WEIGHT_TRAINING";
+    if (planSplit) setSplit(planSplit);
+    setWorkoutType(type);
+    setTitle(titleFor(type, planSplit || split));
+    setStep("log");
+  };
+
   const splitDrivesTitle =
     workoutType === "WEIGHT_TRAINING" || workoutType === "CALISTHENICS";
 
@@ -825,10 +841,21 @@ export default function WorkoutForm({
           <div>
             <p className="label">Step 1 of 2</p>
             <h1 className="text-[22px] font-bold tracking-tight leading-none mt-1">
-              Session type
+              {jointSessionId ? "Join the session" : "Session type"}
             </h1>
           </div>
         </div>
+
+        {/* An invite has to be answerable here: tapping the push lands on this
+            screen before any type exists, and the strip is the only thing that
+            can say who's asking. Joining picks the type and opens the log. */}
+        {jointSessionId && (
+          <SessionPartners
+            sessionId={jointSessionId}
+            plan={[]}
+            onJoined={handleJoinedSession}
+          />
+        )}
 
         <Link
           href="/log/voice"

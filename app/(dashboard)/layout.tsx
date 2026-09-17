@@ -6,6 +6,7 @@ import Timer from "@/components/Timer";
 import TutorialAutoOpen from "@/components/TutorialAutoOpen";
 import TimezoneSync from "@/components/TimezoneSync";
 import RestNotifications from "@/components/RestNotifications";
+import NotificationWatcher from "@/components/NotificationWatcher";
 import PushAutoSubscribe from "@/components/PushAutoSubscribe";
 import { Suspense } from "react";
 
@@ -38,6 +39,7 @@ export default function DashboardLayout({
       <TimezoneSync />
       <RestNotifications />
       <PushAutoSubscribe />
+      <NotificationWatcher />
     </div>
   );
 }
