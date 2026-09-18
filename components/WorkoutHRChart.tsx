@@ -3,6 +3,7 @@
 import {
   Area,
   AreaChart,
+  ReferenceArea,
   ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
@@ -15,7 +16,9 @@ import { hapticTick } from "@/lib/haptics";
 import { useMemo, useState } from "react";
 
 type Sample = { timestamp: string; bpm: number };
-type SetMarker = { timestamp: string; label: string };
+/// A set is a moment (the tick). A cardio bout is a span: `timestamp` is its
+/// start and `endTimestamp` its tick, drawn as a band across the trace.
+type SetMarker = { timestamp: string; label: string; endTimestamp?: string };
 
 /// Stable identity for the default, so omitting the prop doesn't invalidate
 /// the memoised chart on every render.
@@ -159,7 +162,9 @@ export default function WorkoutHRChart({
       .map((m) => {
         const at = Date.parse(m.timestamp);
         const idx = nearestSampleIdx(times, at);
-        return { at, label: m.label, idx, bpm: data[idx].bpm };
+        const end = m.endTimestamp ? Date.parse(m.endTimestamp) : null;
+        const endIdx = end !== null ? nearestSampleIdx(times, end) : null;
+        return { at, end, endIdx, label: m.label, idx, bpm: data[idx].bpm };
       });
 
     const timeFmt = new Intl.DateTimeFormat(undefined, {
@@ -281,6 +286,21 @@ export default function WorkoutHRChart({
                 fontWeight: 600,
               }}
             />
+            {markers.map((m, i) =>
+              m.endIdx !== null && m.endIdx > m.idx ? (
+                <ReferenceArea
+                  key={`span-${m.at}-${i}`}
+                  x1={data[m.idx].time}
+                  x2={data[m.endIdx].time}
+                  fill="#22c55e"
+                  fillOpacity={0.12}
+                  stroke="#22c55e"
+                  strokeOpacity={0.35}
+                  strokeDasharray="2 3"
+                  ifOverflow="hidden"
+                />
+              ) : null,
+            )}
             {markers.map((m, i) => (
               <ReferenceDot
                 key={`${m.at}-${i}`}
@@ -353,10 +373,31 @@ export default function WorkoutHRChart({
       else break;
     }
   }
+  // Inside a cardio band, that bout is the answer — even if a set was ticked
+  // mid-way (someone walking between the treadmill and a rack).
+  if (active) {
+    const t = Date.parse(active.time);
+    for (let i = markers.length - 1; i >= 0; i--) {
+      const m = markers[i];
+      if (m.end !== null && m.at <= t && t <= m.end) {
+        activeSetIdx = i;
+        break;
+      }
+    }
+  }
   const activeSet = activeSetIdx >= 0 ? markers[activeSetIdx] : null;
+  const activeT = active ? Date.parse(active.time) : null;
+  const inSpan =
+    activeSet?.end != null && activeT !== null && activeT <= activeSet.end;
+  // A set's marker is its end already; a bout's end is its tick.
   const secsSinceSet =
-    active && activeSet
-      ? Math.max(0, Math.round((Date.parse(active.time) - activeSet.at) / 1000))
+    active && activeSet && !inSpan
+      ? Math.max(
+          0,
+          Math.round(
+            (Date.parse(active.time) - (activeSet.end ?? activeSet.at)) / 1000,
+          ),
+        )
       : null;
 
   return (
@@ -398,7 +439,7 @@ export default function WorkoutHRChart({
                   style={{ color: "var(--accent)", maxWidth: 220 }}
                   title={activeSet.label}
                 >
-                  {secsSinceSet !== null && secsSinceSet < 20
+                  {inSpan || (secsSinceSet !== null && secsSinceSet < 20)
                     ? "on "
                     : secsSinceSet !== null
                       ? `${Math.floor(secsSinceSet / 60)}:${String(

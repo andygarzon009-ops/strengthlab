@@ -290,6 +290,9 @@ export type CardioMetrics = {
   workSec?: number;
   restSec?: number;
   movements?: string[];
+  /// When the bout began (ISO). The row's end is the set's loggedAt, stamped
+  /// on tick — together they put the bout on the heart rate chart as a span.
+  startedAt?: string;
 };
 
 /// The same row as the form holds it: strings, exactly as typed.
@@ -305,6 +308,7 @@ export type CardioInput = {
   work?: string;
   rest?: string;
   movements?: string[];
+  startedAt?: string;
 };
 
 /// "20", "20.5" or "20:30" → seconds. Minutes are what every machine display
@@ -390,6 +394,7 @@ export function toCardioMetrics(
   if (input.movements && input.movements.length > 0) {
     m.movements = input.movements;
   }
+  if (input.startedAt) m.startedAt = input.startedAt;
   // Drop the empties so the stored JSON says only what was logged.
   for (const k of Object.keys(m) as (keyof CardioMetrics)[]) {
     if (m[k] === undefined) delete m[k];
@@ -414,6 +419,7 @@ export function fromCardioMetrics(
     work: s(m.workSec),
     rest: s(m.restSec),
     movements: m.movements ?? [],
+    startedAt: m.startedAt,
   };
 }
 
@@ -463,6 +469,25 @@ export function cardioSummary(raw: unknown): string {
 
 /// Summary across every row of one card — for the feed chip and the "last
 /// time" line. Times, distances, floors and calories add up; the rest don't.
+/// When a finished row ran, for the heart rate chart. The end is the tick.
+/// The start is the Start tap when there was one, otherwise the logged time
+/// counted back from the end — so a row that was only ever typed in still
+/// gets its band, as long as it has a time.
+export function cardioSpan(
+  raw: unknown,
+  loggedAt: Date | string | null | undefined,
+): { start: Date; end: Date } | null {
+  if (!loggedAt) return null;
+  const end = new Date(loggedAt);
+  const m = (raw ?? {}) as CardioMetrics;
+  let start: Date | null = m.startedAt ? new Date(m.startedAt) : null;
+  if ((!start || !(start < end)) && m.durationSec) {
+    start = new Date(end.getTime() - m.durationSec * 1000);
+  }
+  if (!start || Number.isNaN(start.getTime()) || !(start < end)) return null;
+  return { start, end };
+}
+
 export function cardioTotal(rows: unknown[]): string {
   const t: CardioMetrics = {};
   let rounds = 0;

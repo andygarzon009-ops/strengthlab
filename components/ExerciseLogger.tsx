@@ -349,7 +349,8 @@ export default function ExerciseLogger({
       notes: "",
       cardio:
         prev?.cardioRows && prev.cardioRows.length > 0
-          ? fromCardioMetrics(prev.cardioRows[0])
+          ? // Last time's numbers, never last time's start.
+            { ...fromCardioMetrics(prev.cardioRows[0]), startedAt: undefined }
           : spec
             ? defaultCardioInput(spec)
             : {},
@@ -579,6 +580,30 @@ export default function ExerciseLogger({
     setExercises(updated);
   };
 
+  /// Tick or untick a cardio row, and apply any number changes in the SAME
+  /// update — two separate setExercises calls from one render would each
+  /// copy the old list, and the second would drop the first's change.
+  const toggleCardioDone = (
+    exIdx: number,
+    setIdx: number,
+    patch?: CardioInput,
+  ) => {
+    const updated = [...exercises];
+    const row = { ...updated[exIdx].sets[setIdx] };
+    if (patch) row.cardio = patch;
+    row.completed = !row.completed;
+    // loggedAt is the row's END — with cardio.startedAt it spans the bout on
+    // the heart rate chart. Same rule as a set: it moves with the tick.
+    row.loggedAt = row.completed
+      ? (row.loggedAt ?? new Date().toISOString())
+      : undefined;
+    updated[exIdx] = {
+      ...updated[exIdx],
+      sets: updated[exIdx].sets.map((s, i) => (i === setIdx ? row : s)),
+    };
+    setExercises(updated);
+  };
+
   /// Another bout on the same machine, starting from the last one's numbers —
   /// intervals are usually the same thing again.
   const addCardioRow = (exIdx: number) => {
@@ -592,7 +617,9 @@ export default function ExerciseLogger({
       reps: "",
       rir: "",
       notes: "",
-      cardio: { ...(last?.cardio ?? {}) },
+      // Same numbers as the last bout, but not its start — this one hasn't
+      // begun yet.
+      cardio: { ...(last?.cardio ?? {}), startedAt: undefined },
     });
     setExercises(updated);
   };
@@ -938,9 +965,7 @@ export default function ExerciseLogger({
                 spec={cardioSpec}
                 rows={ex.sets}
                 onChange={(i, next) => updateCardio(exIdx, i, next)}
-                onToggleDone={(i) =>
-                  updateSet(exIdx, i, "completed", !ex.sets[i]?.completed)
-                }
+                onToggleDone={(i, patch) => toggleCardioDone(exIdx, i, patch)}
                 onAddRow={() => addCardioRow(exIdx)}
                 onRemoveRow={(i) => removeSet(exIdx, i)}
               />

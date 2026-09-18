@@ -1,5 +1,6 @@
 import {
   CARDIO_SET_TYPE,
+  cardioSpan,
   cardioSummary,
   type CardioMetrics,
 } from "@/lib/cardio";
@@ -420,14 +421,33 @@ export default async function WorkoutDetailPage({
               timestamp: s.timestamp.toISOString(),
               bpm: s.bpm,
             }))}
-            setMarkers={workout.exercises.flatMap((ex) =>
-              ex.sets
+            setMarkers={workout.exercises.flatMap((ex) => [
+              ...ex.sets
                 .filter((s) => s.loggedAt && (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"))
                 .map((s) => ({
                   timestamp: s.loggedAt!.toISOString(),
                   label: `${ex.exercise.name} · ${s.weight ?? "—"}×${s.reps ?? "—"}`,
-                }))
-            )}
+                })),
+              // Cardio bouts as bands: Start tap (or the logged time counted
+              // back from the tick) to the tick. A row with neither still
+              // gets a dot where it was ticked.
+              ...ex.sets
+                .filter((s) => s.loggedAt && s.type === CARDIO_SET_TYPE)
+                .map((s) => {
+                  const summary = cardioSummary(s.metrics);
+                  const label = summary
+                    ? `${ex.exercise.name} · ${summary}`
+                    : ex.exercise.name;
+                  const span = cardioSpan(s.metrics, s.loggedAt);
+                  return span
+                    ? {
+                        timestamp: span.start.toISOString(),
+                        endTimestamp: span.end.toISOString(),
+                        label,
+                      }
+                    : { timestamp: s.loggedAt!.toISOString(), label };
+                }),
+            ])}
           />
         </div>
       )}

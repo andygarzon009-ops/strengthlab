@@ -9,11 +9,12 @@
 // block's Start button is there for anyone who wants the floating timer to
 // run the rounds for them.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FIELD_LABEL,
   circuitSeconds,
   formatClock,
+  minutesInput,
   parseMinutes,
   type CardioField,
   type CardioInput,
@@ -54,7 +55,9 @@ export default function CardioCard({
   spec: CardioSpec;
   rows: Row[];
   onChange: (rowIdx: number, next: CardioInput) => void;
-  onToggleDone: (rowIdx: number) => void;
+  /// Ticks (or unticks) a row. `patch` replaces its numbers in the same
+  /// update — finishing a started bout fills its time.
+  onToggleDone: (rowIdx: number, patch?: CardioInput) => void;
   onAddRow: () => void;
   onRemoveRow: (rowIdx: number) => void;
 }) {
@@ -63,8 +66,30 @@ export default function CardioCard({
     <div className="px-4 pb-3">
       <div className="space-y-2">
         {rows.map((row, i) => {
+          const cardio = row.cardio ?? {};
           const set = (key: keyof CardioInput, value: string | string[]) =>
-            onChange(i, { ...(row.cardio ?? {}), [key]: value });
+            onChange(i, { ...cardio, [key]: value });
+          const start = () =>
+            onChange(i, { ...cardio, startedAt: new Date().toISOString() });
+          // Ticking a bout that was started and never given a time: the time
+          // is how long it ran. A time the athlete typed always wins.
+          const toggle = () => {
+            if (
+              !row.completed &&
+              cardio.startedAt &&
+              spec.kind === "machine" &&
+              !parseMinutes(cardio.time)
+            ) {
+              const secs = Math.round(
+                (Date.now() - Date.parse(cardio.startedAt)) / 1000,
+              );
+              if (secs > 0) {
+                onToggleDone(i, { ...cardio, time: minutesInput(secs) });
+                return;
+              }
+            }
+            onToggleDone(i);
+          };
           return (
             <div key={i}>
               {rows.length > 1 && (
@@ -78,7 +103,8 @@ export default function CardioCard({
                   value={row.cardio ?? {}}
                   set={set}
                   done={!!row.completed}
-                  onToggleDone={() => onToggleDone(i)}
+                  onToggleDone={toggle}
+                  onStart={start}
                   onRemove={rows.length > 1 ? () => onRemoveRow(i) : undefined}
                 />
               ) : (
@@ -87,7 +113,8 @@ export default function CardioCard({
                   value={row.cardio ?? {}}
                   set={set}
                   done={!!row.completed}
-                  onToggleDone={() => onToggleDone(i)}
+                  onToggleDone={toggle}
+                  onStart={start}
                   onRemove={rows.length > 1 ? () => onRemoveRow(i) : undefined}
                 />
               )}
@@ -117,6 +144,7 @@ function MachineRow({
   set,
   done,
   onToggleDone,
+  onStart,
   onRemove,
 }: {
   fields: CardioField[];
@@ -124,9 +152,11 @@ function MachineRow({
   set: (key: keyof CardioInput, v: string) => void;
   done: boolean;
   onToggleDone: () => void;
+  onStart: () => void;
   onRemove?: () => void;
 }) {
   return (
+    <div>
     <div className="flex items-end gap-1.5">
       <div
         className="grid gap-1.5 flex-1 min-w-0"
@@ -164,6 +194,68 @@ function MachineRow({
       <DoneButton done={done} onClick={onToggleDone} />
       {onRemove && <RemoveButton onClick={onRemove} />}
     </div>
+      <div className="mt-1.5">
+        <StartLine startedAt={value.startedAt} done={done} onStart={onStart} />
+      </div>
+    </div>
+  );
+}
+
+/// The start of a bout — what puts it on the heart rate chart as a band
+/// rather than a guess. Tap before getting on; tick when getting off.
+function StartLine({
+  startedAt,
+  done,
+  onStart,
+}: {
+  startedAt?: string;
+  done: boolean;
+  onStart: () => void;
+}) {
+  const running = !!startedAt && !done;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [running]);
+
+  const mono = { fontFamily: "var(--font-geist-mono)" } as const;
+  if (running) {
+    const secs = Math.max(0, Math.round((now - Date.parse(startedAt!)) / 1000));
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] nums" style={{ color: "var(--accent)", ...mono }}>
+        <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--accent)" }} />
+        {formatClock(secs)} · tick ✓ when done
+      </span>
+    );
+  }
+  if (startedAt) {
+    return (
+      <span className="text-[11px] nums" style={{ color: "var(--fg-dim)", ...mono }}>
+        Started{" "}
+        {new Date(startedAt).toLocaleTimeString(undefined, {
+          hour: "numeric",
+          minute: "2-digit",
+        })}
+      </span>
+    );
+  }
+  if (done) return null;
+  return (
+    <button
+      type="button"
+      onClick={onStart}
+      className="px-2.5 h-6 rounded-full text-[11px] font-semibold active:scale-95 transition-transform"
+      style={{
+        background: "var(--accent-dim)",
+        border: "1px solid var(--accent)",
+        color: "var(--accent)",
+      }}
+      title="Marks the start, so this shows on your heart rate chart"
+    >
+      ▶ Start
+    </button>
   );
 }
 
@@ -173,6 +265,7 @@ function CircuitRow({
   set,
   done,
   onToggleDone,
+  onStart,
   onRemove,
 }: {
   amrap: boolean;
@@ -180,6 +273,7 @@ function CircuitRow({
   set: (key: keyof CardioInput, v: string | string[]) => void;
   done: boolean;
   onToggleDone: () => void;
+  onStart: () => void;
   onRemove?: () => void;
 }) {
   const [draft, setDraft] = useState("");
@@ -202,6 +296,8 @@ function CircuitRow({
   // The floating timer does the counting. Optional: the block logs the same
   // whether or not this is ever pressed.
   const startTimer = () => {
+    // Starting the timer is also the start of the block, for the HR chart.
+    if (!value.startedAt) onStart();
     if (amrap) {
       if (!cap) return;
       window.dispatchEvent(
@@ -329,6 +425,9 @@ function CircuitRow({
               ? `${formatClock(total)} total`
               : ""}
         </span>
+        {value.startedAt ? (
+          <StartLine startedAt={value.startedAt} done={done} onStart={onStart} />
+        ) : done ? null : (
         <button
           type="button"
           onClick={startTimer}
@@ -343,6 +442,7 @@ function CircuitRow({
         >
           ▶ Start timer
         </button>
+        )}
       </div>
     </div>
   );

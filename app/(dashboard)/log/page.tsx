@@ -64,7 +64,9 @@ export default async function LogWorkoutPage({
               reps: s.reps?.toString() ?? "",
               rir: s.rir?.toString() ?? "",
               cardio:
-                s.type === CARDIO_SET_TYPE ? fromCardioMetrics(s.metrics) : undefined,
+                s.type === CARDIO_SET_TYPE
+                  ? { ...fromCardioMetrics(s.metrics), startedAt: undefined }
+                  : undefined,
               notes: "",
             })),
           })),
