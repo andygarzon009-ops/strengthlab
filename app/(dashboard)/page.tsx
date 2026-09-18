@@ -122,10 +122,13 @@ export default async function FeedPage({
           <Suspense fallback={null}>
             <PendingInvites userId={userId} />
           </Suspense>
-          {/* The week leads, then progress right under it — both ahead of the
-              cards that wait on a Google Health round-trip. */}
+          {/* The week leads, then heart rate, then progress. Heart rate reads
+              stored values, not Google Health, so it can't hold up the rest. */}
           <Suspense fallback={<CardSkeleton height={132} />}>
             <WeeklyRecap userId={userId} />
+          </Suspense>
+          <Suspense fallback={<CardSkeleton height={84} />}>
+            <HeartRateCard userId={userId} />
           </Suspense>
           <Suspense fallback={<CardSkeleton height={120} />}>
             <ConsistencyCard
@@ -137,9 +140,6 @@ export default async function FeedPage({
               glance ring-row, each expanding inline on tap. */}
           <Suspense fallback={<CardSkeleton height={108} />}>
             <DailyGlanceCard userId={userId} />
-          </Suspense>
-          <Suspense fallback={<CardSkeleton height={148} />}>
-            <HeartRateCard userId={userId} />
           </Suspense>
         </>
       )}
