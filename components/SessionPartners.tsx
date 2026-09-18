@@ -347,12 +347,12 @@ export default function SessionPartners({
   const picker = picking ? (
     <>
       <div
-        className="fixed inset-0 z-[59]"
+        className="fixed inset-0 z-[74]"
         style={{ background: "rgba(0,0,0,0.6)" }}
         onClick={() => setPicking(false)}
       />
       <div
-        className="fixed z-[60] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+        className="fixed z-[75] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
         style={{
           background: "var(--bg)",
           border: "1px solid var(--border)",

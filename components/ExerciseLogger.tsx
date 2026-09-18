@@ -1163,7 +1163,7 @@ export default function ExerciseLogger({
       {showSearch ? (
         <>
           <div
-            className="fixed inset-0 z-[59]"
+            className="fixed inset-0 z-[74]"
             style={{ background: "rgba(0,0,0,0.6)" }}
             onClick={() => {
               setShowSearch(false);
@@ -1173,7 +1173,7 @@ export default function ExerciseLogger({
             }}
           />
           <div
-            className="fixed z-[60] flex flex-col rounded-2xl overflow-hidden shadow-2xl"
+            className="fixed z-[75] flex flex-col rounded-2xl overflow-hidden shadow-2xl"
             style={{
               background: "var(--bg)",
               border: "1px solid var(--border)",
