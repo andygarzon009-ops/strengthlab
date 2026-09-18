@@ -135,7 +135,7 @@ export default async function FeedPage({
           </Suspense>
           {/* Direction A: Recovery + Fuel + Activity consolidated into one
               glance ring-row, each expanding inline on tap. */}
-          <Suspense fallback={<CardSkeleton height={132} />}>
+          <Suspense fallback={<CardSkeleton height={108} />}>
             <DailyGlanceCard userId={userId} />
           </Suspense>
           <Suspense fallback={<CardSkeleton height={148} />}>

@@ -12,8 +12,8 @@ function scoreColor(pct: number): string {
 }
 
 const ICON_PROPS = {
-  width: 15,
-  height: 15,
+  width: 12,
+  height: 12,
   viewBox: "0 0 24 24",
   fill: "none",
   stroke: "currentColor",
@@ -71,28 +71,38 @@ function Ring({
   color: string;
   active: boolean;
 }) {
-  const r = 30;
+  const r = 23.5;
   const c = 2 * Math.PI * r;
   // pct only used for stroke fill; derive from a numeric value when present.
   const num = parseInt(value, 10);
   const frac = Number.isFinite(num) ? Math.max(0, Math.min(100, num)) / 100 : 0;
   const filled = frac * c;
+  // "100%" is four glyphs wide and touched the ring at the old size.
+  const fontSize = value.length > 3 ? 13 : 16;
   return (
-    <svg width="72" height="72" viewBox="0 0 72 72">
-      <circle cx="36" cy="36" r={r} fill="none" stroke="var(--bg-elevated)" strokeWidth="6" />
+    <svg width="56" height="56" viewBox="0 0 56 56">
+      <circle cx="28" cy="28" r={r} fill="none" stroke="var(--bg-elevated)" strokeWidth="5" />
       <circle
-        cx="36"
-        cy="36"
+        cx="28"
+        cy="28"
         r={r}
         fill="none"
         stroke={color}
-        strokeWidth="6"
+        strokeWidth="5"
         strokeLinecap="round"
         strokeDasharray={`${filled} ${c - filled}`}
-        transform="rotate(-90 36 36)"
-        style={{ filter: active ? `drop-shadow(0 0 5px ${color}99)` : undefined }}
+        transform="rotate(-90 28 28)"
+        style={{ filter: active ? `drop-shadow(0 0 4px ${color}99)` : undefined }}
       />
-      <text x="36" y="41" textAnchor="middle" fontSize="19" fontWeight="700" fill="var(--fg)">
+      <text
+        x="28"
+        y="28"
+        dominantBaseline="central"
+        textAnchor="middle"
+        fontSize={fontSize}
+        fontWeight="700"
+        fill="var(--fg)"
+      >
         {value}
       </text>
     </svg>
@@ -120,21 +130,23 @@ function Tile({
     <button
       type="button"
       onClick={onClick}
-      className="flex-1 flex flex-col items-center gap-1 rounded-xl py-2 transition-colors"
+      className="flex-1 flex flex-col items-center gap-0.5 rounded-xl py-1.5 transition-colors"
       style={{ background: active ? "var(--bg-elevated)" : "transparent" }}
     >
       <Ring value={ringValue} color={ringColor} active={active} />
       <span
-        className="text-[10px] uppercase tracking-wider font-semibold mt-0.5"
+        className="text-[9px] uppercase tracking-wider font-semibold mt-1"
         style={{ color: "var(--fg-dim)" }}
       >
         {label}
       </span>
-      <span style={{ color: ringColor }}>{icon}</span>
+      {/* Icon sits beside the reading rather than on its own line — a whole
+          row per tile spent on a glyph. */}
       <span
-        className="text-[11px] leading-tight text-center px-1"
+        className="flex items-center gap-1 text-[11px] leading-tight text-center px-1"
         style={{ color: active ? "var(--fg)" : "var(--fg-dim)" }}
       >
+        <span className="shrink-0" style={{ color: ringColor }}>{icon}</span>
         {sub}
       </span>
     </button>
