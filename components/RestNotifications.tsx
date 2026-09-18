@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { subscribeToPush } from "@/lib/pushClient";
 
 const PERMISSION_ASKED_KEY = "sl:notifPermAsked.v1";
 
@@ -69,6 +70,8 @@ function buzz(pattern: number | number[]) {
 export default function RestNotifications() {
   const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swReg = useRef<ServiceWorkerRegistration | null>(null);
+  /// Once per page load is plenty — every set starts a rest.
+  const subscribed = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -187,7 +190,16 @@ export default function RestNotifications() {
       // at rest-end from this component for good. The system notification
       // still needs permission; the in-page cues never did.
       scheduleNotification(secs);
-      void ensurePermission();
+      // Granting permission isn't enough for a locked phone: the device also
+      // needs a push subscription stored server-side, and that used to wait
+      // for the next app load. Register it the moment permission is there, so
+      // the very first locked-screen rest can be reached.
+      void ensurePermission().then((granted) => {
+        if (granted && !subscribed.current) {
+          subscribed.current = true;
+          void subscribeToPush();
+        }
+      });
 
       // Hand the same deadline to the server. Locking the screen suspends
       // this page and freezes the timer above, so the only thing that can

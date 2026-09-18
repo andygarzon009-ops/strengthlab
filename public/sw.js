@@ -57,6 +57,13 @@ self.addEventListener("push", (event) => {
       // actually looking at the app, the timer has already latched its REST
       // DONE pill and chimed — a banner on top of that is noise. Other push
       // types (friend requests, the inactivity nudge) are unaffected.
+      //
+      // But a push must never end without a notification. iOS counts every
+      // push that shows nothing and revokes the subscription after a few, and
+      // Chrome posts its own "site updated in the background" banner instead.
+      // Resting with the app open is the normal case, so returning early here
+      // quietly killed push on iPhones a few sets into a workout. Post a silent
+      // one and close it straight away: the rule is met and nothing is seen.
       if (payload.tag === "rest-end") {
         const clients = await self.clients.matchAll({
           type: "window",
@@ -65,7 +72,18 @@ self.addEventListener("push", (event) => {
         const onScreen = clients.some(
           (c) => c.visibilityState === "visible" || c.focused
         );
-        if (onScreen) return;
+        if (onScreen) {
+          await self.registration.showNotification(payload.title, {
+            body: payload.body,
+            tag: "rest-end",
+            silent: true,
+          });
+          const shown = await self.registration.getNotifications({
+            tag: "rest-end",
+          });
+          shown.forEach((n) => n.close());
+          return;
+        }
       }
       await self.registration.showNotification(payload.title, {
         body: payload.body,
