@@ -188,6 +188,36 @@ input[type="number"]::-webkit-outer-spin-button {
   }
 }
 
+/* The heart on the Heart rate card: a lub-dub, two quick beats then a rest,
+   at about 60 bpm. */
+@keyframes heartbeat {
+  0%,
+  40%,
+  100% {
+    transform: scale(1);
+  }
+  10% {
+    transform: scale(1.22);
+  }
+  20% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.14);
+  }
+}
+
+.heartbeat {
+  transform-origin: center;
+  animation: heartbeat 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heartbeat {
+    animation: none;
+  }
+}
+
 /* --- Guided-stretch figures ------------------------------------------------
    Motion for the animated pose figures (components/StretchFigure.tsx). All of
    it is CSS so nothing has to tick in JS alongside the countdown. Props (the
