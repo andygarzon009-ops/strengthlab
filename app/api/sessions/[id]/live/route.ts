@@ -1,3 +1,10 @@
+import {
+  CARDIO_SET_TYPE,
+  cardioSpecFor,
+  cardioSummary,
+  toCardioMetrics,
+  type CardioInput,
+} from "@/lib/cardio";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { formatLoad } from "@/lib/exercises";
@@ -16,6 +23,7 @@ type DraftSet = {
   reps?: string;
   completed?: boolean;
   loggedAt?: string;
+  cardio?: CardioInput;
 };
 type DraftExercise = {
   exerciseId?: string;
@@ -63,6 +71,18 @@ function readDraft(payload: unknown): {
       if (s.type === "WARMUP") continue;
       const done = s.completed === true || !!s.loggedAt;
       if (!done) continue;
+      if (s.type === CARDIO_SET_TYPE) {
+        // Not a set, but it is what they're doing — "Stair Climber · 20 min"
+        // tells the person beside them the machine is taken.
+        const name = ex.exerciseName ?? "";
+        const spec = cardioSpecFor(name);
+        const text = spec ? cardioSummary(toCardioMetrics(spec, s.cardio ?? {})) : "";
+        const at = s.loggedAt ? new Date(s.loggedAt).getTime() : 0;
+        if (at > 0 && (!best || at > best.at)) {
+          best = { at, text: text ? `${name} · ${text}` : name, iso: new Date(at).toISOString() };
+        }
+        continue;
+      }
       setsDone++;
       const weight = parseFloat(s.weight ?? "");
       const reps = parseInt(s.reps ?? "", 10);
@@ -165,7 +185,7 @@ export async function GET(
     const counts = await prisma.set.groupBy({
       by: ["workoutExerciseId"],
       where: {
-        type: { not: "WARMUP" },
+        type: { notIn: ["WARMUP", CARDIO_SET_TYPE] },
         workoutExercise: { workoutId: { in: finishedIds } },
       },
       _count: { _all: true },

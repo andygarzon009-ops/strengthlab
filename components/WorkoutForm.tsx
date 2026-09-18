@@ -21,6 +21,13 @@ import {
   type WorkoutShape,
 } from "@/lib/exercises";
 import ExerciseLogger from "@/components/ExerciseLogger";
+import {
+  CARDIO_SET_TYPE,
+  cardioSpecFor,
+  defaultCardioInput,
+  toCardioMetrics,
+  type CardioInput,
+} from "@/lib/cardio";
 import SessionPartners from "@/components/SessionPartners";
 import WorkoutTimerStrip from "@/components/WorkoutTimerStrip";
 import LiveHRWidget from "@/components/LiveHRWidget";
@@ -51,7 +58,7 @@ type PendingSubmit = {
 };
 
 type SetData = {
-  type: "WARMUP" | "WORKING" | "SUPERSET" | "DROP_SET";
+  type: "WARMUP" | "WORKING" | "SUPERSET" | "DROP_SET" | "CARDIO";
   setNumber: number;
   weight: string;
   reps: string;
@@ -59,11 +66,15 @@ type SetData = {
   notes: string;
   completed?: boolean;
   loggedAt?: string;
+  /// A CARDIO row's numbers, as typed. See lib/cardio.ts.
+  cardio?: CardioInput;
 };
 
 type ExerciseData = {
   exerciseId: string;
   exerciseName: string;
+  /// Carried so a custom exercise filed under Cardio gets a cardio card.
+  muscleGroup?: string | null;
   notes: string;
   supersetGroup?: string | null;
   sets: SetData[];
@@ -543,21 +554,25 @@ export default function WorkoutForm({
   const blankExerciseFor = (it: {
     exerciseId: string;
     exerciseName: string;
-  }): ExerciseData => ({
-    exerciseId: it.exerciseId,
-    exerciseName: it.exerciseName,
-    notes: "",
-    sets: [
-      {
-        type: "WORKING" as const,
-        setNumber: 1,
-        weight: "",
-        reps: "",
-        rir: "",
-        notes: "",
-      },
-    ],
-  });
+  }): ExerciseData => {
+    const spec = cardioSpecFor(it.exerciseName);
+    return {
+      exerciseId: it.exerciseId,
+      exerciseName: it.exerciseName,
+      notes: "",
+      sets: [
+        {
+          type: spec ? CARDIO_SET_TYPE : ("WORKING" as const),
+          setNumber: 1,
+          weight: "",
+          reps: "",
+          rir: "",
+          notes: "",
+          cardio: spec ? defaultCardioInput(spec) : undefined,
+        },
+      ],
+    };
+  };
 
   // Walking out of a session has to take ?session= with it, or a refresh drops
   // the athlete straight back into the invite they just left. history.replaceState
@@ -699,7 +714,8 @@ export default function WorkoutForm({
       // Its sets still count toward progress — only the tonnage is skipped.
       const timed = isTimedExercise(ex.exerciseName);
       for (const s of ex.sets) {
-        if (s.type === "WARMUP") continue;
+        // A treadmill bout isn't a set; the header counts sets.
+        if (s.type === "WARMUP" || s.type === CARDIO_SET_TYPE) continue;
         total++;
         if (!s.completed) continue;
         done++;
@@ -791,15 +807,34 @@ export default function WorkoutForm({
               order: i,
               notes: ex.notes || undefined,
               supersetGroup: ex.supersetGroup ?? null,
-              sets: ex.sets.map((s) => ({
-                type: s.type,
-                setNumber: s.setNumber,
-                weight: s.weight ? parseFloat(s.weight) : undefined,
-                reps: s.reps ? parseInt(s.reps) : undefined,
-                rir: s.rir ? parseInt(s.rir) : undefined,
-                notes: s.notes || undefined,
-                loggedAt: s.loggedAt ?? null,
-              })),
+              sets: ex.sets.map((s) => {
+                const spec = cardioSpecFor(ex.exerciseName, ex.muscleGroup);
+                // A cardio card's rows save as cardio however they arrived —
+                // the coach, voice or a partner's plan can hand one over as a
+                // plain WORKING set. Only a row that already holds lift
+                // numbers (an old Battle Ropes log being edited) keeps them.
+                const asCardio =
+                  s.type === CARDIO_SET_TYPE ||
+                  (!!spec && (!!s.cardio || (!s.weight && !s.reps)));
+                if (asCardio) {
+                  return {
+                    type: CARDIO_SET_TYPE,
+                    setNumber: s.setNumber,
+                    metrics: spec ? toCardioMetrics(spec, s.cardio ?? {}) : null,
+                    notes: s.notes || undefined,
+                    loggedAt: s.loggedAt ?? null,
+                  };
+                }
+                return {
+                  type: s.type,
+                  setNumber: s.setNumber,
+                  weight: s.weight ? parseFloat(s.weight) : undefined,
+                  reps: s.reps ? parseInt(s.reps) : undefined,
+                  rir: s.rir ? parseInt(s.rir) : undefined,
+                  notes: s.notes || undefined,
+                  loggedAt: s.loggedAt ?? null,
+                };
+              }),
             }))
           : [],
     };

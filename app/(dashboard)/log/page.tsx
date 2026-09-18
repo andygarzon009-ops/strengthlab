@@ -1,3 +1,4 @@
+import { CARDIO_SET_TYPE, fromCardioMetrics } from "@/lib/cardio";
 import WorkoutForm, {
   type WorkoutFormInitial,
 } from "@/components/WorkoutForm";
@@ -53,14 +54,17 @@ export default async function LogWorkoutPage({
           exercises: source.exercises.map((e) => ({
             exerciseId: e.exerciseId,
             exerciseName: e.exercise.name,
+            muscleGroup: e.exercise.muscleGroup,
             notes: "",
             supersetGroup: e.supersetGroup ?? null,
             sets: e.sets.map((s) => ({
-              type: s.type as "WARMUP" | "WORKING" | "SUPERSET",
+              type: s.type as "WARMUP" | "WORKING" | "SUPERSET" | "DROP_SET" | "CARDIO",
               setNumber: s.setNumber,
               weight: s.weight?.toString() ?? "",
               reps: s.reps?.toString() ?? "",
               rir: s.rir?.toString() ?? "",
+              cardio:
+                s.type === CARDIO_SET_TYPE ? fromCardioMetrics(s.metrics) : undefined,
               notes: "",
             })),
           })),

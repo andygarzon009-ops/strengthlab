@@ -1,3 +1,4 @@
+import { CARDIO_SET_TYPE, fromCardioMetrics } from "@/lib/cardio";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { redirect, notFound } from "next/navigation";
@@ -53,16 +54,19 @@ export default async function EditWorkoutPage({
     exercises: workout.exercises.map((ex) => ({
       exerciseId: ex.exerciseId,
       exerciseName: ex.exercise.name,
+      muscleGroup: ex.exercise.muscleGroup,
       notes: ex.notes ?? "",
       supersetGroup: ex.supersetGroup ?? null,
       sets: ex.sets.map((s) => ({
         // DROP_SET is a real stored type — omitting it here claimed drop sets
         // could never come back from the database, which they can.
-        type: s.type as "WARMUP" | "WORKING" | "SUPERSET" | "DROP_SET",
+        type: s.type as "WARMUP" | "WORKING" | "SUPERSET" | "DROP_SET" | "CARDIO",
         setNumber: s.setNumber,
         weight: s.weight?.toString() ?? "",
         reps: s.reps?.toString() ?? "",
         rir: s.rir?.toString() ?? "",
+        cardio:
+          s.type === CARDIO_SET_TYPE ? fromCardioMetrics(s.metrics) : undefined,
         notes: s.notes ?? "",
         completed: !!s.loggedAt,
         loggedAt: s.loggedAt ? s.loggedAt.toISOString() : undefined,

@@ -12,6 +12,27 @@ import {
   isTimedExercise,
   specificMuscleFor,
 } from "@/lib/exercises";
+import CardioCard from "@/components/CardioCard";
+import {
+  CARDIO_SET_TYPE,
+  cardioAliases,
+  cardioSpecFor,
+  cardioTotal,
+  defaultCardioInput,
+  fromCardioMetrics,
+  type CardioInput,
+} from "@/lib/cardio";
+
+/// One-tap adds at the top of the picker. Stair climber first: it's the
+/// single most requested thing to log alongside a lift.
+const QUICK_CARDIO = [
+  "Stair Climber",
+  "Treadmill Incline Walk",
+  "Air Bike",
+  "Rowing Machine",
+  "HIIT Circuit",
+  "Outdoor Run",
+];
 
 // Common gym shorthand → canonical phrases that appear in the exercise
 // names. Lets a user type "db bench" and find "Flat Dumbbell Bench
@@ -110,7 +131,7 @@ const saveRestPrefs = (prefs: Record<string, number>) => {
 };
 
 type SetData = {
-  type: "WARMUP" | "WORKING" | "SUPERSET" | "DROP_SET";
+  type: "WARMUP" | "WORKING" | "SUPERSET" | "DROP_SET" | "CARDIO";
   setNumber: number;
   weight: string;
   reps: string;
@@ -118,11 +139,15 @@ type SetData = {
   notes: string;
   completed?: boolean;
   loggedAt?: string;
+  /// A CARDIO row's numbers, as typed. See lib/cardio.ts.
+  cardio?: CardioInput;
 };
 
 type ExerciseData = {
   exerciseId: string;
   exerciseName: string;
+  /// Carried so a custom exercise filed under Cardio gets a cardio card.
+  muscleGroup?: string | null;
   notes: string;
   supersetGroup?: string | null;
   sets: SetData[];
@@ -147,6 +172,8 @@ type PreviousData = {
   // no record stands yet for this lift (or its near-duplicate siblings).
   prWeight?: { value: number; reps: number | null } | null;
   prReps?: { reps: number | null; value: number } | null;
+  /// Cardio cards: last session's rows, for the "Last" line and the prefill.
+  cardioRows?: unknown[];
 };
 
 type Props = {
@@ -270,7 +297,12 @@ export default function ExerciseLogger({
   }, [exercises]);
 
   const filtered = allExercises
-    .filter((e) => matchesSearch(e.name, search))
+    .filter(
+      (e) =>
+        matchesSearch(e.name, search) ||
+        // "stairmaster" should find the Stair Climber.
+        cardioAliases(e.name).some((a) => matchesSearch(a, search)),
+    )
     .sort((a, b) => {
       const ag = a.muscleGroup ?? "Other";
       const bg = b.muscleGroup ?? "Other";
@@ -304,14 +336,70 @@ export default function ExerciseLogger({
     // Swap mode: replace the targeted exercise's id/name and keep its
     // existing sets + notes. Users picked the wrong exercise originally
     // and just want to fix the label without re-logging the work.
+    const spec = cardioSpecFor(ex.name, ex.muscleGroup);
+    // A fresh cardio row: last session's numbers when there are some (same
+    // habit as a lift prefilling last weight), otherwise the block's
+    // standard shape.
+    const cardioSeed = (): SetData => ({
+      type: CARDIO_SET_TYPE,
+      setNumber: 1,
+      weight: "",
+      reps: "",
+      rir: "",
+      notes: "",
+      cardio:
+        prev?.cardioRows && prev.cardioRows.length > 0
+          ? fromCardioMetrics(prev.cardioRows[0])
+          : spec
+            ? defaultCardioInput(spec)
+            : {},
+    });
+
     if (swapTargetIdx !== null) {
-      const updated = exercises.map((e, i) =>
-        i === swapTargetIdx
-          ? { ...e, exerciseId: ex.id, exerciseName: ex.name }
-          : e
-      );
+      const updated = exercises.map((e, i) => {
+        if (i !== swapTargetIdx) return e;
+        const wasCardio = !!cardioSpecFor(e.exerciseName, e.muscleGroup);
+        // Sets only carry over between two lifts. Squat reps don't mean
+        // anything on a treadmill, and a 20-minute bout isn't a set.
+        const sameKind = wasCardio === !!spec;
+        return {
+          ...e,
+          exerciseId: ex.id,
+          exerciseName: ex.name,
+          muscleGroup: ex.muscleGroup,
+          supersetGroup: spec ? null : e.supersetGroup,
+          sets: sameKind ? e.sets : spec ? [cardioSeed()] : [
+            {
+              type: "WORKING" as const,
+              setNumber: 1,
+              weight: prev?.lastWeight?.toString() ?? "",
+              reps: prev?.lastReps?.toString() ?? "",
+              rir: "",
+              notes: "",
+            },
+          ],
+        };
+      });
       setExercises(updated);
       setSwapTargetIdx(null);
+      setSearch("");
+      setShowSearch(false);
+      return;
+    }
+
+    if (spec) {
+      // Cardio never joins a superset — it's its own card, added at the end.
+      setExercises([
+        ...exercises,
+        {
+          exerciseId: ex.id,
+          exerciseName: ex.name,
+          muscleGroup: ex.muscleGroup,
+          notes: "",
+          sets: [cardioSeed()],
+        },
+      ]);
+      setSupersetSourceIdx(null);
       setSearch("");
       setShowSearch(false);
       return;
@@ -320,6 +408,7 @@ export default function ExerciseLogger({
     const newEx: ExerciseData = {
       exerciseId: ex.id,
       exerciseName: ex.name,
+      muscleGroup: ex.muscleGroup,
       notes: "",
       sets: [
         {
@@ -484,6 +573,30 @@ export default function ExerciseLogger({
     setExercises(updated);
   };
 
+  const updateCardio = (exIdx: number, setIdx: number, next: CardioInput) => {
+    const updated = [...exercises];
+    updated[exIdx].sets[setIdx] = { ...updated[exIdx].sets[setIdx], cardio: next };
+    setExercises(updated);
+  };
+
+  /// Another bout on the same machine, starting from the last one's numbers —
+  /// intervals are usually the same thing again.
+  const addCardioRow = (exIdx: number) => {
+    const updated = [...exercises];
+    const ex = updated[exIdx];
+    const last = ex.sets[ex.sets.length - 1];
+    ex.sets.push({
+      type: CARDIO_SET_TYPE,
+      setNumber: ex.sets.length + 1,
+      weight: "",
+      reps: "",
+      rir: "",
+      notes: "",
+      cardio: { ...(last?.cardio ?? {}) },
+    });
+    setExercises(updated);
+  };
+
   const updateExerciseNotes = (exIdx: number, notes: string) => {
     const updated = [...exercises];
     updated[exIdx].notes = notes;
@@ -644,6 +757,7 @@ export default function ExerciseLogger({
   ) => {
     const ex = exercises[exIdx];
     const prev = previousData[ex.exerciseId];
+    const cardioSpec = cardioSpecFor(ex.exerciseName, ex.muscleGroup);
     const warmupSets = ex.sets.filter((s) => s.type === "WARMUP");
 
     // Walk ex.sets in original order to build "chains": each WORKING or
@@ -699,7 +813,18 @@ export default function ExerciseLogger({
                   <h3 className="font-semibold text-[15px] tracking-tight truncate">
                     {ex.exerciseName}
                   </h3>
-                  {prev && (
+                  {cardioSpec && prev?.cardioRows && prev.cardioRows.length > 0 && (
+                    <p
+                      className="text-[11px] mt-1 nums truncate"
+                      style={{
+                        color: "var(--fg-dim)",
+                        fontFamily: "var(--font-geist-mono)",
+                      }}
+                    >
+                      Last: {cardioTotal(prev.cardioRows)} · {prev.daysAgo}d ago
+                    </p>
+                  )}
+                  {prev && !cardioSpec && (
                     <p
                       className="text-[11px] mt-1 nums"
                       style={{
@@ -732,7 +857,7 @@ export default function ExerciseLogger({
                   )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  {!inSuperset &&
+                  {!inSuperset && !cardioSpec &&
                     (() => {
                       const secs = restFor(ex.exerciseId);
                       const enabled = secs > 0;
@@ -807,6 +932,19 @@ export default function ExerciseLogger({
               </div>
 
             </div>
+
+            {cardioSpec && (
+              <CardioCard
+                spec={cardioSpec}
+                rows={ex.sets}
+                onChange={(i, next) => updateCardio(exIdx, i, next)}
+                onToggleDone={(i) =>
+                  updateSet(exIdx, i, "completed", !ex.sets[i]?.completed)
+                }
+                onAddRow={() => addCardioRow(exIdx)}
+                onRemoveRow={(i) => removeSet(exIdx, i)}
+              />
+            )}
 
             {warmupSets.length > 0 && (
               <div className="px-4 pb-1">
@@ -930,7 +1068,7 @@ export default function ExerciseLogger({
               </div>
             )}
 
-            {!inSuperset && (
+            {!inSuperset && !cardioSpec && (
               <div
                 className="px-4 py-3 flex gap-2"
                 style={{ borderTop: "1px solid var(--border)" }}
@@ -1234,6 +1372,37 @@ export default function ExerciseLogger({
             />
           </div>
           <div className="flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-6">
+            {grouped && swapTargetIdx === null && (
+              <div className="mb-3">
+                <p
+                  className="label text-[10px] mb-1.5 px-1"
+                  style={{ color: "var(--fg-dim)" }}
+                >
+                  Cardio &amp; HIIT
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_CARDIO.map((name) => {
+                    const hit = allExercises.find((e) => e.name === name);
+                    if (!hit) return null;
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => addExercise(hit)}
+                        className="text-[12px] px-2.5 py-1.5 rounded-full active:scale-95 transition-transform"
+                        style={{
+                          background: "var(--bg-elevated)",
+                          border: "1px solid var(--border)",
+                          color: "var(--fg-muted)",
+                        }}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {grouped ? (
               <div className="space-y-3">
                 {grouped.map(({ group, items }) => (
@@ -2243,6 +2412,8 @@ function ExerciseRow({
   onClick: () => void;
 }) {
   const detail = (() => {
+    // "Rowing Machine" would otherwise read as a lat exercise.
+    if (cardioSpecFor(ex.name, ex.muscleGroup)) return ex.muscleGroup ?? "Cardio";
     const s = specificMuscleFor(ex.name);
     return s === "Other" && ex.muscleGroup ? ex.muscleGroup : s;
   })();

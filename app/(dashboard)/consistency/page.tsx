@@ -46,7 +46,11 @@ type ExerciseLike = {
 type WorkoutLikeForCoverage = { exercises: ExerciseLike[] };
 
 function workingSetCount(sets: SetLike[]): number {
-  return sets.reduce((n, s) => (s.type !== "WARMUP" ? n + 1 : n), 0);
+  // Cardio rows aren't sets on a muscle.
+  return sets.reduce(
+    (n, s) => (s.type !== "WARMUP" && s.type !== "CARDIO" ? n + 1 : n),
+    0,
+  );
 }
 
 // Per-muscle working-set tally across a set of sessions.
@@ -638,7 +642,7 @@ async function generateAnalysis(args: {
         for (const e of s.exercises) {
           if (e.exercise.muscleGroup) muscles.add(e.exercise.muscleGroup);
           for (const set of e.sets) {
-            if (set.type !== "WARMUP") workingSets++;
+            if (set.type !== "WARMUP" && set.type !== "CARDIO") workingSets++;
           }
         }
         summary = ` — ${workingSets} working sets across ${Array.from(muscles).join(", ") || "n/a"}`;

@@ -1,3 +1,8 @@
+import {
+  CARDIO_SET_TYPE,
+  cardioSummary,
+  type CardioMetrics,
+} from "@/lib/cardio";
 import { blockLabel } from "@/lib/periodization";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
@@ -702,6 +707,44 @@ export default async function WorkoutDetailPage({
                                 ))}
                               </div>
                             ))}
+                          </div>
+                        )}
+
+                        {ex.sets.some((s) => s.type === CARDIO_SET_TYPE) && (
+                          <div className="px-4 pb-3 space-y-1.5">
+                            {ex.sets
+                              .filter((s) => s.type === CARDIO_SET_TYPE)
+                              .map((s, i, rows) => {
+                                const m = (s.metrics ?? {}) as CardioMetrics;
+                                return (
+                                  <div key={s.id}>
+                                    <div className="flex items-baseline gap-2">
+                                      {rows.length > 1 && (
+                                        <span
+                                          className="label text-[9px] shrink-0"
+                                          style={{ color: "var(--fg-dim)" }}
+                                        >
+                                          {i + 1}
+                                        </span>
+                                      )}
+                                      <span
+                                        className="text-[13px] nums"
+                                        style={{ fontFamily: "var(--font-geist-mono)" }}
+                                      >
+                                        {cardioSummary(m) || "—"}
+                                      </span>
+                                    </div>
+                                    {m.movements && m.movements.length > 0 && (
+                                      <p
+                                        className="text-[11px] mt-0.5"
+                                        style={{ color: "var(--fg-dim)" }}
+                                      >
+                                        {m.movements.join(" · ")}
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              })}
                           </div>
                         )}
                       </div>

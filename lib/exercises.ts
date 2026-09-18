@@ -1,3 +1,5 @@
+import { CARDIO_EXERCISES } from "@/lib/cardio";
+
 export type DefaultExercise = {
   name: string;
   muscleGroup: string;
@@ -585,12 +587,11 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
   { name: "Sandbag Press", muscleGroup: "Shoulders", splits: "PUSH,FULL_BODY" },
   { name: "Husafell Carry", muscleGroup: "Back", splits: "FULL_BODY" },
 
-  // Med ball / battle ropes
+  // Med ball (battle ropes live in lib/cardio.ts as conditioning)
   { name: "Wall Ball", muscleGroup: "Quads", splits: "FULL_BODY,LEGS" },
   { name: "Med Ball Slam", muscleGroup: "Core", splits: "FULL_BODY,CORE" },
   { name: "Med Ball Chest Pass", muscleGroup: "Chest", splits: "PUSH,UPPER" },
   { name: "Med Ball Rotational Throw", muscleGroup: "Core", splits: "CORE" },
-  { name: "Battle Ropes", muscleGroup: "Shoulders", splits: "FULL_BODY" },
 
   // Bodyweight push-up & squat variants
   { name: "Hindu Push-Up", muscleGroup: "Chest", splits: "PUSH,UPPER" },
@@ -637,6 +638,17 @@ export const DEFAULT_EXERCISES: DefaultExercise[] = [
 
   // Other equipment / squat variants
   { name: "Pendulum Squat", muscleGroup: "Quads", splits: "LEGS,LOWER" },
+
+  // Cardio machines and conditioning blocks, logged as cards inside a lifting
+  // session. Tagged CARDIO rather than with a split: a finisher on the bike
+  // shouldn't turn a Push day into Full Body, and detectSplit skips any tag it
+  // doesn't know. (Not empty — the default sync reads an empty tag as missing
+  // and would rewrite these on every visit.)
+  ...CARDIO_EXERCISES.map((e) => ({
+    name: e.name,
+    muscleGroup: e.muscleGroup,
+    splits: "CARDIO",
+  })),
 ];
 
 export type WorkoutShape = "STRENGTH" | "DISTANCE" | "DURATION";

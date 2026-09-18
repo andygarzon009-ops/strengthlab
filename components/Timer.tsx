@@ -388,6 +388,58 @@ export default function Timer() {
     setRound(1);
     startPhase(intervalConfig.prepSeconds > 0 ? "PREP" : "WORK");
   };
+
+  // A conditioning card's "Start timer": run ITS rounds/work/rest, not
+  // whatever was last saved here. The new config has to land before the
+  // first phase is timed (startPhase reads it), so the start is deferred to
+  // the render that carries it.
+  const pendingIntervalStart = useRef(false);
+  useEffect(() => {
+    const onInterval = (e: Event) => {
+      const d = (e as CustomEvent<{
+        rounds?: number;
+        workSeconds?: number;
+        restSeconds?: number;
+      }>).detail;
+      if (!d?.rounds || !d.workSeconds) return;
+      ensureAudio();
+      setIntervalConfig((c) => ({
+        ...c,
+        rounds: d.rounds!,
+        workSeconds: d.workSeconds!,
+        restSeconds: d.restSeconds ?? 0,
+      }));
+      setIntervalPaused(null);
+      setMode("INTERVAL");
+      setOpen(true);
+      pendingIntervalStart.current = true;
+    };
+    const onAmrap = (e: Event) => {
+      const secs = (e as CustomEvent<{ seconds?: number }>).detail?.seconds;
+      if (!secs || secs <= 0) return;
+      ensureAudio();
+      amrapBeepRef.current = null;
+      amrapFiredRef.current = false;
+      setAmrapConfigSeconds(secs);
+      setAmrapRounds(0);
+      setAmrapPaused(null);
+      setAmrapEndsAt(Date.now() + secs * 1000);
+      setMode("AMRAP");
+      setOpen(true);
+    };
+    window.addEventListener("strengthlab:interval-start", onInterval);
+    window.addEventListener("strengthlab:amrap-start", onAmrap);
+    return () => {
+      window.removeEventListener("strengthlab:interval-start", onInterval);
+      window.removeEventListener("strengthlab:amrap-start", onAmrap);
+    };
+  }, []);
+  useEffect(() => {
+    if (!pendingIntervalStart.current) return;
+    pendingIntervalStart.current = false;
+    setRound(1);
+    startPhase(intervalConfig.prepSeconds > 0 ? "PREP" : "WORK");
+  }, [intervalConfig, startPhase]);
   const pauseInterval = () => {
     if (phaseEndsAt === null) return;
     setIntervalPaused(Math.max(0, (phaseEndsAt - Date.now()) / 1000));

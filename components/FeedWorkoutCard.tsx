@@ -1,5 +1,6 @@
 "use client";
 
+import { CARDIO_SET_TYPE, cardioTotal } from "@/lib/cardio";
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -32,7 +33,13 @@ type WorkoutProp = {
   exercises: {
     id: string;
     exercise: { name: string };
-    sets: { type: string; weight: number | null; reps: number | null }[];
+    sets: {
+      type: string;
+      weight: number | null;
+      reps: number | null;
+      /// Present on CARDIO rows when the query selects it.
+      metrics?: unknown;
+    }[];
   }[];
   /// Joint-session members, when this was trained with crew. The card filters
   /// out the log's own owner — "trained with myself" is not a thing.
@@ -247,6 +254,17 @@ export default function FeedWorkoutCard({
                     }}
                   >
                     {ex.exercise.name}
+                    {(() => {
+                      // "Stair Climber · 20 min · 45 floors" — a cardio card
+                      // has no sets to count, so the chip carries its numbers.
+                      const rows = ex.sets
+                        .filter((s) => s.type === CARDIO_SET_TYPE && s.metrics)
+                        .map((s) => s.metrics);
+                      const total = rows.length > 0 ? cardioTotal(rows) : "";
+                      return total ? (
+                        <span style={{ color: "var(--fg-dim)" }}> · {total}</span>
+                      ) : null;
+                    })()}
                   </span>
                 ))}
               </div>

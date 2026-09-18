@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { similarExerciseIds } from "@/lib/exerciseIdentity";
+import { CARDIO_SET_TYPE, cardioSpecFor } from "@/lib/cardio";
 
 export async function GET(
   _req: Request,
@@ -8,6 +9,39 @@ export async function GET(
 ) {
   const userId = await requireAuth();
   const { id: exerciseId } = await params;
+
+  // Cardio and conditioning cards have no top set — they want last time's
+  // rows, to show and to prefill from.
+  const meta = await prisma.exercise.findUnique({
+    where: { id: exerciseId },
+    select: { name: true, muscleGroup: true },
+  });
+  if (meta && cardioSpecFor(meta.name, meta.muscleGroup)) {
+    const lastCardio = await prisma.workoutExercise.findFirst({
+      where: {
+        exerciseId,
+        workout: { userId },
+        sets: { some: { type: CARDIO_SET_TYPE } },
+      },
+      orderBy: { workout: { date: "desc" } },
+      include: {
+        sets: {
+          where: { type: CARDIO_SET_TYPE },
+          orderBy: { setNumber: "asc" },
+          select: { metrics: true },
+        },
+        workout: { select: { date: true } },
+      },
+    });
+    if (!lastCardio) return Response.json(null);
+    return Response.json({
+      daysAgo: Math.floor(
+        (Date.now() - new Date(lastCardio.workout.date).getTime()) /
+          (1000 * 60 * 60 * 24),
+      ),
+      cardioRows: lastCardio.sets.map((s) => s.metrics ?? {}),
+    });
+  }
 
   const lastWorkoutEx = await prisma.workoutExercise.findFirst({
     where: {

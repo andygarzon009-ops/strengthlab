@@ -1,5 +1,6 @@
 "use server";
 
+import type { CardioMetrics } from "@/lib/cardio";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/app/generated/prisma";
 import { isValidConfig, type PeriodizationConfig } from "@/lib/periodization";
@@ -28,6 +29,8 @@ type SetInput = {
   rir?: number | null;
   notes?: string;
   loggedAt?: string | null;
+  /// CARDIO rows only — see lib/cardio.ts.
+  metrics?: CardioMetrics | null;
 };
 
 type ExerciseInput = {
@@ -170,6 +173,7 @@ export async function createWorkout(data: CreateWorkoutInput) {
               rir: s.rir,
               notes: s.notes,
               loggedAt: s.loggedAt ? new Date(s.loggedAt) : null,
+              metrics: s.metrics ?? undefined,
             })),
           },
         })),
@@ -506,6 +510,7 @@ export async function updateWorkout(
                 rir: s.rir,
                 notes: s.notes,
                 loggedAt: s.loggedAt ? new Date(s.loggedAt) : null,
+                metrics: s.metrics ?? undefined,
               })),
             },
           })),

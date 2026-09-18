@@ -548,6 +548,10 @@ model Set {
   rir               Int?
   notes             String?
   loggedAt          DateTime?
+  /// Cardio / conditioning numbers for a CARDIO row (lib/cardio.ts):
+  /// { durationSec, distanceKm, calories, level, incline, speed, floors,
+  ///   rounds, workSec, restSec, movements }. Null on every strength set.
+  metrics           Json?
 
   workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
 

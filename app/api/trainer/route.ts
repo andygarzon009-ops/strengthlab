@@ -1,3 +1,8 @@
+import {
+  CARDIO_SET_TYPE,
+  cardioSummary,
+  type CardioMetrics,
+} from "@/lib/cardio";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -460,6 +465,18 @@ export async function POST(req: NextRequest) {
                   .map((s) => formatSet(s, setHr(s.loggedAt)))
                   .join(", ")}`,
               );
+            // Cardio / conditioning done inside the session — the coach
+            // should know the legs already did 20 minutes on the stairs.
+            const cardio = e.sets.filter((s) => s.type === CARDIO_SET_TYPE);
+            if (cardio.length) {
+              const m = cardio.map((s) => s.metrics as CardioMetrics | null);
+              const moves = m.flatMap((x) => x?.movements ?? []);
+              parts.push(
+                `cardio ${m.map((x) => cardioSummary(x) || "logged").join(", ")}${
+                  moves.length ? ` (${moves.join(", ")})` : ""
+                }`,
+              );
+            }
             const exNote = e.notes?.trim() ? ` [${e.notes.trim()}]` : "";
             return `    • ${e.exercise.name}${exNote}: ${parts.join(" | ")}`;
           })
