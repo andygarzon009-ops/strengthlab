@@ -78,7 +78,13 @@ export default async function HeartRateCard({ userId }: Props) {
           ? "#f97316"
           : "var(--fg-dim)";
   const trendArrow =
-    restingDelta === null ? "" : restingDelta < 0 ? "↓" : restingDelta > 0 ? "↑" : "·";
+    restingDelta === null
+      ? ""
+      : restingDelta < 0
+        ? "↓"
+        : restingDelta > 0
+          ? "↑"
+          : "·";
 
   const label = "text-[9px] uppercase tracking-wider font-semibold";
   const when = lastWorkout
@@ -87,88 +93,111 @@ export default async function HeartRateCard({ userId }: Props) {
       )
     : null;
 
-  // One row, two readings. It used to spend a full line on a "Heart rate"
-  // heading and stack each side four lines deep; the red dot already says
-  // what this card is, and the numbers are what gets read.
+  // A title, then one row with two readings. Each side used to stack four
+  // lines deep; now it's label, number, one line of context.
   return (
     <Link
       href="/heart-rate"
-      className="flex items-stretch gap-3 rounded-2xl px-4 py-3 mb-3 transition-colors"
+      className="block rounded-2xl px-4 py-3 mb-3 transition-colors"
       style={{
         background: "var(--bg-card)",
         border: "1px solid var(--border)",
       }}
     >
-      {restingNow !== null && (
-        <div className="shrink-0 min-w-0">
-          <p className={`${label} flex items-center gap-1.5`} style={{ color: "var(--fg-dim)" }}>
-            <span
-              className="inline-block w-1.5 h-1.5 rounded-full"
-              style={{
-                background: "#ef4444",
-                boxShadow: "0 0 6px rgba(239,68,68,0.5)",
-              }}
-            />
-            Resting HR
-          </p>
-          <p className="tabular-nums mt-0.5 leading-none">
-            <span className="text-[22px] font-bold">{restingNow}</span>
-            <span className="text-[10px] ml-1" style={{ color: "var(--fg-dim)" }}>
-              bpm
-            </span>
-          </p>
-          <p className="text-[10px] mt-1 whitespace-nowrap" style={{ color: trendColor }}>
-            {restingDelta !== null && restingDelta !== 0
-              ? `${trendArrow} ${Math.abs(restingDelta)} vs last week`
-              : restingSource === "computed"
-                ? "estimated today"
-                : "today"}
-          </p>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-block w-2 h-2 rounded-full"
+            style={{
+              background: "#ef4444",
+              boxShadow: "0 0 6px rgba(239,68,68,0.5)",
+            }}
+          />
+          <h3 className="text-[14px] font-bold tracking-tight">Heart rate</h3>
         </div>
-      )}
+        <span style={{ color: "var(--fg-dim)" }}>→</span>
+      </div>
 
-      {restingNow !== null && lastWorkout && (
-        <div className="w-px shrink-0" style={{ background: "var(--border)" }} />
-      )}
-
-      {lastWorkout && (
-        <div className="flex-1 min-w-0">
-          <p className={`${label} truncate`} style={{ color: "var(--fg-dim)" }}>
-            {restingNow === null && (
+      <div className="flex items-stretch gap-3">
+        {restingNow !== null && (
+          <div className="shrink-0 min-w-0">
+            <p className={label} style={{ color: "var(--fg-dim)" }}>
+              Resting heart rate
+            </p>
+            <p className="tabular-nums mt-0.5 leading-none">
+              <span className="text-[22px] font-bold">{restingNow}</span>
               <span
-                className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle"
-                style={{ background: "#ef4444" }}
-              />
-            )}
-            Last session · {when}
-          </p>
-          <p className="tabular-nums mt-0.5 leading-none">
-            {lastWorkout.avgHeartRate && (
-              <>
-                <span className="text-[22px] font-bold">{lastWorkout.avgHeartRate}</span>
-                <span className="text-[10px] ml-1 mr-3" style={{ color: "var(--fg-dim)" }}>
-                  avg
-                </span>
-              </>
-            )}
-            {lastWorkout.maxHeartRate && (
-              <>
-                <span className="text-[22px] font-bold">{lastWorkout.maxHeartRate}</span>
-                <span className="text-[10px] ml-1" style={{ color: "var(--fg-dim)" }}>
-                  max
-                </span>
-              </>
-            )}
-          </p>
-          <p className="text-[10px] mt-1 truncate" style={{ color: "var(--fg-dim)" }}>
-            {lastWorkout.title}
-          </p>
-        </div>
-      )}
+                className="text-[10px] ml-1"
+                style={{ color: "var(--fg-dim)" }}
+              >
+                bpm
+              </span>
+            </p>
+            <p
+              className="text-[10px] mt-1 whitespace-nowrap"
+              style={{ color: trendColor }}
+            >
+              {restingDelta !== null && restingDelta !== 0
+                ? `${trendArrow} ${Math.abs(restingDelta)} vs last week`
+                : restingSource === "computed"
+                  ? "estimated today"
+                  : "today"}
+            </p>
+          </div>
+        )}
 
-      <span className="self-center shrink-0 ml-auto" style={{ color: "var(--fg-dim)" }}>
-        →
-      </span>
+        {restingNow !== null && lastWorkout && (
+          <div
+            className="w-px shrink-0"
+            style={{ background: "var(--border)" }}
+          />
+        )}
+
+        {lastWorkout && (
+          <div className="flex-1 min-w-0">
+            <p
+              className={`${label} truncate`}
+              style={{ color: "var(--fg-dim)" }}
+            >
+              Last session · {when}
+            </p>
+            <p className="tabular-nums mt-0.5 leading-none">
+              {lastWorkout.avgHeartRate && (
+                <>
+                  <span className="text-[22px] font-bold">
+                    {lastWorkout.avgHeartRate}
+                  </span>
+                  <span
+                    className="text-[10px] ml-1 mr-3"
+                    style={{ color: "var(--fg-dim)" }}
+                  >
+                    avg
+                  </span>
+                </>
+              )}
+              {lastWorkout.maxHeartRate && (
+                <>
+                  <span className="text-[22px] font-bold">
+                    {lastWorkout.maxHeartRate}
+                  </span>
+                  <span
+                    className="text-[10px] ml-1"
+                    style={{ color: "var(--fg-dim)" }}
+                  >
+                    max
+                  </span>
+                </>
+              )}
+            </p>
+            <p
+              className="text-[10px] mt-1 truncate"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              {lastWorkout.title}
+            </p>
+          </div>
+        )}
+      </div>
     </Link>
   );
 }

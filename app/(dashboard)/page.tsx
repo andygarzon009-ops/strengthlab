@@ -127,7 +127,7 @@ export default async function FeedPage({
           <Suspense fallback={<CardSkeleton height={132} />}>
             <WeeklyRecap userId={userId} />
           </Suspense>
-          <Suspense fallback={<CardSkeleton height={84} />}>
+          <Suspense fallback={<CardSkeleton height={112} />}>
             <HeartRateCard userId={userId} />
           </Suspense>
           <Suspense fallback={<CardSkeleton height={120} />}>
