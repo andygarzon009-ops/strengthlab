@@ -15,10 +15,8 @@ import FriendButton from "@/components/FriendButton";
 import ShareProfileButton from "@/components/ShareProfileButton";
 import { getFriendState } from "@/lib/actions/friends";
 import Avatar from "@/components/Avatar";
-import ProfileCalendar, {
-  monthKey,
-  type CalendarWorkout,
-} from "@/components/ProfileCalendar";
+import ProfileCalendar from "@/components/ProfileCalendar";
+import { monthKey, type CalendarWorkout } from "@/lib/profileCalendar";
 
 export const dynamic = "force-dynamic";
 

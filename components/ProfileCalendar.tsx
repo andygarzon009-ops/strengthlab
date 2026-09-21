@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import {
+  MONTHS,
+  monthKey,
+  type CalendarWorkout,
+} from "@/lib/profileCalendar";
 
 // Month calendar on a profile. A trained day used to link straight to ONE
 // workout — the most recent of that day — so a double session was invisible
@@ -12,23 +17,6 @@ import Link from "next/link";
 // The calendar also steps back through months: the profile page already loads
 // a year of sessions, so paging is pure client state — no refetch, no URL.
 
-export type CalendarWorkout = {
-  id: string;
-  title: string;
-  typeLabel: string;
-  /** e.g. "42 min", or null when the session had no duration logged. */
-  durationLabel: string | null;
-};
-
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-/** "2026-8" for September 2026 — month is 0-indexed, matching Date. */
-export function monthKey(year: number, month: number) {
-  return `${year}-${month}`;
-}
 
 export default function ProfileCalendar({
   year,
