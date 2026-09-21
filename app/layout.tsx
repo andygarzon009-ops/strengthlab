@@ -1,22 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
-import { Manrope } from "next/font/google";
 import "./globals.css";
-
-// Manrope carries the whole app. Geist was clean but neutral to the point of
-// having no voice; Manrope's semi-geometric forms and tall figures read
-// expensive at the sizes that matter here — the big stat numbers — while
-// still being a UI face that holds up at 10px on a phone. One family, one
-// voice: mixing a display face into a data-dense app means mixed-font lines
-// wherever a number sits inside a sentence.
-//
-// Swapping the whole app's type is a one-line change here: any next/font
-// import exposing --font-display works.
-const display = Manrope({
-  subsets: ["latin"],
-  variable: "--font-display",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "StrengthLab",
@@ -54,7 +39,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${display.variable} ${GeistMono.variable} h-full`}
+      className={`${GeistSans.variable} ${GeistMono.variable} h-full`}
     >
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
@@ -66,7 +51,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="StrengthLab" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
-      <body className={`${display.className} min-h-full antialiased`}>
+      <body className={`${GeistSans.className} min-h-full antialiased`}>
         {children}
       </body>
     </html>
