@@ -15,14 +15,12 @@ import FriendButton from "@/components/FriendButton";
 import ShareProfileButton from "@/components/ShareProfileButton";
 import { getFriendState } from "@/lib/actions/friends";
 import Avatar from "@/components/Avatar";
-import ProfileCalendar, { type CalendarWorkout } from "@/components/ProfileCalendar";
+import ProfileCalendar, {
+  monthKey,
+  type CalendarWorkout,
+} from "@/components/ProfileCalendar";
 
 export const dynamic = "force-dynamic";
-
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
 export default async function PublicProfilePage({
   params,
@@ -51,13 +49,16 @@ export default async function PublicProfilePage({
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+  // Twelve WHOLE months back, not 365 days: the calendar pages through these
+  // months, and a rolling 365-day window would leave the oldest one half
+  // empty and make it look like the friend skipped those weeks.
+  const earliest = new Date(now.getFullYear(), now.getMonth() - 11, 1);
 
   const [totalWorkouts, cheers, workouts] = await Promise.all([
     prisma.workout.count({ where: { userId: user.id } }),
     prisma.reaction.count({ where: { workout: { userId: user.id } } }),
     prisma.workout.findMany({
-      where: { userId: user.id, date: { gte: yearAgo } },
+      where: { userId: user.id, date: { gte: earliest } },
       orderBy: { date: "desc" },
       select: {
         id: true,
@@ -90,31 +91,26 @@ export default async function PublicProfilePage({
   // Level from lifetime workouts.
   const level = Math.floor(totalWorkouts / 10) + 1;
 
-  // Group every workout in the month by day. Keeping only the first hit per
-  // day (monthWorkouts is date-desc) meant a double session showed one cell
+  // Group every loaded workout by month, then by day. Keeping only the first
+  // hit per day (workouts is date-desc) meant a double session showed one cell
   // linking to the later workout, with the earlier one unreachable from here.
   // Reversed so each day's list reads earliest-first, the order they trained.
-  const workoutsByDay: Record<number, CalendarWorkout[]> = {};
-  for (const w of [...monthWorkouts].reverse()) {
-    const d = new Date(w.date).getDate();
-    (workoutsByDay[d] ??= []).push({
+  // The calendar pages through these months client-side, so a friend's older
+  // sessions are reachable without another round trip.
+  const workoutsByMonth: Record<
+    string,
+    Record<number, CalendarWorkout[]>
+  > = {};
+  for (const w of [...workouts].reverse()) {
+    const d = new Date(w.date);
+    const byDay = (workoutsByMonth[monthKey(d.getFullYear(), d.getMonth())] ??= {});
+    (byDay[d.getDate()] ??= []).push({
       id: w.id,
       title: w.title || labelForType(w.type),
       typeLabel: labelForType(w.type),
       durationLabel: w.duration ? formatDuration(w.duration) : null,
     });
   }
-  const daysInMonth = new Date(
-    now.getFullYear(),
-    now.getMonth() + 1,
-    0,
-  ).getDate();
-  // Mon-first leading blanks.
-  const firstDow = (new Date(now.getFullYear(), now.getMonth(), 1).getDay() + 6) % 7;
-  const cells: (number | null)[] = [
-    ...Array(firstDow).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
 
   // Top lifts (e1RM)
   const bestByLift = new Map<
@@ -215,16 +211,12 @@ export default async function PublicProfilePage({
 
         {/* History calendar */}
         <div className="mt-6">
-          <div className="flex items-baseline justify-between mb-3">
-            <h2 className="text-[16px] font-bold tracking-tight">History</h2>
-            <span className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
-              {MONTHS[now.getMonth()]} {now.getFullYear()}
-            </span>
-          </div>
           <ProfileCalendar
-            cells={cells}
-            workoutsByDay={workoutsByDay}
-            monthLabel={MONTHS[now.getMonth()]}
+            year={now.getFullYear()}
+            month={now.getMonth()}
+            earliestYear={earliest.getFullYear()}
+            earliestMonth={earliest.getMonth()}
+            workoutsByMonth={workoutsByMonth}
           />
         </div>
 

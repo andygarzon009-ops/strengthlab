@@ -8,6 +8,9 @@ import Link from "next/link";
 // and the earlier workout unreachable from here. Days with several sessions
 // now expand into a list instead, and single-session days keep linking
 // straight through so the common case stays one tap.
+//
+// The calendar also steps back through months: the profile page already loads
+// a year of sessions, so paging is pure client state — no refetch, no URL.
 
 export type CalendarWorkout = {
   id: string;
@@ -17,22 +20,88 @@ export type CalendarWorkout = {
   durationLabel: string | null;
 };
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** "2026-8" for September 2026 — month is 0-indexed, matching Date. */
+export function monthKey(year: number, month: number) {
+  return `${year}-${month}`;
+}
+
 export default function ProfileCalendar({
-  cells,
-  workoutsByDay,
-  monthLabel,
+  year,
+  month,
+  earliestYear,
+  earliestMonth,
+  workoutsByMonth,
 }: {
-  /** Day numbers with leading nulls for the Mon-first offset. */
-  cells: (number | null)[];
-  /** Day number → that day's workouts, earliest first. */
-  workoutsByDay: Record<number, CalendarWorkout[]>;
-  monthLabel: string;
+  /** Month shown first — normally the current one. */
+  year: number;
+  month: number;
+  /** Oldest month with loaded data; stepping back stops here. */
+  earliestYear: number;
+  earliestMonth: number;
+  /** monthKey → day number → that day's workouts, earliest first. */
+  workoutsByMonth: Record<string, Record<number, CalendarWorkout[]>>;
 }) {
+  const [view, setView] = useState({ year, month });
   const [openDay, setOpenDay] = useState<number | null>(null);
+
+  const workoutsByDay = workoutsByMonth[monthKey(view.year, view.month)] ?? {};
+  const monthLabel = MONTHS[view.month];
+
+  // Months are compared as a single number so the bounds check stays simple.
+  const asIndex = (y: number, m: number) => y * 12 + m;
+  const canGoBack =
+    asIndex(view.year, view.month) > asIndex(earliestYear, earliestMonth);
+  const canGoForward = asIndex(view.year, view.month) < asIndex(year, month);
+
+  function step(delta: number) {
+    setOpenDay(null);
+    setView((v) => {
+      const d = new Date(v.year, v.month + delta, 1);
+      return { year: d.getFullYear(), month: d.getMonth() };
+    });
+  }
+
+  const daysInMonth = new Date(view.year, view.month + 1, 0).getDate();
+  // Mon-first leading blanks.
+  const firstDow = (new Date(view.year, view.month, 1).getDay() + 6) % 7;
+  const cells: (number | null)[] = [
+    ...Array(firstDow).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+
   const openList = openDay !== null ? workoutsByDay[openDay] ?? [] : [];
 
   return (
     <>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-[16px] font-bold tracking-tight">History</h2>
+        <div className="flex items-center gap-1">
+          <MonthArrow
+            dir="prev"
+            disabled={!canGoBack}
+            label={`Previous month${canGoBack ? "" : " — no earlier sessions loaded"}`}
+            onClick={() => step(-1)}
+          />
+          <span
+            className="text-[13px] text-center"
+            style={{ color: "var(--fg-dim)", minWidth: 116 }}
+          >
+            {monthLabel} {view.year}
+          </span>
+          <MonthArrow
+            dir="next"
+            disabled={!canGoForward}
+            label="Next month"
+            onClick={() => step(1)}
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-7 gap-1.5">
         {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
           <div
@@ -106,6 +175,12 @@ export default function ProfileCalendar({
         })}
       </div>
 
+      {Object.keys(workoutsByDay).length === 0 && (
+        <p className="text-[12px] text-center mt-3" style={{ color: "var(--fg-dim)" }}>
+          No sessions in {monthLabel}.
+        </p>
+      )}
+
       {openDay !== null && openList.length > 0 && (
         <div
           className="mt-3 rounded-2xl overflow-hidden"
@@ -150,5 +225,46 @@ export default function ProfileCalendar({
         </div>
       )}
     </>
+  );
+}
+
+function MonthArrow({
+  dir,
+  disabled,
+  label,
+  onClick,
+}: {
+  dir: "prev" | "next";
+  disabled: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+      style={{
+        background: "var(--bg-elevated)",
+        border: "1px solid var(--border)",
+        opacity: disabled ? 0.3 : 1,
+      }}
+    >
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="var(--fg)"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d={dir === "prev" ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"} />
+      </svg>
+    </button>
   );
 }
