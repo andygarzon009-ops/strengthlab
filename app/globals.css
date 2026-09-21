@@ -27,9 +27,25 @@ body {
 }
 
 body {
-  font-feature-settings: "cv11", "ss01";
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  /* Lining tabular figures everywhere by default. In a training log almost
+     every number sits in a column that gets compared down the page — weights,
+     reps, minutes — and proportional figures make those columns wobble.
+     ("cv11"/"ss01" here were Geist's stylistic sets and did nothing once the
+     family changed.) */
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* Headings tighten as they grow: at 22px+ the default spacing reads loose and
+   slightly cheap. Element-level, so any component that sets its own tracking
+   utility still wins. */
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.02em;
 }
 
 * {
@@ -48,12 +64,25 @@ input[type="number"]::-webkit-outer-spin-button {
   font-feature-settings: "tnum";
 }
 
+/* Micro-caps. The section labels carry a lot of the app's tone — widened and
+   lightened in colour, they recede into structure instead of competing with
+   the numbers underneath them. */
 .label {
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  font-size: 0.6875rem;
   font-weight: 600;
   color: var(--fg-dim);
+}
+
+/* The hero numbers: a stat's value, a PR, the weight on the bar. Tight and
+   heavy so the figure dominates its label, which is the whole point of a
+   glanceable stat. */
+.stat {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.035em;
+  font-weight: 700;
+  line-height: 0.95;
 }
 
 .hairline {
