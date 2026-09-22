@@ -2,6 +2,7 @@ import BottomNav from "@/components/BottomNav";
 import NotificationsBell from "@/components/NotificationsBell";
 import AITrainer from "@/components/AITrainer";
 import Celebrations from "@/components/Celebrations";
+import ForegroundNotice from "@/components/ForegroundNotice";
 import Timer from "@/components/Timer";
 import TutorialAutoOpen from "@/components/TutorialAutoOpen";
 import TimezoneSync from "@/components/TimezoneSync";
@@ -40,6 +41,7 @@ export default function DashboardLayout({
       <RestNotifications />
       <PushAutoSubscribe />
       <NotificationWatcher />
+      <ForegroundNotice />
     </div>
   );
 }

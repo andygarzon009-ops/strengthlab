@@ -14,6 +14,7 @@
 // subscribing, covers the case this can't — the app not running at all.
 
 import { useEffect, useRef } from "react";
+import { showForegroundNotice } from "@/components/ForegroundNotice";
 
 type Item = {
   id: string;
@@ -110,15 +111,23 @@ export default function NotificationWatcher() {
             seen.current.add(item.id);
             if (!primed.current) continue; // first pass: record, don't announce
             if (new Date(item.createdAt).getTime() < fresh) continue;
-            // Looking right at the app? Usually the inbox and the badge have
-            // it covered, and a banner on top is the noise the rest timer
-            // deliberately avoids. An invite is the exception: somebody is
-            // standing in a gym waiting on an answer, and the athlete may be
-            // three screens away from anywhere that shows it.
-            if (
-              document.visibilityState === "visible" &&
-              item.type !== "SESSION_INVITE"
-            ) {
+            // Looking right at the app? Never draw a system banner. iOS
+            // presents it over the web view, which takes focus off whatever
+            // field is being typed into and retracts the keyboard mid-entry —
+            // an invite arriving while you log a set used to end the entry.
+            // An invite still can't wait (somebody is standing in a gym
+            // waiting on an answer, and the athlete may be three screens away
+            // from anywhere that shows it), so it goes up as an in-app notice,
+            // which takes no focus. Everything else the inbox and badge have
+            // covered already.
+            if (document.visibilityState === "visible") {
+              if (item.type === "SESSION_INVITE") {
+                showForegroundNotice({
+                  title: TITLES[item.type] ?? "StrengthLab",
+                  body: item.body,
+                  url: item.url || "/notifications",
+                });
+              }
               continue;
             }
             await announce(item);

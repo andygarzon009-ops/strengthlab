@@ -53,38 +53,52 @@ self.addEventListener("push", (event) => {
   }
   event.waitUntil(
     (async () => {
-      // A rest-end push exists for the locked-screen case. If the athlete is
-      // actually looking at the app, the timer has already latched its REST
-      // DONE pill and chimed — a banner on top of that is noise. Other push
-      // types (friend requests, the inactivity nudge) are unaffected.
+      const clients = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      const onScreen = clients.filter(
+        (c) => c.visibilityState === "visible" || c.focused
+      );
+
+      // A banner drawn over an app the athlete is already looking at buys
+      // nothing and costs a lot: iOS presents it over the web view, which
+      // takes focus off whatever field is being typed into and retracts the
+      // software keyboard mid-entry. Someone logging a set gets the keyboard
+      // yanked out from under them every time a crew-mate finishes a workout.
       //
-      // But a push must never end without a notification. iOS counts every
-      // push that shows nothing and revokes the subscription after a few, and
-      // Chrome posts its own "site updated in the background" banner instead.
-      // Resting with the app open is the normal case, so returning early here
-      // quietly killed push on iPhones a few sets into a workout. Post a silent
-      // one and close it straight away: the rule is met and nothing is seen.
-      if (payload.tag === "rest-end") {
-        const clients = await self.clients.matchAll({
-          type: "window",
-          includeUncontrolled: true,
-        });
-        const onScreen = clients.some(
-          (c) => c.visibilityState === "visible" || c.focused
-        );
-        if (onScreen) {
-          await self.registration.showNotification(payload.title, {
+      // So nothing visible is ever posted while the app is on screen — the
+      // page draws its own quiet in-app notice instead, via the message
+      // below. This used to be done for rest-end only; every other push type
+      // (crew activity, invites, the nudge) still banners, and those are the
+      // frequent ones.
+      //
+      // A push must still end with a notification: iOS counts every push that
+      // shows nothing and revokes the subscription after a few, and Chrome
+      // posts its own "site updated in the background" banner instead. Post a
+      // silent one and close it straight away — the rule is met, nothing is
+      // seen, and focus stays where the athlete put it.
+      if (onScreen.length > 0) {
+        for (const client of onScreen) {
+          client.postMessage({
+            kind: "strengthlab:foreground-push",
+            title: payload.title,
             body: payload.body,
-            tag: "rest-end",
-            silent: true,
+            tag: payload.tag,
+            url: payload.url || null,
           });
-          const shown = await self.registration.getNotifications({
-            tag: "rest-end",
-          });
-          shown.forEach((n) => n.close());
-          return;
         }
+        const tag = payload.tag || "strengthlab";
+        await self.registration.showNotification(payload.title, {
+          body: payload.body,
+          tag,
+          silent: true,
+        });
+        const shown = await self.registration.getNotifications({ tag });
+        shown.forEach((n) => n.close());
+        return;
       }
+
       await self.registration.showNotification(payload.title, {
         body: payload.body,
         tag: payload.tag,
