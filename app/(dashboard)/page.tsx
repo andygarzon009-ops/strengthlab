@@ -60,8 +60,16 @@ export default async function FeedPage({
           >
             {currentUser?.name?.split(" ")[0] ?? "Athlete"}
           </p>
-          <h1 className="text-[28px] font-bold tracking-tight leading-none">
-            StrengthLab
+          {/* The wordmark. Slanted with skewX rather than font-style: italic —
+              Geist ships no italic in the build we load, so asking for italic
+              hands the browser a synthetic slant at whatever angle it picks,
+              which differs between iOS and Android. This is one chosen angle
+              everywhere. LAB carries the same lime as the trained-day rings. */}
+          <h1
+            className="text-[28px] font-extrabold uppercase tracking-[-0.03em] leading-none"
+            style={{ transform: "skewX(-9deg)", transformOrigin: "0 100%" }}
+          >
+            Strength<span style={{ color: "#a3e635" }}>Lab</span>
           </h1>
         </div>
         <Link
