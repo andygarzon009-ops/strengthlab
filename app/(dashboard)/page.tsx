@@ -10,6 +10,7 @@ import ConsistencyCard from "@/components/ConsistencyCard";
 import PendingInvites from "@/components/PendingInvites";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
+import Wordmark from "@/components/Wordmark";
 
 export default async function FeedPage({
   searchParams,
@@ -60,17 +61,7 @@ export default async function FeedPage({
           >
             {currentUser?.name?.split(" ")[0] ?? "Athlete"}
           </p>
-          {/* The wordmark. Slanted with skewX rather than font-style: italic —
-              Geist ships no italic in the build we load, so asking for italic
-              hands the browser a synthetic slant at whatever angle it picks,
-              which differs between iOS and Android. This is one chosen angle
-              everywhere. LAB carries the same lime as the trained-day rings. */}
-          <h1
-            className="text-[28px] font-extrabold uppercase tracking-[-0.03em] leading-none"
-            style={{ transform: "skewX(-9deg)", transformOrigin: "0 100%" }}
-          >
-            Strength<span style={{ color: "#a3e635" }}>Lab</span>
-          </h1>
+          <Wordmark size={28} />
         </div>
         <Link
           href="/log"

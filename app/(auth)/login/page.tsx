@@ -1,5 +1,6 @@
 import Link from "next/link";
 import LoginForm from "./login-form";
+import Wordmark from "@/components/Wordmark";
 
 export default async function LoginPage({
   searchParams,
@@ -36,9 +37,9 @@ export default async function LoginPage({
               <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
             </svg>
           </div>
-          <h1 className="text-[32px] font-bold tracking-tight leading-none mb-2">
-            StrengthLab
-          </h1>
+          <div className="mb-2">
+            <Wordmark size={32} />
+          </div>
           <p className="text-[14px]" style={{ color: "var(--fg-muted)" }}>
             Log in to continue your training.
           </p>
