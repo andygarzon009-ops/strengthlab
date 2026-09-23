@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -299,6 +305,9 @@ export default function AITrainer() {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const lastUserAnchorRef = useRef<HTMLDivElement>(null);
   const lastUserIdRef = useRef<string | null>(null);
+  // Set when the coach opens: keep the scroller pinned to the bottom until
+  // the history has rendered and stopped growing, or the user takes over.
+  const pinBottomRef = useRef(false);
   // Recovery plumbing for "coach is slow → user backgrounds the app → comes
   // back". The streaming socket is killed while backgrounded, so we abort the
   // dead reader on return and re-sync from the server (which durably persists
@@ -517,13 +526,8 @@ export default function AITrainer() {
             routine: routine ?? undefined,
           };
         });
+        if (scroll) pinBottomRef.current = true;
         setMessages(hydrated);
-        if (scroll) {
-          requestAnimationFrame(() => {
-            const scroller = scrollerRef.current;
-            if (scroller) scroller.scrollTop = scroller.scrollHeight;
-          });
-        }
         return hydrated;
       } catch {
         return [];
@@ -584,17 +588,49 @@ export default function AITrainer() {
     // hydrateHistory only sets state after an awaited fetch, not synchronously.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (open && messages.length === 0) hydrateHistory(true);
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-      // Reopening with cached messages still mounts a fresh scroller at
-      // top — jump to the bottom so the latest exchange is in view.
-      requestAnimationFrame(() => {
-        const scroller = scrollerRef.current;
-        if (scroller) scroller.scrollTop = scroller.scrollHeight;
-      });
-    }
+    if (open) setTimeout(() => inputRef.current?.focus(), 100);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Every open mounts a fresh scroller at the top. Pin it to the bottom
+  // before paint, then hold it there for a moment: the history (fetched
+  // async on first open) and its markdown/plan cards keep growing after the
+  // first frame, so a single scrollTop write lands short of the bottom.
+  useLayoutEffect(() => {
+    if (open) pinBottomRef.current = true;
+  }, [open]);
+
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!open || !pinBottomRef.current || !scroller) return;
+    if (visibleMessages.length === 0) return;
+    const pin = () => {
+      scroller.scrollTop = scroller.scrollHeight;
+    };
+    pin();
+    let raf = 0;
+    const stopAt = performance.now() + 1200;
+    const tick = () => {
+      if (!pinBottomRef.current || performance.now() > stopAt) {
+        pinBottomRef.current = false;
+        return;
+      }
+      pin();
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    // A touch or wheel means the user is scrolling — let go immediately.
+    const release = () => {
+      pinBottomRef.current = false;
+    };
+    scroller.addEventListener("touchstart", release, { passive: true });
+    scroller.addEventListener("wheel", release, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      scroller.removeEventListener("touchstart", release);
+      scroller.removeEventListener("wheel", release);
+    };
+  }, [open, visibleMessages]);
 
   // Re-sync when the app comes back from the background (app switch, screen
   // unlock, returning to the PWA). We act ONLY on a real hide→show cycle —
@@ -661,6 +697,8 @@ export default function AITrainer() {
       .find((m) => m.role === "user");
     if (!lastUser || lastUser.id === lastUserIdRef.current) return;
     lastUserIdRef.current = lastUser.id;
+    // History loading on open isn't a new message — stay at the bottom.
+    if (pinBottomRef.current) return;
     requestAnimationFrame(() => {
       const el = lastUserAnchorRef.current;
       const scroller = scrollerRef.current;
@@ -762,6 +800,7 @@ export default function AITrainer() {
 
   const send = async (text: string) => {
     if (!text.trim() || loading) return;
+    pinBottomRef.current = false;
     if (listening) stopVoice();
     // Cancel any background-recovery poll so its hydrate can't clobber the
     // optimistic message we're about to add with stale server state.
