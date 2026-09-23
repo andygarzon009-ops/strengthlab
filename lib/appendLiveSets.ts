@@ -74,10 +74,9 @@ export async function appendLiveSets(
       workout.exercises.push(woEx);
     }
 
-    const existingWorking = woEx.sets.filter((s) => (s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET"));
-    const existingWarmup = woEx.sets.filter((s) => s.type === "WARMUP");
-    let nextWorking = existingWorking.length;
-    let nextWarmup = existingWarmup.length;
+    // setNumber is position within the exercise (see lib/actions/workouts),
+    // so appended sets go after the highest existing one.
+    let nextSetNumber = woEx.sets.reduce((m, s) => Math.max(m, s.setNumber), 0);
 
     const addedSummary: AppendedSetSummary = {
       exerciseName: ex.exerciseName,
@@ -85,7 +84,7 @@ export async function appendLiveSets(
     };
 
     for (const s of ex.sets) {
-      const setNumber = s.type === "WARMUP" ? ++nextWarmup : ++nextWorking;
+      const setNumber = ++nextSetNumber;
       await prisma.set.create({
         data: {
           workoutExerciseId: woEx.id,

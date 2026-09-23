@@ -634,11 +634,11 @@ export default async function WorkoutDetailPage({
                         {warmupSets.length > 0 && (
                           <div className="px-4 pb-3">
                             <p className="label mb-2">Warm-up</p>
-                            {warmupSets.map((s) => (
+                            {warmupSets.map((s, wi) => (
                               <SetLine
                                 key={s.id}
                                 exerciseName={ex.exercise.name}
-                                num={s.setNumber}
+                                num={wi + 1}
                                 weight={s.weight}
                                 reps={s.reps}
                                 rir={s.rir}

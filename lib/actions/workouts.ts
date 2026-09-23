@@ -165,9 +165,12 @@ export async function createWorkout(data: CreateWorkoutInput) {
           notes: ex.notes,
           supersetGroup: ex.supersetGroup ?? null,
           sets: {
-            create: ex.sets.map((s) => ({
+            // setNumber is the set's position in the exercise, not its
+            // number within its type: readers order by it, and a DROP_SET
+            // only renders chained to the set right before it.
+            create: ex.sets.map((s, i) => ({
               type: s.type,
-              setNumber: s.setNumber,
+              setNumber: i + 1,
               weight: s.weight,
               reps: s.reps,
               rir: s.rir,
@@ -502,9 +505,12 @@ export async function updateWorkout(
             // back to null on any edit-save.
             supersetGroup: ex.supersetGroup ?? null,
             sets: {
-              create: ex.sets.map((s) => ({
+              // setNumber is the set's position in the exercise, not its
+              // number within its type: readers order by it, and a DROP_SET
+              // only renders chained to the set right before it.
+              create: ex.sets.map((s, i) => ({
                 type: s.type,
-                setNumber: s.setNumber,
+                setNumber: i + 1,
                 weight: s.weight,
                 reps: s.reps,
                 rir: s.rir,
