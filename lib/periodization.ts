@@ -343,9 +343,13 @@ export type BlockSpec = {
   oneLine: string;
   /// Full prescription, injected for the block being run this week.
   detail: string;
+  /// What the block is for, in the athlete's words rather than the coach's —
+  /// shown under the phase on the feed. Absent for an athlete-named block.
+  summary?: string;
 };
 
 const POWER_BUILDING: BlockSpec = {
+  summary: "Heavy top set of 3–5, then volume work under it",
   oneLine:
     "one heavy top set of 3-5 @RIR1-2, then 65-75% back-offs and 8-12 accessories",
   detail: `— POWER-BUILDING —
@@ -370,6 +374,7 @@ top-set attempts.`,
 };
 
 const HYPERTROPHY: BlockSpec = {
+  summary: "6–12 reps close to failure — volume builds size",
   oneLine:
     "no top sets, everything 6-12 @RIR1-2, 10-20 weekly sets per muscle",
   detail: `— HYPERTROPHY —
@@ -398,6 +403,7 @@ Sets before that stop at RIR 1-2. Never prescribe failure on every set.`,
 };
 
 const PURE_STRENGTH: BlockSpec = {
+  summary: "Heavy sets of 1–5, long rests, less volume",
   oneLine: "3-5 sets of 1-5 @RIR1-3, long rests, minimal accessories",
   detail: `— PURE STRENGTH —
 Lower total volume, heavier average load, longer rest. Trade reps for
@@ -458,6 +464,7 @@ export function blockRules(activeDetail: string): string {
 }
 
 const PEAKING: BlockSpec = {
+  summary: "Singles and doubles — stay fresh, show your strength",
   oneLine: "singles and doubles at RIR 1-2, minimal volume, freshness first",
   detail: `— PEAKING —
 The competition or test lifts only, plus the bare minimum to stay healthy.
@@ -479,6 +486,7 @@ no failure, no "one more if it feels good".`,
 };
 
 const ENDURANCE: BlockSpec = {
+  summary: "12–20+ reps, short rests — build work capacity",
   oneLine: "12-20+ reps at RIR 1-2, short rest, work capacity",
   detail: `— MUSCULAR ENDURANCE / WORK CAPACITY —
 Circuits or paired supersets, moderate loads, continuous work.
@@ -520,7 +528,11 @@ export function blockSpec(name: string): BlockSpec {
   // An athlete can also name a *block* "deload", separately from the deload
   // cadence, so the keyword has to resolve rather than fall through to generic.
   if (/deload|back off week|recovery week|rest week/.test(n))
-    return { oneLine: "everything cut back, RIR 4+, nothing near failure", detail: deloadSpec(40) };
+    return {
+      oneLine: "everything cut back, RIR 4+, nothing near failure",
+      detail: deloadSpec(40),
+      summary: DELOAD_SUMMARY,
+    };
   if (/peak|taper|test week|max out/.test(n)) return PEAKING;
   if (/endurance|conditioning|metcon|work capacity|circuit/.test(n))
     return ENDURANCE;
@@ -528,6 +540,10 @@ export function blockSpec(name: string): BlockSpec {
   if (/strength|power|heavy|intensity/.test(n)) return PURE_STRENGTH;
   return GENERIC;
 }
+
+/// A deload week in the athlete's words, for the feed.
+export const DELOAD_SUMMARY =
+  "Same lifts, less work — nothing near failure. Clean up technique.";
 
 /// The deload prescription. Parameterised by the athlete's configured cut so
 /// the prompt and the editor never disagree about how much to pull back.

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { localDateKey, resolveBlock, type ResolvedBlock } from "@/lib/blockStamp";
+import { blockSpec, DELOAD_SUMMARY } from "@/lib/periodization";
 
 // Deloads read in the same blue as the DELOAD tag on the log and on a workout.
 export const DELOAD_BLUE = "#60a5fa";
@@ -33,10 +34,11 @@ export function PhaseSection({ phase }: { phase: ResolvedBlock }) {
   const name = block?.name ?? state.blockName;
   const total = deload ? (block?.weeks ?? 0) : state.blockWeeks;
   const done = deload ? (state.pausedWeeksDone ?? 0) : state.weekInBlock;
-  // One short line under the bar. weeksUntilDeload counts training weeks
-  // AFTER this one, so the deload itself is one further out.
-  const footer = deload
-    ? `Cut ~${config.deloadReductionPct}% this week · then week ${done + 1} of ${total}`
+  const summary = deload ? DELOAD_SUMMARY : blockSpec(name).summary;
+  // weeksUntilDeload counts training weeks AFTER this one, so the deload
+  // itself is one further out.
+  const next = deload
+    ? `Back to week ${done + 1} of ${total} next week`
     : state.weeksUntilDeload == null
       ? null
       : state.weeksUntilDeload === 0
@@ -77,12 +79,28 @@ export function PhaseSection({ phase }: { phase: ResolvedBlock }) {
         </div>
       )}
 
-      {footer && (
+      {deload && (
         <p
-          className="text-[12px] mt-2.5"
+          className="text-[13px] font-semibold mt-3"
+          style={{ color: DELOAD_BLUE }}
+        >
+          Recover &amp; reset · cut ~{config.deloadReductionPct}%
+        </p>
+      )}
+      {summary && (
+        <p
+          className={`text-[12px] ${deload ? "mt-1" : "mt-2.5"}`}
+          style={{ color: "var(--fg-muted)" }}
+        >
+          {summary}
+        </p>
+      )}
+      {next && (
+        <p
+          className="text-[11px] mt-1"
           style={{ color: "var(--fg-dim)" }}
         >
-          {footer}
+          {next}
         </p>
       )}
     </Link>
