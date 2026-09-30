@@ -917,10 +917,18 @@ export default function WorkoutForm({
       } catch (err) {
         // Drafts stay intact — the user can edit and re-submit, or we'll
         // auto-replay when navigator goes back online.
+        // An expired session makes the action come back as the /login page
+        // ("unexpected response"), which no retry can fix. /login redirects
+        // only when signed in, so a plain 200 there means we're signed out.
+        const signedOut = await fetch("/login", { redirect: "manual" })
+          .then((r) => r.type !== "opaqueredirect" && r.ok)
+          .catch(() => false);
         setSubmitError(
-          err instanceof Error && err.message
-            ? err.message
-            : "Couldn't reach the server"
+          signedOut
+            ? "signed-out"
+            : err instanceof Error && err.message
+              ? err.message
+              : "Couldn't reach the server"
         );
       } finally {
         setPending(false);
@@ -1333,9 +1341,20 @@ export default function WorkoutForm({
             <path d="m4 4 16 16" />
           </svg>
           <p className="text-[12px]" style={{ color: "#facc15" }}>
-            {!online
-              ? "Offline — your sets are saved locally and will sync as soon as you're back online."
-              : `Save didn't go through (${submitError}). We'll retry automatically.`}
+            {!online ? (
+              "Offline — your sets are saved locally and will sync as soon as you're back online."
+            ) : submitError === "signed-out" ? (
+              <>
+                You were signed out, so this didn&rsquo;t save. It&rsquo;s kept
+                on this phone —{" "}
+                <a href="/login" className="underline">
+                  sign in
+                </a>{" "}
+                and tap + to finish saving it.
+              </>
+            ) : (
+              `Save didn't go through (${submitError}). We'll retry automatically.`
+            )}
           </p>
         </div>
       )}

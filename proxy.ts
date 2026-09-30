@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { decrypt } from "@/lib/session";
+import { decrypt, issueSession, SESSION_RENEW_AFTER_MS } from "@/lib/session";
 
 const publicRoutes = ["/login", "/signup"];
 
@@ -16,7 +16,16 @@ export async function proxy(req: NextRequest) {
   if (payload && isPublic) {
     return NextResponse.redirect(new URL("/", req.url));
   }
-  return NextResponse.next();
+  const res = NextResponse.next();
+  // Slide the session forward (at most once a day) so an athlete who uses
+  // the app is never signed out mid-workout.
+  if (
+    payload &&
+    (!payload.iat || Date.now() - payload.iat * 1000 > SESSION_RENEW_AFTER_MS)
+  ) {
+    res.cookies.set(await issueSession(payload.userId));
+  }
+  return res;
 }
 
 export const config = {
