@@ -4,7 +4,6 @@ import { requireAuth } from "@/lib/session";
 import Link from "next/link";
 import WeeklyRecap from "@/components/WeeklyRecap";
 import DailyGlanceCard from "@/components/DailyGlanceCard";
-import HeartRateCard from "@/components/HeartRateCard";
 import PullToRefresh from "@/components/PullToRefresh";
 import ConsistencyCard from "@/components/ConsistencyCard";
 import PendingInvites from "@/components/PendingInvites";
@@ -121,15 +120,10 @@ export default async function FeedPage({
           <Suspense fallback={null}>
             <PendingInvites userId={userId} />
           </Suspense>
-          {/* The week leads, then heart rate, then progress. Heart rate reads
-              stored values, not Google Health, so it can't hold up the rest. */}
           {/* The training phase heads this card, so the week reads in the
               context of where the cycle is. */}
-          <Suspense fallback={<CardSkeleton height={220} />}>
+          <Suspense fallback={<CardSkeleton height={150} />}>
             <WeeklyRecap userId={userId} />
-          </Suspense>
-          <Suspense fallback={<CardSkeleton height={112} />}>
-            <HeartRateCard userId={userId} />
           </Suspense>
           <Suspense fallback={<CardSkeleton height={120} />}>
             <ConsistencyCard

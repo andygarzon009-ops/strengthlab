@@ -27,73 +27,61 @@ export function PhaseSection({ phase }: { phase: ResolvedBlock }) {
   const { state, config } = phase;
   const deload = state.isDeloadWeek;
   const color = deload ? DELOAD_BLUE : "var(--accent)";
-  const footer = [
-    deload
-      ? `Cut ~${config.deloadReductionPct}% · clean reps`
-      : state.weeksUntilDeload == null
-        ? null
-        : // weeksUntilDeload counts training weeks AFTER this one, so the
-          // deload itself is one further out.
-          state.weeksUntilDeload === 0
-          ? "Deload next week"
-          : `Deload in ${state.weeksUntilDeload + 1} wks`,
-    `Next: ${state.nextUp}`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  // One short line under the bar. weeksUntilDeload counts training weeks
+  // AFTER this one, so the deload itself is one further out.
+  const footer = deload
+    ? `Cut ~${config.deloadReductionPct}% this week`
+    : state.weeksUntilDeload == null
+      ? null
+      : state.weeksUntilDeload === 0
+        ? "Deload next week"
+        : `Deload in ${state.weeksUntilDeload + 1} weeks`;
 
   return (
     <Link href="/profile" className="block active:opacity-70">
-      <div className="flex items-baseline justify-between">
-        <div className="min-w-0">
-          <p className="label" style={{ color }}>
-            {deload ? "Deload week" : "Current phase"}
-          </p>
-          <h2 className="text-[18px] font-bold tracking-tight leading-none mt-1.5 truncate">
-            {deload ? "Recover & reset" : state.blockName}
-          </h2>
-        </div>
-        <div className="text-right shrink-0 pl-3">
-          {!deload && (
-            <p
-              className="text-[13px] nums leading-none"
-              style={{ fontFamily: "var(--font-geist-mono)" }}
-            >
-              Wk {state.weekInBlock}
-              <span style={{ color: "var(--fg-dim)" }}>/{state.blockWeeks}</span>
-            </p>
-          )}
+      <div className="flex items-baseline justify-between gap-3">
+        <h2
+          className="text-[17px] font-bold tracking-tight leading-none truncate"
+          style={deload ? { color } : undefined}
+        >
+          {deload ? "Deload week" : state.blockName}
+        </h2>
+        {!deload && (
           <p
-            className="text-[10px] label mt-1.5"
-            style={{ color: "var(--fg-dim)" }}
+            className="text-[12px] nums leading-none shrink-0"
+            style={{
+              color: "var(--fg-dim)",
+              fontFamily: "var(--font-geist-mono)",
+            }}
           >
-            Cycle wk {state.weekNumber}
+            Week {state.weekInBlock} of {state.blockWeeks}
           </p>
-        </div>
+        )}
       </div>
 
       {!deload && (
-        <div className="flex gap-1 mt-3.5">
+        <div className="flex gap-1 mt-3">
           {Array.from({ length: state.blockWeeks }, (_, i) => (
             <span
               key={i}
-              className="h-1.5 flex-1 rounded-full"
+              className="h-1 flex-1 rounded-full"
               style={{
                 background:
                   i < state.weekInBlock ? color : "var(--bg-elevated)",
-                opacity: i < state.weekInBlock - 1 ? 0.55 : 1,
               }}
             />
           ))}
         </div>
       )}
 
-      <p
-        className="text-[12px] mt-3 truncate"
-        style={{ color: "var(--fg-muted)" }}
-      >
-        {footer}
-      </p>
+      {footer && (
+        <p
+          className="text-[12px] mt-2.5"
+          style={{ color: "var(--fg-dim)" }}
+        >
+          {footer}
+        </p>
+      )}
     </Link>
   );
 }
