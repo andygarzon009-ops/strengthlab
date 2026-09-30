@@ -1,27 +1,32 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { localDateKey, resolveBlock } from "@/lib/blockStamp";
+import { localDateKey, resolveBlock, type ResolvedBlock } from "@/lib/blockStamp";
+
+// Deloads read in the same blue as the DELOAD tag on the log and on a workout.
+export const DELOAD_BLUE = "#60a5fa";
 
 // Where the athlete is in their training cycle, from the same resolveBlock the
 // coach programs off — so the feed can never say a different week than the
-// coach does. Renders nothing until a cycle is set up on the profile.
-export default async function PhaseCard({ userId }: { userId: string }) {
+// coach does. Null until a cycle is set up on the profile.
+export async function loadPhase(userId: string): Promise<ResolvedBlock | null> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { periodization: true, timezone: true },
   });
   if (!user?.periodization) return null;
-
   const today = localDateKey(new Date(), user.timezone || "UTC");
-  const resolved = await resolveBlock(userId, today, {
+  return resolveBlock(userId, today, {
     periodization: user.periodization,
     timezone: user.timezone,
   });
-  if (!resolved) return null;
-  const { state, config } = resolved;
+}
 
+// The phase header of the feed's week card (WeeklyRecap). Taps through to the
+// cycle editor on the profile.
+export function PhaseSection({ phase }: { phase: ResolvedBlock }) {
+  const { state, config } = phase;
   const deload = state.isDeloadWeek;
-  const color = deload ? "#facc15" : "var(--accent)";
+  const color = deload ? DELOAD_BLUE : "var(--accent)";
   const footer = [
     deload
       ? `Cut ~${config.deloadReductionPct}% · clean reps`
@@ -38,7 +43,7 @@ export default async function PhaseCard({ userId }: { userId: string }) {
     .join(" · ");
 
   return (
-    <Link href="/profile" className="card block p-4 mb-3 transition-colors">
+    <Link href="/profile" className="block active:opacity-70">
       <div className="flex items-baseline justify-between">
         <div className="min-w-0">
           <p className="label" style={{ color }}>

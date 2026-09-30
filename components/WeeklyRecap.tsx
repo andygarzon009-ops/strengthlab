@@ -8,6 +8,7 @@ import {
   broadGroupForSpecific,
   formatPlates,
 } from "@/lib/exercises";
+import { loadPhase, PhaseSection } from "@/components/PhaseCard";
 
 export default async function WeeklyRecap({ userId }: { userId: string }) {
   // Two weeks is everything this card compares: this week against last.
@@ -17,7 +18,10 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
   const weekAgo = subDays(new Date(), 7);
   const twoWeeksAgo = subDays(new Date(), 14);
 
-  const workouts = await prisma.workout.findMany({
+  const [phase, workouts] = await Promise.all([
+    // The training phase heads this card — the week reads in its context.
+    loadPhase(userId).catch(() => null),
+    prisma.workout.findMany({
     where: { userId, date: { gte: since } },
     include: {
       exercises: {
@@ -26,9 +30,16 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
       },
     },
     orderBy: { date: "desc" },
-  });
+    }),
+  ]);
 
-  if (workouts.length === 0) return null;
+  if (workouts.length === 0) {
+    return phase ? (
+      <div className="card p-4 mb-3">
+        <PhaseSection phase={phase} />
+      </div>
+    ) : null;
+  }
 
   const thisWeek = workouts.filter((w) => new Date(w.date) >= weekAgo);
   const lastWeek = workouts.filter(
@@ -154,6 +165,14 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
 
   return (
     <div className="card p-4 mb-3">
+      {phase && (
+        <div
+          className="pb-3 mb-3"
+          style={{ borderBottom: "1px solid var(--border)" }}
+        >
+          <PhaseSection phase={phase} />
+        </div>
+      )}
       <div className="flex items-baseline justify-between gap-3 mb-3">
         <p className="label text-[9px]" style={{ color: "var(--fg-dim)" }}>
           This week ·{" "}
