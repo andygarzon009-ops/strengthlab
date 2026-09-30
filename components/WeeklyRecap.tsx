@@ -121,7 +121,8 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
   const streak = rhythm?.streak ?? 0;
 
   // The scan in words: what's being loaded faster than it recovers (and
-  // why), what's still recovering, and which key muscles have gone cold.
+  // why), how long until each recovering muscle is ready, and which key
+  // muscles have gone cold.
   const entries = rhythm ? Object.entries(rhythm.load) : [];
   const over = entries
     .filter(([, m]) => muscleLevel(m) === "over")
@@ -136,7 +137,7 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
     .filter(([, m]) => muscleLevel(m) === "ok" && hoursToRecovered(m) > 0)
     .sort((a, b) => hoursToRecovered(b[1]) - hoursToRecovered(a[1]))
     .slice(0, 3)
-    .map(([name, m]) => `${name} ~${hoursToRecovered(m)}h`);
+    .map(([name, m]) => `${name} ${hoursToRecovered(m)}h`);
   const cold = rhythm
     ? PRIORITY_MUSCLES.filter((m) => muscleLevel(rhythm.load[m]) === "cold").slice(0, 4)
     : [];
@@ -265,7 +266,7 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
               )}
               {recovering.length > 0 && (
                 <p style={{ color: "var(--fg-muted)" }}>
-                  <span className="font-semibold">Recovering:</span>{" "}
+                  <span className="font-semibold">Ready in:</span>{" "}
                   {recovering.join(" · ")}
                 </p>
               )}
