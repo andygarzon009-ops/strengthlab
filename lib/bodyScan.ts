@@ -5,9 +5,33 @@
 
 import { recoveryFor } from "@/lib/muscleRecovery";
 
-/// One muscle's recent work: each session in the last 7 days as hours ago
-/// and effective working sets (half credit when it was a helper muscle).
-export type MuscleSessions = { hoursAgo: number; sets: number }[];
+/// One muscle's recent work: each session in the last 7 days as hours ago,
+/// effective sets (RIR-weighted, half credit as a helper muscle) and the raw
+/// set count they came from — their ratio is how hard the session was.
+export type MuscleSessions = { hoursAgo: number; sets: number; rawSets?: number }[];
+
+/// How much one set counts, by reps in reserve. Sets closer to failure give
+/// more growth stimulus (Robinson et al., Sports Med 2024, meta-regression of
+/// proximity to failure) and cost more recovery — training to failure left
+/// neuromuscular performance down 24–48 h longer than stopping short
+/// (Morán-Navarro et al., Eur J Appl Physiol 2017). RIR 2 is the reference
+/// set; an unlogged RIR counts as one.
+export function rirWeight(rir: number | null | undefined): number {
+  if (rir == null) return 1;
+  if (rir <= 0) return 1.3;
+  if (rir === 1) return 1.15;
+  if (rir === 2) return 1;
+  if (rir === 3) return 0.85;
+  return 0.65;
+}
+
+/// A session's hardness (weighted ÷ raw sets) stretches or shortens the
+/// recovery window: to-failure chest comes out ~94 h, in line with the 72–96 h
+/// measured after bench to failure (Ferreira 2017).
+function windowFor(baseHours: number, s: { sets: number; rawSets?: number }): number {
+  const hardness = s.rawSets ? s.sets / s.rawSets : 1;
+  return baseHours * Math.max(0.75, Math.min(1.3, hardness));
+}
 
 export type MuscleStat = {
   hoursSince: number; // since it was last trained
@@ -19,24 +43,29 @@ export type MuscleStat = {
   mrv: number;
 };
 
-/// Fatigue from a session decays exponentially; `hours` is when it's
+/// Fatigue from a session decays exponentially; its window is when it's
 /// essentially gone (~95%), so the time constant is a third of it.
 export function summarize(muscle: string, sessions: MuscleSessions): MuscleStat | undefined {
   if (sessions.length === 0) return undefined;
   const { hours, mrv } = recoveryFor(muscle);
-  const tau = hours / 3;
   const dose = mrv / 3;
   const sorted = [...sessions].sort((a, b) => a.hoursAgo - b.hoursAgo);
   const last = sorted[0];
+  // Each earlier session's fatigue decays on its own window — a to-failure
+  // session lingers longer than an easy one.
   const carryIn =
     sorted
       .slice(1)
-      .reduce((f, s) => f + s.sets * Math.exp(-(s.hoursAgo - last.hoursAgo) / tau), 0) / dose;
+      .reduce(
+        (f, s) =>
+          f + s.sets * Math.exp(-(s.hoursAgo - last.hoursAgo) / (windowFor(hours, s) / 3)),
+        0,
+      ) / dose;
   return {
     hoursSince: last.hoursAgo,
     weekSets: Math.round(sorted.reduce((n, s) => n + s.sets, 0) * 10) / 10,
     carryIn,
-    recoveryHours: hours,
+    recoveryHours: Math.round(windowFor(hours, last)),
     mrv,
   };
 }

@@ -5,7 +5,7 @@
 import { prisma } from "@/lib/db";
 import { startOfWeek, endOfWeek, subWeeks, format } from "date-fns";
 import type { MuscleLoad } from "@/components/MuscleMap";
-import { summarize } from "@/lib/bodyScan";
+import { rirWeight, summarize } from "@/lib/bodyScan";
 import {
   broadGroupForSpecific,
   shapeForType,
@@ -91,12 +91,22 @@ export async function loadRhythm(
   // squat is quads first, but glutes and adductors are working too.
   // Each muscle's sessions in the last 7 days, in hours — recovery is
   // judged per muscle on its own clock (lib/muscleRecovery.ts).
-  const sessions: Record<string, Map<string, { hoursAgo: number; sets: number }>> = {};
+  const sessions: Record<
+    string,
+    Map<string, { hoursAgo: number; sets: number; rawSets: number }>
+  > = {};
   const nowMs = today.getTime();
-  const credit = (muscle: string, workoutId: string, hoursAgo: number, sets: number) => {
+  const credit = (
+    muscle: string,
+    workoutId: string,
+    hoursAgo: number,
+    sets: number,
+    rawSets: number,
+  ) => {
     const byWorkout = (sessions[muscle] ??= new Map());
-    const cur = byWorkout.get(workoutId) ?? { hoursAgo, sets: 0 };
+    const cur = byWorkout.get(workoutId) ?? { hoursAgo, sets: 0, rawSets: 0 };
     cur.sets += sets;
+    cur.rawSets += rawSets;
     byWorkout.set(workoutId, cur);
   };
 
@@ -106,20 +116,25 @@ export async function loadRhythm(
     const hoursAgo = Math.max(0, (nowMs - at) / 3_600_000);
     if (hoursAgo > 7 * 24) continue;
     for (const we of w.exercises) {
-      const sets = we.sets.filter(
+      const working = we.sets.filter(
         (s) => s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET",
-      ).length;
-      if (sets === 0) continue;
+      );
+      if (working.length === 0) continue;
+      // Hard sets count for more — both stimulus and fatigue (lib/bodyScan).
+      const raw = working.length;
+      const sets = working.reduce((n, s) => n + rirWeight(s.rir), 0);
       const named = specificMuscleFor(we.exercise.name);
       const column = we.exercise.muscleGroup ?? "";
       const primary =
         named !== "Other" ? named : broadGroupForSpecific(column) ? column : null;
       if (primary) {
-        credit(primary, w.id, hoursAgo, sets);
-        for (const helper of SYNERGISTS[primary] ?? []) credit(helper, w.id, hoursAgo, sets / 2);
+        credit(primary, w.id, hoursAgo, sets, raw);
+        for (const helper of SYNERGISTS[primary] ?? [])
+          credit(helper, w.id, hoursAgo, sets / 2, raw / 2);
       } else if (BROAD_SPECIFICS[column]) {
         // Only a broad group to go on: spread it across the region.
-        for (const m of BROAD_SPECIFICS[column]) credit(m, w.id, hoursAgo, sets / 2);
+        for (const m of BROAD_SPECIFICS[column])
+          credit(m, w.id, hoursAgo, sets / 2, raw / 2);
       }
     }
   }
