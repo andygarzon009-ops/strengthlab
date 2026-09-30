@@ -38,7 +38,7 @@ function weekKeys(tz: string): string[] {
 export default async function WeeklyRecap({ userId }: { userId: string }) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { timezone: true, trainingDays: true },
+    select: { timezone: true, trainingDays: true, sex: true },
   });
   const tz = user?.timezone || "UTC";
   const keys = weekKeys(tz);
@@ -212,7 +212,7 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
         className="flex items-center gap-4 mt-4 pt-4"
         style={{ borderTop: "1px solid var(--border)" }}
       >
-        {rhythm && <MuscleMap load={rhythm.load} />}
+        {rhythm && <MuscleMap load={rhythm.load} sex={user?.sex} />}
         <div className="flex-1 min-w-0 grid grid-cols-2 gap-x-3 gap-y-4">
           <Stat value={String(week.length)} label="Sessions" />
           <Stat value={String(prCount)} label="PRs" accent={prCount > 0} />

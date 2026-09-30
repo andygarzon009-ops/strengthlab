@@ -1,4 +1,4 @@
-import { BACK, FRONT, SILHOUETTE_HALF, type BodyShape } from "@/lib/bodyPaths";
+import { FIGURES, type BodyShape } from "@/lib/bodyPaths";
 import {
   heatColor,
   isOverworked,
@@ -29,11 +29,13 @@ function fillFor(m: BodyShape["m"], load: MuscleLoad): string {
 }
 
 function Figure({
+  silhouette,
   shapes,
   load,
   label,
   width,
 }: {
+  silhouette: string;
   shapes: BodyShape[];
   load: MuscleLoad;
   label: string;
@@ -64,8 +66,8 @@ function Figure({
       role="img"
       aria-label={label}
     >
-      <path d={SILHOUETTE_HALF} fill="var(--bg-elevated)" />
-      <path d={SILHOUETTE_HALF} transform={MIRROR} fill="var(--bg-elevated)" />
+      <path d={silhouette} fill="var(--bg-elevated)" />
+      <path d={silhouette} transform={MIRROR} fill="var(--bg-elevated)" />
       {half(false)}
       {half(true)}
     </svg>
@@ -74,12 +76,16 @@ function Figure({
 
 export default function MuscleMap({
   load,
+  sex,
   width = 74,
 }: {
   load: MuscleLoad;
+  /// The profile's sex ("MALE" / "FEMALE"); the built male figure otherwise.
+  sex?: string | null;
   /// Width of each figure; height is double.
   width?: number;
 }) {
+  const fig = FIGURES[sex === "FEMALE" ? "female" : "male"];
   return (
     <div className="flex items-center gap-1.5 shrink-0">
       {/* Shared shading, defined once for both figures. */}
@@ -92,8 +98,20 @@ export default function MuscleMap({
           </linearGradient>
         </defs>
       </svg>
-      <Figure shapes={FRONT} load={load} label="Muscle scan, front" width={width} />
-      <Figure shapes={BACK} load={load} label="Muscle scan, back" width={width} />
+      <Figure
+        silhouette={fig.silhouette}
+        shapes={fig.front}
+        load={load}
+        label="Muscle scan, front"
+        width={width}
+      />
+      <Figure
+        silhouette={fig.silhouette}
+        shapes={fig.back}
+        load={load}
+        label="Muscle scan, back"
+        width={width}
+      />
     </div>
   );
 }
