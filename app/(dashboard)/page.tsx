@@ -11,6 +11,11 @@ import PendingInvites from "@/components/PendingInvites";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
 import Wordmark from "@/components/Wordmark";
+import FeedTop from "@/components/FeedTop";
+import FeedGlow from "@/components/FeedGlow";
+import CycleCard from "@/components/PhaseCard";
+import CrewPulse from "@/components/CrewPulse";
+import { loadSessionProgress } from "@/lib/sessionProgress";
 
 export default async function FeedPage() {
   const userId = await requireAuth();
@@ -25,7 +30,10 @@ export default async function FeedPage() {
 
   return (
     <PullToRefresh>
-    <div className="max-w-lg mx-auto px-4 pt-8">
+    <div className="relative isolate max-w-lg mx-auto px-4 pt-8">
+      <Suspense fallback={null}>
+        <FeedGlow userId={userId} />
+      </Suspense>
       <div className="flex items-end justify-between mb-8">
         <div>
           <p
@@ -65,9 +73,14 @@ export default async function FeedPage() {
       <Suspense fallback={null}>
         <PendingInvites userId={userId} />
       </Suspense>
-      {/* The training phase heads this card, so the week reads in the
-          context of where the cycle is. */}
-      <Suspense fallback={<CardSkeleton height={150} />}>
+      {/* What to do today — led by a fresh PR for 48 h after one. */}
+      <Suspense fallback={<CardSkeleton height={210} />}>
+        <FeedTop userId={userId} />
+      </Suspense>
+      <Suspense fallback={<CardSkeleton height={130} />}>
+        <CycleCard userId={userId} />
+      </Suspense>
+      <Suspense fallback={<CardSkeleton height={170} />}>
         <WeeklyRecap userId={userId} />
       </Suspense>
       {/* Heart rate reads stored values, not Google Health, so it can't
@@ -75,16 +88,19 @@ export default async function FeedPage() {
       <Suspense fallback={<CardSkeleton height={112} />}>
         <HeartRateCard userId={userId} />
       </Suspense>
+      {/* Recovery + Fuel + Activity in one glance ring-row, each expanding
+          inline on tap. */}
+      <Suspense fallback={<CardSkeleton height={108} />}>
+        <DailyGlanceCard userId={userId} />
+      </Suspense>
       <Suspense fallback={<CardSkeleton height={120} />}>
         <ConsistencyCard
           userId={userId}
           trainingDaysGoal={currentUser?.trainingDays ?? null}
         />
       </Suspense>
-      {/* Direction A: Recovery + Fuel + Activity consolidated into one
-          glance ring-row, each expanding inline on tap. */}
-      <Suspense fallback={<CardSkeleton height={108} />}>
-        <DailyGlanceCard userId={userId} />
+      <Suspense fallback={null}>
+        <CrewPulse userId={userId} />
       </Suspense>
 
       <Suspense fallback={<FeedListSkeleton />}>
@@ -164,15 +180,29 @@ async function FeedList({ userId }: { userId: string }) {
     );
   }
 
+  // Best-effort: the cards render fine without their progress row.
+  const progress = await loadSessionProgress(userId, workouts).catch(
+    () => ({}) as Awaited<ReturnType<typeof loadSessionProgress>>,
+  );
+
   return (
-    <div className="space-y-3">
-      {workouts.map((workout) => (
-        <FeedWorkoutCard
-          key={workout.id}
-          workout={workout}
-          currentUserId={userId}
-        />
-      ))}
-    </div>
+    <>
+      <h2
+        className="label text-[11px] mt-5 mb-2.5 px-0.5"
+        style={{ color: "var(--fg-dim)" }}
+      >
+        Your sessions
+      </h2>
+      <div className="space-y-3">
+        {workouts.map((workout) => (
+          <FeedWorkoutCard
+            key={workout.id}
+            workout={workout}
+            currentUserId={userId}
+            progress={progress[workout.id]}
+          />
+        ))}
+      </div>
+    </>
   );
 }

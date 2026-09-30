@@ -12,6 +12,8 @@ import {
   formatLoad,
 } from "@/lib/exercises";
 import ReactionButtons from "@/components/ReactionButtons";
+import Sparkline from "@/components/Sparkline";
+import type { SessionProgress } from "@/lib/sessionProgress";
 import CommentSection from "@/components/CommentSection";
 
 type WorkoutProp = {
@@ -50,12 +52,17 @@ type WorkoutProp = {
   comments: Parameters<typeof CommentSection>[0]["comments"];
 };
 
+const PR_LIME = "#a3e635";
+
 export default function FeedWorkoutCard({
   workout,
   currentUserId,
+  progress,
 }: {
   workout: WorkoutProp;
   currentUserId: string;
+  /// The session's headline lift against last time (own feed only).
+  progress?: SessionProgress;
 }) {
   const [expanded, setExpanded] = useState(false);
   const typeLabel = labelForType(workout.type);
@@ -156,8 +163,16 @@ export default function FeedWorkoutCard({
           aria-expanded={expanded}
         >
           <div className="flex items-center justify-between gap-2">
-            <h3 className="font-bold text-[17px] tracking-tight leading-tight">
-              {workout.title}
+            <h3 className="font-bold text-[17px] tracking-tight leading-tight flex items-center gap-2 min-w-0">
+              <span className="truncate">{workout.title}</span>
+              {progress?.isPR && (
+                <span
+                  className="label text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0"
+                  style={{ background: "rgba(163,230,53,0.14)", color: PR_LIME }}
+                >
+                  PR
+                </span>
+              )}
             </h3>
             <span
               className="text-[12px] shrink-0 transition-transform"
@@ -171,6 +186,8 @@ export default function FeedWorkoutCard({
             </span>
           </div>
         </button>
+
+        {progress && <ProgressRow progress={progress} />}
 
         {/* Compact summary row — always visible */}
         <CompactSummary
@@ -422,6 +439,48 @@ function Stat({
       >
         {label}
       </p>
+    </div>
+  );
+}
+
+/// The headline lift, how it moved since last time, and its trend.
+function ProgressRow({ progress }: { progress: SessionProgress }) {
+  const color = progress.isPR
+    ? PR_LIME
+    : progress.direction === "up"
+      ? "var(--accent)"
+      : "var(--fg-muted)";
+  return (
+    <div className="flex items-center gap-3 mt-3">
+      <div className="flex-1 min-w-0">
+        <p className="text-[12px] truncate" style={{ color: "var(--fg-dim)" }}>
+          {progress.lift} · top set
+        </p>
+        <p className="mt-1 leading-none">
+          <span
+            className="nums text-[20px] font-semibold"
+            style={{
+              fontFamily: "var(--font-geist-mono)",
+              color: progress.isPR ? PR_LIME : "var(--fg)",
+            }}
+          >
+            {progress.top}
+          </span>
+          {progress.delta && (
+            <span
+              className="nums text-[12px] font-semibold ml-2"
+              style={{ fontFamily: "var(--font-geist-mono)", color }}
+            >
+              {progress.delta}
+            </span>
+          )}
+        </p>
+      </div>
+      <Sparkline
+        values={progress.trend}
+        color={progress.isPR || progress.direction === "up" ? (progress.isPR ? PR_LIME : "#22c55e") : "#a1a1aa"}
+        label={`${progress.lift} top set trend`}
+      />
     </div>
   );
 }
