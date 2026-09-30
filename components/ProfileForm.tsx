@@ -88,9 +88,12 @@ export default function ProfileForm({
   /// Local dates (YYYY-MM-DD) the athlete logged something on, so the cycle
   /// editor's preview skips untrained weeks exactly as the coach does.
   trainedDates = [],
+  /// Local dates of sessions logged as deloads, for the same preview.
+  deloadDates = [],
 }: {
   user: UserProfile;
   trainedDates?: string[];
+  deloadDates?: string[];
 }) {
   const [pending, startTransition] = useTransition();
   // Both detail sections start collapsed so the profile opens clean — tap a
@@ -487,6 +490,7 @@ export default function ProfileForm({
             value={periodization}
             onChange={setPeriodization}
             trainedDates={trainedDates}
+            deloadDates={deloadDates}
           />
 
           <div>

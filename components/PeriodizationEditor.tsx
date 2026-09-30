@@ -8,6 +8,7 @@
 import { useMemo } from "react";
 import {
   DEFAULT_PERIODIZATION,
+  deloadWeekSet,
   periodizationState,
   trainedWeekSet,
   isValidConfig,
@@ -45,12 +46,15 @@ export default function PeriodizationEditor({
   value,
   onChange,
   trainedDates = [],
+  deloadDates = [],
 }: {
   value: PeriodizationConfig | null;
   onChange: (v: PeriodizationConfig | null) => void;
   /// Local dates the athlete logged on. Weeks absent from this list didn't
   /// happen, and the cycle doesn't advance through them.
   trainedDates?: string[];
+  /// Local dates of sessions logged as deloads — those weeks were deloads.
+  deloadDates?: string[];
 }) {
   const enabled = value != null;
   const cfg = value;
@@ -76,8 +80,9 @@ export default function PeriodizationEditor({
       cfg,
       todayLocalISO(),
       trainedWeekSet(cfg.startDate, trainedDates),
+      deloadWeekSet(cfg.startDate, deloadDates),
     );
-  }, [cfg, trainedDates]);
+  }, [cfg, trainedDates, deloadDates]);
 
   return (
     <div>

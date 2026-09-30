@@ -9,6 +9,7 @@
 import { prisma } from "@/lib/db";
 import { advancesTrainingCycle } from "@/lib/exercises";
 import {
+  deloadWeekSet,
   isValidConfig,
   periodizationState,
   trainedWeekSet,
@@ -48,7 +49,14 @@ export type ResolvedBlock = {
 export async function resolveBlock(
   userId: string,
   onDate: string,
-  opts: { periodization?: unknown; timezone?: string | null },
+  opts: {
+    periodization?: unknown;
+    timezone?: string | null;
+    /// The session being saved right now is a deload. It isn't in the
+    /// database yet, so without this the first deload session of a week
+    /// would be stamped as a training week.
+    deloadOnDate?: boolean;
+  },
 ): Promise<ResolvedBlock | null> {
   const config = opts.periodization as PeriodizationConfig | null;
   if (!isValidConfig(config)) return null;
@@ -62,19 +70,22 @@ export async function resolveBlock(
 
   const rows = await prisma.workout.findMany({
     where: { userId, date: { gte: since } },
-    select: { date: true, type: true },
+    select: { date: true, type: true, isDeload: true },
     orderBy: { date: "asc" },
   });
 
   // Only resistance sessions advance the cycle — a week of mobility flows on
   // holiday is not a week of the block. See `advancesTrainingCycle`.
+  const lifting = rows.filter((r) => advancesTrainingCycle(r.type));
   const trained = trainedWeekSet(
     config.startDate,
-    rows
-      .filter((r) => advancesTrainingCycle(r.type))
-      .map((r) => localDateKey(r.date, tz)),
+    lifting.map((r) => localDateKey(r.date, tz)),
   );
-  const state = periodizationState(config, onDate, trained);
+  const deloads = deloadWeekSet(config.startDate, [
+    ...lifting.filter((r) => r.isDeload).map((r) => localDateKey(r.date, tz)),
+    ...(opts.deloadOnDate ? [onDate] : []),
+  ]);
+  const state = periodizationState(config, onDate, trained, deloads);
   return state ? { config, state } : null;
 }
 

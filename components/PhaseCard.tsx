@@ -27,9 +27,11 @@ export default async function PhaseCard({ userId }: { userId: string }) {
       ? `Cut ~${config.deloadReductionPct}% · clean reps`
       : state.weeksUntilDeload == null
         ? null
-        : state.weeksUntilDeload === 0
+        : // weeksUntilDeload counts training weeks AFTER this one, so the
+          // deload itself is one further out.
+          state.weeksUntilDeload === 0
           ? "Deload next week"
-          : `Deload in ${state.weeksUntilDeload} wk${state.weeksUntilDeload === 1 ? "" : "s"}`,
+          : `Deload in ${state.weeksUntilDeload + 1} wks`,
     `Next: ${state.nextUp}`,
   ]
     .filter(Boolean)

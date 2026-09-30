@@ -24,15 +24,17 @@ export default async function ProfilePage() {
   // programmed for another.
   const logged = await prisma.workout.findMany({
     where: { userId, date: { gte: new Date(Date.now() - 540 * 86_400_000) } },
-    select: { date: true, type: true },
+    select: { date: true, type: true, isDeload: true },
     orderBy: { date: "asc" },
   });
   const tz = user.timezone || "UTC";
+  const lifting = logged.filter((w) => advancesTrainingCycle(w.type));
   const trainedDates = [
+    ...new Set(lifting.map((w) => localDateKey(w.date, tz))),
+  ];
+  const deloadDates = [
     ...new Set(
-      logged
-        .filter((w) => advancesTrainingCycle(w.type))
-        .map((w) => localDateKey(w.date, tz)),
+      lifting.filter((w) => w.isDeload).map((w) => localDateKey(w.date, tz)),
     ),
   ];
 
@@ -64,6 +66,7 @@ export default async function ProfilePage() {
 
       <ProfileForm
         trainedDates={trainedDates}
+        deloadDates={deloadDates}
         user={{
           name: user.name,
           email: user.email,

@@ -109,7 +109,11 @@ export async function createWorkout(data: CreateWorkoutInput) {
       const resolved = await resolveBlock(
         userId,
         localDateKey(new Date(data.date), tz),
-        { periodization: u.periodization, timezone: tz },
+        {
+          periodization: u.periodization,
+          timezone: tz,
+          deloadOnDate: !!data.isDeload,
+        },
       );
       return blockStampColumns(resolved?.state ?? null);
     } catch {

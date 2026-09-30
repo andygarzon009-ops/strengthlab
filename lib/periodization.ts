@@ -115,6 +115,17 @@ export function trainedWeekSet(
   return weeks;
 }
 
+/// The cycle weeks the athlete logged a session flagged as a deload in (the
+/// "Deload week" switch on the log). Taking a deload early — or when no cadence
+/// is configured — is still a deload: without this the schedule ignored it and
+/// asked for another one the following week.
+export function deloadWeekSet(
+  startDate: string,
+  deloadDates: readonly string[],
+): Set<number> {
+  return trainedWeekSet(startDate, deloadDates);
+}
+
 /// Resolves the cycle to the week containing `onDate`.
 ///
 /// Deloads are *inserted* between training weeks rather than consuming one:
@@ -134,10 +145,15 @@ export function trainedWeekSet(
 /// nothing has been logged in it yet at the moment the coach is asked.
 ///
 /// Omit `trainedWeeks` for the pure-calendar behaviour.
+///
+/// `deloadWeeks` (from `deloadWeekSet`) are weeks the athlete actually took as
+/// a deload. They count exactly like a scheduled one — the block pauses and the
+/// deload countdown restarts — whether or not the schedule was due.
 export function periodizationState(
   config: PeriodizationConfig,
   onDate: string,
   trainedWeeks?: ReadonlySet<number> | null,
+  deloadWeeks?: ReadonlySet<number> | null,
 ): PeriodizationState | null {
   if (!isValidConfig(config)) return null;
   const elapsed = weeksBetween(config.startDate, onDate);
@@ -169,7 +185,9 @@ export function periodizationState(
     }
     if (w < elapsed) weeksOffBefore = 0;
 
-    const isDeload = deloadEvery != null && sinceDeload >= deloadEvery;
+    const isDeload =
+      !!deloadWeeks?.has(w) ||
+      (deloadEvery != null && sinceDeload >= deloadEvery);
 
     if (w === elapsed) {
       const block = config.blocks[blockIdx];

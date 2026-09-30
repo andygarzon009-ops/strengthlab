@@ -42,6 +42,7 @@ import {
   describeTimeOff,
   isValidConfig,
   trainedWeekSet,
+  deloadWeekSet,
   blockSpec,
   blockRules,
   deloadSpec,
@@ -272,7 +273,7 @@ export async function POST(req: NextRequest) {
       // nothing next to the seconds this route spends streaming.
       prisma.workout.findMany({
         where: { userId, date: { gte: subDays(new Date(), 540) } },
-        select: { date: true, type: true },
+        select: { date: true, type: true, isDeload: true },
         orderBy: { date: "asc" },
       }),
       // The workout the athlete is standing in the middle of right now, if
@@ -345,6 +346,13 @@ export async function POST(req: NextRequest) {
             // advance a block whose every prescription is sets, reps and RIR.
             workoutDates
               .filter((w) => advancesTrainingCycle(w.type))
+              .map((w) => fmtIso(w.date)),
+          ),
+          // Deloads actually taken count as deloads, due or not.
+          deloadWeekSet(
+            blockCfg.startDate,
+            workoutDates
+              .filter((w) => w.isDeload && advancesTrainingCycle(w.type))
               .map((w) => fmtIso(w.date)),
           ),
         )
