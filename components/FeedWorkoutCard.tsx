@@ -12,7 +12,7 @@ import {
   formatLoad,
 } from "@/lib/exercises";
 import ReactionButtons from "@/components/ReactionButtons";
-import Sparkline from "@/components/Sparkline";
+import ProgressRow from "@/components/ProgressRow";
 import type { SessionProgress } from "@/lib/sessionProgress";
 import CommentSection from "@/components/CommentSection";
 
@@ -439,48 +439,6 @@ function Stat({
       >
         {label}
       </p>
-    </div>
-  );
-}
-
-/// The headline lift, how it moved since last time, and its trend.
-function ProgressRow({ progress }: { progress: SessionProgress }) {
-  const color = progress.isPR
-    ? PR_LIME
-    : progress.direction === "up"
-      ? "var(--accent)"
-      : "var(--fg-muted)";
-  return (
-    <div className="flex items-center gap-3 mt-3">
-      <div className="flex-1 min-w-0">
-        <p className="text-[12px] truncate" style={{ color: "var(--fg-dim)" }}>
-          {progress.lift} · top set
-        </p>
-        <p className="mt-1 leading-none">
-          <span
-            className="nums text-[20px] font-semibold"
-            style={{
-              fontFamily: "var(--font-geist-mono)",
-              color: progress.isPR ? PR_LIME : "var(--fg)",
-            }}
-          >
-            {progress.top}
-          </span>
-          {progress.delta && (
-            <span
-              className="nums text-[12px] font-semibold ml-2"
-              style={{ fontFamily: "var(--font-geist-mono)", color }}
-            >
-              {progress.delta}
-            </span>
-          )}
-        </p>
-      </div>
-      <Sparkline
-        values={progress.trend}
-        color={progress.isPR || progress.direction === "up" ? (progress.isPR ? PR_LIME : "#22c55e") : "#a1a1aa"}
-        label={`${progress.lift} top set trend`}
-      />
     </div>
   );
 }

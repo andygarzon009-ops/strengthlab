@@ -15,12 +15,15 @@ export type SessionProgress = {
   direction: "up" | "down" | "same" | null;
   trend: number[];
   isPR: boolean;
+  /// A planned deload — the drop is the point, so it's shown in deload blue.
+  isDeload: boolean;
 };
 
 type FeedWorkout = {
   id: string;
   type: string;
   date: Date;
+  isDeload?: boolean;
   exercises: {
     exerciseId: string;
     exercise: { name: string };
@@ -35,7 +38,14 @@ export async function loadSessionProgress(
   // Headline lift per strength session.
   const heads = new Map<
     string,
-    { exerciseId: string; name: string; weight: number; reps: number; date: Date }
+    {
+      exerciseId: string;
+      name: string;
+      weight: number;
+      reps: number;
+      date: Date;
+      isDeload: boolean;
+    }
   >();
   for (const w of workouts) {
     if (shapeForType(w.type) !== "STRENGTH") continue;
@@ -58,7 +68,7 @@ export async function loadSessionProgress(
         }
       }
     }
-    if (best) heads.set(w.id, { ...best, date: w.date });
+    if (best) heads.set(w.id, { ...best, date: w.date, isDeload: !!w.isDeload });
   }
   if (heads.size === 0) return {};
 
@@ -82,7 +92,7 @@ export async function loadSessionProgress(
         workoutExercise: {
           select: {
             exerciseId: true,
-            workout: { select: { id: true, date: true } },
+            workout: { select: { id: true, date: true, isDeload: true } },
           },
         },
       },
@@ -97,7 +107,7 @@ export async function loadSessionProgress(
   // exerciseId → sessions (date-ordered) with their top set.
   const byExercise = new Map<
     string,
-    Map<string, { date: Date; weight: number; reps: number }>
+    Map<string, { date: Date; weight: number; reps: number; isDeload: boolean }>
   >();
   for (const s of history) {
     const exId = s.workoutExercise.exerciseId;
@@ -108,7 +118,7 @@ export async function loadSessionProgress(
     const weight = s.weight ?? 0;
     const reps = s.reps ?? 0;
     if (!cur || weight > cur.weight || (weight === cur.weight && reps > cur.reps)) {
-      sessions.set(w.id, { date: w.date, weight, reps });
+      sessions.set(w.id, { date: w.date, weight, reps, isDeload: w.isDeload });
     }
   }
 
@@ -116,7 +126,9 @@ export async function loadSessionProgress(
   for (const [workoutId, h] of heads) {
     const sessions = [...(byExercise.get(h.exerciseId)?.entries() ?? [])]
       .map(([id, v]) => ({ id, ...v }))
-      .filter((s) => s.date <= h.date)
+      // Deload sessions are planned drops: they never set the bar a later
+      // session is measured against, and stay out of each other's trend.
+      .filter((s) => s.date <= h.date && (s.id === workoutId || !s.isDeload))
       .sort((a, b) => a.date.getTime() - b.date.getTime());
     const idx = sessions.findIndex((s) => s.id === workoutId);
     const prev = idx > 0 ? sessions[idx - 1] : null;
@@ -150,6 +162,7 @@ export async function loadSessionProgress(
         .slice(-TREND_POINTS)
         .map((s) => s.weight),
       isPR: prWorkouts.has(workoutId),
+      isDeload: h.isDeload,
     };
   }
   return out;

@@ -5,14 +5,18 @@ import Link from "next/link";
 
 export default function HistoryCalendar({
   workoutDates,
+  deloadDates = [],
   workoutIdByDate,
   earliestYear,
 }: {
   workoutDates: string[];
+  /// Days trained as a deload — shown in deload blue.
+  deloadDates?: string[];
   workoutIdByDate?: Record<string, string>;
   earliestYear: number;
 }) {
   const dateSet = new Set(workoutDates);
+  const deloadSet = new Set(deloadDates);
   const now = new Date();
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
@@ -127,13 +131,16 @@ export default function HistoryCalendar({
           if (d === null) return <div key={`e-${i}`} />;
           const key = fmtYMD(viewYear, viewMonth, d);
           const hasWorkout = dateSet.has(key);
+          const isDeload = hasWorkout && deloadSet.has(key);
           const isToday = key === todayKey;
           const workoutId = workoutIdByDate?.[key];
           const cellClass =
             "aspect-square flex items-center justify-center rounded-md text-[12px] nums transition-transform active:scale-95";
           const cellStyle = {
             fontFamily: "var(--font-geist-mono)",
-            background: hasWorkout
+            background: isDeload
+              ? "#60a5fa"
+              : hasWorkout
               ? "var(--accent)"
               : isToday
                 ? "var(--bg-elevated)"

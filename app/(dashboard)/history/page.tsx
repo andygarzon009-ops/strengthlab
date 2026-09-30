@@ -4,6 +4,8 @@ import { labelForType, shapeForType, formatDuration } from "@/lib/exercises";
 import { startOfMonth, endOfMonth } from "date-fns";
 import Link from "next/link";
 import HistoryCalendar from "@/components/HistoryCalendar";
+import ProgressRow from "@/components/ProgressRow";
+import { loadSessionProgress } from "@/lib/sessionProgress";
 import StretchResumeCard from "@/components/StretchResumeCard";
 import { formatShortDate, formatDateKey } from "@/lib/dateFormat";
 
@@ -41,10 +43,20 @@ export default async function HistoryPage() {
       .filter((x): x is string => !!x)
   );
 
+  // Each strength session's headline lift against last time — the same row
+  // the feed shows. Best-effort: the list renders fine without it.
+  const progress = await loadSessionProgress(userId, workouts).catch(
+    () => ({}) as Awaited<ReturnType<typeof loadSessionProgress>>,
+  );
+
   const now = new Date();
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
   const workoutDateStrings = workouts.map((w) => formatDateKey(w.date, tz));
+  // Days trained as a deload show in deload blue on the calendar.
+  const deloadDateStrings = workouts
+    .filter((w) => w.isDeload)
+    .map((w) => formatDateKey(w.date, tz));
   // Build a date → workoutId map so calendar days are clickable. When
   // multiple workouts share a day, pick the most recent (workouts are
   // already ordered by date desc).
@@ -97,6 +109,7 @@ export default async function HistoryPage() {
 
       <HistoryCalendar
         workoutDates={workoutDateStrings}
+        deloadDates={deloadDateStrings}
         workoutIdByDate={workoutIdByDate}
         earliestYear={earliestYear}
       />
@@ -269,6 +282,9 @@ export default async function HistoryPage() {
                     )}
                   </div>
                 </div>
+                {progress[workout.id] && (
+                  <ProgressRow progress={progress[workout.id]} />
+                )}
                 {shape === "STRENGTH" && (
                   <div className="flex gap-1 mt-3 flex-wrap">
                     {workout.exercises.slice(0, 3).map((ex) => (
