@@ -5,7 +5,6 @@ import Link from "next/link";
 import WeeklyRecap from "@/components/WeeklyRecap";
 import DailyGlanceCard from "@/components/DailyGlanceCard";
 import PullToRefresh from "@/components/PullToRefresh";
-import ConsistencyCard from "@/components/ConsistencyCard";
 import HeartRateCard from "@/components/HeartRateCard";
 import PendingInvites from "@/components/PendingInvites";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
@@ -22,7 +21,7 @@ export default async function FeedPage() {
   // The feed is your own training. Friends' sessions live on the Crew page.
   const currentUser = await prisma.user.findUnique({
     where: { id: userId },
-    select: { name: true, trainingDays: true },
+    select: { name: true },
   });
 
   // The heavy nested workouts query lives inside <FeedList>, wrapped in
@@ -80,7 +79,7 @@ export default async function FeedPage() {
       <Suspense fallback={<CardSkeleton height={130} />}>
         <CycleCard userId={userId} />
       </Suspense>
-      <Suspense fallback={<CardSkeleton height={170} />}>
+      <Suspense fallback={<CardSkeleton height={300} />}>
         <WeeklyRecap userId={userId} />
       </Suspense>
       {/* Heart rate reads stored values, not Google Health, so it can't
@@ -92,12 +91,6 @@ export default async function FeedPage() {
           inline on tap. */}
       <Suspense fallback={<CardSkeleton height={108} />}>
         <DailyGlanceCard userId={userId} />
-      </Suspense>
-      <Suspense fallback={<CardSkeleton height={120} />}>
-        <ConsistencyCard
-          userId={userId}
-          trainingDaysGoal={currentUser?.trainingDays ?? null}
-        />
       </Suspense>
       <Suspense fallback={null}>
         <CrewPulse userId={userId} />

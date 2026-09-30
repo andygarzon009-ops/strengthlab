@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/db";
 import { localDateKey } from "@/lib/blockStamp";
 import { shapeForType } from "@/lib/exercises";
+import Link from "next/link";
 import { loadTodayPlan, splitTag } from "@/lib/todayPlan";
+import { loadRhythm } from "@/lib/rhythm";
+import MuscleMap from "@/components/MuscleMap";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
@@ -16,8 +19,11 @@ function weekKeys(tz: string): string[] {
   );
 }
 
-// This calendar week: a day strip marked with what was trained, then the four
-// numbers. Today, if not trained yet, shows the split the Today card suggests.
+// This week and your rhythm in one card (they used to be two, each with its
+// own row of day dots): the goal streak, a day strip marked with what was
+// trained, then the body map beside the week's four numbers. Today, if not
+// trained yet, shows the split the Today card suggests. Taps through to
+// Progress.
 export default async function WeeklyRecap({ userId }: { userId: string }) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -27,7 +33,7 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
   const keys = weekKeys(tz);
   const todayKey = localDateKey(new Date(), tz);
 
-  const [workouts, plan] = await Promise.all([
+  const [workouts, plan, rhythm] = await Promise.all([
     prisma.workout.findMany({
       // A day of slack either side; filtered to the local week below.
       where: {
@@ -49,6 +55,7 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
       orderBy: { date: "asc" },
     }),
     loadTodayPlan(userId),
+    loadRhythm(userId, user?.trainingDays).catch(() => null),
   ]);
   const week = workouts.filter((w) => keys.includes(localDateKey(w.date, tz)));
 
@@ -100,21 +107,44 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
   const goal = Math.max(1, user?.trainingDays ?? 4);
   const todayDone = days.find((d) => d.isToday)?.done;
 
+  const streak = rhythm?.streak ?? 0;
+
   return (
-    <section aria-label="This week" className="card p-[18px] mb-3">
-      <div className="flex items-baseline justify-between gap-3 mb-3.5">
+    <Link
+      href="/consistency"
+      aria-label="This week — open progress"
+      className="card block p-[18px] mb-3 transition-colors"
+    >
+      <div className="flex items-center justify-between gap-3">
         <h2 className="text-[14px] font-semibold">This week</h2>
-        <span
-          className="text-[12px] nums truncate"
-          style={{
-            fontFamily: "var(--font-geist-mono)",
-            color: daysHit >= goal ? "var(--accent)" : "var(--fg-muted)",
-          }}
-        >
-          {daysHit} of {goal} days
-          {!todayDone && plan.next ? ` · today ${plan.next.label}` : ""}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          {streak > 0 && (
+            <span
+              className="label text-[10px] px-2 py-1 rounded-full nums"
+              style={{
+                background: "rgba(249,115,22,0.12)",
+                border: "1px solid rgba(249,115,22,0.35)",
+                color: "#fb923c",
+                fontFamily: "var(--font-geist-mono)",
+              }}
+              title={`Consecutive weeks meeting your ${goal}-day training goal`}
+            >
+              🔥 {streak}-wk streak
+            </span>
+          )}
+          <span style={{ color: "var(--fg-dim)" }}>→</span>
+        </div>
       </div>
+      <p
+        className="text-[12px] nums mt-1.5 mb-3.5 truncate"
+        style={{
+          fontFamily: "var(--font-geist-mono)",
+          color: daysHit >= goal ? "var(--accent)" : "var(--fg-muted)",
+        }}
+      >
+        {daysHit} of {goal} days{daysHit >= goal ? " ✓" : ""}
+        {!todayDone && plan.next ? ` · today ${plan.next.label}` : ""}
+      </p>
 
       <div className="grid grid-cols-7 gap-1.5">
         {days.map((d, i) => (
@@ -148,15 +178,43 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
       </div>
 
       <div
-        className="grid grid-cols-4 gap-2 mt-4 pt-3.5"
+        className="flex items-center gap-4 mt-4 pt-4"
         style={{ borderTop: "1px solid var(--border)" }}
       >
-        <Stat value={String(week.length)} label="Sessions" />
-        <Stat value={String(prCount)} label="PRs" accent={prCount > 0} />
-        <Stat value={String(sets)} label="Sets" />
-        <Stat value={avgHr != null ? String(avgHr) : "—"} label="Avg HR" />
+        {rhythm && <MuscleMap recency={rhythm.recency} />}
+        <div className="flex-1 min-w-0 grid grid-cols-2 gap-x-3 gap-y-4">
+          <Stat value={String(week.length)} label="Sessions" />
+          <Stat value={String(prCount)} label="PRs" accent={prCount > 0} />
+          <Stat value={String(sets)} label="Sets" />
+          <Stat value={avgHr != null ? String(avgHr) : "—"} label="Avg HR" />
+        </div>
       </div>
-    </section>
+
+      {rhythm && (
+        <div className="flex items-center gap-3 mt-3.5">
+          <Legend color="var(--accent)" label="Fresh" />
+          <Legend color="rgba(96,165,250,0.55)" label="Stale" />
+          <Legend color="var(--bg-elevated)" label="Cold" />
+        </div>
+      )}
+    </Link>
+  );
+}
+
+function Legend({ color, label }: { color: string; label: string }) {
+  return (
+    <div className="flex items-center gap-1">
+      <span
+        className="w-2 h-2 rounded-sm"
+        style={{ background: color, border: "1px solid var(--border)" }}
+      />
+      <span
+        className="text-[9px]"
+        style={{ color: "var(--fg-dim)", fontFamily: "var(--font-geist-mono)" }}
+      >
+        {label}
+      </span>
+    </div>
   );
 }
 
