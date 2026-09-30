@@ -4,7 +4,17 @@ import { shapeForType } from "@/lib/exercises";
 import Link from "next/link";
 import { loadTodayPlan, splitTag } from "@/lib/todayPlan";
 import { loadRhythm } from "@/lib/rhythm";
-import MuscleMap, { LEVELS, muscleLevel } from "@/components/MuscleMap";
+import MuscleMap, { muscleLevel } from "@/components/MuscleMap";
+import { HEAT_GRADIENT, HEAT_MAX } from "@/lib/bodyScan";
+
+// Where each word sits on the heat scale (see lib/bodyScan).
+const SCALE_LABELS: [string, number][] = [
+  ["Cold", 0],
+  ["Stale", 0.34],
+  ["Fresh", 0.6],
+  ["Peak", 1.0],
+  ["Over", 1.3],
+];
 import { PRIORITY_MUSCLES } from "@/lib/exercises";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -210,24 +220,37 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
 
       {rhythm && (
         <>
-          <div className="grid grid-cols-6 gap-1 mt-4">
-            {LEVELS.map((l) => (
-              <div key={l.level} className="min-w-0">
+          {/* One continuous scale, dim to bright to red. */}
+          <div className="mt-4">
+            <span
+              className="block h-1.5 rounded-full"
+              style={{ background: HEAT_GRADIENT }}
+            />
+            <div
+              className="relative h-3 text-[9px] mt-1.5"
+              style={{
+                color: "var(--fg-dim)",
+                fontFamily: "var(--font-geist-mono)",
+              }}
+            >
+              {SCALE_LABELS.map(([label, at]) => (
                 <span
-                  className="block h-1.5 rounded-full"
-                  style={{ background: l.color }}
-                />
-                <span
-                  className="block text-[9px] mt-1 truncate"
+                  key={label}
+                  className="absolute top-0 whitespace-nowrap"
                   style={{
-                    color: "var(--fg-dim)",
-                    fontFamily: "var(--font-geist-mono)",
+                    left: `${(at / HEAT_MAX) * 100}%`,
+                    transform:
+                      at === 0
+                        ? "none"
+                        : at >= HEAT_MAX
+                          ? "translateX(-100%)"
+                          : "translateX(-50%)",
                   }}
                 >
-                  {l.level === "over" ? "Over" : l.label}
+                  {label}
                 </span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
           {(over.length > 0 || cold.length > 0) && (
             <div className="mt-3 space-y-1 text-[12px] leading-snug">
