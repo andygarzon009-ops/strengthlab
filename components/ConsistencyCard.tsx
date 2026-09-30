@@ -226,8 +226,8 @@ export default async function ConsistencyCard({
 
           <div className="flex items-center gap-3 mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
             <Legend color="var(--accent)" label="Fresh" />
-            <Legend color="rgba(96,165,250,0.55)" label="Cold" />
-            <Legend color="var(--bg-elevated)" label="Idle" />
+            <Legend color="rgba(96,165,250,0.55)" label="Stale" />
+            <Legend color="var(--bg-elevated)" label="Cold" />
           </div>
         </div>
       </div>

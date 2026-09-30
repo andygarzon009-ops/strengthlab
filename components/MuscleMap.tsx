@@ -1,19 +1,19 @@
-type State = "fresh" | "cold" | "idle";
+type State = "fresh" | "stale" | "cold";
 
 // Specific muscle → days since last hit. Missing = never hit.
 export type MuscleRecency = Record<string, number | undefined>;
 
 function stateFor(days: number | undefined): State {
-  if (days === undefined) return "idle";
+  if (days === undefined) return "cold";
   if (days <= 3) return "fresh";
-  if (days <= 6) return "cold";
-  return "idle";
+  if (days <= 6) return "stale";
+  return "cold";
 }
 
 function fill(state: State): string {
   if (state === "fresh") return "var(--accent)";
   // Cooling off — the deload blue, not a warning yellow.
-  if (state === "cold") return "rgba(96,165,250,0.55)";
+  if (state === "stale") return "rgba(96,165,250,0.55)";
   return "var(--bg-elevated)";
 }
 
