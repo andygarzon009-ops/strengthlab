@@ -218,7 +218,11 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
           <Stat value={String(week.length)} label="Sessions" />
           <Stat value={String(prCount)} label="PRs" accent={prCount > 0} />
           <Stat value={String(sets)} label="Sets" />
-          <Stat value={avgHr != null ? String(avgHr) : "—"} label="Avg HR" />
+          <Stat
+            value={avgHr != null ? String(avgHr) : "—"}
+            label="Avg HR"
+            icon={avgHr != null ? <BeatingHeart /> : undefined}
+          />
         </div>
       </div>
 
@@ -288,20 +292,23 @@ function Stat({
   value,
   label,
   accent,
+  icon,
 }: {
   value: string;
   label: string;
   accent?: boolean;
+  icon?: React.ReactNode;
 }) {
   return (
     <div className="min-w-0">
       <p
-        className="nums text-[20px] font-semibold leading-none tracking-tight"
+        className="nums text-[20px] font-semibold leading-none tracking-tight flex items-center gap-1.5"
         style={{
           fontFamily: "var(--font-geist-mono)",
           color: accent ? "var(--accent)" : "var(--fg)",
         }}
       >
+        {icon}
         {value}
       </p>
       <p
@@ -311,5 +318,23 @@ function Stat({
         {label}
       </p>
     </div>
+  );
+}
+
+/// The same pulsing heart as the Heart rate card (.heartbeat in globals.css,
+/// still under reduced motion).
+function BeatingHeart() {
+  return (
+    <svg
+      className="heartbeat shrink-0"
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="#ef4444"
+      aria-hidden
+      style={{ filter: "drop-shadow(0 0 4px rgba(239,68,68,0.5))" }}
+    >
+      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+    </svg>
   );
 }
