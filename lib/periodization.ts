@@ -58,6 +58,9 @@ export type PeriodizationState = {
   weeksUntilDeload: number | null;
   /// What comes after this week — the same block, the next one, or a deload.
   nextUp: string;
+  /// During a deload, the weeks of the paused block (`blockIndex`) already
+  /// done — so the block's progress can still be shown. Undefined otherwise.
+  pausedWeeksDone?: number;
 };
 
 /// The default cycle, matching the classic power-building rotation: a
@@ -207,6 +210,7 @@ export function periodizationState(
           blockWeeks: 0,
           weeksUntilDeload: 0,
           nextUp: `${block.name} week ${weekInBlock + 1} of ${block.weeks}`,
+          pausedWeeksDone: weekInBlock,
         };
       }
       const nextIsDeload = deloadEvery != null && sinceDeload + 1 >= deloadEvery;

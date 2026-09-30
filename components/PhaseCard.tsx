@@ -26,11 +26,17 @@ export async function loadPhase(userId: string): Promise<ResolvedBlock | null> {
 export function PhaseSection({ phase }: { phase: ResolvedBlock }) {
   const { state, config } = phase;
   const deload = state.isDeloadWeek;
-  const color = deload ? DELOAD_BLUE : "var(--accent)";
+  // A deload pauses the block rather than replacing it, so the card keeps
+  // showing the block and its bars — the weeks done so far — with the deload
+  // flagged in blue beside them.
+  const block = config.blocks[state.blockIndex];
+  const name = block?.name ?? state.blockName;
+  const total = deload ? (block?.weeks ?? 0) : state.blockWeeks;
+  const done = deload ? (state.pausedWeeksDone ?? 0) : state.weekInBlock;
   // One short line under the bar. weeksUntilDeload counts training weeks
   // AFTER this one, so the deload itself is one further out.
   const footer = deload
-    ? `Cut ~${config.deloadReductionPct}% this week`
+    ? `Cut ~${config.deloadReductionPct}% this week · then week ${done + 1} of ${total}`
     : state.weeksUntilDeload == null
       ? null
       : state.weeksUntilDeload === 0
@@ -40,34 +46,31 @@ export function PhaseSection({ phase }: { phase: ResolvedBlock }) {
   return (
     <Link href="/profile" className="block active:opacity-70">
       <div className="flex items-baseline justify-between gap-3">
-        <h2
-          className="text-[17px] font-bold tracking-tight leading-none truncate"
-          style={deload ? { color } : undefined}
-        >
-          {deload ? "Deload week" : state.blockName}
+        <h2 className="text-[17px] font-bold tracking-tight leading-none truncate">
+          {name}
         </h2>
-        {!deload && (
-          <p
-            className="text-[12px] nums leading-none shrink-0"
-            style={{
-              color: "var(--fg-dim)",
-              fontFamily: "var(--font-geist-mono)",
-            }}
-          >
-            Week {state.weekInBlock} of {state.blockWeeks}
-          </p>
-        )}
+        <p
+          className="text-[12px] nums leading-none shrink-0"
+          style={{
+            color: deload ? DELOAD_BLUE : "var(--fg-dim)",
+            fontFamily: "var(--font-geist-mono)",
+          }}
+        >
+          {deload ? "Deload week" : `Week ${done} of ${total}`}
+        </p>
       </div>
 
-      {!deload && (
+      {total > 0 && (
         <div className="flex gap-1 mt-3">
-          {Array.from({ length: state.blockWeeks }, (_, i) => (
+          {Array.from({ length: total }, (_, i) => (
             <span
               key={i}
-              className="h-1 flex-1 rounded-full"
+              className="h-1.5 flex-1 rounded-full"
               style={{
-                background:
-                  i < state.weekInBlock ? color : "var(--bg-elevated)",
+                background: i < done ? "var(--accent)" : "var(--bg-elevated)",
+                // Past weeks recede; the current one reads full strength.
+                // In a deload nothing is current, so all done weeks recede.
+                opacity: i < done && (deload || i < done - 1) ? 0.55 : 1,
               }}
             />
           ))}

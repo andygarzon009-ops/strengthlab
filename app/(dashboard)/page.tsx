@@ -6,6 +6,7 @@ import WeeklyRecap from "@/components/WeeklyRecap";
 import DailyGlanceCard from "@/components/DailyGlanceCard";
 import PullToRefresh from "@/components/PullToRefresh";
 import ConsistencyCard from "@/components/ConsistencyCard";
+import HeartRateCard from "@/components/HeartRateCard";
 import PendingInvites from "@/components/PendingInvites";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
@@ -68,6 +69,11 @@ export default async function FeedPage() {
           context of where the cycle is. */}
       <Suspense fallback={<CardSkeleton height={150} />}>
         <WeeklyRecap userId={userId} />
+      </Suspense>
+      {/* Heart rate reads stored values, not Google Health, so it can't
+          hold up the rest. */}
+      <Suspense fallback={<CardSkeleton height={112} />}>
+        <HeartRateCard userId={userId} />
       </Suspense>
       <Suspense fallback={<CardSkeleton height={120} />}>
         <ConsistencyCard
