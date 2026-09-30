@@ -4,7 +4,8 @@ import { shapeForType } from "@/lib/exercises";
 import Link from "next/link";
 import { loadTodayPlan, splitTag } from "@/lib/todayPlan";
 import { loadRhythm } from "@/lib/rhythm";
-import MuscleMap from "@/components/MuscleMap";
+import MuscleMap, { LEVELS, muscleLevel } from "@/components/MuscleMap";
+import { PRIORITY_MUSCLES } from "@/lib/exercises";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
@@ -109,6 +110,23 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
 
   const streak = rhythm?.streak ?? 0;
 
+  // The scan in words: what's past its limit, and which key muscles have
+  // gone a week or more untouched.
+  const over = rhythm
+    ? Object.entries(rhythm.load)
+        .filter(([, m]) => muscleLevel(m) === "over")
+        .sort((a, b) => (b[1]?.sets ?? 0) - (a[1]?.sets ?? 0))
+        .slice(0, 3)
+        .map(([name, m]) =>
+          m && m.streak >= 3 && m.sets <= 20
+            ? `${name} ${m.streak} days running`
+            : `${name} ${Math.round(m?.sets ?? 0)} sets`,
+        )
+    : [];
+  const cold = rhythm
+    ? PRIORITY_MUSCLES.filter((m) => muscleLevel(rhythm.load[m]) === "cold").slice(0, 4)
+    : [];
+
   return (
     <Link
       href="/consistency"
@@ -181,7 +199,7 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
         className="flex items-center gap-4 mt-4 pt-4"
         style={{ borderTop: "1px solid var(--border)" }}
       >
-        {rhythm && <MuscleMap recency={rhythm.recency} />}
+        {rhythm && <MuscleMap load={rhythm.load} />}
         <div className="flex-1 min-w-0 grid grid-cols-2 gap-x-3 gap-y-4">
           <Stat value={String(week.length)} label="Sessions" />
           <Stat value={String(prCount)} label="PRs" accent={prCount > 0} />
@@ -191,30 +209,45 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
       </div>
 
       {rhythm && (
-        <div className="flex items-center gap-3 mt-3.5">
-          <Legend color="var(--accent)" label="Fresh" />
-          <Legend color="rgba(96,165,250,0.55)" label="Stale" />
-          <Legend color="var(--bg-elevated)" label="Cold" />
-        </div>
+        <>
+          <div className="grid grid-cols-6 gap-1 mt-4">
+            {LEVELS.map((l) => (
+              <div key={l.level} className="min-w-0">
+                <span
+                  className="block h-1.5 rounded-full"
+                  style={{ background: l.color }}
+                />
+                <span
+                  className="block text-[9px] mt-1 truncate"
+                  style={{
+                    color: "var(--fg-dim)",
+                    fontFamily: "var(--font-geist-mono)",
+                  }}
+                >
+                  {l.level === "over" ? "Over" : l.label}
+                </span>
+              </div>
+            ))}
+          </div>
+          {(over.length > 0 || cold.length > 0) && (
+            <div className="mt-3 space-y-1 text-[12px] leading-snug">
+              {over.length > 0 && (
+                <p style={{ color: "#f87171" }}>
+                  <span className="font-semibold">Overworked:</span>{" "}
+                  {over.join(" · ")}
+                </p>
+              )}
+              {cold.length > 0 && (
+                <p style={{ color: "var(--fg-muted)" }}>
+                  <span className="font-semibold">Cold:</span>{" "}
+                  {cold.join(", ")}
+                </p>
+              )}
+            </div>
+          )}
+        </>
       )}
     </Link>
-  );
-}
-
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <div className="flex items-center gap-1">
-      <span
-        className="w-2 h-2 rounded-sm"
-        style={{ background: color, border: "1px solid var(--border)" }}
-      />
-      <span
-        className="text-[9px]"
-        style={{ color: "var(--fg-dim)", fontFamily: "var(--font-geist-mono)" }}
-      >
-        {label}
-      </span>
-    </div>
   );
 }
 

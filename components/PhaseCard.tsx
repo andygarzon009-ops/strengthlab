@@ -27,7 +27,7 @@ export const loadPhase = cache(
 );
 
 // The feed's cycle card: the whole cycle on one line, then what this phase is
-// for. Taps through to the cycle editor on the profile.
+// for. Taps straight through to the cycle editor on the profile.
 export default async function CycleCard({ userId }: { userId: string }) {
   const phase = await loadPhase(userId).catch(() => null);
   if (!phase) return null;
@@ -115,7 +115,7 @@ export function PhaseSection({ phase }: { phase: ResolvedBlock }) {
   const groups = cycleSegments(phase);
 
   return (
-    <Link href="/profile" className="block active:opacity-70">
+    <Link href="/profile#cycle" className="block active:opacity-70">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-[17px] font-bold tracking-tight leading-none truncate">
           {name}

@@ -1,7 +1,7 @@
 "use client";
 
 import { updateProfile as updateProfileAction } from "@/lib/actions/workouts";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import ImageUpload from "@/components/ImageUpload";
 import UsernameField from "@/components/UsernameField";
 import PeriodizationEditor from "@/components/PeriodizationEditor";
@@ -100,6 +100,19 @@ export default function ProfileForm({
   // header to expand. Form state lives in `form`, so collapsing never loses
   // edits and Save keeps working.
   const [showTraining, setShowTraining] = useState(false);
+  // The feed's phase card links to /profile#cycle: open the training section
+  // and bring the cycle editor into view instead of landing at the top.
+  useEffect(() => {
+    if (window.location.hash !== "#cycle") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setShowTraining(true);
+    const t = setTimeout(() => {
+      document
+        .getElementById("cycle")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return () => clearTimeout(t);
+  }, []);
   const [showMeasurements, setShowMeasurements] = useState(false);
   const [unit, setUnit] = useState<MeasureUnit>("in");
   // What the last save did to the tape. Null until a save actually moves
@@ -486,6 +499,7 @@ export default function ProfileForm({
             />
           </div>
 
+          <div id="cycle" style={{ scrollMarginTop: 16 }} />
           <PeriodizationEditor
             value={periodization}
             onChange={setPeriodization}

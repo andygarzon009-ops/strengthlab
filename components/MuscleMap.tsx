@@ -1,30 +1,57 @@
-type State = "fresh" | "stale" | "cold";
+// Per specific muscle: days since it was last trained, effective working
+// sets in the last 7 days (half credit when it was a helper muscle), and how
+// many days in a row it has been hit up to today. Missing = never trained.
+export type MuscleLoad = Record<
+  string,
+  { days: number; sets: number; streak: number } | undefined
+>;
 
-// Specific muscle → days since last hit. Missing = never hit.
-export type MuscleRecency = Record<string, number | undefined>;
+export type MuscleLevel = "cold" | "stale" | "fresh" | "built" | "peak" | "over";
 
-function stateFor(days: number | undefined): State {
-  if (days === undefined) return "cold";
-  if (days <= 3) return "fresh";
-  if (days <= 6) return "stale";
-  return "cold";
+/// Dim to bright as a muscle gets more recent work, then red past what it can
+/// recover from. Set bands follow the hypertrophy spec's 10–20 weekly sets per
+/// muscle: past 20, or three days running, is more than it can use.
+export function muscleLevel(m: MuscleLoad[string]): MuscleLevel {
+  if (!m || m.days >= 7) return "cold";
+  if (m.sets > 20 || m.streak >= 3) return "over";
+  if (m.days >= 4) return "stale";
+  if (m.sets >= 13) return "peak";
+  if (m.sets >= 6) return "built";
+  return "fresh";
 }
 
-function fill(state: State): string {
-  if (state === "fresh") return "var(--accent)";
-  // Cooling off — the deload blue, not a warning yellow.
-  if (state === "stale") return "rgba(96,165,250,0.55)";
-  return "var(--bg-elevated)";
-}
+export const LEVELS: { level: MuscleLevel; label: string; color: string }[] = [
+  { level: "cold", label: "Cold", color: "var(--bg-elevated)" },
+  { level: "stale", label: "Stale", color: "rgba(96,165,250,0.55)" },
+  { level: "fresh", label: "Fresh", color: "rgba(34,197,94,0.4)" },
+  { level: "built", label: "Built", color: "rgba(34,197,94,0.8)" },
+  { level: "peak", label: "Peak", color: "#a3e635" },
+  { level: "over", label: "Overworked", color: "#ef4444" },
+];
 
-// Map a specific muscle to a fill color via the recency table.
-const paint = (m: string, r: MuscleRecency): string =>
-  fill(stateFor(r[m]));
+const COLOR: Record<MuscleLevel, string> = Object.fromEntries(
+  LEVELS.map((l) => [l.level, l.color]),
+) as Record<MuscleLevel, string>;
+const RANK: Record<MuscleLevel, number> = Object.fromEntries(
+  LEVELS.map((l, i) => [l.level, i]),
+) as Record<MuscleLevel, number>;
+
+// A drawn region can stand for more than one muscle (the front delt ellipse
+// carries side delt work too); it shows the hottest of them.
+const paint = (m: string | string[], r: MuscleLoad): string => {
+  const names = Array.isArray(m) ? m : [m];
+  let best: MuscleLevel = "cold";
+  for (const n of names) {
+    const lv = muscleLevel(r[n]);
+    if (RANK[lv] > RANK[best]) best = lv;
+  }
+  return COLOR[best];
+};
 
 const OUTLINE = "var(--border)";
 const stroke = 0.6;
 
-function FrontBody({ r }: { r: MuscleRecency }) {
+function FrontBody({ r }: { r: MuscleLoad }) {
   // viewBox 60x120 — roughly 1:2 aspect ratio mirrors a human silhouette.
   return (
     <svg
@@ -47,8 +74,8 @@ function FrontBody({ r }: { r: MuscleRecency }) {
       />
 
       {/* Front delts */}
-      <ellipse cx="19" cy="22" rx="4.5" ry="3.5" fill={paint("Front Delts", r)} stroke={OUTLINE} strokeWidth={stroke} />
-      <ellipse cx="41" cy="22" rx="4.5" ry="3.5" fill={paint("Front Delts", r)} stroke={OUTLINE} strokeWidth={stroke} />
+      <ellipse cx="19" cy="22" rx="4.5" ry="3.5" fill={paint(["Front Delts", "Side Delts"], r)} stroke={OUTLINE} strokeWidth={stroke} />
+      <ellipse cx="41" cy="22" rx="4.5" ry="3.5" fill={paint(["Front Delts", "Side Delts"], r)} stroke={OUTLINE} strokeWidth={stroke} />
 
       {/* Pec major (L / R) */}
       <path
@@ -133,7 +160,7 @@ function FrontBody({ r }: { r: MuscleRecency }) {
   );
 }
 
-function BackBody({ r }: { r: MuscleRecency }) {
+function BackBody({ r }: { r: MuscleLoad }) {
   return (
     <svg
       viewBox="0 0 60 120"
@@ -238,11 +265,11 @@ function BackBody({ r }: { r: MuscleRecency }) {
   );
 }
 
-export default function MuscleMap({ recency }: { recency: MuscleRecency }) {
+export default function MuscleMap({ load }: { load: MuscleLoad }) {
   return (
     <div className="flex items-center gap-1 shrink-0">
-      <FrontBody r={recency} />
-      <BackBody r={recency} />
+      <FrontBody r={load} />
+      <BackBody r={load} />
     </div>
   );
 }
