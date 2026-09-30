@@ -11,6 +11,7 @@ import PendingInvites from "@/components/PendingInvites";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
 import Wordmark from "@/components/Wordmark";
+import PhaseCard from "@/components/PhaseCard";
 
 export default async function FeedPage({
   searchParams,
@@ -120,6 +121,10 @@ export default async function FeedPage({
               up by anything below it. */}
           <Suspense fallback={null}>
             <PendingInvites userId={userId} />
+          </Suspense>
+          {/* Where you are in the cycle frames everything below it. */}
+          <Suspense fallback={<CardSkeleton height={96} />}>
+            <PhaseCard userId={userId} />
           </Suspense>
           {/* The week leads, then heart rate, then progress. Heart rate reads
               stored values, not Google Health, so it can't hold up the rest. */}
