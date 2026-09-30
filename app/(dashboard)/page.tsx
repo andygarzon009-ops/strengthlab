@@ -11,43 +11,16 @@ import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
 import Wordmark from "@/components/Wordmark";
 
-export default async function FeedPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ view?: string; user?: string }>;
-}) {
+export default async function FeedPage() {
   const userId = await requireAuth();
-  const { view, user: filterUserParam } = await searchParams;
+  // The feed is your own training. Friends' sessions live on the Crew page.
+  const currentUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, trainingDays: true },
+  });
 
-  // Crew = people you follow. Drives the "Crew" feed tab + per-person filter.
-  // These two are independent, so fetch them in parallel instead of serially.
-  const [follows, currentUser] = await Promise.all([
-    prisma.follow.findMany({
-      where: { followerId: userId },
-      select: { following: { select: { id: true, name: true } } },
-    }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true, trainingDays: true },
-    }),
-  ]);
-  const followingPeople = follows.map((f) => f.following);
-  const followingIds = followingPeople.map((p) => p.id);
-
-  const isCrew = view === "crew" && followingIds.length > 0;
-  const filterUserId =
-    isCrew && filterUserParam && followingIds.includes(filterUserParam)
-      ? filterUserParam
-      : null;
-
-  const scopedUserIds = isCrew
-    ? filterUserId
-      ? [filterUserId]
-      : followingIds
-    : [userId];
-
-  // The heavy nested workouts query now lives inside <FeedList>, wrapped in
-  // Suspense, so the page shell + tabs paint immediately instead of blocking.
+  // The heavy nested workouts query lives inside <FeedList>, wrapped in
+  // Suspense, so the page shell paints immediately instead of blocking.
 
   return (
     <PullToRefresh>
@@ -82,69 +55,34 @@ export default async function FeedPage({
         </Link>
       </div>
 
-      {followingIds.length > 0 && (
-        <div
-          className="flex gap-1.5 mb-5 overflow-x-auto -mx-4 px-4 pb-1"
-          style={{ scrollbarWidth: "none" }}
-        >
-          <FeedTab href="/" label="Mine" active={!isCrew} />
-          <FeedTab href="/?view=crew" label="Crew" active={isCrew} />
-        </div>
-      )}
-
-      {isCrew && followingPeople.length > 1 && (
-        <div
-          className="flex gap-1.5 mb-4 overflow-x-auto -mx-4 px-4 pb-1"
-          style={{ scrollbarWidth: "none" }}
-        >
-          <FeedTab href="/?view=crew" label="All" active={!filterUserId} />
-          {followingPeople.map((p) => (
-            <FeedTab
-              key={p.id}
-              href={`/?view=crew&user=${p.id}`}
-              label={p.name.split(" ")[0]}
-              active={filterUserId === p.id}
-            />
-          ))}
-        </div>
-      )}
-
-      {!isCrew && (
-        <>
-          {/* Each card streams in independently. HeartRate/ActivityRings make
-              live Google Health calls — Suspense keeps them from blocking the
-              rest of the feed. */}
-          {/* A waiting invite outranks everything: somebody is in a gym right
-              now waiting on an answer. Streams on its own so it can't be held
-              up by anything below it. */}
-          <Suspense fallback={null}>
-            <PendingInvites userId={userId} />
-          </Suspense>
-          {/* The training phase heads this card, so the week reads in the
-              context of where the cycle is. */}
-          <Suspense fallback={<CardSkeleton height={150} />}>
-            <WeeklyRecap userId={userId} />
-          </Suspense>
-          <Suspense fallback={<CardSkeleton height={120} />}>
-            <ConsistencyCard
-              userId={userId}
-              trainingDaysGoal={currentUser?.trainingDays ?? null}
-            />
-          </Suspense>
-          {/* Direction A: Recovery + Fuel + Activity consolidated into one
-              glance ring-row, each expanding inline on tap. */}
-          <Suspense fallback={<CardSkeleton height={108} />}>
-            <DailyGlanceCard userId={userId} />
-          </Suspense>
-        </>
-      )}
+      {/* Each card streams in independently. The glance rings make live
+          Google Health calls — Suspense keeps them from blocking the rest
+          of the feed. */}
+      {/* A waiting invite outranks everything: somebody is in a gym right
+          now waiting on an answer. Streams on its own so it can't be held
+          up by anything below it. */}
+      <Suspense fallback={null}>
+        <PendingInvites userId={userId} />
+      </Suspense>
+      {/* The training phase heads this card, so the week reads in the
+          context of where the cycle is. */}
+      <Suspense fallback={<CardSkeleton height={150} />}>
+        <WeeklyRecap userId={userId} />
+      </Suspense>
+      <Suspense fallback={<CardSkeleton height={120} />}>
+        <ConsistencyCard
+          userId={userId}
+          trainingDaysGoal={currentUser?.trainingDays ?? null}
+        />
+      </Suspense>
+      {/* Direction A: Recovery + Fuel + Activity consolidated into one
+          glance ring-row, each expanding inline on tap. */}
+      <Suspense fallback={<CardSkeleton height={108} />}>
+        <DailyGlanceCard userId={userId} />
+      </Suspense>
 
       <Suspense fallback={<FeedListSkeleton />}>
-        <FeedList
-          scopedUserIds={scopedUserIds}
-          currentUserId={userId}
-          isCrew={isCrew}
-        />
+        <FeedList userId={userId} />
       </Suspense>
     </div>
     </PullToRefresh>
@@ -154,17 +92,9 @@ export default async function FeedPage({
 /// The workout feed itself — the heaviest query (workouts × exercises × sets ×
 /// reactions × comments). Isolated in its own async component so it streams in
 /// behind a skeleton rather than blocking the page shell.
-async function FeedList({
-  scopedUserIds,
-  currentUserId,
-  isCrew,
-}: {
-  scopedUserIds: string[];
-  currentUserId: string;
-  isCrew: boolean;
-}) {
+async function FeedList({ userId }: { userId: string }) {
   const workouts = await prisma.workout.findMany({
-    where: { userId: { in: scopedUserIds } },
+    where: { userId },
     include: {
       user: true,
       exercises: {
@@ -213,18 +143,16 @@ async function FeedList({
           </svg>
         </div>
         <h2 className="text-lg font-semibold tracking-tight mb-1.5">
-          {isCrew ? "Your crew is quiet" : "Nothing logged yet"}
+          Nothing logged yet
         </h2>
         <p className="text-sm mb-6" style={{ color: "var(--fg-muted)" }}>
-          {isCrew
-            ? "Nobody you follow has logged a session yet."
-            : "Log your first session, or follow friends on the Crew tab to see their workouts."}
+          Log your first session, or follow friends on the Crew tab to see their workouts.
         </p>
         <Link
-          href={isCrew ? "/group" : "/log"}
+          href="/log"
           className="btn-accent inline-block px-6 py-3 rounded-xl text-sm"
         >
-          {isCrew ? "Find your crew" : "Log First Session"}
+          Log First Session
         </Link>
       </div>
     );
@@ -236,43 +164,9 @@ async function FeedList({
         <FeedWorkoutCard
           key={workout.id}
           workout={workout}
-          currentUserId={currentUserId}
+          currentUserId={userId}
         />
       ))}
     </div>
   );
 }
-
-function FeedTab({
-  href,
-  label,
-  active,
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      className="text-[12px] px-3.5 py-1.5 rounded-full whitespace-nowrap shrink-0 label"
-      style={
-        active
-          ? {
-              background: "var(--accent)",
-              color: "#0a0a0a",
-              border: "1px solid var(--accent)",
-            }
-          : {
-              background: "var(--bg-elevated)",
-              color: "var(--fg-muted)",
-              border: "1px solid var(--border)",
-            }
-      }
-    >
-      {label}
-    </Link>
-  );
-}
-
