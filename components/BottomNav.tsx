@@ -81,6 +81,21 @@ export default function BottomNav() {
   }, [pathname]);
 
   return (
+    <>
+    {/* Content fades into the bar instead of hard-clipping at its edge.
+        Its own layer at z-30: over the page, under the floating timer and
+        coach buttons (z-40), so it never dims them. */}
+    <div
+      aria-hidden
+      className="fixed left-0 right-0 z-30 pointer-events-none"
+      style={{
+        bottom: "calc(4rem + env(safe-area-inset-bottom, 0px))",
+        height: 88,
+        background:
+          "linear-gradient(to bottom, rgba(10,10,10,0) 0%, var(--bg) 100%)",
+        transform: "translateZ(0)",
+      }}
+    />
     <nav
       className="fixed bottom-0 left-0 right-0 z-50"
       style={{
@@ -156,5 +171,6 @@ export default function BottomNav() {
         })}
       </div>
     </nav>
+    </>
   );
 }

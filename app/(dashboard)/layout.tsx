@@ -25,7 +25,9 @@ export default function DashboardLayout({
         // the home-indicator safe area. The old pb-20 (80px) ignored the inset,
         // so on home-indicator iPhones the nav (~99px tall) clipped the last
         // ~19px of content — invisible now that the nav is opaque.
-        paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 5rem)",
+        // Plus room for the fade above the nav (BottomNav), so the end of a
+        // page scrolls clear of it instead of ending half-dimmed.
+        paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8.5rem)",
       }}
     >
       {children}
