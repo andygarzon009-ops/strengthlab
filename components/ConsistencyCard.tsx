@@ -143,20 +143,30 @@ export default async function ConsistencyCard({
 
   return (
     <Link href="/consistency" className="card block p-4 mb-4 transition-colors">
-      <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-[14px] font-semibold tracking-tight leading-none">
-          Body
-        </h2>
-        <span
-          className="text-[11px] nums"
-          style={{
-            color: "var(--fg-dim)",
-            fontFamily: "var(--font-geist-mono)",
-          }}
-          title={`Consecutive weeks meeting your ${goal}-day training goal`}
-        >
-          {streak > 0 ? `${streak}-wk streak` : ""}
-        </span>
+      <div className="flex items-baseline justify-between mb-4">
+        <div>
+          <p className="label">Progress</p>
+          <h2 className="text-[14px] font-semibold tracking-tight leading-none mt-1">
+            Your rhythm
+          </h2>
+        </div>
+        <div className="flex items-center gap-2">
+          {streak > 0 && (
+            <span
+              className="label text-[10px] px-2 py-1 rounded-full nums"
+              style={{
+                background: "rgba(249,115,22,0.12)",
+                border: "1px solid rgba(249,115,22,0.35)",
+                color: "#fb923c",
+                fontFamily: "var(--font-geist-mono)",
+              }}
+              title={`Consecutive weeks meeting your ${goal}-day training goal`}
+            >
+              🔥 {streak}-wk streak
+            </span>
+          )}
+          <span style={{ color: "var(--fg-dim)" }}>→</span>
+        </div>
       </div>
 
       <div className="flex items-start gap-4">
@@ -164,6 +174,12 @@ export default async function ConsistencyCard({
 
         <div className="flex-1 min-w-0 flex flex-col justify-between self-stretch py-1">
           <div>
+            <p
+              className="label text-[9px] mb-2"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              This week
+            </p>
             <div className="flex gap-1.5 mb-2">
               {daysThisWeek.map((d, i) => (
                 <div
@@ -208,8 +224,33 @@ export default async function ConsistencyCard({
             </p>
           </div>
 
+          <div className="flex items-center gap-3 mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+            <Legend color="var(--accent)" label="Fresh" />
+            <Legend color="rgba(96,165,250,0.55)" label="Cold" />
+            <Legend color="var(--bg-elevated)" label="Idle" />
+          </div>
         </div>
       </div>
     </Link>
+  );
+}
+
+function Legend({ color, label }: { color: string; label: string }) {
+  return (
+    <div className="flex items-center gap-1">
+      <span
+        className="w-2 h-2 rounded-sm"
+        style={{ background: color, border: "1px solid var(--border)" }}
+      />
+      <span
+        className="text-[9px]"
+        style={{
+          color: "var(--fg-dim)",
+          fontFamily: "var(--font-geist-mono)",
+        }}
+      >
+        {label}
+      </span>
+    </div>
   );
 }
