@@ -5,6 +5,7 @@
 import { prisma } from "@/lib/db";
 import { startOfWeek, endOfWeek, subWeeks, format } from "date-fns";
 import type { MuscleLoad } from "@/components/MuscleMap";
+import { summarize } from "@/lib/bodyScan";
 import {
   broadGroupForSpecific,
   shapeForType,
@@ -38,14 +39,6 @@ const BROAD_SPECIFICS: Record<string, string[]> = {
   Core: ["Abs", "Obliques"],
 };
 
-// Vercel runs in UTC but the user lives in MST; compute calendar-day
-// deltas in MST so "6 days ago" doesn't tip over into 7 days for late-day
-// workouts logged near the UTC boundary.
-const MST_OFFSET_MS = 7 * 60 * 60 * 1000;
-const mstDayIndex = (d: Date) =>
-  Math.floor((d.getTime() - MST_OFFSET_MS) / 86_400_000);
-const daysSinceInMST = (now: Date, then: Date) =>
-  mstDayIndex(now) - mstDayIndex(then);
 
 export type Rhythm = { streak: number; goal: number; load: MuscleLoad };
 
@@ -96,19 +89,22 @@ export async function loadRhythm(
   // exercise name, which is finer than the muscleGroup column) with every
   // working set, and the muscles that help it with half a set each — a
   // squat is quads first, but glutes and adductors are working too.
-  const load: MuscleLoad = {};
-  const hitDays: Record<string, Set<number>> = {};
-  const credit = (muscle: string, days: number, sets: number) => {
-    const cur = load[muscle] ?? { days: Infinity, sets: 0, streak: 0 };
-    cur.days = Math.min(cur.days, days);
-    if (days < 7) cur.sets += sets;
-    load[muscle] = cur;
-    (hitDays[muscle] ??= new Set()).add(days);
+  // Each muscle's sessions in the last 7 days, in hours — recovery is
+  // judged per muscle on its own clock (lib/muscleRecovery.ts).
+  const sessions: Record<string, Map<string, { hoursAgo: number; sets: number }>> = {};
+  const nowMs = today.getTime();
+  const credit = (muscle: string, workoutId: string, hoursAgo: number, sets: number) => {
+    const byWorkout = (sessions[muscle] ??= new Map());
+    const cur = byWorkout.get(workoutId) ?? { hoursAgo, sets: 0 };
+    cur.sets += sets;
+    byWorkout.set(workoutId, cur);
   };
 
   for (const w of workouts) {
     if (shapeForType(w.type) !== "STRENGTH") continue;
-    const days = daysSinceInMST(today, new Date(w.date));
+    const at = (w.endedAt ?? w.date).getTime();
+    const hoursAgo = Math.max(0, (nowMs - at) / 3_600_000);
+    if (hoursAgo > 7 * 24) continue;
     for (const we of w.exercises) {
       const sets = we.sets.filter(
         (s) => s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET",
@@ -119,26 +115,18 @@ export async function loadRhythm(
       const primary =
         named !== "Other" ? named : broadGroupForSpecific(column) ? column : null;
       if (primary) {
-        credit(primary, days, sets);
-        for (const helper of SYNERGISTS[primary] ?? []) credit(helper, days, sets / 2);
+        credit(primary, w.id, hoursAgo, sets);
+        for (const helper of SYNERGISTS[primary] ?? []) credit(helper, w.id, hoursAgo, sets / 2);
       } else if (BROAD_SPECIFICS[column]) {
         // Only a broad group to go on: spread it across the region.
-        for (const m of BROAD_SPECIFICS[column]) credit(m, days, sets / 2);
+        for (const m of BROAD_SPECIFICS[column]) credit(m, w.id, hoursAgo, sets / 2);
       }
     }
   }
 
-  // Consecutive days hit, counting back from today (or yesterday, so a
-  // rest day today doesn't reset a run that ended last night).
-  for (const [muscle, set] of Object.entries(hitDays)) {
-    let d = set.has(0) ? 0 : 1;
-    let run = 0;
-    while (set.has(d)) {
-      run++;
-      d++;
-    }
-    load[muscle]!.streak = run;
-    load[muscle]!.sets = Math.round(load[muscle]!.sets * 10) / 10;
+  const load: MuscleLoad = {};
+  for (const [muscle, byWorkout] of Object.entries(sessions)) {
+    load[muscle] = summarize(muscle, [...byWorkout.values()]);
   }
 
   return { streak, goal, load };

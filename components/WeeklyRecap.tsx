@@ -5,7 +5,7 @@ import Link from "next/link";
 import { loadTodayPlan, splitTag } from "@/lib/todayPlan";
 import { loadRhythm } from "@/lib/rhythm";
 import MuscleMap, { muscleLevel } from "@/components/MuscleMap";
-import { HEAT_GRADIENT, HEAT_MAX } from "@/lib/bodyScan";
+import { HEAT_GRADIENT, HEAT_MAX, hoursToRecovered } from "@/lib/bodyScan";
 
 // Where each word sits on the heat scale (see lib/bodyScan).
 const SCALE_LABELS: [string, number][] = [
@@ -120,23 +120,26 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
 
   const streak = rhythm?.streak ?? 0;
 
-  // The scan in words: what's past its limit, and which key muscles have
-  // gone a week or more untouched.
-  const over = rhythm
-    ? Object.entries(rhythm.load)
-        .filter(([, m]) => muscleLevel(m) === "over")
-        .sort((a, b) => (b[1]?.sets ?? 0) - (a[1]?.sets ?? 0))
-        .slice(0, 3)
-        .map(([name, m]) =>
-          m && m.streak >= 3 && m.sets <= 20
-            ? `${name} ${m.streak} days running`
-            : `${name} ${Math.round(m?.sets ?? 0)} sets`,
-        )
-    : [];
+  // The scan in words: what's being loaded faster than it recovers (and
+  // why), what's still recovering, and which key muscles have gone cold.
+  const entries = rhythm ? Object.entries(rhythm.load) : [];
+  const over = entries
+    .filter(([, m]) => muscleLevel(m) === "over")
+    .sort((a, b) => (b[1]?.weekSets ?? 0) - (a[1]?.weekSets ?? 0))
+    .slice(0, 3)
+    .map(([name, m]) =>
+      m && m.weekSets > m.mrv
+        ? `${name} ${Math.round(m.weekSets)} sets (max ~${m.mrv})`
+        : `${name} hit again before recovering`,
+    );
+  const recovering = entries
+    .filter(([, m]) => muscleLevel(m) === "ok" && hoursToRecovered(m) > 0)
+    .sort((a, b) => hoursToRecovered(b[1]) - hoursToRecovered(a[1]))
+    .slice(0, 3)
+    .map(([name, m]) => `${name} ~${hoursToRecovered(m)}h`);
   const cold = rhythm
     ? PRIORITY_MUSCLES.filter((m) => muscleLevel(rhythm.load[m]) === "cold").slice(0, 4)
     : [];
-
   return (
     <Link
       href="/consistency"
@@ -252,12 +255,18 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
               ))}
             </div>
           </div>
-          {(over.length > 0 || cold.length > 0) && (
+          {(over.length > 0 || recovering.length > 0 || cold.length > 0) && (
             <div className="mt-3 space-y-1 text-[12px] leading-snug">
               {over.length > 0 && (
                 <p style={{ color: "#f87171" }}>
                   <span className="font-semibold">Overworked:</span>{" "}
                   {over.join(" · ")}
+                </p>
+              )}
+              {recovering.length > 0 && (
+                <p style={{ color: "var(--fg-muted)" }}>
+                  <span className="font-semibold">Recovering:</span>{" "}
+                  {recovering.join(" · ")}
                 </p>
               )}
               {cold.length > 0 && (

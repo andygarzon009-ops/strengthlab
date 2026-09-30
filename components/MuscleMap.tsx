@@ -1,16 +1,20 @@
 import { BACK, FRONT, SILHOUETTE_HALF, type BodyShape } from "@/lib/bodyPaths";
-import { heatColor, muscleHeat, type MuscleStat } from "@/lib/bodyScan";
+import {
+  heatColor,
+  isOverworked,
+  muscleHeat,
+  type MuscleStat,
+} from "@/lib/bodyScan";
 
-// Per specific muscle: days since it was last trained, effective working
-// sets in the last 7 days (half credit when it was a helper muscle), and how
-// many days in a row it has been hit up to today. Missing = never trained.
+// Per specific muscle: its last-7-days work summarised on its own recovery
+// clock (lib/bodyScan, lib/muscleRecovery). Missing = not trained this week.
 export type MuscleLoad = Record<string, MuscleStat | undefined>;
 
-/// The words under the map still need buckets: what's past its limit, and
-/// what's gone untouched. The colour itself is continuous (lib/bodyScan).
+/// The words under the map still need buckets: what's overworked, and what
+/// has gone cold. The colour itself is continuous.
 export function muscleLevel(m: MuscleStat | undefined): "cold" | "over" | "ok" {
-  if (!m || m.days >= 7) return "cold";
-  if (m.sets > 20 || m.streak >= 3) return "over";
+  if (muscleHeat(m) === 0) return "cold";
+  if (isOverworked(m)) return "over";
   return "ok";
 }
 

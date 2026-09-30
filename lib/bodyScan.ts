@@ -1,33 +1,73 @@
-/// The body scan's colour: one continuous "heat" per muscle rather than a few
-/// buckets, so the map reads as a gradient — dark when untouched, cooling blue
-/// as work fades, green through lime as the week's volume builds, then amber
-/// and red past what the muscle can recover from.
-///
-/// heat 0      untouched for a week or more
-/// heat ~0.3   trained, but days ago (stale)
-/// heat ~0.5   fresh, light volume
-/// heat ~1.0   fresh, ~20 sets this week — the top of the productive range
-/// heat >1.0   overworked: past 20 sets, or hit three days running
+/// The body scan's colour: one continuous "heat" per muscle, on each muscle's
+/// own recovery clock (lib/muscleRecovery.ts). Dark when untouched, cooling
+/// blue as the work fades, green through lime as the week's volume builds,
+/// then amber to red when the muscle is being loaded faster than it recovers.
 
-export type MuscleStat = { days: number; sets: number; streak: number };
+import { recoveryFor } from "@/lib/muscleRecovery";
 
-/// Weekly sets that count as a full week's work for one muscle (the top of the
-/// hypertrophy spec's 10–20).
-const FULL_WEEK_SETS = 20;
+/// One muscle's recent work: each session in the last 7 days as hours ago
+/// and effective working sets (half credit when it was a helper muscle).
+export type MuscleSessions = { hoursAgo: number; sets: number }[];
+
+export type MuscleStat = {
+  hoursSince: number; // since it was last trained
+  weekSets: number; // effective sets, last 7 days
+  /// Fatigue still left from earlier sessions when the latest one started,
+  /// in units of one hard session (a third of the weekly ceiling).
+  carryIn: number;
+  recoveryHours: number;
+  mrv: number;
+};
+
+/// Fatigue from a session decays exponentially; `hours` is when it's
+/// essentially gone (~95%), so the time constant is a third of it.
+export function summarize(muscle: string, sessions: MuscleSessions): MuscleStat | undefined {
+  if (sessions.length === 0) return undefined;
+  const { hours, mrv } = recoveryFor(muscle);
+  const tau = hours / 3;
+  const dose = mrv / 3;
+  const sorted = [...sessions].sort((a, b) => a.hoursAgo - b.hoursAgo);
+  const last = sorted[0];
+  const carryIn =
+    sorted
+      .slice(1)
+      .reduce((f, s) => f + s.sets * Math.exp(-(s.hoursAgo - last.hoursAgo) / tau), 0) / dose;
+  return {
+    hoursSince: last.hoursAgo,
+    weekSets: Math.round(sorted.reduce((n, s) => n + s.sets, 0) * 10) / 10,
+    carryIn,
+    recoveryHours: hours,
+    mrv,
+  };
+}
+
+/// Trained again with over a third of a hard session's fatigue still
+/// unrecovered (back-to-back heavy leg or chest days land here; back-to-back
+/// arms or core, which clear fatigue faster, don't), or past the weekly
+/// ceiling — and still inside the recovery window.
+const CARRY_LIMIT = 0.35;
+export function isOverworked(m: MuscleStat | undefined): boolean {
+  if (!m || m.hoursSince >= m.recoveryHours) return false;
+  return m.weekSets > m.mrv || m.carryIn >= CARRY_LIMIT;
+}
+
+/// Hours until the muscle is recovered from its last session (0 = ready).
+export function hoursToRecovered(m: MuscleStat | undefined): number {
+  if (!m) return 0;
+  return Math.max(0, Math.round(m.recoveryHours - m.hoursSince));
+}
 
 export function muscleHeat(m: MuscleStat | undefined): number {
-  if (!m || m.days >= 7) return 0;
-  // Recency fades over the week; the power keeps a 2-day-old session warm.
-  const recency = Math.pow(1 - m.days / 7, 0.7);
-  const volume = Math.min(m.sets / FULL_WEEK_SETS, 1);
-  let heat = recency * (0.35 + 0.65 * volume);
-  // Past the full week, jump into the warning end of the scale so overwork
-  // reads as orange-red, not as a slightly yellower green.
-  if (m.sets > FULL_WEEK_SETS) {
-    heat = 1.16 + Math.min((m.sets - FULL_WEEK_SETS) / 10, 1) * 0.14;
+  if (!m) return 0;
+  // Fades on the muscle's own clock: core goes stale in ~3½ days, quads ~6.
+  const fade = Math.max(0, 1 - m.hoursSince / (2.5 * m.recoveryHours));
+  if (fade === 0) return 0;
+  if (isOverworked(m)) {
+    const excess = Math.max(m.weekSets / m.mrv - 1, m.carryIn - CARRY_LIMIT);
+    return 1.16 + Math.min(Math.max(excess, 0) * 2, 1) * 0.14;
   }
-  if (m.streak >= 3) heat = Math.max(heat, 1.2);
-  return heat;
+  const volume = Math.min(m.weekSets / m.mrv, 1);
+  return Math.pow(fade, 0.7) * (0.35 + 0.65 * volume);
 }
 
 /// Stops along the scale, as [heat, [r, g, b]].
@@ -37,7 +77,7 @@ export const HEAT_STOPS: [number, [number, number, number]][] = [
   [0.34, [59, 130, 246]], // blue — stale
   [0.5, [34, 197, 94]], // green — fresh
   [0.78, [132, 225, 60]], // bright green
-  [1.0, [190, 242, 60]], // lime — peak
+  [1.0, [190, 242, 60]], // lime — at the weekly ceiling
   [1.12, [250, 175, 40]], // amber — tipping over
   [1.3, [239, 68, 68]], // red — overworked
 ];
