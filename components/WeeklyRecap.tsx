@@ -142,11 +142,18 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
     ? PRIORITY_MUSCLES.filter((m) => muscleLevel(rhythm.load[m]) === "cold").slice(0, 4)
     : [];
   return (
-    <Link
-      href="/consistency"
-      aria-label="This week — open progress"
-      className="card block p-[18px] mb-3 transition-colors"
+    // The card opens Progress from anywhere on it, via a link stretched
+    // across the whole card underneath; Avg HR sits above it as its own link
+    // to the heart-rate chart (links can't nest, so the card isn't one).
+    <section
+      aria-label="This week"
+      className="card relative p-[18px] mb-3 transition-colors"
     >
+      <Link
+        href="/consistency"
+        aria-label="Open progress"
+        className="absolute inset-0 rounded-[inherit]"
+      />
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-[14px] font-semibold">This week</h2>
         <div className="flex items-center gap-2 shrink-0">
@@ -218,11 +225,17 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
           <Stat value={String(week.length)} label="Sessions" />
           <Stat value={String(prCount)} label="PRs" accent={prCount > 0} />
           <Stat value={String(sets)} label="Sets" />
-          <Stat
-            value={avgHr != null ? String(avgHr) : "—"}
-            label="Avg HR"
-            icon={avgHr != null ? <BeatingHeart bpm={avgHr} /> : undefined}
-          />
+          <Link
+            href="/heart-rate"
+            aria-label="Average heart rate — open heart rate chart"
+            className="relative z-10 block min-w-0 active:opacity-70"
+          >
+            <Stat
+              value={avgHr != null ? String(avgHr) : "—"}
+              label="Avg HR ›"
+              icon={avgHr != null ? <BeatingHeart bpm={avgHr} /> : undefined}
+            />
+          </Link>
         </div>
       </div>
 
@@ -284,7 +297,7 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
           )}
         </>
       )}
-    </Link>
+    </section>
   );
 }
 
