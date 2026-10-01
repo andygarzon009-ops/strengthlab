@@ -190,36 +190,6 @@ export default async function ProfilePage() {
           <span style={{ color: "var(--fg-dim)" }}>→</span>
         </Link>
 
-        <Link
-          href="/group"
-          className="card flex items-center justify-between px-4 py-4 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: "var(--bg-elevated)" }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--fg-muted)"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="9" cy="7" r="3" />
-                <circle cx="17" cy="9" r="2.5" />
-                <path d="M3 20c0-3 2.5-5 6-5s6 2 6 5" />
-                <path d="M15 20c0-2 1.5-4 4-4s4 2 4 4" />
-              </svg>
-            </div>
-            <span className="font-medium text-[14px]">Crew</span>
-          </div>
-          <span style={{ color: "var(--fg-dim)" }}>→</span>
-        </Link>
-
         <FriendWorkoutNotifyToggle
           initialEnabled={user.notifyFriendWorkouts}
         />
