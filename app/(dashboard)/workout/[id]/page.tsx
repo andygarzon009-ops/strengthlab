@@ -209,13 +209,18 @@ export default async function WorkoutDetailPage({
 
   return (
     <div className="relative isolate max-w-lg mx-auto px-4 pt-8 pb-24">
+      {/* Anchored to the screen, not the page, so the session's colour
+          stays behind everything as you scroll: a main glow just above
+          centre, a fainter one low down for depth, breathing slowly. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 -z-10"
+        className="session-glow pointer-events-none fixed inset-0 -z-10"
         style={{
-          top: "-6rem",
-          height: 560,
-          background: `radial-gradient(120% 380px at 50% 0, rgba(${sessionGlow}, 0.34) 0%, rgba(${sessionGlow}, 0.12) 45%, transparent 75%)`,
+          background: [
+            `radial-gradient(85% 55% at 50% 38%, rgba(${sessionGlow}, 0.26) 0%, rgba(${sessionGlow}, 0.09) 50%, transparent 78%)`,
+            `radial-gradient(70% 35% at 50% 100%, rgba(${sessionGlow}, 0.12) 0%, transparent 70%)`,
+          ].join(", "),
+          transform: "translateZ(0)",
         }}
       />
       <div className="flex items-center justify-between mb-8">
