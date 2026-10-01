@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import ImageUpload from "@/components/ImageUpload";
 import UsernameField from "@/components/UsernameField";
 import PeriodizationEditor from "@/components/PeriodizationEditor";
-import { type PeriodizationConfig } from "@/lib/periodization";
+import { isValidConfig, type PeriodizationConfig } from "@/lib/periodization";
 import { formatDelta } from "@/lib/bodyMeasurements";
 import type { MeasurementReport } from "@/lib/actions/workouts";
 
@@ -122,6 +122,7 @@ export default function ProfileForm({
   const [image, setImage] = useState<string | null>(user.image);
   const [coverImage, setCoverImage] = useState<string | null>(user.coverImage);
   // Kept outside `form` because it's a structured object, not a text field.
+  const [cycleError, setCycleError] = useState<string | null>(null);
   const [periodization, setPeriodization] = useState<PeriodizationConfig | null>(
     user.periodization,
   );
@@ -239,6 +240,17 @@ export default function ProfileForm({
       if (n === null || !Number.isFinite(n)) return null;
       return unit === "cm" ? Math.round((n / CM_PER_IN) * 100) / 100 : n;
     };
+
+    // An unfinished cycle (a block with no name, no start date) is saved as
+    // "no cycle" by the server — which would silently wipe it. Stop instead.
+    if (periodization && !isValidConfig(periodization)) {
+      setCycleError(
+        "Finish your training cycle first — every block needs a name and the cycle needs a start date.",
+      );
+      document.getElementById("cycle")?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    setCycleError(null);
 
     startTransition(async () => {
       const res = await updateProfileAction({
@@ -424,6 +436,11 @@ export default function ProfileForm({
             trainedDates={trainedDates}
             deloadDates={deloadDates}
           />
+          {cycleError && (
+            <p className="text-[12px] -mt-1" style={{ color: "#f87171" }}>
+              {cycleError}
+            </p>
+          )}
 
           <div className="grid grid-cols-2 gap-2.5">
             <Field

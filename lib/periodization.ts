@@ -503,6 +503,65 @@ Progression: add reps or subtract rest before adding load. Keep heavy work
 minimal so the conditioning stimulus is what accumulates.`,
 };
 
+/// The house blocks offered in the cycle editor, each with an athlete-facing
+/// explanation drawn from the prescription above (same numbers, plain words).
+/// `name` resolves through blockSpec() to the matching spec.
+export type BlockGuide = {
+  name: string;
+  what: string;
+  effort: string;
+  rest: string;
+  why: string;
+};
+
+export const BLOCK_GUIDES: BlockGuide[] = [
+  {
+    name: "Power-building",
+    what:
+      "Each main lift gets one heavy top set of 3–5 reps, then 3–4 back-off sets at 65–75% of that weight for 6–10 reps, then 2–3 accessory sets of 8–12.",
+    effort: "Top set 1–2 reps in reserve; back-offs 2–3 in reserve.",
+    rest: "3–5 min after the top set, 2–3 min on back-offs, 60–90 s on accessories.",
+    why:
+      "Strength and size together: the heavy top set keeps you strong, the back-off volume does the growing. One top-set attempt per lift per week.",
+  },
+  {
+    name: "Hypertrophy",
+    what:
+      "No heavy top sets. Every working set is 6–12 reps — 3–4 sets per compound, 3 per isolation — building from about 10 to 20 hard sets per muscle per week across the block.",
+    effort: "1–2 reps in reserve; the last set of an exercise can go to failure.",
+    rest: "90–120 s on compounds, 60–90 s on isolation.",
+    why:
+      "Volume taken close to failure is the main driver of muscle growth. If you hit the top of the rep range, add weight next time.",
+  },
+  {
+    name: "Pure strength",
+    what:
+      "3–5 sets of 1–5 reps on the main lifts, heavier weight and less total volume. Accessories are minimal: 2–3 sets of 6–10.",
+    effort: "1–3 reps in reserve; at most one near-max effort per lift per week.",
+    rest: "3–5 min on the main lifts — not negotiable.",
+    why:
+      "Heavy, low-rep practice is what makes you stronger at the lifts themselves; lower volume keeps you fresh enough to lift heavy.",
+  },
+  {
+    name: "Peaking",
+    what:
+      "Competition or test lifts only: work up to 1–3 singles or doubles, maybe 1–2 lighter back-off sets, little else. Volume falls each week while intensity creeps up.",
+    effort: "1–2 reps in reserve; no failure, no AMRAPs.",
+    rest: "4–8 min between heavy attempts.",
+    why:
+      "Sheds accumulated fatigue while keeping you sharp on heavy weights, so your strength shows on test day. Run it before a max test or a meet.",
+  },
+  {
+    name: "Endurance",
+    what:
+      "Circuits or supersets of 3–4 sets of 12–20+ reps at moderate weight, 10–16 sets per muscle per week.",
+    effort: "1–2 reps in reserve, clean technique on the last set.",
+    rest: "30–75 s — the short rest is the point.",
+    why:
+      "Builds work capacity and muscular endurance — a useful change of pace between heavy blocks. Progress by adding reps or cutting rest before adding weight.",
+  },
+];
+
 /// Generic fallback for a custom block name the keywords don't recognise.
 const GENERIC: BlockSpec = {
   oneLine: "athlete-defined block",

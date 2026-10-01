@@ -5,8 +5,9 @@
 // workouts with nothing marking a block start or a deload — so the athlete
 // states the cycle here and the week is computed from it.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
+  BLOCK_GUIDES,
   DEFAULT_PERIODIZATION,
   deloadWeekSet,
   periodizationState,
@@ -57,6 +58,8 @@ export default function PeriodizationEditor({
   deloadDates?: string[];
 }) {
   const enabled = value != null;
+  // Which block's explanation is open (the 💡 under each block).
+  const [openGuide, setOpenGuide] = useState<number | null>(null);
   const cfg = value;
 
   const enable = () =>
@@ -149,50 +152,135 @@ export default function PeriodizationEditor({
               Blocks, in order — the cycle repeats when it reaches the end.
             </p>
             <div className="space-y-2">
-              {cfg!.blocks.map((b, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <input
-                    value={b.name}
-                    onChange={(e) => patchBlock(i, { name: e.target.value })}
-                    placeholder="Block name"
-                    className={`${INPUT} flex-1 min-w-0`}
-                    style={INPUT_STYLE}
-                  />
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={26}
-                    value={b.weeks}
-                    onChange={(e) =>
-                      patchBlock(i, { weeks: Math.max(1, Number(e.target.value) || 1) })
-                    }
-                    className={`${INPUT} w-16 text-center tabular-nums`}
-                    style={INPUT_STYLE}
-                  />
-                  <span className="text-[11px] w-6" style={{ color: "var(--fg-dim)" }}>
-                    wk
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      cfg!.blocks.length > 1 &&
-                      patch({ blocks: cfg!.blocks.filter((_, j) => j !== i) })
-                    }
-                    disabled={cfg!.blocks.length <= 1}
-                    aria-label={`Remove ${b.name || "block"}`}
-                    className="w-7 h-7 rounded-lg shrink-0 text-[15px] leading-none disabled:opacity-30"
-                    style={{ background: "var(--bg-card)", color: "var(--fg-dim)" }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
+              {cfg!.blocks.map((b, i) => {
+                // A house block picked from the menu, or a custom name.
+                const guide = BLOCK_GUIDES.find(
+                  (g) => g.name.toLowerCase() === b.name.trim().toLowerCase(),
+                );
+                const custom = !guide;
+                const open = openGuide === i;
+                return (
+                  <div key={i}>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={guide ? guide.name : CUSTOM}
+                        onChange={(e) =>
+                          patchBlock(i, {
+                            // A custom block starts named so the cycle stays
+                            // valid (a blank name would void it on save).
+                            name: e.target.value === CUSTOM ? "Custom block" : e.target.value,
+                          })
+                        }
+                        aria-label={`Block ${i + 1} type`}
+                        className={`${INPUT} flex-1 min-w-0`}
+                        style={INPUT_STYLE}
+                      >
+                        {BLOCK_GUIDES.map((g) => (
+                          <option key={g.name} value={g.name}>
+                            {g.name}
+                          </option>
+                        ))}
+                        <option value={CUSTOM}>Custom…</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setOpenGuide(open ? null : i)}
+                        aria-label={`What is ${guide?.name ?? "this block"}?`}
+                        aria-expanded={open}
+                        className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center"
+                        style={{
+                          background: open ? "var(--accent-dim)" : "var(--bg-card)",
+                          color: open ? "var(--accent)" : "var(--fg-dim)",
+                          border: `1px solid ${open ? "var(--accent-ring)" : "var(--border)"}`,
+                        }}
+                      >
+                        <BulbIcon />
+                      </button>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        max={26}
+                        value={b.weeks}
+                        onChange={(e) =>
+                          patchBlock(i, { weeks: Math.max(1, Number(e.target.value) || 1) })
+                        }
+                        aria-label={`Block ${i + 1} weeks`}
+                        className={`${INPUT} w-14 text-center tabular-nums`}
+                        style={INPUT_STYLE}
+                      />
+                      <span className="text-[11px] w-5" style={{ color: "var(--fg-dim)" }}>
+                        wk
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          cfg!.blocks.length > 1 &&
+                          patch({ blocks: cfg!.blocks.filter((_, j) => j !== i) })
+                        }
+                        disabled={cfg!.blocks.length <= 1}
+                        aria-label={`Remove ${b.name || "block"}`}
+                        className="w-7 h-7 rounded-lg shrink-0 text-[15px] leading-none disabled:opacity-30"
+                        style={{ background: "var(--bg-card)", color: "var(--fg-dim)" }}
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    {custom && (
+                      <input
+                        value={b.name}
+                        onChange={(e) => patchBlock(i, { name: e.target.value })}
+                        placeholder="Name your block"
+                        aria-label={`Block ${i + 1} custom name`}
+                        className={`${INPUT} w-full mt-2`}
+                        style={INPUT_STYLE}
+                      />
+                    )}
+
+                    {open && (
+                      <div
+                        className="mt-2 rounded-lg px-3 py-2.5 text-[12px] leading-snug space-y-1.5"
+                        style={{
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border)",
+                          color: "var(--fg-muted)",
+                        }}
+                      >
+                        {guide ? (
+                          <>
+                            <p className="font-semibold" style={{ color: "var(--fg)" }}>
+                              {guide.name}
+                            </p>
+                            <p>{guide.what}</p>
+                            <p>
+                              <span style={{ color: "var(--fg-dim)" }}>Effort · </span>
+                              {guide.effort}
+                            </p>
+                            <p>
+                              <span style={{ color: "var(--fg-dim)" }}>Rest · </span>
+                              {guide.rest}
+                            </p>
+                            <p style={{ color: "var(--fg)" }}>{guide.why}</p>
+                          </>
+                        ) : (
+                          <p>
+                            A block you name yourself has no set prescription — the
+                            coach programs it from its name, your coach notes and
+                            your recent sessions, defaulting to 3–4 sets of 6–10 at
+                            1–2 reps in reserve.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             <button
               type="button"
               onClick={() =>
-                patch({ blocks: [...cfg!.blocks, { name: "", weeks: 4 }] })
+                patch({ blocks: [...cfg!.blocks, { name: "Hypertrophy", weeks: 4 }] })
               }
               className="mt-2 text-[12px] font-semibold"
               style={{ color: "var(--accent)" }}
@@ -278,5 +366,26 @@ export default function PeriodizationEditor({
         </div>
       )}
     </div>
+  );
+}
+
+const CUSTOM = "__custom__";
+
+function BulbIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M9 18h6M10 22h4" />
+      <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z" />
+    </svg>
   );
 }
