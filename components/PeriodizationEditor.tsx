@@ -189,12 +189,14 @@ export default function PeriodizationEditor({
                         aria-expanded={open}
                         className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center"
                         style={{
-                          background: open ? "var(--accent-dim)" : "var(--bg-card)",
-                          color: open ? "var(--accent)" : "var(--fg-dim)",
-                          border: `1px solid ${open ? "var(--accent-ring)" : "var(--border)"}`,
+                          // Bulb yellow, so it reads as a lightbulb at a glance;
+                          // lit (filled, glowing) while its explainer is open.
+                          background: open ? "rgba(250,204,21,0.16)" : "rgba(250,204,21,0.08)",
+                          color: BULB,
+                          border: `1px solid ${open ? "rgba(250,204,21,0.55)" : "rgba(250,204,21,0.3)"}`,
                         }}
                       >
-                        <BulbIcon />
+                        <BulbIcon lit={open} />
                       </button>
                       <input
                         type="number"
@@ -371,18 +373,22 @@ export default function PeriodizationEditor({
 
 const CUSTOM = "__custom__";
 
-function BulbIcon() {
+const BULB = "#facc15";
+
+function BulbIcon({ lit }: { lit: boolean }) {
   return (
     <svg
-      width="16"
-      height="16"
+      width="17"
+      height="17"
       viewBox="0 0 24 24"
-      fill="none"
+      fill={lit ? BULB : "none"}
+      fillOpacity={lit ? 0.35 : undefined}
       stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
+      style={lit ? { filter: "drop-shadow(0 0 5px rgba(250,204,21,0.7))" } : undefined}
     >
       <path d="M9 18h6M10 22h4" />
       <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z" />
