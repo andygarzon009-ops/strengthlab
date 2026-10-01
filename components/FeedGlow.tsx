@@ -1,11 +1,13 @@
 import { loadTodayPlan } from "@/lib/todayPlan";
 import { loadRecentPRs } from "@/lib/recentPRs";
 import { loadPhase, DELOAD_BLUE } from "@/components/PhaseCard";
+import { getSession } from "@/lib/session";
 
-// A soft light behind the top of the feed, so the day's mood reads before any
-// words: lime after a PR, blue in a deload, otherwise the recovery score's
-// own colour. Nothing when there's nothing to say. Sits under the content in
-// the feed's isolated stacking context.
+// A soft light behind the top of every page, so the day's mood reads before
+// any words: lime after a PR, blue in a deload, otherwise the recovery
+// score's own colour. Nothing when there's nothing to say. Rendered once by
+// the app layout (AppGlow) and sits under the content in its isolated
+// stacking context.
 export default async function FeedGlow({ userId }: { userId: string }) {
   const [plan, prs, phase] = await Promise.all([
     loadTodayPlan(userId).catch(() => null),
@@ -38,4 +40,12 @@ export default async function FeedGlow({ userId }: { userId: string }) {
 function hexToRgba(hex: string, a: number): string {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
+/// The layout doesn't know who's signed in; this reads the session and draws
+/// the glow for them (nothing when signed out).
+export async function AppGlow() {
+  const session = await getSession();
+  if (!session?.userId) return null;
+  return <FeedGlow userId={session.userId} />;
 }

@@ -11,7 +11,6 @@ import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
 import Wordmark from "@/components/Wordmark";
 import FeedTop from "@/components/FeedTop";
-import FeedGlow from "@/components/FeedGlow";
 import CycleCard from "@/components/PhaseCard";
 import CrewPulse from "@/components/CrewPulse";
 import { loadSessionProgress } from "@/lib/sessionProgress";
@@ -30,9 +29,6 @@ export default async function FeedPage() {
   return (
     <PullToRefresh>
     <div className="relative isolate max-w-lg mx-auto px-4 pt-8">
-      <Suspense fallback={null}>
-        <FeedGlow userId={userId} />
-      </Suspense>
       <div className="flex items-end justify-between mb-8">
         <div>
           <p

@@ -10,6 +10,7 @@ import RestNotifications from "@/components/RestNotifications";
 import NotificationWatcher from "@/components/NotificationWatcher";
 import PushAutoSubscribe from "@/components/PushAutoSubscribe";
 import { Suspense } from "react";
+import { AppGlow } from "@/components/FeedGlow";
 
 export default function DashboardLayout({
   children,
@@ -18,7 +19,7 @@ export default function DashboardLayout({
 }) {
   return (
     <div
-      className="min-h-screen"
+      className="relative isolate min-h-screen"
       style={{
         paddingTop: "env(safe-area-inset-top)",
         // Reserve the full bottom-nav height (h-16 = 64px + 1px border) PLUS
@@ -30,6 +31,10 @@ export default function DashboardLayout({
         paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8.5rem)",
       }}
     >
+      {/* The day's colour behind the top of every page. */}
+      <Suspense fallback={null}>
+        <AppGlow />
+      </Suspense>
       {children}
       <NotificationsBell />
       <BottomNav />
