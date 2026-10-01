@@ -112,7 +112,6 @@ export default async function ConsistencyDetailPage() {
       trainingDays: true,
       preferredSplit: true,
       experienceLevel: true,
-      primaryFocus: true,
       weeklyAnalysisCache: true,
     },
   });
@@ -331,7 +330,6 @@ export default async function ConsistencyDetailPage() {
       name: user?.name ?? "Athlete",
       goalDays,
       experienceLevel: user?.experienceLevel ?? null,
-      primaryFocus: user?.primaryFocus ?? null,
       preferredSplit: user?.preferredSplit ?? null,
       trainedDays,
       grid: grid.map((g) => ({
@@ -610,7 +608,6 @@ async function generateAnalysis(args: {
   name: string;
   goalDays: number | null;
   experienceLevel: string | null;
-  primaryFocus: string | null;
   preferredSplit: string | null;
   trainedDays: number;
   grid: {
@@ -666,7 +663,6 @@ async function generateAnalysis(args: {
 
   const profile = [
     args.experienceLevel ? `experience ${args.experienceLevel}` : null,
-    args.primaryFocus ? `focus ${args.primaryFocus}` : null,
     args.preferredSplit ? `preferred split ${args.preferredSplit}` : null,
     args.goalDays ? `goal ${args.goalDays}× / week` : null,
   ]

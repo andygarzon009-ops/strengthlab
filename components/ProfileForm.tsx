@@ -343,6 +343,9 @@ export default function ProfileForm({
         </button>
         {showTraining && (
           <form onSubmit={handleSubmit} className="space-y-3 px-5 pb-5 pt-1">
+          <p className="label text-[10px] pt-1" style={{ color: "var(--accent)" }}>
+            You
+          </p>
           <Field
             label="Name"
             value={form.name}
@@ -380,6 +383,49 @@ export default function ProfileForm({
               placeholder="185"
               suffix="lb"
             />
+            <div>
+              <label className="label block mb-1.5">Experience</label>
+              <Select
+                value={form.experienceLevel}
+                onChange={set("experienceLevel")}
+                options={[
+                  { value: "", label: "—" },
+                  { value: "BEGINNER", label: "Beginner (<1 yr)" },
+                  { value: "INTERMEDIATE", label: "Intermediate (1–3 yrs)" },
+                  { value: "ADVANCED", label: "Advanced (3+ yrs)" },
+                  { value: "ELITE", label: "Elite / Competitive" },
+                ]}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="label block mb-1.5">Bio</label>
+            <textarea
+              value={form.bio}
+              onChange={(e) => set("bio")(e.target.value)}
+              placeholder="A bit about you…"
+              rows={2}
+              className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none leading-relaxed"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
+              }}
+            />
+          </div>
+
+          <p className="label text-[10px] pt-3" style={{ color: "var(--accent)" }}>
+            Training
+          </p>
+          <div id="cycle" style={{ scrollMarginTop: 16 }} />
+          <PeriodizationEditor
+            value={periodization}
+            onChange={setPeriodization}
+            trainedDates={trainedDates}
+            deloadDates={deloadDates}
+          />
+
+          <div className="grid grid-cols-2 gap-2.5">
             <Field
               label="Days / week"
               type="number"
@@ -387,84 +433,13 @@ export default function ProfileForm({
               onChange={set("trainingDays")}
               placeholder="4"
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
             <Field
-              label="Move goal"
-              type="number"
-              value={form.moveGoalKcal}
-              onChange={set("moveGoalKcal")}
-              placeholder="500"
-              suffix="kcal"
-            />
-            <Field
-              label="Exercise goal"
-              type="number"
-              value={form.exerciseGoalMin}
-              onChange={set("exerciseGoalMin")}
-              placeholder="30"
-              suffix="min"
+              label="Preferred split"
+              value={form.preferredSplit}
+              onChange={set("preferredSplit")}
+              placeholder="e.g. PPL"
             />
           </div>
-
-          <div>
-            <label className="label block mb-1.5">Experience</label>
-            <Select
-              value={form.experienceLevel}
-              onChange={set("experienceLevel")}
-              options={[
-                { value: "", label: "—" },
-                { value: "BEGINNER", label: "Beginner (<1 yr)" },
-                { value: "INTERMEDIATE", label: "Intermediate (1–3 yrs)" },
-                { value: "ADVANCED", label: "Advanced (3+ yrs)" },
-                { value: "ELITE", label: "Elite / Competitive" },
-              ]}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            <div>
-              <label className="label block mb-1.5">Primary focus</label>
-              <Select
-                value={form.primaryFocus}
-                onChange={set("primaryFocus")}
-                options={[
-                  { value: "", label: "—" },
-                  { value: "STRENGTH", label: "Strength" },
-                  { value: "HYPERTROPHY", label: "Hypertrophy" },
-                  { value: "POWERBUILDING", label: "Powerbuilding" },
-                  { value: "ATHLETIC", label: "Athletic performance" },
-                  { value: "ENDURANCE", label: "Endurance" },
-                  { value: "GENERAL", label: "General fitness" },
-                ]}
-              />
-            </div>
-            <div>
-              <label className="label block mb-1.5">Current phase</label>
-              <Select
-                value={form.trainingPhase}
-                onChange={set("trainingPhase")}
-                options={[
-                  { value: "", label: "—" },
-                  { value: "CUT", label: "Cutting" },
-                  { value: "BULK", label: "Bulking" },
-                  { value: "MAINTAIN", label: "Maintaining" },
-                  { value: "RECOMP", label: "Recomp" },
-                  { value: "PEAK", label: "Peaking" },
-                  { value: "OFFSEASON", label: "Off-season" },
-                ]}
-              />
-            </div>
-          </div>
-
-          <Field
-            label="Preferred split"
-            value={form.preferredSplit}
-            onChange={set("preferredSplit")}
-            placeholder="e.g. Push / Pull / Legs"
-          />
-
           <div>
             <label className="label block mb-1.5">
               Injuries / limitations
@@ -483,29 +458,51 @@ export default function ProfileForm({
             />
           </div>
 
+          <p className="label text-[10px] pt-3" style={{ color: "var(--accent)" }}>
+            Goals
+          </p>
           <div>
-            <label className="label block mb-1.5">Bio</label>
-            <textarea
-              value={form.bio}
-              onChange={(e) => set("bio")(e.target.value)}
-              placeholder="A bit about you…"
-              rows={2}
-              className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none leading-relaxed"
-              style={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
-                color: "var(--fg)",
-              }}
+            <label className="label block mb-1.5">Nutrition goal</label>
+            <Select
+              value={form.trainingPhase}
+              onChange={set("trainingPhase")}
+              options={[
+                { value: "", label: "—" },
+                { value: "CUT", label: "Cut" },
+                { value: "BULK", label: "Lean bulk" },
+                { value: "MAINTAIN", label: "Maintain" },
+                { value: "RECOMP", label: "Recomp" },
+                // Older choices stay selectable for whoever already has them.
+                ...(form.trainingPhase === "PEAK"
+                  ? [{ value: "PEAK", label: "Peaking" }]
+                  : []),
+                ...(form.trainingPhase === "OFFSEASON"
+                  ? [{ value: "OFFSEASON", label: "Off-season" }]
+                  : []),
+              ]}
+            />
+            <p className="text-[11px] mt-1.5" style={{ color: "var(--fg-dim)" }}>
+              Sets your Fuel Score&apos;s calorie and protein targets.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <Field
+              label="Move goal"
+              type="number"
+              value={form.moveGoalKcal}
+              onChange={set("moveGoalKcal")}
+              placeholder="500"
+              suffix="kcal"
+            />
+            <Field
+              label="Exercise goal"
+              type="number"
+              value={form.exerciseGoalMin}
+              onChange={set("exerciseGoalMin")}
+              placeholder="30"
+              suffix="min"
             />
           </div>
-
-          <div id="cycle" style={{ scrollMarginTop: 16 }} />
-          <PeriodizationEditor
-            value={periodization}
-            onChange={setPeriodization}
-            trainedDates={trainedDates}
-            deloadDates={deloadDates}
-          />
 
           <div>
             <div className="flex items-baseline justify-between mb-1.5">

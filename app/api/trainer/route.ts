@@ -1376,8 +1376,7 @@ PROFILE:
           : "not set"
   }
 - Experience level: ${user?.experienceLevel ?? "not specified"}
-- Primary focus: ${user?.primaryFocus ?? "not specified"}
-- Current phase: ${user?.trainingPhase ?? "not specified"}
+- Nutrition goal: ${user?.trainingPhase ?? "not specified"}
 - Target training days per week: ${user?.trainingDays ?? "not specified"}
 - Bodyweight: ${user?.bodyweight ? `${user.bodyweight}lbs` : "not set"}
 - Preferred split: ${user?.preferredSplit ?? "not specified"}
