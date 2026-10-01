@@ -196,8 +196,28 @@ export default async function WorkoutDetailPage({
   const topSetLabel =
     topSetWeight > 0 ? formatLoad(topSet.name, topSetWeight) : "—";
 
+  // The session's own colour, stronger than the app-wide glow: lime for a
+  // PR, deload blue, red-orange for cardio, green for lifting.
+  const sessionGlow =
+    prs.length > 0
+      ? "163, 230, 53"
+      : workout.isDeload
+        ? "96, 165, 250"
+        : shape === "STRENGTH"
+          ? "34, 197, 94"
+          : "249, 115, 22";
+
   return (
-    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+    <div className="relative isolate max-w-lg mx-auto px-4 pt-8 pb-24">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 -z-10"
+        style={{
+          top: "-6rem",
+          height: 560,
+          background: `radial-gradient(120% 380px at 50% 0, rgba(${sessionGlow}, 0.34) 0%, rgba(${sessionGlow}, 0.12) 45%, transparent 75%)`,
+        }}
+      />
       <div className="flex items-center justify-between mb-8">
         <BackButton fallbackHref="/" />
         {isOwn && (
