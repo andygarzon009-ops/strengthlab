@@ -27,7 +27,7 @@ export default async function FeedGlow({ userId }: { userId: string }) {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-x-0 -z-10"
+      className="glow-in pointer-events-none absolute inset-x-0 -z-10"
       style={{
         top: "-4rem",
         height: 420,

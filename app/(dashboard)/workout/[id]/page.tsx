@@ -217,8 +217,8 @@ export default async function WorkoutDetailPage({
         className="session-glow pointer-events-none fixed inset-0 -z-10"
         style={{
           background: [
-            `radial-gradient(85% 55% at 50% 38%, rgba(${sessionGlow}, 0.26) 0%, rgba(${sessionGlow}, 0.09) 50%, transparent 78%)`,
-            `radial-gradient(70% 35% at 50% 100%, rgba(${sessionGlow}, 0.12) 0%, transparent 70%)`,
+            `radial-gradient(85% 55% at 50% 38%, rgba(${sessionGlow}, 0.18) 0%, rgba(${sessionGlow}, 0.06) 50%, transparent 78%)`,
+            `radial-gradient(70% 35% at 50% 100%, rgba(${sessionGlow}, 0.08) 0%, transparent 70%)`,
           ].join(", "),
           transform: "translateZ(0)",
         }}
