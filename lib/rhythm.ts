@@ -45,6 +45,7 @@ export type Rhythm = { streak: number; goal: number; load: MuscleLoad };
 export async function loadRhythm(
   userId: string,
   trainingDaysGoal?: number | null,
+  sex?: string | null,
 ): Promise<Rhythm | null> {
   // Pull enough history to compute a multi-week streak and muscle recency.
   const since = startOfWeek(subWeeks(new Date(), 25), { weekStartsOn: 1 });
@@ -141,7 +142,7 @@ export async function loadRhythm(
 
   const load: MuscleLoad = {};
   for (const [muscle, byWorkout] of Object.entries(sessions)) {
-    load[muscle] = summarize(muscle, [...byWorkout.values()]);
+    load[muscle] = summarize(muscle, [...byWorkout.values()], sex);
   }
 
   return { streak, goal, load };

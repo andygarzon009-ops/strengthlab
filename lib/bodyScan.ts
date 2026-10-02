@@ -45,9 +45,13 @@ export type MuscleStat = {
 
 /// Fatigue from a session decays exponentially; its window is when it's
 /// essentially gone (~95%), so the time constant is a third of it.
-export function summarize(muscle: string, sessions: MuscleSessions): MuscleStat | undefined {
+export function summarize(
+  muscle: string,
+  sessions: MuscleSessions,
+  sex?: string | null,
+): MuscleStat | undefined {
   if (sessions.length === 0) return undefined;
-  const { hours, mrv } = recoveryFor(muscle);
+  const { hours, mrv } = recoveryFor(muscle, sex);
   const dose = mrv / 3;
   const sorted = [...sessions].sort((a, b) => a.hoursAgo - b.hoursAgo);
   const last = sorted[0];

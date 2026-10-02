@@ -54,6 +54,32 @@ export const MUSCLE_RECOVERY: Record<string, Recovery> = {
 
 const DEFAULT_RECOVERY: Recovery = { hours: 48, mrv: 20 };
 
-export function recoveryFor(muscle: string): Recovery {
-  return MUSCLE_RECOVERY[muscle] ?? DEFAULT_RECOVERY;
+/// Women fatigue less at the same relative load and recover faster between
+/// sessions — a larger share of type I fibre and less muscle damage after
+/// the same work (Hunter, Med Sci Sports Exerc 2014; Judge & Burke, J
+/// Strength Cond Res 2010) — so they tolerate more weekly volume. A sixth
+/// faster recovery and a fifth more sets than the table above.
+const FEMALE_HOURS = 0.85;
+const FEMALE_MRV = 1.2;
+
+/// Glutes get their own number: female glute-focused programmes routinely
+/// run 20–25+ direct sets a week, and the squats, RDLs and lunges around
+/// them add half-sets on top — 16 painted a normal glute week red.
+const FEMALE_OVERRIDES: Record<string, Recovery> = {
+  Glutes: { hours: 48, mrv: 26 },
+};
+
+export function isFemale(sex: string | null | undefined): boolean {
+  return (sex ?? "").trim().toUpperCase().startsWith("F");
+}
+
+export function recoveryFor(muscle: string, sex?: string | null): Recovery {
+  const base = MUSCLE_RECOVERY[muscle] ?? DEFAULT_RECOVERY;
+  if (!isFemale(sex)) return base;
+  return (
+    FEMALE_OVERRIDES[muscle] ?? {
+      hours: Math.round(base.hours * FEMALE_HOURS),
+      mrv: Math.round(base.mrv * FEMALE_MRV),
+    }
+  );
 }

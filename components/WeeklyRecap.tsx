@@ -66,7 +66,7 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
       orderBy: { date: "asc" },
     }),
     loadTodayPlan(userId),
-    loadRhythm(userId, user?.trainingDays).catch(() => null),
+    loadRhythm(userId, user?.trainingDays, user?.sex).catch(() => null),
   ]);
   const week = workouts.filter((w) => keys.includes(localDateKey(w.date, tz)));
 
