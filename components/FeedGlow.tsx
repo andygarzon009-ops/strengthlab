@@ -3,11 +3,12 @@ import { loadRecentPRs } from "@/lib/recentPRs";
 import { loadPhase, DELOAD_BLUE } from "@/components/PhaseCard";
 import { getSession } from "@/lib/session";
 
-// A soft light behind the top of every page, so the day's mood reads before
-// any words: lime after a PR, blue in a deload, otherwise the recovery
-// score's own colour. Nothing when there's nothing to say. Rendered once by
-// the app layout (AppGlow) and sits under the content in its isolated
-// stacking context.
+// The day's colour behind every page, so its mood reads before any words:
+// lime after a PR, blue in a deload, otherwise the recovery score's own
+// colour. Nothing when there's nothing to say. Same treatment as a logged
+// workout's glow — anchored to the screen, from just above centre with a
+// fainter tone low down, fading in and breathing (.session-glow) — so it
+// stays behind the content as you scroll. Rendered once by the app layout.
 export default async function FeedGlow({ userId }: { userId: string }) {
   const [plan, prs, phase] = await Promise.all([
     loadTodayPlan(userId).catch(() => null),
@@ -15,23 +16,26 @@ export default async function FeedGlow({ userId }: { userId: string }) {
     loadPhase(userId).catch(() => null),
   ]);
   const score = plan?.readiness.score ?? null;
-  const color =
+  const tint: ((alpha: number) => string) | null =
     prs.length > 0
-      ? "rgba(163,230,53,0.18)"
+      ? (a) => `rgba(163, 230, 53, ${a})`
       : phase?.state.isDeloadWeek
-        ? hexToRgba(DELOAD_BLUE, 0.16)
+        ? (a) => hexToRgba(DELOAD_BLUE, a)
         : score != null
-          ? `hsla(${Math.round((Math.max(0, Math.min(100, score)) / 100) * 120)}, 80%, 48%, 0.14)`
+          ? (a) =>
+              `hsla(${Math.round((Math.max(0, Math.min(100, score)) / 100) * 120)}, 80%, 48%, ${a})`
           : null;
-  if (!color) return null;
+  if (!tint) return null;
   return (
     <div
       aria-hidden
-      className="glow-in pointer-events-none absolute inset-x-0 -z-10"
+      className="session-glow pointer-events-none fixed inset-0 -z-10"
       style={{
-        top: "-4rem",
-        height: 420,
-        background: `radial-gradient(120% 340px at 50% 0, ${color} 0%, transparent 70%)`,
+        background: [
+          `radial-gradient(85% 55% at 50% 38%, ${tint(0.15)} 0%, ${tint(0.05)} 50%, transparent 78%)`,
+          `radial-gradient(70% 35% at 50% 100%, ${tint(0.07)} 0%, transparent 70%)`,
+        ].join(", "),
+        transform: "translateZ(0)",
       }}
     />
   );
