@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 
-// Bumped from v1 → v2 when the tour was rewritten around the coach +
-// autolog + rest-pill features. Old users see the new tour once.
-const SEEN_KEY = "strengthlab.tutorialSeen.v2";
+// Bumped v2 → v3 when the tour became a step-by-step walkthrough of the
+// Today feed, training cycle, body scan and health sync. Everyone sees the
+// new tour once.
+const SEEN_KEY = "strengthlab.tutorialSeen.v3";
 
 export const markTutorialSeen = () => {
   if (typeof window !== "undefined") {
@@ -21,7 +22,10 @@ type Slide = {
   badge: string;
   title: string;
   body: string;
-  bullets?: string[];
+  /// How to use it, in order — rendered as numbered steps.
+  steps: string[];
+  /// One extra thing worth knowing.
+  tip?: string;
   icon: React.ReactNode;
 };
 
@@ -42,14 +46,51 @@ const I = (path: React.ReactNode) => (
 
 const SLIDES: Slide[] = [
   {
-    badge: "Log it yourself",
-    title: "Capture every set, fast",
-    body: "Hit Log, pick a session type, and add exercises. Each set takes weight × reps and an optional RIR.",
-    bullets: [
-      "Plate-loaded and Smith machine sets count plates per side — tap the +5 pill to wipe micro-loading",
-      "Tap the rest pill on any exercise to fire a 60s–4m countdown when you check a set off",
-      "Search the full exercise library, dictate sets with the mic, or add custom lifts",
+    badge: "Feed",
+    title: "Your day at a glance",
+    body: "The feed opens on what to do today, where you are in your training cycle, and how your week is going.",
+    steps: [
+      "Check the Today card: your readiness ring, the session that's up next, and a one-line read on your recovery.",
+      "Tap Start to open that session pre-filled from the last time you did it.",
+      "Below it, the cycle bar shows your current block, this week, and when the next deload lands.",
+      "This week shows the days you've trained, your sets, PRs and average heart rate — tap Avg HR for the full chart.",
     ],
+    tip: "The glow behind the page is the day's mood: green when recovered, blue in a deload, lime after a PR.",
+    icon: I(
+      <>
+        <path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />
+      </>
+    ),
+  },
+  {
+    badge: "Start a workout",
+    title: "Get a session going",
+    body: "Start from the Today card, or from scratch with the + button.",
+    steps: [
+      "Tap the green + in the bottom bar (or Start on the Today card).",
+      "Pick the session type — Weight training, a run, a hike…",
+      "Tap Begin workout to start the clock.",
+      "Tap + Add Exercise to search the library, or the mic to say your exercises out loud.",
+    ],
+    tip: "Training with someone? Tap + Invite a training partner — you each keep your own log.",
+    icon: I(
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 8v8M8 12h8" />
+      </>
+    ),
+  },
+  {
+    badge: "Log your sets",
+    title: "Every set, in seconds",
+    body: "Each set is weight × reps, plus how many reps you had left in the tank.",
+    steps: [
+      "Enter the weight and reps for the set.",
+      "Add RIR — reps in reserve: 0 = to failure, 2 = two more were possible. Hard sets count for more in your recovery.",
+      "Tap ✓ to check the set off — your rest timer starts if you've set one with the Rest timer pill.",
+      "Went lighter straight after? Tap ↘ on a set to add a drop set under it.",
+    ],
+    tip: "Taking it easy this week? Turn on Deload week before you save.",
     icon: I(
       <>
         <path d="M11 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" />
@@ -58,30 +99,33 @@ const SLIDES: Slide[] = [
     ),
   },
   {
-    badge: "Coach plans, you lift",
-    title: "One tap to a programmed session",
-    body: 'Ask the coach for a workout — "give me a push day", "what should I train today" — and tap "Do this workout" on the reply.',
-    bullets: [
-      "The logger opens pre-loaded with target weight × reps for every set",
-      "The rest timer is auto-set to match the prescription on each lift",
-      "As you train, just hit ✓ on each set — the timer fires automatically",
+    badge: "Finish",
+    title: "Save it and see what moved",
+    body: "Saving does the bookkeeping for you.",
+    steps: [
+      "Tap Finish (or Save) when you're done.",
+      "PRs are detected automatically and get a lime PR badge.",
+      "Your heart rate for the session syncs from your watch on its own.",
+      "Open the session any time to see every set, the heart-rate chart, and edit it.",
     ],
+    tip: "No heart rate? Open the session and tap Sync heart rate from Fitbit.",
     icon: I(
       <>
         <polyline points="20 6 9 17 4 12" />
-        <path d="M3 12h4M17 12h4" />
       </>
     ),
   },
   {
-    badge: "Coach as a training partner",
-    title: "Talk to it while you lift",
-    body: 'Drop set reports into chat ("bench 225 for 5", "smoked it") and they\'re logged in the background — a green ✓ chip shows what was saved.',
-    bullets: [
-      "Real-time spotter calls — get the next set's load based on how the last one felt",
-      "Form cues, progression reads, weekly planning, deload calls",
-      "Voice or text — the coach sees every PR and recent session",
+    badge: "Coach",
+    title: "A coach that knows your training",
+    body: "It sees your sessions, PRs, recovery and training cycle.",
+    steps: [
+      "Tap the coach button above the bottom bar.",
+      "Ask anything — \"what should I train today?\", \"give me a push day\", \"why is my bench stuck?\"",
+      "On a workout reply, tap Do this workout — the log opens with every set and target weight filled in.",
+      "Mid-session, text it your sets (\"bench 225 for 5\") and they're logged for you — a green ✓ shows what was saved.",
     ],
+    tip: "Tell it how you like to train in Coach AI notes on your profile — it reads them every time.",
     icon: I(
       <>
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -90,13 +134,65 @@ const SLIDES: Slide[] = [
     ),
   },
   {
-    badge: "Progress + your crew",
-    title: "Stack up reps, train together",
-    body: "Every session is yours forever. Calendar view, volume charts, top lifts, muscle-group frequency, and auto-detected PRs.",
-    bullets: [
-      "Create a group with a 6-character invite code to share workouts",
-      "React 🔥💪🏆 and comment on your crew's sessions",
-      "Run challenges with deadlines and winners",
+    badge: "Training cycle",
+    title: "Plan your blocks",
+    body: "Your cycle tells the coach what you're training for each week — and when to back off.",
+    steps: [
+      "Go to You → Training profile → Training cycle (or tap the cycle card on the feed).",
+      "Pick each block from the menu — Power-building, Hypertrophy, Pure strength… — and set its weeks.",
+      "Tap the 💡 next to a block to see exactly what it means: reps, effort, rest and why.",
+      "Set when the cycle started and how often to deload, then Save.",
+    ],
+    tip: "A week where you log deload sessions counts as your deload — the countdown restarts from there.",
+    icon: I(
+      <>
+        <path d="M3 12h4l3-8 4 16 3-8h4" />
+      </>
+    ),
+  },
+  {
+    badge: "Body scan",
+    title: "See what's recovered",
+    body: "The body map in This week colours each muscle by how recently and how hard you trained it.",
+    steps: [
+      "Dark = untouched for a week. Blue = stale. Green to lime = trained, building volume.",
+      "Orange-red = overworked: hit again before recovering, or past its weekly limit.",
+      "Ready in shows how many hours until each muscle is recovered — core bounces back in ~36 h, chest and hamstrings take ~72 h.",
+      "Tap the card for your full progress breakdown.",
+    ],
+    tip: "Logging RIR makes it sharper — a set to failure counts for more than an easy one.",
+    icon: I(
+      <>
+        <circle cx="12" cy="5" r="2" />
+        <path d="M8 9h8l-1 6h-2l-1 6-1-6H9z" />
+      </>
+    ),
+  },
+  {
+    badge: "Log",
+    title: "Your history",
+    body: "Every session you've ever logged, on a calendar and in a list.",
+    steps: [
+      "Tap Log in the bottom bar.",
+      "Green days are training days, blue days were deloads — tap a day to open it.",
+      "Scroll the list to see each session's top lift and how it moved since last time.",
+    ],
+    icon: I(
+      <>
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <path d="M16 2v4M8 2v4M3 10h18" />
+      </>
+    ),
+  },
+  {
+    badge: "Crew",
+    title: "Train with friends",
+    body: "Follow people to see their sessions and cheer them on.",
+    steps: [
+      "Tap Crew in the bottom bar.",
+      "Search a friend's @username or name and follow them.",
+      "React to their sessions with Fire, PR or Like, and leave comments.",
+      "The row on your feed rings green when someone's trained today.",
     ],
     icon: I(
       <>
@@ -104,6 +200,22 @@ const SLIDES: Slide[] = [
         <circle cx="9" cy="7" r="4" />
         <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </>
+    ),
+  },
+  {
+    badge: "Health",
+    title: "Connect your watch",
+    body: "Sleep, HRV and resting heart rate power your readiness score and the coach's calls.",
+    steps: [
+      "Go to You → Health & Fitbit and connect Google Health.",
+      "Recovery, sleep and activity fill in on their own from then on.",
+      "Set your Nutrition goal (cut, bulk, maintain…) in your profile so your Fuel Score targets are right.",
+    ],
+    tip: "If a banner asks you to reconnect, tap it — Google's connection expires about weekly while the app is in testing.",
+    icon: I(
+      <>
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
       </>
     ),
   },
@@ -208,22 +320,42 @@ export default function Tutorial({
         >
           {slide.body}
         </p>
-        {slide.bullets && (
-          <ul className="mt-5 space-y-2 max-w-md w-full text-left">
-            {slide.bullets.map((b) => (
-              <li
-                key={b}
-                className="flex items-start gap-3 text-[14px]"
-                style={{ color: "var(--fg)" }}
+        <ol className="mt-6 space-y-3 max-w-md w-full text-left">
+          {slide.steps.map((step, i) => (
+            <li
+              key={step}
+              className="flex items-start gap-3 text-[14px] leading-snug"
+              style={{ color: "var(--fg)" }}
+            >
+              <span
+                className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[12px] font-bold nums"
+                style={{
+                  background: "var(--accent-dim)",
+                  color: "var(--accent)",
+                  border: "1px solid rgba(34,197,94,0.3)",
+                  fontFamily: "var(--font-geist-mono)",
+                }}
               >
-                <span
-                  className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{ background: "var(--accent)" }}
-                />
-                <span>{b}</span>
-              </li>
-            ))}
-          </ul>
+                {i + 1}
+              </span>
+              <span className="pt-0.5">{step}</span>
+            </li>
+          ))}
+        </ol>
+        {slide.tip && (
+          <p
+            className="mt-5 max-w-md w-full text-left text-[13px] leading-snug rounded-xl px-3.5 py-3"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              color: "var(--fg-muted)",
+            }}
+          >
+            <span className="font-semibold" style={{ color: "var(--fg)" }}>
+              Tip ·{" "}
+            </span>
+            {slide.tip}
+          </p>
         )}
       </div>
 
