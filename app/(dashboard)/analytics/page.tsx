@@ -367,7 +367,7 @@ export default async function AnalyticsPage() {
   })();
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-10 pb-24">
+    <div className="max-w-lg mx-auto px-4 pt-10">
       <div className="mb-8">
         <div className="flex items-start justify-between gap-3">
           <div>

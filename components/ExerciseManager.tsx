@@ -87,7 +87,7 @@ export default function ExerciseManager({
   );
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+    <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-2 mb-6">
         <BackButton href="/profile" ariaLabel="Back to profile" />
         <div className="flex-1">

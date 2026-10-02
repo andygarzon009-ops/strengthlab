@@ -136,7 +136,7 @@ export default async function PublicProfilePage({
     .slice(0, 5);
 
   return (
-    <div className="max-w-lg mx-auto pb-24">
+    <div className="max-w-lg mx-auto">
       {/* Cover */}
       <div className="relative">
         <div

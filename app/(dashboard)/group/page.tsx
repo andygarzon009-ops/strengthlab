@@ -367,7 +367,7 @@ export default async function CrewPage() {
 
   return (
     <PullToRefresh>
-    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+    <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="mb-5">
         <p className="label">Crew</p>
         <h1 className="text-[28px] font-bold tracking-tight leading-none mt-1">

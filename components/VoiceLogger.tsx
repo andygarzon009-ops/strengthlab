@@ -138,7 +138,7 @@ export default function VoiceLogger() {
   else if (!supported) micLabel = "Voice not supported — type below";
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+    <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="mb-6">
         <p className="label">Voice log</p>
         <h1 className="text-[26px] font-bold tracking-tight leading-none mt-1">

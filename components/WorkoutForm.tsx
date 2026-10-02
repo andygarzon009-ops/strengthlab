@@ -974,7 +974,7 @@ export default function WorkoutForm({
   // STEP 1: Pick type
   if (step === "type" && mode === "create") {
     return (
-      <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+      <div className="max-w-lg mx-auto px-4 pt-8">
         <div className="flex items-center gap-2 mb-8">
           <Link
             href={backHref}
@@ -1136,7 +1136,7 @@ export default function WorkoutForm({
 
   // STEP 2: Log details
   return (
-    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+    <div className="max-w-lg mx-auto px-4 pt-8">
       {/* Pinned so the clock, the session's progress and Finish stay reachable
           from anywhere in a long log, instead of scrolling off after the first
           exercise. Negative margins let it span the page gutter. */}

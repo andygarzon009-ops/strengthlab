@@ -40,7 +40,7 @@ export default async function ChallengesPage() {
   );
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+    <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-3 mb-6">
         <BackButton href="/group" ariaLabel="Back to crew" />
         <div>

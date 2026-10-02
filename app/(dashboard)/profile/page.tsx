@@ -39,7 +39,7 @@ export default async function ProfilePage() {
   ];
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+    <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-4 mb-8">
         <div
           className="w-14 h-14 rounded-2xl flex items-center justify-center text-[22px] font-semibold"

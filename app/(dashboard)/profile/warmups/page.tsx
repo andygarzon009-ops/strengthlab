@@ -6,7 +6,7 @@ export default async function PreferredWarmupsPage() {
   const initial = await loadPreferredWarmups();
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+    <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-3 mb-6">
         <BackButton href="/profile" ariaLabel="Back to profile" />
         <div>

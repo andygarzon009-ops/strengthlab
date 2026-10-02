@@ -38,7 +38,7 @@ export default async function LiftDrilldownPage({
   });
   if (!exercise) {
     return (
-      <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+      <div className="max-w-lg mx-auto px-4 pt-8">
         <p className="text-[14px]" style={{ color: "var(--fg-dim)" }}>
           Lift not found.
         </p>
@@ -116,7 +116,7 @@ export default async function LiftDrilldownPage({
   const coachInsight = buildLiftCoachInsight(sessions, exercise.name);
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+    <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-3 mb-5">
         <BackButton href="/consistency" ariaLabel="Back to rhythm" />
         <div className="min-w-0 flex-1">

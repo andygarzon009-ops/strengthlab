@@ -97,7 +97,7 @@ export default async function HistoryPage() {
   ];
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+    <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="mb-8">
         <p className="label">History</p>
         <h1 className="text-[28px] font-bold tracking-tight leading-none mt-1">

@@ -61,7 +61,7 @@ export default async function NotificationsPage() {
   const isEmpty = incoming.length === 0 && activity.length === 0;
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+    <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-3 mb-6">
         <BackButton fallbackHref="/group" />
         <div>

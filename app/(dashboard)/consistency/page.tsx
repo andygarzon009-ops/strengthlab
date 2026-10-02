@@ -352,7 +352,7 @@ export default async function ConsistencyDetailPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+    <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-3 mb-4">
         <BackButton href="/" ariaLabel="Back to feed" />
         <h1 className="text-[22px] font-bold tracking-tight leading-none flex-1">

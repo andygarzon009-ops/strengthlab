@@ -208,7 +208,7 @@ export default async function WorkoutDetailPage({
           : "249, 115, 22";
 
   return (
-    <div className="relative isolate max-w-lg mx-auto px-4 pt-8 pb-24">
+    <div className="relative isolate max-w-lg mx-auto px-4 pt-8">
       {/* Anchored to the screen, not the page, so the session's colour
           stays behind everything as you scroll: a main glow just above
           centre, a fainter one low down for depth, breathing slowly. */}

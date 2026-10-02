@@ -17,7 +17,7 @@ export default async function HealthPage({
   const { connected, error } = await searchParams;
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+    <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-3 mb-3">
         <BackButton href="/profile" ariaLabel="Back to profile" />
         <h1 className="text-[22px] font-bold tracking-tight">Health</h1>
