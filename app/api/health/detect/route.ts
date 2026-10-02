@@ -1,3 +1,4 @@
+import { healthErrorMessage } from "@/lib/googleHealth";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { listUnmatchedFitbitSessions } from "@/lib/fitbitDetect";
@@ -21,7 +22,8 @@ export async function GET(req: Request) {
       lastSyncedAt: lastSyncedAt?.toISOString() ?? null,
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    // Plain words for the athlete; the raw API error goes to the logs.
+    const msg = healthErrorMessage(e);
     return Response.json(
       { connected: true, error: msg, sessions: [] },
       { status: 502 }

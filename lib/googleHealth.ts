@@ -170,15 +170,61 @@ export async function checkHealthAuth(
   }
 }
 
+/// A failed Health API call. `status` is the HTTP status (0 for a network
+/// failure or timeout). The message carries the raw detail for the server
+/// logs; anything shown to the athlete goes through healthErrorMessage().
+export class HealthApiError extends Error {
+  constructor(
+    public status: number,
+    detail: string,
+  ) {
+    super(detail);
+    this.name = "HealthApiError";
+  }
+}
+
+/// Google Health has transient outages (503 UNAVAILABLE, 500s, rate limits).
+/// Those are retried — twice, after 0.6 s and 1.8 s — before giving up.
+const RETRYABLE = new Set([0, 429, 500, 502, 503, 504]);
+const RETRY_DELAYS_MS = [600, 1800];
+
 async function healthFetch(userId: string, path: string): Promise<unknown> {
   const token = await getValidAccessToken(userId);
-  const res = await fetchWithTimeout(`${HEALTH_API_BASE}${path}`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-  });
-  if (!res.ok) {
-    throw new Error(`Health API ${path} failed: ${res.status} ${await res.text()}`);
+  for (let attempt = 0; ; attempt++) {
+    let status = 0;
+    let detail = "";
+    try {
+      const res = await fetchWithTimeout(`${HEALTH_API_BASE}${path}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      });
+      if (res.ok) return res.json();
+      status = res.status;
+      detail = `Health API ${path} failed: ${res.status} ${await res.text()}`;
+    } catch (e) {
+      detail = `Health API ${path} failed: ${e instanceof Error ? e.message : String(e)}`;
+    }
+    if (!RETRYABLE.has(status) || attempt >= RETRY_DELAYS_MS.length) {
+      throw new HealthApiError(status, detail);
+    }
+    await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
   }
-  return res.json();
+}
+
+/// What to tell the athlete when a Health call fails — never the raw API
+/// URL or response body. The full error is logged for us.
+export function healthErrorMessage(e: unknown): string {
+  console.error("[google-health]", e);
+  if (e instanceof HealthReauthRequiredError) {
+    return "Your Google Health connection expired — reconnect it on the Health page.";
+  }
+  const status = e instanceof HealthApiError ? e.status : -1;
+  if (status === 401 || status === 403) {
+    return "Google Health didn't allow that — reconnect it on the Health page.";
+  }
+  if (status === 0 || status === 429 || status >= 500) {
+    return "Google Health is temporarily unavailable — try again in a few minutes.";
+  }
+  return "Couldn't get data from Google Health — try again shortly.";
 }
 
 export type ExercisePoint = {

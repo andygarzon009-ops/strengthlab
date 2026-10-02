@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { listHeartRateBetween } from "@/lib/googleHealth";
+import { listHeartRateBetween, healthErrorMessage } from "@/lib/googleHealth";
 import {
   getCachedSessions,
   fitbitTypeToWorkoutType,
@@ -196,9 +196,9 @@ export async function POST(
   try {
     samples = await listHeartRateBetween(userId, toUtcISO(start), toUtcISO(end));
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const raw = e instanceof Error ? e.message : String(e);
     // Missing scope → token lacks heart_rate.readonly; user must reconnect.
-    if (msg.includes("403") || msg.toLowerCase().includes("permission")) {
+    if (raw.includes("403") || raw.toLowerCase().includes("permission")) {
       return Response.json(
         {
           error:
@@ -208,7 +208,9 @@ export async function POST(
         { status: 403 },
       );
     }
-    return Response.json({ error: msg }, { status: 502 });
+    // Plain words for the athlete (e.g. Google's own 503 outages, which
+    // already got two retries); the raw API error goes to the logs.
+    return Response.json({ error: healthErrorMessage(e) }, { status: 502 });
   }
 
   // Replace any existing samples for this workout — re-syncs idempotent

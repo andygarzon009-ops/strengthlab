@@ -1,3 +1,4 @@
+import { healthErrorMessage } from "@/lib/googleHealth";
 import { after } from "next/server";
 import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
@@ -49,7 +50,8 @@ export async function GET(req: Request) {
       refreshed,
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    // Plain words for the athlete; the raw API error goes to the logs.
+    const msg = healthErrorMessage(e);
     return Response.json({ connected: true, error: msg }, { status: 502 });
   }
 }

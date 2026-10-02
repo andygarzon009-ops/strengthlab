@@ -17,15 +17,15 @@ export default function SyncHRButton({ workoutId }: { workoutId: string }) {
       });
       const body = await res.json();
       if (!res.ok) {
-        setMsg(body.error ?? "Sync failed");
+        setMsg(body.error ?? "Sync failed — try again in a few minutes.");
       } else if (body.connected === false) {
         setMsg("Connect Fitbit on the Health page first.");
       } else {
         setMsg(`Synced ${body.synced} samples`);
         router.refresh();
       }
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Sync failed");
+    } catch {
+      setMsg("Couldn't reach the server — check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -43,7 +43,7 @@ export default function SyncHRButton({ workoutId }: { workoutId: string }) {
       </button>
       {msg && (
         <p
-          className="text-[11px] mt-1.5 text-center"
+          className="text-[11px] mt-1.5 text-center break-words"
           style={{ color: "var(--fg-dim)" }}
         >
           {msg}

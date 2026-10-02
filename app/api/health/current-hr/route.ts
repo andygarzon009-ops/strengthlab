@@ -2,8 +2,7 @@ import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import {
   HealthReauthRequiredError,
-  listHeartRateBetween,
-} from "@/lib/googleHealth";
+  listHeartRateBetween, healthErrorMessage } from "@/lib/googleHealth";
 import { ageFromBirthDate, estimateMaxHr, hrZone } from "@/lib/hrZones";
 
 /// Returns the most recent heart-rate sample from the last 5 minutes, fetched
@@ -61,7 +60,8 @@ export async function GET() {
     if (e instanceof HealthReauthRequiredError) {
       return Response.json({ connected: true, needsReconnect: true, bpm: null, at: null });
     }
-    const msg = e instanceof Error ? e.message : String(e);
+    // Plain words for the athlete; the raw API error goes to the logs.
+    const msg = healthErrorMessage(e);
     return Response.json({ connected: true, error: msg }, { status: 502 });
   }
 }

@@ -2,8 +2,7 @@ import { requireAuth } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import {
   HealthReauthRequiredError,
-  listHeartRateBetween,
-} from "@/lib/googleHealth";
+  listHeartRateBetween, healthErrorMessage } from "@/lib/googleHealth";
 
 export const maxDuration = 30;
 
@@ -37,7 +36,8 @@ export async function GET() {
     if (e instanceof HealthReauthRequiredError) {
       return Response.json({ connected: true, needsReconnect: true, samples: [] });
     }
-    const msg = e instanceof Error ? e.message : String(e);
+    // Plain words for the athlete; the raw API error goes to the logs.
+    const msg = healthErrorMessage(e);
     return Response.json({ error: msg }, { status: 502 });
   }
 }
