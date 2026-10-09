@@ -265,6 +265,8 @@ export const CIRCUIT_FOCUS = [
   "Full Body",
   "Upper Body",
   "Lower Body",
+  "Legs",
+  "Arms",
   "Core",
   "Cardio",
 ] as const;
