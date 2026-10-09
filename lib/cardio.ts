@@ -271,6 +271,40 @@ export const CIRCUIT_FOCUS = [
   "Cardio",
 ] as const;
 
+/// The muscles each focus works. "Spread" regions share the block across
+/// many muscles, so each gets half — a full-body circuit is not a chest day.
+const FOCUS_MUSCLES: Record<string, { muscles: string[]; spread: boolean }> = {
+  "Full Body": {
+    muscles: ["Quads", "Glutes", "Hamstrings", "Pec Major", "Lats", "Front Delts", "Abs"],
+    spread: true,
+  },
+  "Upper Body": {
+    muscles: ["Pec Major", "Lats", "Front Delts", "Biceps", "Triceps"],
+    spread: true,
+  },
+  "Lower Body": { muscles: ["Quads", "Hamstrings", "Glutes", "Calves"], spread: false },
+  Legs: { muscles: ["Quads", "Hamstrings", "Glutes", "Calves"], spread: false },
+  Arms: { muscles: ["Biceps", "Triceps", "Forearms"], spread: false },
+  Core: { muscles: ["Abs", "Obliques"], spread: false },
+  Cardio: { muscles: [], spread: false },
+};
+
+/// What one logged conditioning block counts for on the body scan, in
+/// working sets per (specific) muscle. Roughly a set per minute of actual
+/// work, between one and four: Tabata (8 × 20s) is ~3, a 5 × 40s circuit ~3,
+/// a 12-minute AMRAP caps at 4. No focus picked → nothing, since there's no
+/// telling what it hit.
+export function focusCredit(raw: unknown): { muscle: string; sets: number }[] {
+  const m = (raw ?? {}) as CardioMetrics;
+  const region = m.focus ? FOCUS_MUSCLES[m.focus] : undefined;
+  if (!region || region.muscles.length === 0) return [];
+  const workSec =
+    m.rounds && m.workSec ? m.rounds * m.workSec : (m.durationSec ?? 0);
+  const base = Math.min(4, Math.max(1, Math.round(workSec / 60)));
+  const sets = region.spread ? base / 2 : base;
+  return region.muscles.map((muscle) => ({ muscle, sets }));
+}
+
 export function cardioAliases(name: string): string[] {
   return BY_NAME.get(name.trim().toLowerCase())?.aliases ?? [];
 }

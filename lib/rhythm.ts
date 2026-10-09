@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { startOfWeek, endOfWeek, subWeeks, format } from "date-fns";
 import type { MuscleLoad } from "@/components/MuscleMap";
 import { rirWeight, summarize } from "@/lib/bodyScan";
+import { CARDIO_SET_TYPE, focusCredit } from "@/lib/cardio";
 import {
   broadGroupForSpecific,
   shapeForType,
@@ -117,6 +118,12 @@ export async function loadRhythm(
     const hoursAgo = Math.max(0, (nowMs - at) / 3_600_000);
     if (hoursAgo > 7 * 24) continue;
     for (const we of w.exercises) {
+      // HIIT blocks with a focus picked credit the muscles that focus works.
+      for (const s of we.sets) {
+        if (s.type !== CARDIO_SET_TYPE) continue;
+        for (const c of focusCredit(s.metrics))
+          credit(c.muscle, w.id, hoursAgo, c.sets, c.sets);
+      }
       const working = we.sets.filter(
         (s) => s.type === "WORKING" || s.type === "SUPERSET" || s.type === "DROP_SET",
       );

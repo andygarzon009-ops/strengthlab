@@ -7,8 +7,10 @@ import {
   shapeForType,
   labelForType,
   scanGroupFor,
+  scanGroupOfSpecific,
   SCAN_GROUPS,
 } from "@/lib/exercises";
+import { CARDIO_SET_TYPE, focusCredit } from "@/lib/cardio";
 import { mergeLiftsWithTargets } from "@/lib/strengthProgression";
 import { computeWeakSpots } from "@/lib/weakSpots";
 import TopLiftsCard from "@/components/TopLiftsCard";
@@ -38,7 +40,7 @@ function normalizeMuscle(
   return scanGroupFor(name, mg);
 }
 
-type SetLike = { type: string };
+type SetLike = { type: string; metrics?: unknown };
 type ExerciseLike = {
   exercise: { name: string; muscleGroup: string | null };
   sets: SetLike[];
@@ -53,6 +55,22 @@ function workingSetCount(sets: SetLike[]): number {
   );
 }
 
+// What an exercise's HIIT blocks add per scan group. Abs and Obliques are
+// both Core, so a group takes its largest muscle's credit, not the sum.
+function hiitSetsByGroup(sets: SetLike[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const s of sets) {
+    if (s.type !== CARDIO_SET_TYPE) continue;
+    const block: Record<string, number> = {};
+    for (const c of focusCredit(s.metrics)) {
+      const g = scanGroupOfSpecific(c.muscle);
+      if (g) block[g] = Math.max(block[g] ?? 0, c.sets);
+    }
+    for (const [g, n] of Object.entries(block)) out[g] = (out[g] ?? 0) + n;
+  }
+  return out;
+}
+
 // Per-muscle working-set tally across a set of sessions.
 function setsByMuscle(
   sessions: WorkoutLikeForCoverage[],
@@ -60,12 +78,16 @@ function setsByMuscle(
   const out: Record<string, number> = {};
   for (const w of sessions) {
     for (const e of w.exercises) {
+      for (const [g, n] of Object.entries(hiitSetsByGroup(e.sets)))
+        out[g] = (out[g] ?? 0) + n;
       const m = normalizeMuscle(e.exercise.name, e.exercise.muscleGroup);
       if (!m) continue;
       const n = workingSetCount(e.sets);
       if (n > 0) out[m] = (out[m] ?? 0) + n;
     }
   }
+  // Half-set credits from spread HIIT blocks; the bars show whole sets.
+  for (const k of Object.keys(out)) out[k] = Math.round(out[k]);
   return out;
 }
 
@@ -218,7 +240,7 @@ export default async function ConsistencyDetailPage() {
             select: { id: true, name: true, muscleGroup: true },
           },
           sets: {
-            select: { type: true, weight: true, reps: true },
+            select: { type: true, weight: true, reps: true, metrics: true },
           },
         },
       },
@@ -302,6 +324,8 @@ export default async function ConsistencyDetailPage() {
   for (const w of liftHistory) {
     const at = (w.endedAt ?? w.startedAt ?? w.date).getTime();
     for (const e of w.exercises) {
+      for (const g of Object.keys(hiitSetsByGroup(e.sets)))
+        if (at > (lastTrainedByMuscle[g] ?? 0)) lastTrainedByMuscle[g] = at;
       const m = normalizeMuscle(e.exercise.name, e.exercise.muscleGroup);
       if (!m) continue;
       if (workingSetCount(e.sets) === 0) continue;

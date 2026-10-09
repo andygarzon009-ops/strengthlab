@@ -1129,6 +1129,11 @@ export function scanGroupFor(
   return SCAN_OF_SPECIFIC[specificMuscleFor(name)] ?? null;
 }
 
+/// Body-scan group for a specific muscle ("Lats" → "Back").
+export function scanGroupOfSpecific(specific: string): string | null {
+  return SCAN_OF_SPECIFIC[specific] ?? null;
+}
+
 export function broadGroupForSpecific(
   specific: string | null | undefined
 ): string | null {
