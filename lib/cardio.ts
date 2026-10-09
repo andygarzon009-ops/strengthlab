@@ -260,6 +260,15 @@ export function cardioSpecFor(
   return null;
 }
 
+/// What a conditioning block hit. Picked from the dropdown on the card.
+export const CIRCUIT_FOCUS = [
+  "Full Body",
+  "Upper Body",
+  "Lower Body",
+  "Core",
+  "Cardio",
+] as const;
+
 export function cardioAliases(name: string): string[] {
   return BY_NAME.get(name.trim().toLowerCase())?.aliases ?? [];
 }
@@ -290,6 +299,8 @@ export type CardioMetrics = {
   workSec?: number;
   restSec?: number;
   movements?: string[];
+  /// Conditioning blocks only — one of CIRCUIT_FOCUS.
+  focus?: string;
   /// When the bout began (ISO). The row's end is the set's loggedAt, stamped
   /// on tick — together they put the bout on the heart rate chart as a span.
   startedAt?: string;
@@ -308,6 +319,7 @@ export type CardioInput = {
   work?: string;
   rest?: string;
   movements?: string[];
+  focus?: string;
   startedAt?: string;
 };
 
@@ -394,6 +406,7 @@ export function toCardioMetrics(
   if (input.movements && input.movements.length > 0) {
     m.movements = input.movements;
   }
+  if (spec.kind !== "machine" && input.focus) m.focus = input.focus;
   if (input.startedAt) m.startedAt = input.startedAt;
   // Drop the empties so the stored JSON says only what was logged.
   for (const k of Object.keys(m) as (keyof CardioMetrics)[]) {
@@ -419,6 +432,7 @@ export function fromCardioMetrics(
     work: s(m.workSec),
     rest: s(m.restSec),
     movements: m.movements ?? [],
+    focus: m.focus,
     startedAt: m.startedAt,
   };
 }
@@ -444,6 +458,7 @@ export function defaultCardioInput(spec: CardioSpec): CardioInput {
 export function cardioSummary(raw: unknown): string {
   const m = (raw ?? {}) as CardioMetrics;
   const bits: string[] = [];
+  if (m.focus) bits.push(m.focus);
   if (m.rounds && m.workSec !== undefined) {
     bits.push(
       `${m.rounds} × ${m.workSec}s${m.restSec ? `/${m.restSec}s` : ""}`,

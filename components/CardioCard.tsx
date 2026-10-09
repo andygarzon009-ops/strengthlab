@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  CIRCUIT_FOCUS,
   FIELD_LABEL,
   circuitSeconds,
   formatClock,
@@ -341,6 +342,31 @@ function CircuitRow({
 
   return (
     <div>
+      <label className="flex items-center gap-2 mb-2">
+        <span
+          className="text-[9px] uppercase tracking-wider font-semibold shrink-0"
+          style={{ color: "var(--fg-dim)" }}
+        >
+          Focus
+        </span>
+        <select
+          value={value.focus ?? ""}
+          onChange={(e) => set("focus", e.target.value)}
+          className="flex-1 min-w-0 text-[13px] rounded-lg px-2.5 py-1.5 focus:outline-none appearance-none"
+          style={{
+            ...inputStyle,
+            fontFamily: "inherit",
+            color: value.focus ? "var(--fg)" : "var(--fg-dim)",
+          }}
+        >
+          <option value="">Choose focus…</option>
+          {CIRCUIT_FOCUS.map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
+          ))}
+        </select>
+      </label>
       <div className="flex items-end gap-1.5">
         <div className="grid grid-cols-3 gap-1.5 flex-1 min-w-0">
           {amrap ? (
