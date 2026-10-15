@@ -198,13 +198,14 @@ export function computeReadiness(i: ReadinessInputs): Readiness | null {
 
 /// Training load for one session: minutes × effort (session-RPE). Sessions
 /// logged without an RPE count as a 7; without a duration, as 50 minutes.
+/// `duration` is stored in SECONDS on Workout.
 export function sessionLoad(w: {
   duration: number | null;
   startedAt: Date | null;
   endedAt: Date | null;
   rpe: number | null;
 }): number {
-  let min = w.duration;
+  let min = w.duration ? Math.round(w.duration / 60) : null;
   if (!min && w.startedAt && w.endedAt) {
     min = Math.round((w.endedAt.getTime() - w.startedAt.getTime()) / 60000);
   }
