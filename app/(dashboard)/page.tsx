@@ -75,13 +75,13 @@ export default async function FeedPage() {
       <Suspense fallback={<CardSkeleton height={130} />}>
         <CycleCard userId={userId} />
       </Suspense>
-      <Suspense fallback={<CardSkeleton height={300} />}>
-        <WeeklyRecap userId={userId} />
-      </Suspense>
       {/* Heart rate reads stored values, not Google Health, so it can't
           hold up the rest. */}
       <Suspense fallback={<CardSkeleton height={112} />}>
         <HeartRateCard userId={userId} />
+      </Suspense>
+      <Suspense fallback={<CardSkeleton height={300} />}>
+        <WeeklyRecap userId={userId} />
       </Suspense>
       <Suspense fallback={null}>
         <CrewPulse userId={userId} />
