@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import FuelDetail, { type NutritionResponse } from "@/components/FuelDetail";
+import TickGauge from "@/components/TickGauge";
 
 /// Continuous performance color: red (0) → amber (50) → green (100). Used for
 /// the glance rings so the hue itself signals how well you're doing.
@@ -21,14 +22,6 @@ const ICON_PROPS = {
   strokeLinecap: "round" as const,
   strokeLinejoin: "round" as const,
 };
-function BatteryIcon() {
-  return (
-    <svg {...ICON_PROPS}>
-      <rect x="2" y="7" width="16" height="10" rx="2" />
-      <path d="M22 11v2" />
-    </svg>
-  );
-}
 function FlameIcon() {
   return (
     <svg {...ICON_PROPS}>
@@ -61,67 +54,23 @@ export type ActivityGlance = {
 
 type Section = "recovery" | "fuel" | "activity";
 
-/// SVG ring with a centered value (number or "%"). Muted when no data.
-function Ring({
-  value,
-  color,
-  active,
-}: {
-  value: string;
-  color: string;
-  active: boolean;
-}) {
-  const r = 23.5;
-  const c = 2 * Math.PI * r;
-  // pct only used for stroke fill; derive from a numeric value when present.
-  const num = parseInt(value, 10);
-  const frac = Number.isFinite(num) ? Math.max(0, Math.min(100, num)) / 100 : 0;
-  const filled = frac * c;
-  // "100%" is four glyphs wide and touched the ring at the old size.
-  const fontSize = value.length > 3 ? 13 : 16;
-  return (
-    <svg width="56" height="56" viewBox="0 0 56 56">
-      <circle cx="28" cy="28" r={r} fill="none" stroke="var(--bg-elevated)" strokeWidth="5" />
-      <circle
-        cx="28"
-        cy="28"
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth="5"
-        strokeLinecap="round"
-        strokeDasharray={`${filled} ${c - filled}`}
-        transform="rotate(-90 28 28)"
-        style={{ filter: active ? `drop-shadow(0 0 4px ${color}99)` : undefined }}
-      />
-      <text
-        x="28"
-        y="28"
-        dominantBaseline="central"
-        textAnchor="middle"
-        fontSize={fontSize}
-        fontWeight="700"
-        fill="var(--fg)"
-      >
-        {value}
-      </text>
-    </svg>
-  );
-}
-
-function Tile({
-  ringValue,
-  ringColor,
+/// Fuel / Activity beside the gauge: label + reading on one line, a slim bar
+/// under it. The whole row is the tap target that expands its detail.
+function MeterRow({
   label,
   icon,
+  pct,
+  color,
+  value,
   sub,
   active,
   onClick,
 }: {
-  ringValue: string;
-  ringColor: string;
   label: string;
   icon: ReactNode;
+  pct: number;
+  color: string;
+  value: string;
   sub: string;
   active: boolean;
   onClick: () => void;
@@ -130,25 +79,37 @@ function Tile({
     <button
       type="button"
       onClick={onClick}
-      className="flex-1 flex flex-col items-center gap-0.5 rounded-xl py-1.5 transition-colors"
+      aria-expanded={active}
+      className="w-full text-left rounded-xl px-2.5 py-2 transition-colors"
       style={{ background: active ? "var(--bg-elevated)" : "transparent" }}
     >
-      <Ring value={ringValue} color={ringColor} active={active} />
-      <span
-        className="text-[9px] uppercase tracking-wider font-semibold mt-1"
-        style={{ color: "var(--fg-dim)" }}
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-[13px] font-semibold">
+          <span style={{ color }}>{icon}</span>
+          {label}
+        </span>
+        <span className="text-[12px] tabular-nums truncate" style={{ color: "var(--fg-muted)" }}>
+          {value && (
+            <b className="font-bold mr-1" style={{ color: "var(--fg)" }}>
+              {value}
+            </b>
+          )}
+          {sub}
+        </span>
+      </div>
+      <div
+        className="mt-1.5 h-[7px] rounded-full overflow-hidden"
+        style={{ background: "var(--bg-elevated)" }}
       >
-        {label}
-      </span>
-      {/* Icon sits beside the reading rather than on its own line — a whole
-          row per tile spent on a glyph. */}
-      <span
-        className="flex items-center gap-1 text-[11px] leading-tight text-center px-1"
-        style={{ color: active ? "var(--fg)" : "var(--fg-dim)" }}
-      >
-        <span className="shrink-0" style={{ color: ringColor }}>{icon}</span>
-        {sub}
-      </span>
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: `${Math.max(0, Math.min(100, pct))}%`,
+            background: color,
+            boxShadow: pct > 0 ? `0 0 8px ${color}` : undefined,
+          }}
+        />
+      </div>
     </button>
   );
 }
@@ -189,9 +150,11 @@ function ActivityBar({
 export default function DailyGlance({
   recovery,
   activity,
+  children,
 }: {
   recovery: RecoveryGlance | null;
   activity: ActivityGlance | null;
+  children: ReactNode;
 }) {
   const [fuel, setFuel] = useState<NutritionResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -256,50 +219,83 @@ export default function DailyGlance({
     return { value: String(s.score), color: scoreColor(s.score), sub: s.rating };
   })();
 
+  // Bar fill: the day's score once it's graded, how much is in so far mid-day.
+  const fuelPct =
+    fuel?.loggedToday && fuel.partial && fuel.progress
+      ? fuel.progress.pct
+      : fuel?.loggedToday && fuel.score
+        ? fuel.score.score
+        : 0;
+
   const fuelInteractive =
     !!fuel && fuel.connected && !fuel.needsReconnect;
 
+  const r = recovery;
   return (
-    <div
-      className="rounded-2xl p-3 mb-3"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-    >
-      <div className="flex items-stretch gap-1">
-        {recovery && (
-          <Tile
-            ringValue={String(recovery.score)}
-            ringColor={scoreColor(recovery.score)}
-            label="Readiness"
-            icon={<BatteryIcon />}
-            sub={recovery.label}
-            active={open === "recovery"}
-            onClick={() => toggle("recovery")}
+    <section aria-label="Today" className="card mb-3 overflow-hidden">
+      <div className="flex items-center gap-3 px-3 pt-3 pb-2">
+        {/* Readiness leads: the gauge, number and band. Tap to expand. */}
+        <button
+          type="button"
+          onClick={() => r && toggle("recovery")}
+          aria-label={r ? `Readiness ${r.score}, ${r.label}` : "Readiness: no data"}
+          aria-expanded={open === "recovery"}
+          className="relative shrink-0 rounded-2xl transition-colors"
+          style={{ background: open === "recovery" ? "var(--bg-elevated)" : "transparent" }}
+        >
+          <TickGauge score={r?.score ?? null} size={112} id="feed-gauge" ticks={40} />
+          <span className="absolute inset-0 flex flex-col items-center justify-center pb-1">
+            <span
+              className="text-[34px] font-bold leading-none tabular-nums"
+              style={{ letterSpacing: "-0.04em" }}
+            >
+              {r?.score ?? "—"}
+            </span>
+            <span
+              className="text-[9px] font-semibold uppercase mt-1"
+              style={{ color: "var(--fg-muted)", letterSpacing: "0.14em" }}
+            >
+              Ready
+            </span>
+          </span>
+          {r && (
+            <span
+              className="absolute left-0 right-0 text-center text-[11px] font-bold"
+              style={{ bottom: 4, color: r.color }}
+            >
+              {r.label}
+            </span>
+          )}
+        </button>
+
+        <div className="flex-1 min-w-0 space-y-1">
+          <MeterRow
+            label="Fuel"
+            icon={<FlameIcon />}
+            pct={fuelPct}
+            color={fuelRing.color}
+            value={fuelRing.value === "—" || fuelRing.value === "·" ? "" : fuelRing.value}
+            sub={fuelRing.sub}
+            active={open === "fuel"}
+            onClick={() => fuelInteractive && toggle("fuel")}
           />
-        )}
-        <Tile
-          ringValue={fuelRing.value}
-          ringColor={fuelRing.color}
-          label="Fuel"
-          icon={<FlameIcon />}
-          sub={fuelRing.sub}
-          active={open === "fuel"}
-          onClick={() => fuelInteractive && toggle("fuel")}
-        />
-        {activity && (
-          <Tile
-            ringValue={`${activity.pct}%`}
-            ringColor={scoreColor(activity.pct)}
-            label="Activity"
-            icon={<ZapIcon />}
-            sub={`${activity.moveCal.toLocaleString()} cal`}
-            active={open === "activity"}
-            onClick={() => toggle("activity")}
-          />
-        )}
+          {activity && (
+            <MeterRow
+              label="Activity"
+              icon={<ZapIcon />}
+              pct={activity.pct}
+              color={scoreColor(activity.pct)}
+              value={`${activity.pct}%`}
+              sub={`${activity.moveCal.toLocaleString()} cal`}
+              active={open === "activity"}
+              onClick={() => toggle("activity")}
+            />
+          )}
+        </div>
       </div>
 
       {open && (
-        <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+        <div className="mx-4 mb-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
           {open === "recovery" && recovery && (
             <div>
               <div className="flex items-center justify-between">
@@ -357,6 +353,14 @@ export default function DailyGlance({
           )}
         </div>
       )}
-    </div>
+
+      {/* What to do today — the coach's line lives here. */}
+      <div
+        className="px-[18px] pt-3.5 pb-[18px]"
+        style={{ borderTop: "1px solid var(--border)" }}
+      >
+        {children}
+      </div>
+    </section>
   );
 }

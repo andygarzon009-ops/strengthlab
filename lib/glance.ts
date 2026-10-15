@@ -2,16 +2,9 @@ import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { maybeRefreshRecovery } from "@/lib/recovery";
 import { FACTOR_LABEL, type ReadinessFactor } from "@/lib/readiness";
-import DailyGlance, {
-  type RecoveryGlance,
-  type ActivityGlance,
-} from "@/components/DailyGlance";
+import type { RecoveryGlance, ActivityGlance } from "@/components/DailyGlance";
+import { scaleColor } from "@/components/TickGauge";
 
-const BAND_COLOR: Record<string, string> = {
-  primed: "#22c55e",
-  moderate: "#f59e0b",
-  low: "#ef4444",
-};
 const BAND_LABEL: Record<string, string> = {
   primed: "Primed",
   moderate: "Steady",
@@ -53,11 +46,12 @@ function tzOffsetMinutes(tz: string, atUtc: Date): number {
   return Math.round((asUtc - atUtc.getTime()) / 60000);
 }
 
-/// Server side of the Daily Glance: assembles today's Recovery (from the stored
-/// snapshot) and Activity (from today's workouts vs goals) and hands them to the
-/// client DailyGlance, which fetches Fuel itself. Replaces the standalone
-/// Recovery + Activity + Fuel cards on the feed.
-export default async function DailyGlanceCard({ userId }: { userId: string }) {
+/// Server side of the Daily Glance: today's Readiness (from the stored
+/// snapshot) and Activity (today's workouts vs goals). The client DailyGlance
+/// at the top of the Today card renders them and fetches Fuel itself.
+export async function loadGlance(
+  userId: string,
+): Promise<{ recovery: RecoveryGlance | null; activity: ActivityGlance }> {
   // The home feed is the most-opened surface, so use it to keep recovery/sleep
   // fresh: pull from Google Health post-response when the stored snapshot is
   // stale. Gated + non-blocking, so it never slows the feed — and it feeds both
@@ -105,7 +99,7 @@ export default async function DailyGlanceCard({ userId }: { userId: string }) {
     }
     recovery = {
       score: account.recoveryScore,
-      color: BAND_COLOR[band] ?? "var(--accent)",
+      color: scaleColor(account.recoveryScore),
       label: BAND_LABEL[band] ?? "Readiness",
       sub: BAND_SUB[band] ?? "",
       sleepLabel:
@@ -155,5 +149,5 @@ export default async function DailyGlanceCard({ userId }: { userId: string }) {
   );
   const activity: ActivityGlance = { pct, color: MOVE_COLOR, moveCal: moveKcal, rows };
 
-  return <DailyGlance recovery={recovery} activity={activity} />;
+  return { recovery, activity };
 }

@@ -5,23 +5,21 @@ import { loadRecentPRs, type RecentPR } from "@/lib/recentPRs";
 import { loadPhase, DELOAD_BLUE } from "@/components/PhaseCard";
 import Sparkline from "@/components/Sparkline";
 import SharePRButton from "@/components/SharePRButton";
+import DailyGlance from "@/components/DailyGlance";
+import { loadGlance } from "@/lib/glance";
 
 export const PR_LIME = "#a3e635";
 
-// Same scale as the Recovery ring below, so the two never disagree in colour.
-function scoreColor(score: number): string {
-  const p = Math.max(0, Math.min(100, score));
-  return `hsl(${Math.round((p / 100) * 120)}, 80%, 48%)`;
-}
-
 // The top of the feed. Normally the Today card; for 48 h after a PR the PR
 // card leads and Today steps down to one row — it never disappears, because
-// what to do today still matters.
+// what to do today still matters. The Today card opens with the day's glance
+// (readiness gauge + Fuel / Activity bars), so readiness shows exactly once.
 export default async function FeedTop({ userId }: { userId: string }) {
-  const [plan, prs, phase] = await Promise.all([
+  const [plan, prs, phase, glance] = await Promise.all([
     loadTodayPlan(userId),
     loadRecentPRs(userId).catch(() => []),
     loadPhase(userId).catch(() => null),
+    loadGlance(userId).catch(() => null),
   ]);
   const deload = !!phase?.state.isDeloadWeek;
   const deloadPct = phase?.config.deloadReductionPct ?? 40;
@@ -29,56 +27,18 @@ export default async function FeedTop({ userId }: { userId: string }) {
   return (
     <>
       {prs.length > 0 && <PRCard prs={prs} />}
-      <TodayCard
-        plan={plan}
-        deload={deload}
-        deloadPct={deloadPct}
-        compact={prs.length > 0}
-      />
+      <DailyGlance
+        recovery={glance?.recovery ?? null}
+        activity={glance?.activity ?? null}
+      >
+        <TodayCard
+          plan={plan}
+          deload={deload}
+          deloadPct={deloadPct}
+          compact={prs.length > 0}
+        />
+      </DailyGlance>
     </>
-  );
-}
-
-function Ring({ score, size }: { score: number | null; size: number }) {
-  const stroke = size > 70 ? 7 : 5;
-  const r = (size - stroke) / 2 - 1;
-  const c = 2 * Math.PI * r;
-  const pct = score == null ? 0 : Math.max(0, Math.min(100, score)) / 100;
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--bg-elevated)" strokeWidth={stroke} />
-        {score != null && (
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            fill="none"
-            stroke={scoreColor(score)}
-            strokeWidth={stroke}
-            strokeLinecap="round"
-            strokeDasharray={`${(pct * c).toFixed(1)} ${c.toFixed(1)}`}
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          />
-        )}
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span
-          className="font-semibold leading-none nums"
-          style={{
-            fontFamily: "var(--font-geist-mono)",
-            fontSize: size > 70 ? 24 : 16,
-          }}
-        >
-          {score ?? "—"}
-        </span>
-        {size > 70 && (
-          <span className="label text-[9px] mt-1" style={{ color: "var(--fg-dim)" }}>
-            Ready
-          </span>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -127,9 +87,8 @@ function TodayCard({
   );
 
   return (
-    <section aria-label="Today" className="card mb-3" style={{ padding: compact ? 14 : 18 }}>
+    <>
       <div className="flex items-center gap-4">
-        <Ring score={plan.readiness.score} size={compact ? 56 : 84} />
         <div className="min-w-0 flex-1">
           <p
             className="label text-[11px]"
@@ -177,7 +136,7 @@ function TodayCard({
           {Arrow}
         </Link>
       )}
-    </section>
+    </>
   );
 }
 

@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
 import Link from "next/link";
 import WeeklyRecap from "@/components/WeeklyRecap";
-import DailyGlanceCard from "@/components/DailyGlanceCard";
 import PullToRefresh from "@/components/PullToRefresh";
 import HeartRateCard from "@/components/HeartRateCard";
 import PendingInvites from "@/components/PendingInvites";
@@ -68,13 +67,9 @@ export default async function FeedPage() {
       <Suspense fallback={null}>
         <PendingInvites userId={userId} />
       </Suspense>
-      {/* Readiness + Fuel + Activity rings lead the feed: how ready you are
-          frames everything under it. Each ring expands inline on tap. */}
-      <Suspense fallback={<CardSkeleton height={108} />}>
-        <DailyGlanceCard userId={userId} />
-      </Suspense>
-      {/* What to do today — led by a fresh PR for 48 h after one. */}
-      <Suspense fallback={<CardSkeleton height={210} />}>
+      {/* A fresh PR leads for 48 h; then the Today card, which opens with the
+          readiness gauge and Fuel / Activity bars. */}
+      <Suspense fallback={<CardSkeleton height={290} />}>
         <FeedTop userId={userId} />
       </Suspense>
       <Suspense fallback={<CardSkeleton height={130} />}>

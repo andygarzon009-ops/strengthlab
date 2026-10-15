@@ -9,6 +9,7 @@ import {
   type ReadinessBand,
   type ReadinessFactor,
 } from "@/lib/readiness";
+import TickGauge, { scaleColor } from "@/components/TickGauge";
 
 const BAND_LABEL: Record<ReadinessBand, string> = {
   primed: "Primed",
@@ -21,73 +22,10 @@ const BAND_REC: Record<ReadinessBand, string> = {
   low: "Under-recovered. Go light, move easy, or take the rest day.",
 };
 
-/// 0–100 → red (0) → amber (50) → green (100), same scale as the feed rings.
-export function scaleColor(score: number, alpha = 1): string {
-  const p = Math.max(0, Math.min(100, score));
-  return `hsl(${Math.round((p / 100) * 130)} 78% 50% / ${alpha})`;
-}
-
-const SWEEP = 270; // degrees of arc, open at the bottom
-const START = 135; // SVG degrees (0 = 3 o'clock, clockwise)
-const TICKS = 54;
-
-function polar(cx: number, cy: number, r: number, deg: number) {
-  const a = (deg * Math.PI) / 180;
-  return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
-}
+export { scaleColor };
 
 function Gauge({ score }: { score: number }) {
-  const size = 240;
-  const c = size / 2;
-  const filled = Math.round((Math.max(0, Math.min(100, score)) / 100) * TICKS);
-  const knobDeg = START + (Math.max(0, Math.min(100, score)) / 100) * SWEEP;
-  const knob = polar(c, c, 101, knobDeg);
-  const color = scaleColor(score);
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      className="block mx-auto"
-      aria-hidden
-    >
-      <defs>
-        <radialGradient id="rdy-glow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
-          <stop offset="70%" stopColor={color} stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <circle cx={c} cy={c} r={92} fill="url(#rdy-glow)" />
-      {Array.from({ length: TICKS }, (_, i) => {
-        const deg = START + (i / (TICKS - 1)) * SWEEP;
-        const major = i % 9 === 0;
-        const a = polar(c, c, major ? 90 : 93, deg);
-        const b = polar(c, c, 110, deg);
-        const on = i < filled;
-        return (
-          <line
-            key={i}
-            x1={a.x}
-            y1={a.y}
-            x2={b.x}
-            y2={b.y}
-            stroke={on ? scaleColor((i / (TICKS - 1)) * 100) : "#26262b"}
-            strokeWidth={major ? 3.2 : 2.6}
-            strokeLinecap="round"
-          />
-        );
-      })}
-      <circle
-        cx={knob.x}
-        cy={knob.y}
-        r={7}
-        fill="#fff"
-        stroke={color}
-        strokeWidth={3}
-        style={{ filter: `drop-shadow(0 0 6px ${color})` }}
-      />
-    </svg>
-  );
+  return <TickGauge score={score} size={240} id="rdy-glow" />;
 }
 
 function MiniRing({ score, color }: { score: number; color: string }) {
@@ -161,7 +99,7 @@ export default function ReadinessHero({
       </div>
 
       <div className="relative -mt-1">
-        <Gauge score={score} />
+        <div className="flex justify-center"><Gauge score={score} /></div>
         <div className="absolute inset-0 flex flex-col items-center justify-center pb-2">
           <span
             className="text-[11px] font-semibold uppercase"
