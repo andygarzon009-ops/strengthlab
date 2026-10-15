@@ -384,6 +384,11 @@ export default async function ConsistencyDetailPage() {
         </h1>
       </div>
 
+      {/* Where your lifts are headed leads the page. */}
+      <div className="mb-3">
+        <Projections items={projections} href="/strength" />
+      </div>
+
       {/* One hero for the week. The page used to open with the same fact three
           times — a date range in the subtitle, a strip of day dots, and a card
           headed "This week" — so the week's story is told once, in one card:
@@ -422,8 +427,6 @@ export default async function ConsistencyDetailPage() {
           gaps. */}
       <div className="space-y-3">
         <TopLiftsCard lifts={topLifts} exercises={exercises} />
-
-        <Projections items={projections} href="/strength" />
 
         {/* Coverage — interactive body scan */}
         <div

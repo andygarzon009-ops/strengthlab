@@ -146,7 +146,7 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
     // across the whole card underneath; Avg HR sits above it as its own link
     // to the heart-rate chart (links can't nest, so the card isn't one).
     <section
-      aria-label="This week"
+      aria-label="Progress"
       className="card relative p-[18px] mb-3 transition-colors"
     >
       <Link
@@ -155,7 +155,7 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
         className="absolute inset-0 rounded-[inherit]"
       />
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[14px] font-semibold">This week</h2>
+        <h2 className="text-[14px] font-semibold">Progress</h2>
         <div className="flex items-center gap-2 shrink-0">
           {streak > 0 && (
             <span
