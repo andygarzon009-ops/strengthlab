@@ -5,34 +5,24 @@ import {
   listRestingHeartRate,
   listDailyHrv,
   listSleep,
+  listDailyRespiratoryRate,
+  listDailySkinTemperature,
   type SleepNight,
+  type DailyRespiratorySample,
+  type DailySkinTempSample,
 } from "@/lib/googleHealth";
+import {
+  computeReadiness,
+  readinessBand,
+  sessionLoad,
+  type ReadinessBand,
+  type ReadinessInputs,
+} from "@/lib/readiness";
 
-export type RecoveryBand = "low" | "moderate" | "primed";
-
-export function recoveryBand(score: number): RecoveryBand {
-  if (score >= 67) return "primed";
-  if (score >= 34) return "moderate";
-  return "low";
-}
-
-function clamp(x: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, x));
-}
-
-// HRV ratio today/baseline → 0–100. 1.0 (at baseline) = 50; ≥1.3 = 100; ≤0.7 = 0.
-// Higher HRV than your norm = better recovery.
-function hrvScore(today: number, baseline: number): number {
-  if (baseline <= 0) return 50;
-  const ratio = today / baseline;
-  return clamp(((ratio - 0.7) / 0.6) * 100, 0, 100);
-}
-
-// RHR delta (today − baseline, bpm) → 0–100. 0 = 50; −8 or lower = 100;
-// +8 or higher = 0. Elevated resting HR = worse recovery.
-function rhrScore(deltaBpm: number): number {
-  return clamp(50 - (deltaBpm / 8) * 50, 0, 100);
-}
+// The stored score is readiness now (lib/readiness.ts); these names stay so
+// the columns and every reader of them keep working.
+export type RecoveryBand = ReadinessBand;
+export const recoveryBand = readinessBand;
 
 // Sleep → 0–100: mostly duration, nudged by quality (deep+REM share).
 // Duration: 3h(180m)=0 … 8h(480m)+=100. Quality: 20% deep+REM=0 … 50%+=100.
@@ -106,11 +96,86 @@ export async function refreshRecovery(userId: string): Promise<void> {
     ).toISOString();
     const nowISO = now.toISOString();
 
-    const [rhr, hrv, sleep] = await Promise.all([
+    const DAY = 24 * 60 * 60 * 1000;
+    const [rhr, hrv, sleep, resp, temp, user, workouts] = await Promise.all([
       listRestingHeartRate(userId, sinceISO, nowISO).catch(() => []),
       listDailyHrv(userId, sinceISO, nowISO).catch(() => []),
       listSleep(userId, sinceISO, nowISO).catch(() => []),
+      listDailyRespiratoryRate(userId).catch(() => []),
+      listDailySkinTemperature(userId).catch(() => []),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { timezone: true },
+      }),
+      prisma.workout.findMany({
+        where: { userId, date: { gte: new Date(now.getTime() - 45 * DAY) } },
+        select: {
+          date: true,
+          duration: true,
+          startedAt: true,
+          endedAt: true,
+          rpe: true,
+        },
+      }),
     ]);
+
+    const tz = user?.timezone ?? "UTC";
+    const localKey = (dt: Date) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(dt);
+    const todayKey = localKey(now);
+    const shiftKey = (k: string, days: number) =>
+      new Date(Date.parse(`${k}T12:00:00Z`) + days * DAY)
+        .toISOString()
+        .slice(0, 10);
+
+    // Training load per local day, from what was logged here.
+    const loadByDay = new Map<string, number>();
+    for (const w of workouts) {
+      const k = localKey(w.date);
+      loadByDay.set(k, (loadByDay.get(k) ?? 0) + sessionLoad(w));
+    }
+    const sessionsBetween = (from: string, to: string) =>
+      workouts.filter((w) => {
+        const k = localKey(w.date);
+        return k >= from && k < to;
+      }).length;
+    // The two days before `k` vs a typical two days over the 28 before that.
+    // Needs a few sessions of history, or there's no "usual" to compare to.
+    const loadFor = (k: string): ReadinessInputs["load"] => {
+      const from = shiftKey(k, -30);
+      const to = shiftKey(k, -2);
+      if (sessionsBetween(from, to) < 4) return null;
+      let chronic = 0;
+      for (const [day, l] of loadByDay) if (day >= from && day < to) chronic += l;
+      const acute =
+        (loadByDay.get(shiftKey(k, -1)) ?? 0) +
+        (loadByDay.get(shiftKey(k, -2)) ?? 0);
+      return { acute, usual: (chronic / 28) * 2 };
+    };
+    // Breathing vs the mean of up to 30 earlier nights (at least 5).
+    const respFor = (k: string): ReadinessInputs["resp"] => {
+      const cur = resp.find((r: DailyRespiratorySample) => r.dateKey === k);
+      const prior = resp.filter((r) => r.dateKey < k).slice(-30);
+      if (!cur || prior.length < 5) return null;
+      return {
+        now: cur.bpm,
+        baseline: prior.reduce((s, r) => s + r.bpm, 0) / prior.length,
+      };
+    };
+    const tempFor = (k: string): ReadinessInputs["temp"] => {
+      const cur = temp.find((t: DailySkinTempSample) => t.dateKey === k);
+      if (!cur || cur.baselineC == null) return null;
+      return {
+        nightlyC: cur.nightlyC,
+        baselineC: cur.baselineC,
+        stddevC: cur.stddevC,
+      };
+    };
 
     const rhrNow = rhr.length ? rhr[rhr.length - 1].bpm : null;
     const rhrBaseline = baselineExcludingLast(rhr.map((s) => s.bpm));
@@ -118,25 +183,32 @@ export async function refreshRecovery(userId: string): Promise<void> {
     const hrvBaseline = baselineExcludingLast(hrv.map((s) => s.rmssd));
     const lastNight: SleepNight | null = sleep.length ? sleep[0] : null;
 
-    // Weighted blend of whatever signals are present. Sleep is the heaviest
-    // when available; missing components renormalize the rest (so HRV+RHR only
-    // collapses back to the Phase-1 0.55/0.45 split).
-    const comps: { score: number; weight: number }[] = [];
-    if (lastNight) comps.push({ score: sleepScore(lastNight), weight: 0.45 });
-    if (hrvNow !== null && hrvBaseline !== null)
-      comps.push({ score: hrvScore(hrvNow, hrvBaseline), weight: 0.3 });
-    if (rhrNow !== null && rhrBaseline !== null)
-      comps.push({ score: rhrScore(rhrNow - rhrBaseline), weight: 0.25 });
-
-    let recoveryScore: number | null = null;
-    let band: RecoveryBand | null = null;
-    if (comps.length) {
-      const wsum = comps.reduce((s, c) => s + c.weight, 0);
-      recoveryScore = Math.round(
-        comps.reduce((s, c) => s + c.score * c.weight, 0) / wsum,
-      );
-      band = recoveryBand(recoveryScore);
-    }
+    // Temperature and breathing only count when they're from last night (or
+    // the night before, if Fitbit hasn't posted today's yet) — a week-old
+    // fever reading says nothing about today.
+    const latestKeyOf = (xs: { dateKey: string }[]) =>
+      xs.length && xs[xs.length - 1].dateKey >= shiftKey(todayKey, -1)
+        ? xs[xs.length - 1].dateKey
+        : null;
+    const respKey = latestKeyOf(resp);
+    const tempKey = latestKeyOf(temp);
+    const readiness = computeReadiness({
+      sleepScore: lastNight ? sleepScore(lastNight) : null,
+      asleepMin: lastNight?.asleepMin ?? null,
+      hrv:
+        hrvNow !== null && hrvBaseline !== null
+          ? { now: hrvNow, baseline: hrvBaseline }
+          : null,
+      rhr:
+        rhrNow !== null && rhrBaseline !== null
+          ? { now: rhrNow, baseline: rhrBaseline }
+          : null,
+      temp: tempKey ? tempFor(tempKey) : null,
+      resp: respKey ? respFor(respKey) : null,
+      load: loadFor(todayKey),
+    });
+    const recoveryScore = readiness?.score ?? null;
+    const band = readiness?.band ?? null;
 
     const data: Record<string, unknown> = {};
     if (rhrNow !== null) {
@@ -241,25 +313,12 @@ export async function refreshRecovery(userId: string): Promise<void> {
       data.recoveryScore = recoveryScore;
       data.recoveryBand = band;
       data.recoveryAt = now;
+      data.readinessFactors = readiness!.factors;
     }
 
     if (Object.keys(data).length > 0) {
       await prisma.healthAccount.update({ where: { userId }, data });
     }
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { timezone: true },
-    });
-    const tz = user?.timezone ?? "UTC";
-    const localKey = (dt: Date) =>
-      new Intl.DateTimeFormat("en-CA", {
-        timeZone: tz,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(dt);
-    const todayKey = localKey(now);
 
     // Backfill prior days so the trend has depth immediately — compute a score
     // per day from the same 30-day series we just fetched, using a rolling
@@ -306,20 +365,19 @@ export async function refreshRecovery(userId: string): Promise<void> {
       const night = sleepByKey.get(k) ?? null;
       const rhrB = baselineBefore(rhrSeries, k);
       const hrvB = baselineBefore(hrvSeries, k);
-      const dc: { score: number; weight: number }[] = [];
-      if (night) dc.push({ score: sleepScore(night), weight: 0.45 });
-      if (hrvV !== null && hrvB !== null)
-        dc.push({ score: hrvScore(hrvV, hrvB), weight: 0.3 });
-      if (rhrV !== null && rhrB !== null)
-        dc.push({ score: rhrScore(rhrV - rhrB), weight: 0.25 });
-      if (!dc.length) continue;
-      const ws = dc.reduce((s, c) => s + c.weight, 0);
-      const sc = Math.round(
-        dc.reduce((s, c) => s + c.score * c.weight, 0) / ws,
-      );
+      const day = computeReadiness({
+        sleepScore: night ? sleepScore(night) : null,
+        asleepMin: night?.asleepMin ?? null,
+        hrv: hrvV !== null && hrvB !== null ? { now: hrvV, baseline: hrvB } : null,
+        rhr: rhrV !== null && rhrB !== null ? { now: rhrV, baseline: rhrB } : null,
+        temp: tempFor(k),
+        resp: respFor(k),
+        load: loadFor(k),
+      });
+      if (!day) continue;
       const dd = {
-        score: sc,
-        band: recoveryBand(sc),
+        score: day.score,
+        band: day.band,
         sleepMin: night?.asleepMin ?? null,
         hrvMs: hrvV !== null ? round1(hrvV) : null,
         restingHr: rhrV,

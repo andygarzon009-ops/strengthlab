@@ -10,6 +10,8 @@ import SleepHistoryChart, {
 import RecoveryDays from "@/components/RecoveryDays";
 import Spo2Card from "@/components/Spo2Card";
 import HealthReconnectBanner from "@/components/HealthReconnectBanner";
+import { type ReadinessFactor } from "@/lib/readiness";
+import { FactorList, FactorTile } from "@/components/ReadinessFactors";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +27,7 @@ const BAND_LABEL: Record<string, string> = {
 };
 const BAND_REC: Record<string, string> = {
   primed: "Your body's ready — a good day to push hard or chase a PR.",
-  moderate: "Recovery is middling. Train as planned, but don't force it.",
+  moderate: "Middling day. Train as planned, but don't force it.",
   low: "You're under-recovered. Go light, prioritize sleep, or take a rest day.",
 };
 
@@ -52,8 +54,13 @@ export default async function RecoveryPage() {
       sleepSummary: true,
       sleepNightKey: true,
       sleepHistory: true,
+      readinessFactors: true,
     },
   });
+  const factors =
+    (account?.readinessFactors as ReadinessFactor[] | null) ?? [];
+  const factor = (k: ReadinessFactor["key"]) =>
+    factors.find((f) => f.key === k) ?? null;
   const sleepHistory =
     (account?.sleepHistory as SleepNightHistory[] | null) ?? [];
 
@@ -78,7 +85,7 @@ export default async function RecoveryPage() {
     <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-3 mb-6">
         <BackButton href="/" ariaLabel="Back to feed" />
-        <h1 className="text-[22px] font-bold tracking-tight">Recovery</h1>
+        <h1 className="text-[22px] font-bold tracking-tight">Readiness</h1>
       </div>
 
       <HealthReconnectBanner />
@@ -120,6 +127,7 @@ export default async function RecoveryPage() {
                 Updated {ago(account.recoveryAt)}
               </p>
             )}
+            {factors.length > 0 && <FactorList factors={factors} />}
           </div>
 
           {/* Trend + sleep — tap a day to read that night */}
@@ -164,6 +172,12 @@ export default async function RecoveryPage() {
               current={account?.restingHr ?? null}
               higherIsBetter={false}
             />
+            {factor("resp") && (
+              <FactorTile label="Breathing" f={factor("resp")!} />
+            )}
+            {factor("temp") && (
+              <FactorTile label="Skin temp" f={factor("temp")!} />
+            )}
           </div>
 
           <Spo2Card />
@@ -185,9 +199,11 @@ export default async function RecoveryPage() {
             className="text-[11px] mt-4 leading-snug"
             style={{ color: "var(--fg-dim)" }}
           >
-            Recovery blends last night&apos;s sleep, your overnight HRV, and
-            resting heart rate against your own baseline. Wear your tracker to
-            bed for the most accurate score.
+            Readiness blends last night&apos;s sleep, overnight HRV and resting
+            heart rate against your own baseline, then takes points off for a
+            skin-temperature spike, a raised breathing rate, or two unusually
+            hard training days. Wear your tracker to bed for the most accurate
+            score.
           </p>
         </>
       )}
@@ -306,14 +322,14 @@ function EmptyState({ connected }: { connected: boolean }) {
       style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
     >
       <div className="text-[32px] mb-3">😴</div>
-      <p className="text-[15px] font-semibold">No recovery score yet</p>
+      <p className="text-[15px] font-semibold">No readiness score yet</p>
       <p
         className="text-[13px] mt-1.5 leading-snug max-w-[20rem] mx-auto"
         style={{ color: "var(--fg-dim)" }}
       >
         {connected
-          ? "Wear your tracker to bed — recovery is built from your overnight HRV and resting heart rate. It'll appear here after your next night's sync."
-          : "Connect Fitbit via Health & Fitbit in your profile, and wear your tracker overnight to get a recovery score."}
+          ? "Wear your tracker to bed — readiness is built from your overnight HRV and resting heart rate. It'll appear here after your next night's sync."
+          : "Connect Fitbit via Health & Fitbit in your profile, and wear your tracker overnight to get a readiness score."}
       </p>
       {!connected && (
         <Link
@@ -327,3 +343,4 @@ function EmptyState({ connected }: { connected: boolean }) {
     </div>
   );
 }
+

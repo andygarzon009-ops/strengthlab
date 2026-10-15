@@ -48,7 +48,7 @@ function localMinutes(iso: string, offsetSec: number): number {
 type Range = "W" | "M";
 
 // Match the stage colors on the "Last night" card.
-const DEEP = "#4338ca";
+const DEEP = "#4f46e5";
 const REM = "#38bdf8";
 const LIGHT = "#3b82f6";
 

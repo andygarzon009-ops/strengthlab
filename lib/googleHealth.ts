@@ -402,6 +402,99 @@ export async function listDailyHrv(
   }
 }
 
+type CivilDate = { year: number; month: number; day: number };
+
+const civilKey = (d: CivilDate) =>
+  `${d.year}-${String(d.month).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
+
+export type DailyRespiratorySample = {
+  dateKey: string; // local YYYY-MM-DD of the night's wake
+  bpm: number; // breaths per minute, averaged over the main sleep
+};
+
+/// Nightly breathing rate (`daily-respiratory-rate`), one point per day for
+/// the main sleep. Per-day like resting HR, so no time filter — pull recent
+/// points and key them by civil date. A rise of 1–2 breaths/min over your
+/// norm is one of the earliest signs of illness or heavy fatigue. Sorted
+/// oldest → newest; [] if the device or scope doesn't provide it.
+export async function listDailyRespiratoryRate(
+  userId: string,
+): Promise<DailyRespiratorySample[]> {
+  const path =
+    "/users/me/dataTypes/daily-respiratory-rate/dataPoints?pageSize=60";
+  try {
+    const data = (await healthFetch(userId, path)) as {
+      dataPoints?: {
+        dailyRespiratoryRate?: { date?: CivilDate; breathsPerMinute?: number };
+      }[];
+    };
+    const byDay = new Map<string, number>();
+    for (const p of data.dataPoints ?? []) {
+      const d = p.dailyRespiratoryRate?.date;
+      const bpm = Number(p.dailyRespiratoryRate?.breathsPerMinute);
+      if (!d || !Number.isFinite(bpm) || bpm <= 0) continue;
+      byDay.set(civilKey(d), bpm);
+    }
+    return [...byDay.entries()]
+      .map(([dateKey, bpm]) => ({ dateKey, bpm }))
+      .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+  } catch (e) {
+    console.error("[google-health] respiratory rate", e);
+    return [];
+  }
+}
+
+export type DailySkinTempSample = {
+  dateKey: string; // local YYYY-MM-DD of the night's wake
+  nightlyC: number; // mean skin temperature during sleep
+  baselineC: number | null; // Google's 30-night median
+  stddevC: number | null; // 30-night spread of (nightly − baseline)
+};
+
+/// Nightly skin temperature (`daily-sleep-temperature-derivations`). Google
+/// computes the 30-night baseline and spread for us, so the deviation is
+/// nightly − baseline. A night well above your own spread is the classic
+/// "coming down with something" signal. Sorted oldest → newest; [] if absent.
+export async function listDailySkinTemperature(
+  userId: string,
+): Promise<DailySkinTempSample[]> {
+  const path =
+    "/users/me/dataTypes/daily-sleep-temperature-derivations/dataPoints?pageSize=60";
+  try {
+    const data = (await healthFetch(userId, path)) as {
+      dataPoints?: {
+        dailySleepTemperatureDerivations?: {
+          date?: CivilDate;
+          nightlyTemperatureCelsius?: number;
+          baselineTemperatureCelsius?: number;
+          relativeNightlyStddev30dCelsius?: number;
+        };
+      }[];
+    };
+    const byDay = new Map<string, DailySkinTempSample>();
+    for (const p of data.dataPoints ?? []) {
+      const t = p.dailySleepTemperatureDerivations;
+      const nightly = Number(t?.nightlyTemperatureCelsius);
+      if (!t?.date || !Number.isFinite(nightly)) continue;
+      const base = Number(t.baselineTemperatureCelsius);
+      const sd = Number(t.relativeNightlyStddev30dCelsius);
+      const dateKey = civilKey(t.date);
+      byDay.set(dateKey, {
+        dateKey,
+        nightlyC: nightly,
+        baselineC: Number.isFinite(base) && base > 0 ? base : null,
+        stddevC: Number.isFinite(sd) && sd > 0 ? sd : null,
+      });
+    }
+    return [...byDay.values()].sort((a, b) =>
+      a.dateKey.localeCompare(b.dateKey),
+    );
+  } catch (e) {
+    console.error("[google-health] skin temperature", e);
+    return [];
+  }
+}
+
 export type SleepStageType = "deep" | "rem" | "light" | "awake" | "restless";
 
 export type SleepStageSeg = {

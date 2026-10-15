@@ -395,7 +395,7 @@ export function VisualHealth() {
         <span className="text-[11px] font-semibold" style={{ color: "var(--accent)" }}>✓ Connected</span>
       </div>
       <div className="flex mt-3">
-        {tile("Recovery", "78", "Good")}
+        {tile("Readiness", "78", "Good")}
         {tile("Sleep", "7h 40", "last night")}
         {tile("Resting", "54", "bpm ↓2")}
       </div>

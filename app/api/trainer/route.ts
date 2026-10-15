@@ -1,3 +1,4 @@
+import { FACTOR_LABEL, type ReadinessFactor } from "@/lib/readiness";
 import {
   CARDIO_SET_TYPE,
   cardioSummary,
@@ -259,6 +260,7 @@ export async function POST(req: NextRequest) {
           restingHr: true,
           restingBaselineHr: true,
           sleepSummary: true,
+          readinessFactors: true,
         },
       }),
       // Live Google Health intake — fetched in parallel with the DB reads
@@ -711,7 +713,7 @@ ${lines.join("\n\n")}`;
     const recoveryContext = (() => {
       const ha = healthAccount;
       if (!ha || ha.recoveryScore == null) {
-        return "RECOVERY & SLEEP (Fitbit / Google Health): not available — no wearable connected, or no overnight data yet. Don't assume sleep or recovery quality; ask the athlete if it's relevant.";
+        return "READINESS & SLEEP (Fitbit / Google Health): not available — no wearable connected, or no overnight data yet. Don't assume sleep or recovery quality; ask the athlete if it's relevant.";
       }
       const sleep = ha.sleepSummary as {
         asleepMin?: number;
@@ -722,7 +724,7 @@ ${lines.join("\n\n")}`;
         awakeMin?: number;
       } | null;
       const ls: string[] = [];
-      ls.push(`- Recovery score: ${ha.recoveryScore}/100 (${ha.recoveryBand ?? "?"})`);
+      ls.push(`- Readiness score: ${ha.recoveryScore}/100 (${ha.recoveryBand ?? "?"})`);
       if (sleep?.asleepMin != null) {
         const h = Math.floor(sleep.asleepMin / 60);
         const m = sleep.asleepMin % 60;
@@ -743,9 +745,19 @@ ${lines.join("\n\n")}`;
           `- Resting HR: ${ha.restingHr}bpm${ha.restingBaselineHr != null ? ` (baseline ${ha.restingBaselineHr}bpm — ${ha.restingHr <= ha.restingBaselineHr ? "at/below" : "above"} normal)` : ""}`,
         );
       }
-      return `RECOVERY & SLEEP (from the athlete's Fitbit via Google Health — last night; a HARD INPUT into today's recommendation):
+      // Deductions: skin temp, breathing rate, training-load spike.
+      const factors = (ha.readinessFactors as ReadinessFactor[] | null) ?? [];
+      for (const f of factors) {
+        if (f.key === "temp" || f.key === "resp" || f.key === "load") {
+          ls.push(
+            `- ${FACTOR_LABEL[f.key]}: ${f.value} (${f.note})${f.penalty ? ` — cost ${f.penalty} readiness pts` : ""}`,
+          );
+        }
+      }
+      return `READINESS & SLEEP (from the athlete's Fitbit via Google Health — last night; a HARD INPUT into today's recommendation):
 ${ls.join("\n")}
-Calibrate today's intensity and volume to this: a low recovery score, short or poor sleep, suppressed HRV, or elevated resting HR means pull back load, add rest, or suggest a lighter / mobility / deload day — and say so explicitly. A high score with good sleep green-lights harder work. Don't over-react to a single night, and remember sleep/recovery only update on nights the watch is worn.`;
+Readiness = sleep + overnight HRV + resting HR against the athlete's own baseline, minus deductions for a skin-temperature spike, a raised breathing rate, or a training-load spike over the last two days. A temperature or breathing deduction can be early illness: if either fired, say so plainly and steer to an easy day or rest — never a PR attempt. A load deduction means they've stacked hard days: cut volume, not just intensity.
+Calibrate today's intensity and volume to this: a low readiness score, short or poor sleep, suppressed HRV, or elevated resting HR means pull back load, add rest, or suggest a lighter / mobility / deload day — and say so explicitly. A high score with good sleep green-lights harder work. Don't over-react to a single night, and remember sleep/recovery only update on nights the watch is worn.`;
     })();
 
     // Where the athlete is in their declared training cycle. Computed, not

@@ -269,7 +269,7 @@ export default function DailyGlance({
           <Tile
             ringValue={String(recovery.score)}
             ringColor={scoreColor(recovery.score)}
-            label="Recovery"
+            label="Readiness"
             icon={<BatteryIcon />}
             sub={recovery.label}
             active={open === "recovery"}

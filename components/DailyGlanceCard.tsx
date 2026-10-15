@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { maybeRefreshRecovery } from "@/lib/recovery";
+import { FACTOR_LABEL, type ReadinessFactor } from "@/lib/readiness";
 import DailyGlance, {
   type RecoveryGlance,
   type ActivityGlance,
@@ -19,7 +20,7 @@ const BAND_LABEL: Record<string, string> = {
 const BAND_SUB: Record<string, string> = {
   primed: "Good day to push",
   moderate: "Train as planned",
-  low: "Prioritize recovery",
+  low: "Go easy today",
 };
 
 const MOVE_GOAL_DEFAULT = 500;
@@ -78,6 +79,7 @@ export default async function DailyGlanceCard({ userId }: { userId: string }) {
         restingHr: true,
         restingDelta: true,
         sleepSummary: true,
+        readinessFactors: true,
       },
     }),
   ]);
@@ -95,10 +97,16 @@ export default async function DailyGlanceCard({ userId }: { userId: string }) {
       const mag = d == null || d === 0 ? "" : ` ${Math.abs(d)}`;
       drivers.push(`RHR ${account.restingHr}${arrow}${mag}`);
     }
+    // Name whatever took points off today (fever-ish temp, fast breathing,
+    // a load spike) — those are the reasons a good night still scored low.
+    const factors = (account.readinessFactors as ReadinessFactor[] | null) ?? [];
+    for (const f of factors) {
+      if (f.penalty) drivers.push(`${FACTOR_LABEL[f.key]} ${f.value}`);
+    }
     recovery = {
       score: account.recoveryScore,
       color: BAND_COLOR[band] ?? "var(--accent)",
-      label: BAND_LABEL[band] ?? "Recovery",
+      label: BAND_LABEL[band] ?? "Readiness",
       sub: BAND_SUB[band] ?? "",
       sleepLabel:
         sleep?.asleepMin != null

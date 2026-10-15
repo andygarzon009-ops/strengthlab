@@ -362,6 +362,10 @@ model HealthAccount {
   hrvMs             Float? // latest night RMSSD
   hrvBaselineMs     Float? // trailing baseline RMSSD
   recoveryAt        DateTime?
+  // What moved today's readiness score (lib/readiness.ts ReadinessFactor[]):
+  // sleep / HRV / resting HR sub-scores plus the skin-temp, breathing and
+  // training-load deductions. recoveryScore/Band hold the readiness number.
+  readinessFactors  Json?
   // Last night's sleep: { asleepMin, inBedMin, deepMin, remMin, lightMin,
   // awakeMin, startUtc, endUtc, offsetSec }. nightKey = local date of wake.
   sleepSummary      Json?

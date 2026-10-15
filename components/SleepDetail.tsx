@@ -1,11 +1,10 @@
-// Server-rendered "Last night" sleep card for the recovery page. Shows a
-// quality verdict and the bed→wake window, then hands the per-stage segments
-// to the interactive <SleepHypnogram> client component (stacked-lane timeline
-// with finger-scrubbing + restlessness). Nights synced before segments were
-// captured fall back to a static composition bar + graded breakdown.
+// One night of sleep: the headline (time asleep + sleep score), the bed→wake
+// window, the stepped hypnogram, a 2×2 of stage tiles against their typical
+// ranges, and a strip of quality stats. Nights synced before per-segment
+// stages were captured swap the hypnogram for a single composition bar.
 
-import SleepHypnogram, { type StageSeg } from "@/components/SleepHypnogram";
-import SleepMetrics from "@/components/SleepMetrics";
+import SleepHypnogram from "@/components/SleepHypnogram";
+import { STAGE_STYLE, type StageSeg } from "@/lib/sleepStages";
 
 export type SleepSummary = {
   asleepMin: number;
@@ -19,30 +18,34 @@ export type SleepSummary = {
   startUtc?: string;
   endUtc?: string;
   offsetSec?: number;
-  toSleepMin?: number; // minutes to fall asleep (added with the metrics section)
-  stages?: StageSeg[]; // present on nights synced after the hypnogram change
+  toSleepMin?: number;
+  stages?: StageSeg[];
 };
 
-type LaneType = "deep" | "rem" | "light" | "awake";
+type Stage = "deep" | "rem" | "light" | "awake";
 
-const STAGE: Record<LaneType, { label: string; color: string; min: keyof SleepSummary }> = {
-  awake: { label: "Awake", color: "#ef5a6f", min: "awakeMin" },
-  rem: { label: "REM", color: "#38bdf8", min: "remMin" },
-  light: { label: "Light", color: "#3b82f6", min: "lightMin" },
-  deep: { label: "Deep", color: "#4338ca", min: "deepMin" },
+const MIN_KEY: Record<Stage, "deepMin" | "remMin" | "lightMin" | "awakeMin"> = {
+  deep: "deepMin",
+  rem: "remMin",
+  light: "lightMin",
+  awake: "awakeMin",
 };
 
-const TARGET: Record<LaneType, [number, number] | null> = {
+// Typical share of time asleep for an adult (awake is minutes, not a share).
+const TARGET: Record<Exclude<Stage, "awake">, [number, number]> = {
   deep: [13, 23],
   rem: [20, 25],
   light: [45, 60],
-  awake: null,
 };
+
+const GOOD = "#22c55e";
+const WARN = "#f59e0b";
+const BAD = "#ef4444";
 
 function fmtDur(min: number): string {
   const h = Math.floor(min / 60);
   const m = Math.round(min % 60);
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
 }
 
 function fmtClock(iso: string, offsetSec: number): string {
@@ -55,127 +58,164 @@ function fmtClock(iso: string, offsetSec: number): string {
 }
 
 function verdict(score: number): { label: string; color: string } {
-  if (score >= 80) return { label: "Excellent", color: "#22c55e" };
-  if (score >= 60) return { label: "Good", color: "#22c55e" };
-  if (score >= 40) return { label: "Fair", color: "#f59e0b" };
-  return { label: "Poor", color: "#ef4444" };
+  if (score >= 80) return { label: "Excellent", color: GOOD };
+  if (score >= 60) return { label: "Good", color: GOOD };
+  if (score >= 40) return { label: "Fair", color: WARN };
+  return { label: "Poor", color: BAD };
+}
+
+function ScoreRing({ score, color }: { score: number; color: string }) {
+  const r = 24;
+  const c = 2 * Math.PI * r;
+  const filled = (Math.max(0, Math.min(100, score)) / 100) * c;
+  return (
+    <div className="relative shrink-0" style={{ width: 60, height: 60 }}>
+      <svg width="60" height="60" viewBox="0 0 60 60" aria-hidden>
+        <circle cx="30" cy="30" r={r} fill="none" stroke="var(--bg-elevated)" strokeWidth="5" />
+        <circle
+          cx="30"
+          cy="30"
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeDasharray={`${filled} ${c - filled}`}
+          transform="rotate(-90 30 30)"
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-[17px] font-bold tabular-nums">
+        {Math.round(score)}
+      </span>
+    </div>
+  );
 }
 
 function MoonIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"
-        fill="currentColor"
-      />
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" fill="currentColor" />
     </svg>
   );
 }
 
 function SunIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
       <circle cx="12" cy="13" r="4" fill="currentColor" />
       <path
         d="M12 3v2M4.2 7.2l1.4 1.4M19.8 7.2l-1.4 1.4M2 13h2M20 13h2"
         stroke="currentColor"
-        strokeWidth="1.6"
+        strokeWidth="1.8"
         strokeLinecap="round"
       />
     </svg>
   );
 }
 
-/// Fallback for nights stored before segments were captured: a single stacked
-/// composition bar plus a graded per-stage breakdown.
-function CompositionFallback({
-  sleep,
+/// Stage tile: duration, share of the night, and a slim track with the
+/// typical range shaded and a tick where this night landed.
+function StageTile({
+  stage,
+  min,
   totalSleep,
+  awakeCount,
 }: {
-  sleep: SleepSummary;
+  stage: Stage;
+  min: number;
   totalSleep: number;
+  awakeCount: number;
 }) {
-  const totalWithAwake = totalSleep + sleep.awakeMin || 1;
-  const order: LaneType[] = ["deep", "rem", "light", "awake"];
+  const st = STAGE_STYLE[stage];
+  const pct = totalSleep > 0 ? (min / totalSleep) * 100 : 0;
+  const target = stage === "awake" ? null : TARGET[stage];
+  let status: { text: string; color: string } | null = null;
+  if (target) {
+    status =
+      pct < target[0]
+        ? { text: "Low", color: WARN }
+        : pct > target[1]
+          ? { text: "High", color: WARN }
+          : { text: "In range", color: GOOD };
+  } else {
+    status =
+      min <= 30 ? { text: "Normal", color: GOOD } : { text: "Restless", color: WARN };
+  }
+  const scale = stage === "light" ? 80 : 40; // % axis for the track
   return (
-    <>
-      <div className="flex h-3 rounded-full overflow-hidden mb-5">
-        {order.map((k) => {
-          const min = sleep[STAGE[k].min] as number;
-          const pct = (min / totalWithAwake) * 100;
-          if (pct <= 0) return null;
-          return (
-            <div
-              key={k}
-              style={{ width: `${pct}%`, background: STAGE[k].color }}
-            />
-          );
-        })}
+    <div
+      className="rounded-xl p-3"
+      style={{ background: "var(--bg-elevated)" }}
+    >
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-[12px] font-semibold">
+          <span className="inline-block w-2 h-2 rounded-full" style={{ background: st.top }} />
+          {st.label}
+        </span>
+        <span className="text-[10px] font-semibold" style={{ color: status.color }}>
+          {status.text}
+        </span>
       </div>
-      <div className="space-y-3.5">
-        {order.map((k) => {
-          const min = sleep[STAGE[k].min] as number;
-          const pct = totalSleep > 0 ? (min / totalSleep) * 100 : 0;
-          const target = TARGET[k];
-          const inRange = target ? pct >= target[0] && pct <= target[1] : null;
-          const below = target ? pct < target[0] : false;
-          const hintColor =
-            inRange === null
-              ? "var(--fg-dim)"
-              : inRange
-                ? "var(--accent)"
-                : below
-                  ? "#f59e0b"
-                  : "var(--fg-dim)";
-          return (
-            <div key={k} className="flex items-center gap-3">
-              <span
-                className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
-                style={{ background: STAGE[k].color }}
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-[13px] font-medium">
-                    {STAGE[k].label}
-                  </span>
-                  <span className="text-[13px] tabular-nums">
-                    {fmtDur(min)}
-                    <span
-                      className="text-[11px] ml-1.5"
-                      style={{ color: "var(--fg-dim)" }}
-                    >
-                      {Math.round(pct)}%
-                    </span>
-                  </span>
-                </div>
-                <div
-                  className="relative mt-1.5 h-1.5 rounded-full overflow-hidden"
-                  style={{ background: "var(--bg-elevated)" }}
-                >
-                  <div
-                    className="absolute inset-y-0 left-0 rounded-full"
-                    style={{
-                      width: `${Math.min(100, pct)}%`,
-                      background: STAGE[k].color,
-                      opacity: 0.85,
-                    }}
-                  />
-                </div>
-                {target && (
-                  <p className="text-[10px] mt-1" style={{ color: hintColor }}>
-                    {inRange
-                      ? "in healthy range"
-                      : below
-                        ? `below typical ${target[0]}–${target[1]}%`
-                        : `above typical ${target[0]}–${target[1]}%`}
-                  </p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </>
+      <p className="text-[19px] font-bold tabular-nums leading-none mt-2">
+        {fmtDur(min)}
+      </p>
+      <p className="text-[11px] tabular-nums mt-1" style={{ color: "var(--fg-dim)" }}>
+        {target
+          ? `${Math.round(pct)}% · typical ${target[0]}–${target[1]}%`
+          : `${awakeCount} wake-up${awakeCount === 1 ? "" : "s"}`}
+      </p>
+      {target && (
+        <div
+          className="relative mt-2 rounded-full"
+          style={{ height: 4, background: "var(--bg-card)" }}
+        >
+          <div
+            className="absolute top-0 bottom-0 rounded-full"
+            style={{
+              left: `${(target[0] / scale) * 100}%`,
+              width: `${((target[1] - target[0]) / scale) * 100}%`,
+              background: `${st.color}55`,
+            }}
+          />
+          <div
+            className="absolute rounded-full"
+            style={{
+              left: `${Math.min(100, (pct / scale) * 100)}%`,
+              top: -2,
+              width: 8,
+              height: 8,
+              marginLeft: -4,
+              background: st.top,
+              boxShadow: "0 0 0 2px var(--bg-elevated)",
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  ok,
+}: {
+  label: string;
+  value: string;
+  ok: boolean | null;
+}) {
+  return (
+    <div className="flex-1 text-center px-1">
+      <p
+        className="text-[15px] font-bold tabular-nums"
+        style={{ color: ok === false ? WARN : "var(--fg)" }}
+      >
+        {value}
+      </p>
+      <p className="text-[10px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
+        {label}
+      </p>
+    </div>
   );
 }
 
@@ -195,121 +235,128 @@ export default function SleepDetail({
       ? Math.round((sleep.asleepMin / sleep.inBedMin) * 100)
       : null;
   const v = verdict(qualityScore);
-  const hasTimeline = (sleep.stages?.length ?? 0) > 0;
   const hasWindow =
     !!sleep.startUtc && !!sleep.endUtc && sleep.offsetSec != null;
-
+  const hasTimeline = hasWindow && (sleep.stages?.length ?? 0) > 0;
   const segs = sleep.stages ?? [];
   const awakeCount = segs.filter((s) => s.type === "awake").length;
-  const restlessSegs = segs.filter((s) => s.type === "restless");
-  const restlessMin = restlessSegs.reduce(
-    (a, s) => a + (s.endMs - s.startMs) / 60000,
-    0,
-  );
+  const toSleep = sleep.toSleepMin ?? 0;
 
   return (
     <div className="mb-5">
       <p className="label mb-2">{title}</p>
       <div
-        className="rounded-2xl p-5"
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-        }}
+        className="rounded-2xl overflow-hidden"
+        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
       >
-        {/* headline: asleep duration + quality verdict */}
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <p className="text-[28px] font-bold tabular-nums leading-none">
-              {fmtDur(sleep.asleepMin)}
-            </p>
-            <p className="text-[12px] mt-1.5" style={{ color: "var(--fg-dim)" }}>
-              {fmtDur(sleep.inBedMin)} in bed
-              {efficiency != null && (
-                <>
-                  {" · "}
-                  {efficiency}% efficiency
-                </>
-              )}
-            </p>
+        {/* headline, on a faint night-sky wash */}
+        <div
+          className="px-5 pt-5 pb-4"
+          style={{
+            background:
+              "radial-gradient(120% 100% at 0% 0%, rgba(79,70,229,0.16) 0%, transparent 60%)",
+          }}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[34px] font-bold tabular-nums leading-none tracking-tight">
+                {fmtDur(sleep.asleepMin)}
+              </p>
+              <p className="text-[12px] mt-2" style={{ color: "var(--fg-muted)" }}>
+                asleep · {fmtDur(sleep.inBedMin)} in bed
+              </p>
+            </div>
+            <div className="flex flex-col items-center">
+              <ScoreRing score={qualityScore} color={v.color} />
+              <span className="text-[10px] font-semibold mt-1" style={{ color: v.color }}>
+                {v.label}
+              </span>
+            </div>
           </div>
-          <div
-            className="flex flex-col items-center rounded-xl px-3 py-2"
-            style={{
-              background: "var(--bg-elevated)",
-              border: `1px solid ${v.color}33`,
-            }}
-          >
-            <span
-              className="text-[20px] font-bold tabular-nums leading-none"
-              style={{ color: v.color }}
+
+          {hasWindow && (
+            <div
+              className="flex items-center justify-between mt-4 rounded-full px-3 py-1.5"
+              style={{ background: "var(--bg-elevated)" }}
             >
-              {Math.round(qualityScore)}
-            </span>
-            <span
-              className="text-[10px] font-semibold mt-0.5"
-              style={{ color: v.color }}
-            >
-              {v.label}
-            </span>
-          </div>
+              <span className="flex items-center gap-1.5 text-[12px] font-semibold tabular-nums">
+                <span style={{ color: STAGE_STYLE.deep.top }}>
+                  <MoonIcon />
+                </span>
+                {fmtClock(sleep.startUtc!, sleep.offsetSec!)}
+              </span>
+              <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+                {fmtDur(sleep.inBedMin)}
+              </span>
+              <span className="flex items-center gap-1.5 text-[12px] font-semibold tabular-nums">
+                {fmtClock(sleep.endUtc!, sleep.offsetSec!)}
+                <span style={{ color: WARN }}>
+                  <SunIcon />
+                </span>
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* bed → wake window */}
-        {hasWindow && (
-        <div className="flex items-center justify-between mb-4">
-          <span
-            className="flex items-center gap-1.5 text-[12px] tabular-nums"
-            style={{ color: "var(--fg-muted)" }}
-          >
-            <span style={{ color: STAGE.deep.color }}>
-              <MoonIcon />
-            </span>
-            {fmtClock(sleep.startUtc!, sleep.offsetSec!)}
-          </span>
-          <div
-            className="flex-1 mx-3 border-t border-dashed"
-            style={{ borderColor: "var(--border)" }}
-          />
-          <span
-            className="flex items-center gap-1.5 text-[12px] tabular-nums"
-            style={{ color: "var(--fg-muted)" }}
-          >
-            <span style={{ color: "#f59e0b" }}>
-              <SunIcon />
-            </span>
-            {fmtClock(sleep.endUtc!, sleep.offsetSec!)}
-          </span>
-        </div>
-        )}
+        <div className="px-4 pb-4">
+          {hasTimeline ? (
+            <SleepHypnogram
+              stages={sleep.stages!}
+              startUtc={sleep.startUtc!}
+              endUtc={sleep.endUtc!}
+              offsetSec={sleep.offsetSec!}
+            />
+          ) : (
+            <div className="flex h-3 rounded-full overflow-hidden mt-1">
+              {(["deep", "light", "rem", "awake"] as Stage[]).map((k) => {
+                const min = sleep[MIN_KEY[k]];
+                if (min <= 0) return null;
+                return (
+                  <div
+                    key={k}
+                    style={{ flexGrow: min, background: STAGE_STYLE[k].color }}
+                  />
+                );
+              })}
+            </div>
+          )}
 
-        {hasTimeline && hasWindow ? (
-          <SleepHypnogram
-            stages={sleep.stages!}
-            startUtc={sleep.startUtc!}
-            endUtc={sleep.endUtc!}
-            offsetSec={sleep.offsetSec!}
-            deepMin={sleep.deepMin}
-            remMin={sleep.remMin}
-            lightMin={sleep.lightMin}
-            awakeMin={sleep.awakeMin}
-            totalSleep={totalSleep}
-          />
-        ) : (
-          <CompositionFallback sleep={sleep} totalSleep={totalSleep} />
-        )}
+          <div className="grid grid-cols-2 gap-2 mt-4">
+            {(["deep", "rem", "light", "awake"] as Stage[]).map((k) => (
+              <StageTile
+                key={k}
+                stage={k}
+                min={sleep[MIN_KEY[k]]}
+                totalSleep={totalSleep}
+                awakeCount={awakeCount}
+              />
+            ))}
+          </div>
+
+          <div
+            className="flex items-center mt-3 rounded-xl py-3"
+            style={{ background: "var(--bg-elevated)" }}
+          >
+            <Stat
+              label="Efficiency"
+              value={efficiency != null ? `${efficiency}%` : "—"}
+              ok={efficiency != null ? efficiency >= 85 : null}
+            />
+            <div className="w-px self-stretch" style={{ background: "var(--border)" }} />
+            <Stat
+              label="Fell asleep in"
+              value={toSleep > 0 ? `${toSleep}m` : "—"}
+              ok={toSleep > 0 ? toSleep <= 20 : null}
+            />
+            <div className="w-px self-stretch" style={{ background: "var(--border)" }} />
+            <Stat
+              label="Deep + REM"
+              value={fmtDur(sleep.deepMin + sleep.remMin)}
+              ok={(sleep.deepMin + sleep.remMin) / totalSleep >= 0.33}
+            />
+          </div>
+        </div>
       </div>
-
-      <SleepMetrics
-        asleepMin={sleep.asleepMin}
-        deepMin={sleep.deepMin}
-        remMin={sleep.remMin}
-        toSleepMin={sleep.toSleepMin ?? 0}
-        awakeMin={sleep.awakeMin}
-        awakeCount={awakeCount}
-        restlessMin={restlessMin}
-        restlessCount={restlessSegs.length}
-      />
     </div>
   );
 }
