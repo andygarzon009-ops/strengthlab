@@ -52,7 +52,7 @@ export type ActivityGlance = {
   rows: { label: string; value: number; goal: number; unit: string; color: string; done: boolean }[];
 };
 
-type Section = "recovery" | "fuel" | "activity";
+type Section = "fuel" | "activity";
 
 /// Fuel / Activity beside the gauge: label + reading on one line, a slim bar
 /// under it. The whole row is the tap target that expands its detail.
@@ -234,14 +234,12 @@ export default function DailyGlance({
   return (
     <section aria-label="Today" className="card mb-3 overflow-hidden">
       <div className="flex items-center gap-3 px-3 pt-3 pb-2">
-        {/* Readiness leads: the gauge, number and band. Tap to expand. */}
-        <button
-          type="button"
-          onClick={() => r && toggle("recovery")}
-          aria-label={r ? `Readiness ${r.score}, ${r.label}` : "Readiness: no data"}
-          aria-expanded={open === "recovery"}
-          className="relative shrink-0 rounded-2xl transition-colors"
-          style={{ background: open === "recovery" ? "var(--bg-elevated)" : "transparent" }}
+        {/* Readiness leads: the gauge, number and band. Tapping it opens the
+            readiness page — the full breakdown lives there. */}
+        <Link
+          href="/recovery"
+          aria-label={r ? `Readiness ${r.score}, ${r.label}. Open readiness` : "Open readiness"}
+          className="relative shrink-0 rounded-2xl active:opacity-80"
         >
           <TickGauge score={r?.score ?? null} size={112} id="feed-gauge" ticks={40} />
           <span className="absolute inset-0 flex flex-col items-center justify-center pb-1">
@@ -258,15 +256,16 @@ export default function DailyGlance({
               Ready
             </span>
           </span>
-          {r && (
-            <span
-              className="absolute left-0 right-0 text-center text-[11px] font-bold"
-              style={{ bottom: 4, color: r.color }}
-            >
-              {r.label}
-            </span>
-          )}
-        </button>
+          <span
+            className="absolute left-0 right-0 flex items-center justify-center gap-0.5 text-[11px] font-bold"
+            style={{ bottom: 4, color: r?.color ?? "var(--fg-muted)" }}
+          >
+            {r?.label ?? "Readiness"}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </span>
+        </Link>
 
         <div className="flex-1 min-w-0 space-y-1">
           <MeterRow
@@ -296,33 +295,6 @@ export default function DailyGlance({
 
       {open && (
         <div className="mx-4 mb-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
-          {open === "recovery" && recovery && (
-            <div>
-              <div className="flex items-center justify-between">
-                <p className="text-[15px] font-semibold" style={{ color: scoreColor(recovery.score) }}>
-                  {recovery.label}
-                </p>
-                <Link href="/recovery" className="text-[12px]" style={{ color: "var(--accent)" }}>
-                  Details →
-                </Link>
-              </div>
-              <p className="text-[12px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
-                {recovery.sub}
-              </p>
-              {recovery.sleepLabel && (
-                <p className="text-[13px] font-semibold mt-2 tabular-nums">
-                  🌙 {recovery.sleepLabel}{" "}
-                  <span className="font-normal" style={{ color: "var(--fg-dim)" }}>sleep</span>
-                </p>
-              )}
-              {recovery.drivers.length > 0 && (
-                <p className="text-[11px] mt-1 tabular-nums" style={{ color: "var(--fg-dim)" }}>
-                  {recovery.drivers.join(" · ")}
-                </p>
-              )}
-            </div>
-          )}
-
           {open === "fuel" && fuel && (
             <div>
               <div className="flex items-center justify-between mb-1">

@@ -72,7 +72,7 @@ function TodayCard({
     : next
       ? `/log?clone=${next.templateId}`
       : "/log";
-  const cta = done ? "See session" : next ? `Start ${next.label} day` : "Start a session";
+  const cta = done ? "View log" : next ? `Start ${next.label} day` : "Start a session";
   // A deload overrides the readiness advice: however good the numbers look,
   // this is not the week to push.
   const line =
@@ -114,9 +114,12 @@ function TodayCard({
         {compact && (
           <Link
             href={href}
-            className="btn-accent shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-xl text-[14px] font-bold"
+            // A finished session is a quiet link to its log; only a session
+            // still to do gets the green call to action.
+            className={`${done ? "" : "btn-accent"} shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-xl text-[14px] font-bold`}
+            style={done ? { background: "var(--bg-elevated)", color: "var(--fg)" } : undefined}
           >
-            {done ? "View" : "Start"}
+            {done ? "View log" : "Start"}
             {Arrow}
           </Link>
         )}
