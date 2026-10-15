@@ -1,9 +1,10 @@
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { requireAuth } from "@/lib/session";
 import { exchangeCodeForTokens } from "@/lib/googleHealth";
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { refreshRecovery } from "@/lib/recovery";
 
 export async function GET(req: NextRequest) {
   const userId = await requireAuth();
@@ -48,6 +49,10 @@ export async function GET(req: NextRequest) {
       scope: tokens.scope,
     },
   });
+
+  // Pull sleep / HRV / readiness now rather than on the next stale check, so
+  // a reconnect shows fresh numbers the moment the athlete opens the feed.
+  after(() => refreshRecovery(userId));
 
   redirect("/health?connected=1");
 }

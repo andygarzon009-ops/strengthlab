@@ -119,6 +119,12 @@ export async function refreshRecovery(userId: string): Promise<void> {
       }),
     ]);
 
+    // One line per sync so it's visible whether the newer Google Health
+    // types (breathing, skin temp) are coming back for this account.
+    console.log(
+      `[readiness] user=${userId} sleep=${sleep.length} hrv=${hrv.length} rhr=${rhr.length} resp=${resp.length} temp=${temp.length} workouts=${workouts.length}`,
+    );
+
     const tz = user?.timezone ?? "UTC";
     const localKey = (dt: Date) =>
       new Intl.DateTimeFormat("en-CA", {

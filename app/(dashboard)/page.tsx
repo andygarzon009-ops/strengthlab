@@ -68,6 +68,11 @@ export default async function FeedPage() {
       <Suspense fallback={null}>
         <PendingInvites userId={userId} />
       </Suspense>
+      {/* Readiness + Fuel + Activity rings lead the feed: how ready you are
+          frames everything under it. Each ring expands inline on tap. */}
+      <Suspense fallback={<CardSkeleton height={108} />}>
+        <DailyGlanceCard userId={userId} />
+      </Suspense>
       {/* What to do today — led by a fresh PR for 48 h after one. */}
       <Suspense fallback={<CardSkeleton height={210} />}>
         <FeedTop userId={userId} />
@@ -82,11 +87,6 @@ export default async function FeedPage() {
           hold up the rest. */}
       <Suspense fallback={<CardSkeleton height={112} />}>
         <HeartRateCard userId={userId} />
-      </Suspense>
-      {/* Recovery + Fuel + Activity in one glance ring-row, each expanding
-          inline on tap. */}
-      <Suspense fallback={<CardSkeleton height={108} />}>
-        <DailyGlanceCard userId={userId} />
       </Suspense>
       <Suspense fallback={null}>
         <CrewPulse userId={userId} />
