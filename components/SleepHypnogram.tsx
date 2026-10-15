@@ -93,7 +93,7 @@ export default function SleepHypnogram({
             </span>
           </span>
         ) : (
-          <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+          <span className="text-[11px]" style={{ color: "var(--fg-muted)" }}>
             Press and drag to read the night
           </span>
         )}
@@ -105,7 +105,7 @@ export default function SleepHypnogram({
           {ROWS.map((r) => (
             <div
               key={r}
-              className="flex items-center text-[10px] font-semibold"
+              className="flex items-center text-[11px] font-semibold"
               style={{ height: ROW_H, color: STAGE_STYLE[r].top }}
             >
               {STAGE_STYLE[r].label}
@@ -239,8 +239,8 @@ export default function SleepHypnogram({
               return (
                 <span
                   key={t}
-                  className="absolute text-[10px] tabular-nums -translate-x-1/2"
-                  style={{ left: `${p}%`, color: "var(--fg-dim)" }}
+                  className="absolute text-[11px] tabular-nums -translate-x-1/2"
+                  style={{ left: `${p}%`, color: "var(--fg-muted)" }}
                 >
                   {fmtClockMs(t, offsetSec, true)}
                 </span>

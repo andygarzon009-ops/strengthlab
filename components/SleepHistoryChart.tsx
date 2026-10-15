@@ -127,8 +127,8 @@ export default function SleepHistoryChart({
                   ? { background: "var(--accent)", color: "#0a0a0a" }
                   : {
                       background: "var(--bg-elevated)",
-                      color: "var(--fg-dim)",
-                      border: "1px solid var(--border)",
+                      color: "var(--fg-muted)",
+                      border: "1px solid var(--border-strong)",
                     }
               }
             >
@@ -140,10 +140,10 @@ export default function SleepHistoryChart({
 
       <div
         className="rounded-xl p-4"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+        style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
       >
         <div className="flex items-baseline justify-between mb-3">
-          <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
+          <p className="text-[13px]" style={{ color: "var(--fg-muted)" }}>
             Avg{" "}
             <span
               className="text-[16px] font-bold tabular-nums"
@@ -152,7 +152,7 @@ export default function SleepHistoryChart({
               {avg > 0 ? fmtDur(avg) : "—"}
             </span>
           </p>
-          <p className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+          <p className="text-[11px]" style={{ color: "var(--fg-muted)" }}>
             {days.length} night{days.length === 1 ? "" : "s"}
           </p>
         </div>
@@ -160,7 +160,7 @@ export default function SleepHistoryChart({
         {days.length === 0 ? (
           <p
             className="text-[12px] py-6 text-center"
-            style={{ color: "var(--fg-dim)" }}
+            style={{ color: "var(--fg-muted)" }}
           >
             No sleep tracked in this range.
           </p>
@@ -173,8 +173,8 @@ export default function SleepHistoryChart({
                 style={{ bottom: `${targetPct}%`, borderColor: "var(--border)" }}
               >
                 <span
-                  className="absolute right-0 -top-3.5 text-[9px]"
-                  style={{ color: "var(--fg-dim)" }}
+                  className="absolute right-0 -top-3.5 text-[10px]"
+                  style={{ color: "var(--fg-muted)" }}
                 >
                   8h
                 </span>
@@ -211,10 +211,10 @@ export default function SleepHistoryChart({
 
             {/* x range */}
             <div className="flex justify-between mt-1.5 mb-3">
-              <span className="text-[10px]" style={{ color: "var(--fg-dim)" }}>
+              <span className="text-[11px]" style={{ color: "var(--fg-muted)" }}>
                 {labelFor(days[0]?.date)}
               </span>
-              <span className="text-[10px]" style={{ color: "var(--fg-dim)" }}>
+              <span className="text-[11px]" style={{ color: "var(--fg-muted)" }}>
                 {labelFor(days[days.length - 1]?.date)}
               </span>
             </div>
@@ -228,8 +228,8 @@ export default function SleepHistoryChart({
               ].map((s) => (
                 <span
                   key={s.l}
-                  className="text-[10px] flex items-center gap-1"
-                  style={{ color: "var(--fg-dim)" }}
+                  className="text-[11px] flex items-center gap-1"
+                  style={{ color: "var(--fg-muted)" }}
                 >
                   <span
                     className="inline-block w-2 h-2 rounded-sm"
@@ -246,7 +246,7 @@ export default function SleepHistoryChart({
                 style={{ borderTop: "1px solid var(--border)" }}
               >
                 <div className="text-center">
-                  <p className="text-[10px]" style={{ color: "var(--fg-dim)" }}>
+                  <p className="text-[11px]" style={{ color: "var(--fg-muted)" }}>
                     Avg bedtime
                   </p>
                   <p className="text-[14px] font-bold tabular-nums mt-0.5">
@@ -254,7 +254,7 @@ export default function SleepHistoryChart({
                   </p>
                 </div>
                 <div className="text-center">
-                  <p className="text-[10px]" style={{ color: "var(--fg-dim)" }}>
+                  <p className="text-[11px]" style={{ color: "var(--fg-muted)" }}>
                     Avg wake
                   </p>
                   <p className="text-[14px] font-bold tabular-nums mt-0.5">

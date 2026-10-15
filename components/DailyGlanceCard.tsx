@@ -14,8 +14,8 @@ const BAND_COLOR: Record<string, string> = {
 };
 const BAND_LABEL: Record<string, string> = {
   primed: "Primed",
-  moderate: "Moderate",
-  low: "Take it easy",
+  moderate: "Steady",
+  low: "Run down",
 };
 const BAND_SUB: Record<string, string> = {
   primed: "Good day to push",

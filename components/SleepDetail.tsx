@@ -152,14 +152,14 @@ function StageTile({
           <span className="inline-block w-2 h-2 rounded-full" style={{ background: st.top }} />
           {st.label}
         </span>
-        <span className="text-[10px] font-semibold" style={{ color: status.color }}>
+        <span className="text-[11px] font-semibold" style={{ color: status.color }}>
           {status.text}
         </span>
       </div>
       <p className="text-[19px] font-bold tabular-nums leading-none mt-2">
         {fmtDur(min)}
       </p>
-      <p className="text-[11px] tabular-nums mt-1" style={{ color: "var(--fg-dim)" }}>
+      <p className="text-[11px] tabular-nums mt-1" style={{ color: "var(--fg-muted)" }}>
         {target
           ? `${Math.round(pct)}% · typical ${target[0]}–${target[1]}%`
           : `${awakeCount} wake-up${awakeCount === 1 ? "" : "s"}`}
@@ -212,7 +212,7 @@ function Stat({
       >
         {value}
       </p>
-      <p className="text-[10px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
+      <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-muted)" }}>
         {label}
       </p>
     </div>
@@ -247,7 +247,7 @@ export default function SleepDetail({
       <p className="label mb-2">{title}</p>
       <div
         className="rounded-2xl overflow-hidden"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+        style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
       >
         {/* headline, on a faint night-sky wash */}
         <div
@@ -268,7 +268,7 @@ export default function SleepDetail({
             </div>
             <div className="flex flex-col items-center">
               <ScoreRing score={qualityScore} color={v.color} />
-              <span className="text-[10px] font-semibold mt-1" style={{ color: v.color }}>
+              <span className="text-[11px] font-semibold mt-1" style={{ color: v.color }}>
                 {v.label}
               </span>
             </div>
@@ -285,7 +285,7 @@ export default function SleepDetail({
                 </span>
                 {fmtClock(sleep.startUtc!, sleep.offsetSec!)}
               </span>
-              <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+              <span className="text-[11px]" style={{ color: "var(--fg-muted)" }}>
                 {fmtDur(sleep.inBedMin)}
               </span>
               <span className="flex items-center gap-1.5 text-[12px] font-semibold tabular-nums">
