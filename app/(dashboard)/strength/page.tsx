@@ -9,6 +9,9 @@ import StrengthScoreChart, {
 import Projections from "@/components/Projections";
 import { buildProjections } from "@/lib/projections";
 import BackButton from "@/components/BackButton";
+import TopLiftsCard from "@/components/TopLiftsCard";
+import { mergeLiftsWithTargets } from "@/lib/strengthProgression";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +25,7 @@ export default async function StrengthOverviewPage() {
       date: true,
       startedAt: true,
       endedAt: true,
+      type: true,
       exercises: {
         select: {
           exercise: { select: { id: true, name: true } },
@@ -34,6 +38,32 @@ export default async function StrengthOverviewPage() {
 
   // ---- Projections list (best straight working set per lift, reps ≤ 10) ----
   const projections = buildProjections(workouts);
+
+  // ---- Targets: same 12-week window the old Progress page used, so the
+  // 4-week baseline and session counts read the same. ----
+  const twelveWeeksAgo = new Date(new Date().getTime() - 12 * 7 * 86400_000);
+  const [goals, exercises] = await Promise.all([
+    prisma.goal.findMany({
+      where: { userId, completed: false, exerciseId: { not: null } },
+      select: { id: true, exerciseId: true, targetValue: true, targetReps: true },
+    }),
+    prisma.exercise.findMany({
+      where: { OR: [{ ownerId: null }, { ownerId: userId }] },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
+  const topLifts = mergeLiftsWithTargets(
+    workouts.filter((w) => w.date >= twelveWeeksAgo),
+    goals,
+  );
+  // Stub-row targets have no exercise name yet — backfill from the library.
+  const nameById = new Map(exercises.map((e) => [e.id, e.name]));
+  for (const l of topLifts) {
+    if (l.sessions === 0 && nameById.has(l.exerciseId)) {
+      l.name = nameById.get(l.exerciseId)!;
+    }
+  }
 
   // ---- Strength score series (current form, not all-time) ----
   // Each lift contributes its best est. 1RM from the trailing 6 weeks; the
@@ -99,39 +129,51 @@ export default async function StrengthOverviewPage() {
   const hasData = points.length > 0;
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-8">
+    <div className="max-w-lg mx-auto px-4 pt-8 pb-8">
       <div className="flex items-center gap-3 mb-5">
-        <BackButton href="/consistency" ariaLabel="Back to progress" />
-        <div className="min-w-0 flex-1">
-          <h1 className="text-[22px] font-bold tracking-tight leading-none">
-            Strength
-          </h1>
-          <p className="text-[12px] mt-1" style={{ color: "var(--fg-dim)" }}>
-            Your overall strength trend across every lift
-          </p>
-        </div>
+        <BackButton href="/" ariaLabel="Back to feed" />
+        <h1 className="text-[22px] font-bold tracking-tight">Progress</h1>
       </div>
 
       {hasData ? (
         <StrengthScoreChart points={points} liftsTracked={activeLifts} />
       ) : (
         <div
-          className="rounded-2xl p-6 text-center"
+          className="rounded-3xl p-6 text-center mb-4"
           style={{
             background: "var(--bg-card)",
-            border: "1px solid var(--border)",
+            border: "1px solid var(--border-strong)",
           }}
         >
-          <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
+          <p className="text-[13px]" style={{ color: "var(--fg-muted)" }}>
             Log some strength sessions and your overall strength trend will
             appear here.
           </p>
         </div>
       )}
 
+      <Projections items={projections} />
+
       <div className="mt-4">
-        <Projections items={projections} />
+        <TopLiftsCard lifts={topLifts} exercises={exercises} />
       </div>
+
+      <Link
+        href="/consistency"
+        className="mt-4 flex items-center justify-between rounded-2xl px-4 py-3.5"
+        style={{
+          background: "var(--bg-card)",
+          border: "1px solid var(--border-strong)",
+        }}
+      >
+        <span>
+          <span className="block text-[14px] font-semibold">This week &amp; coverage</span>
+          <span className="block text-[12px] mt-0.5" style={{ color: "var(--fg-muted)" }}>
+            Week rhythm, muscles hit, weak spots
+          </span>
+        </span>
+        <span className="text-[18px]" style={{ color: "var(--fg-muted)" }}>›</span>
+      </Link>
     </div>
   );
 }

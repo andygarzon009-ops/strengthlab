@@ -41,14 +41,14 @@ export default function TopLiftsCard({
     // No outer margin: the Progress page owns the spacing between sections.
     <div>
       <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-[15px] font-bold tracking-tight">Strength</h2>
+        <h2 className="text-[15px] font-bold tracking-tight">Targets</h2>
         <div className="flex items-center gap-4">
           {targets.length > 0 && (
             <button
               type="button"
               onClick={() => setEditing((v) => !v)}
-              className="text-[11px] font-semibold uppercase tracking-wider"
-              style={{ color: editing ? "#f87171" : "var(--fg-dim)" }}
+              className="text-[13px] font-semibold"
+              style={{ color: editing ? "#f87171" : "var(--fg-muted)" }}
             >
               {editing ? "Done" : "Edit"}
             </button>
@@ -56,8 +56,8 @@ export default function TopLiftsCard({
           <button
             type="button"
             onClick={() => setAdding((v) => !v)}
-            className="text-[11px] font-semibold uppercase tracking-wider"
-            style={{ color: adding ? "var(--fg-dim)" : "var(--accent)" }}
+            className="text-[13px] font-semibold"
+            style={{ color: adding ? "var(--fg-muted)" : "var(--accent)" }}
           >
             {adding ? "Cancel" : "+ Add"}
           </button>
@@ -79,10 +79,10 @@ export default function TopLiftsCard({
             className="rounded-2xl p-5 text-center"
             style={{
               background: "var(--bg-card)",
-              border: "1px solid var(--border)",
+              border: "1px solid var(--border-strong)",
             }}
           >
-            <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
+            <p className="text-[13px]" style={{ color: "var(--fg-muted)" }}>
               No targets yet. Tap{" "}
               <span style={{ color: "var(--accent)" }}>+ Add</span> to set a
               strength target and track your progress here.
@@ -90,13 +90,7 @@ export default function TopLiftsCard({
           </div>
         )
       ) : (
-        <div
-          className="rounded-2xl divide-y"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-          }}
-        >
+        <div className="space-y-2">
           {targets.map((l) => (
             <TargetRow
               key={l.target?.goalId ?? l.exerciseId}
@@ -113,7 +107,10 @@ export default function TopLiftsCard({
 function TargetRow({ lift, editing }: { lift: LiftTrend; editing: boolean }) {
   const goalId = lift.target?.goalId;
   return (
-    <div>
+    <div
+      className="rounded-2xl overflow-hidden"
+      style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
+    >
       <Link
         href={`/strength/${encodeURIComponent(lift.exerciseId)}`}
         className="block transition-colors"
@@ -156,9 +153,40 @@ function RemoveTargetButton({ goalId }: { goalId: string }) {
   );
 }
 
+/// Progress ring for a target: how far the current est. 1RM has come toward
+/// the goal's, gold once it's reached.
+function TargetRing({ pct }: { pct: number }) {
+  const r = 20;
+  const c = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(1, pct));
+  const done = pct >= 1;
+  const color = done ? "#eab308" : "#22c55e";
+  return (
+    <div className="relative shrink-0" style={{ width: 52, height: 52 }}>
+      <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden>
+        <circle cx="26" cy="26" r={r} fill="none" stroke="var(--bg-elevated)" strokeWidth="5" />
+        <circle
+          cx="26"
+          cy="26"
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeDasharray={`${(p * c).toFixed(2)} ${(c - p * c).toFixed(2)}`}
+          transform="rotate(-90 26 26)"
+          style={{ filter: `drop-shadow(0 0 4px ${color}66)` }}
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-[12px] font-bold tabular-nums">
+        {done ? "✓" : `${Math.round(pct * 100)}%`}
+      </span>
+    </div>
+  );
+}
+
 function LiftRowBody({ lift }: { lift: LiftTrend }) {
   const target = lift.target;
-  const targetPct = target ? Math.min(1, target.progressPct) : 0;
   const arrow =
     lift.direction === "up"
       ? "↑"
@@ -176,69 +204,48 @@ function LiftRowBody({ lift }: { lift: LiftTrend }) {
   // Green = above the 4-wk average, orange = below, neutral = flat / new.
   const trendColor =
     lift.direction === "up"
-      ? "var(--accent)"
+      ? "#4ade80"
       : lift.direction === "down"
-        ? "#f97316"
-        : "var(--fg-dim)";
+        ? "#fb923c"
+        : "var(--fg-muted)";
+  const toGo = target ? Math.max(0, Math.round(target.targetE1rm - lift.currentE1rm)) : 0;
 
   return (
-    <div className="px-4 py-3">
-      <div className="flex items-center justify-between">
-        <div className="min-w-0 flex-1 pr-3">
-          <p className="text-[14px] font-medium truncate mb-0.5">{lift.name}</p>
-          <p
-            className="text-[11px] tabular-nums"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            {lift.sessions === 0
-              ? "No sessions logged yet"
-              : `${formatLoad(lift.name, lift.currentWeight)} × ${lift.currentReps} · ${relativeDate(lift.lastSessionAt)}`}
+    <div className="px-4 py-3.5 flex items-center gap-3.5">
+      {target && <TargetRing pct={target.progressPct} />}
+      <div className="min-w-0 flex-1">
+        <p className="text-[15px] font-semibold truncate">{lift.name}</p>
+        {target && (
+          <p className="text-[12px] tabular-nums mt-0.5" style={{ color: "var(--fg)" }}>
+            Goal {formatLoad(lift.name, target.targetWeight)} × {target.targetReps}
+            <span style={{ color: "var(--fg-muted)" }}>
+              {" · "}
+              {toGo > 0 ? `${toGo} lb to go` : "reached"}
+            </span>
           </p>
-        </div>
-        <div className="text-right tabular-nums shrink-0 flex items-center gap-2">
-          <div>
-            <p className="text-[16px] font-bold">
-              {formatLbs(lift.currentE1rm)}
-            </p>
-            <p className="text-[11px]" style={{ color: trendColor }}>
-              {arrow} {trendLabel}
-            </p>
-          </div>
-          <span style={{ color: "var(--fg-dim)" }}>→</span>
-        </div>
+        )}
+        <p className="text-[12px] tabular-nums mt-0.5" style={{ color: "var(--fg-muted)" }}>
+          {lift.sessions === 0
+            ? "No sessions logged yet"
+            : `Now ${formatLoad(lift.name, lift.currentWeight)} × ${lift.currentReps} · ${relativeDate(lift.lastSessionAt)}`}
+        </p>
       </div>
-
-      {target && (
-        <div className="mt-2.5">
-          <div
-            className="h-1.5 rounded-full overflow-hidden"
-            style={{ background: "var(--bg-elevated)" }}
-          >
-            <div
-              className="h-full transition-all"
-              style={{
-                width: `${Math.round(targetPct * 100)}%`,
-                background: "var(--accent)",
-              }}
-            />
-          </div>
-          <div
-            className="flex items-center justify-between mt-1 tabular-nums"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            <span className="text-[10px]">
-              Goal {formatLoad(lift.name, target.targetWeight)} ×{" "}
-              {target.targetReps} · {formatLbs(target.targetE1rm)}
-            </span>
-            <span
-              className="text-[10px] font-semibold"
-              style={{ color: "var(--accent)" }}
-            >
-              {Math.round(target.progressPct * 100)}%
-            </span>
-          </div>
-        </div>
-      )}
+      <div className="text-right tabular-nums shrink-0">
+        <p className="text-[18px] font-bold leading-none">
+          {Math.round(lift.currentE1rm).toLocaleString()}
+          <span className="text-[11px] font-normal ml-0.5" style={{ color: "var(--fg-muted)" }}>
+            lb
+          </span>
+        </p>
+        {target && (
+          <p className="text-[11px] mt-1" style={{ color: "var(--fg-muted)" }}>
+            of {formatLbs(target.targetE1rm)}
+          </p>
+        )}
+        <p className="text-[11px] mt-0.5" style={{ color: trendColor }}>
+          {arrow} {trendLabel}
+        </p>
+      </div>
     </div>
   );
 }

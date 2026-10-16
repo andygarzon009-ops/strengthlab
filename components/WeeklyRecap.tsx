@@ -150,7 +150,7 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
       className="card relative p-[18px] mb-3 transition-colors"
     >
       <Link
-        href="/consistency"
+        href="/strength"
         aria-label="Open progress"
         className="absolute inset-0 rounded-[inherit]"
       />

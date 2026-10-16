@@ -223,11 +223,11 @@ export default function DiscoverTabs({
       {active === "you" && (
         <Grid>
           <StoryTile
-            href={withFrom("/consistency")}
+            href={withFrom("/strength")}
             gradient="linear-gradient(160deg, #3b82f6 0%, #0a0a0a 100%)"
             badge="📈 You"
-            title="Your week"
-            subtitle="Progress, PRs & projections"
+            title="Progress"
+            subtitle="Strength score, projections & targets"
             cta="View"
           />
           <StoryTile

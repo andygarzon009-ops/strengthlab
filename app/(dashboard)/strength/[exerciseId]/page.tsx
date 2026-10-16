@@ -42,7 +42,7 @@ export default async function LiftDrilldownPage({
         <p className="text-[14px]" style={{ color: "var(--fg-dim)" }}>
           Lift not found.
         </p>
-        <Link href="/consistency" className="text-[12px] underline">
+        <Link href="/strength" className="text-[12px] underline">
           ← Back
         </Link>
       </div>
@@ -118,7 +118,7 @@ export default async function LiftDrilldownPage({
   return (
     <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-3 mb-5">
-        <BackButton href="/consistency" ariaLabel="Back to rhythm" />
+        <BackButton href="/strength" ariaLabel="Back to progress" />
         <div className="min-w-0 flex-1">
           <h1 className="text-[20px] font-bold tracking-tight leading-snug truncate">
             {exercise.name}

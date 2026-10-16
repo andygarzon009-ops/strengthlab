@@ -11,12 +11,8 @@ import {
   SCAN_GROUPS,
 } from "@/lib/exercises";
 import { CARDIO_SET_TYPE, focusCredit } from "@/lib/cardio";
-import { mergeLiftsWithTargets } from "@/lib/strengthProgression";
 import { computeWeakSpots } from "@/lib/weakSpots";
-import TopLiftsCard from "@/components/TopLiftsCard";
 import CoverageBars, { type MuscleCoverage } from "@/components/CoverageBars";
-import Projections from "@/components/Projections";
-import { buildProjections } from "@/lib/projections";
 import WeakSpots from "@/components/WeakSpots";
 import BackButton from "@/components/BackButton";
 
@@ -246,41 +242,6 @@ export default async function ConsistencyDetailPage() {
       },
     },
   });
-  const goals = await prisma.goal.findMany({
-    where: { userId, completed: false, exerciseId: { not: null } },
-    select: { id: true, exerciseId: true, targetValue: true, targetReps: true },
-  });
-  // Exercise library for the "+ Add target" picker on the Strength card.
-  const exercises = await prisma.exercise.findMany({
-    where: { OR: [{ ownerId: null }, { ownerId: userId }] },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true },
-  });
-  const topLifts = mergeLiftsWithTargets(liftHistory, goals);
-
-  // Stub-row targets have no exercise name yet — backfill from the DB so
-  // the row reads "Bench Press" instead of "Lift".
-  const stubIds = topLifts
-    .filter((l) => l.sessions === 0)
-    .map((l) => l.exerciseId);
-  if (stubIds.length > 0) {
-    const stubExercises = await prisma.exercise.findMany({
-      where: { id: { in: stubIds } },
-      select: { id: true, name: true },
-    });
-    const nameById = new Map(stubExercises.map((e) => [e.id, e.name]));
-    for (const l of topLifts) {
-      if (l.sessions === 0 && nameById.has(l.exerciseId)) {
-        l.name = nameById.get(l.exerciseId)!;
-      }
-    }
-  }
-
-  // ---- Projections (estimated 1RM via Epley) ----
-  // Best straight working set per lift, plus each lift's session-by-session
-  // trend for the row sparkline. See lib/projections.ts.
-  const projections = buildProjections(liftHistory);
-
   // ---- Training streak — consecutive days ending today or yesterday ----
   const streakDays = (() => {
     if (liftHistory.length === 0) return 0;
@@ -378,15 +339,10 @@ export default async function ConsistencyDetailPage() {
   return (
     <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-3 mb-4">
-        <BackButton href="/" ariaLabel="Back to feed" />
+        <BackButton href="/strength" ariaLabel="Back to progress" />
         <h1 className="text-[22px] font-bold tracking-tight leading-none flex-1">
-          Progress
+          This week
         </h1>
-      </div>
-
-      {/* Where your lifts are headed leads the page. */}
-      <div className="mb-3">
-        <Projections items={projections} href="/strength" />
       </div>
 
       {/* One hero for the week. The page used to open with the same fact three
@@ -426,8 +382,6 @@ export default async function ConsistencyDetailPage() {
           these seven days. One rhythm down the page instead of three different
           gaps. */}
       <div className="space-y-3">
-        <TopLiftsCard lifts={topLifts} exercises={exercises} />
-
         {/* Coverage — interactive body scan */}
         <div
           className="rounded-2xl p-4"
