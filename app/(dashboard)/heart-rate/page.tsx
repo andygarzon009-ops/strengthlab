@@ -9,7 +9,16 @@ export const dynamic = "force-dynamic";
 
 export default async function HeartRatePage() {
   const userId = await requireAuth();
-  const account = await prisma.healthAccount.findUnique({ where: { userId } });
+  const account = await prisma.healthAccount.findUnique({
+    where: { userId },
+    select: { restingHr: true, restingDelta: true, restingBaselineHr: true },
+  });
+  const restingDays = await prisma.recoveryDay.findMany({
+    where: { userId, restingHr: { not: null } },
+    orderBy: { dateKey: "desc" },
+    take: 30,
+    select: { dateKey: true, restingHr: true },
+  });
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -72,6 +81,14 @@ export default async function HeartRatePage() {
 
       <HeartRateView
         maxHr={maxHr}
+        resting={{
+          now: account?.restingHr ?? null,
+          delta: account?.restingDelta ?? null,
+          baseline: account?.restingBaselineHr ?? null,
+          days: restingDays
+            .reverse()
+            .map((d) => ({ dateKey: d.dateKey, bpm: d.restingHr! })),
+        }}
         initial={{
           connected: !!account,
           samples: initialSamples,

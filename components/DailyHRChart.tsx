@@ -37,6 +37,8 @@ export default function DailyHRChart({
   range,
   onRangeChange,
   maxHr,
+  restingHr,
+  onDaySamples,
 }: {
   initial: {
     connected: boolean;
@@ -48,8 +50,16 @@ export default function DailyHRChart({
   onRangeChange: (r: Range) => void;
   /** Estimated max HR for the intensity zones. Omit to draw without them. */
   maxHr?: number | null;
+  /** Today's resting HR, drawn as a reference line on the day view. */
+  restingHr?: number | null;
+  /** Hands today's samples up so the page hero and zone card can use them. */
+  onDaySamples?: (samples: Sample[]) => void;
 }) {
   const [data, setData] = useState(initial);
+  useEffect(() => {
+    onDaySamples?.(data.samples ?? []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
   const [rangeDays, setRangeDays] = useState<RangeDay[]>([]);
   const [hourSamples, setHourSamples] = useState<Sample[]>([]);
   const [hourWindow, setHourWindow] = useState<{ start: string; end: string } | null>(null);
@@ -211,7 +221,7 @@ export default function DailyHRChart({
           className="flex gap-1 p-1 rounded-full flex-1"
           style={{
             background: "var(--bg-card)",
-            border: "1px solid var(--border)",
+            border: "1px solid var(--border-strong)",
           }}
         >
           {RANGE_LABELS.map((r) => {
@@ -221,10 +231,11 @@ export default function DailyHRChart({
                 key={r.value}
                 type="button"
                 onClick={() => onRangeChange(r.value)}
-                className="flex-1 py-1.5 rounded-full text-[12px] font-semibold transition-colors"
+                className="flex-1 py-2 rounded-full text-[13px] font-semibold transition-colors"
                 style={{
                   background: active ? "var(--bg-elevated)" : "transparent",
-                  color: active ? "var(--fg)" : "var(--fg-dim)",
+                  color: active ? "var(--fg)" : "var(--fg-muted)",
+                  boxShadow: active ? "inset 0 0 0 1px var(--border-strong)" : undefined,
                 }}
               >
                 {r.label}
@@ -237,10 +248,10 @@ export default function DailyHRChart({
           onClick={refresh}
           disabled={loading}
           aria-label="Refresh"
-          className="w-9 h-9 rounded-full flex items-center justify-center"
+          className="w-10 h-10 rounded-full flex items-center justify-center"
           style={{
             background: "var(--bg-card)",
-            border: "1px solid var(--border)",
+            border: "1px solid var(--border-strong)",
             color: "var(--fg-muted)",
           }}
         >
@@ -276,9 +287,9 @@ export default function DailyHRChart({
           loading={loading}
         />
       ) : range === "D" ? (
-        <DayCard data={data} loading={loading} maxHr={maxHr} />
+        <DayCard data={data} loading={loading} maxHr={maxHr} restingHr={restingHr} />
       ) : (
-        <RangeCard range={range} days={rangeDays} loading={loading} />
+        <RangeCard range={range} days={rangeDays} loading={loading} maxHr={maxHr} />
       )}
     </div>
   );
@@ -317,15 +328,12 @@ function HourCard({
   return (
     <div
       className="rounded-2xl p-4"
-      style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--border)",
-      }}
+      style={CARD}
     >
       <RangeHeader
-        label="Range"
+        label="Last hour"
         primary={range ? `${range.min}–${range.max}` : null}
-        subtitle="Last hour"
+        subtitle="Lowest to highest reading"
         loading={loading}
       />
       <ScrubbableChart
@@ -358,26 +366,18 @@ function HourCard({
         )}
       </ScrubbableChart>
       <ZoneLegend maxHr={maxHr} />
-      {latest && (
-        <>
-          <div
-            className="mt-3 pt-3 flex items-center justify-between"
-            style={{ borderTop: "1px solid var(--border)" }}
-          >
-            <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
-              Latest:{" "}
-              {new Date(latest.t).toLocaleTimeString(undefined, {
-                hour: "numeric",
-                minute: "2-digit",
-              })}
-            </span>
-            <span className="text-[14px] font-bold tabular-nums">
-              {latest.bpm} BPM
-            </span>
-          </div>
-          <StaleHint latestAt={new Date(latest.t)} />
-        </>
+      {range && (
+        <StatStrip
+          maxHr={maxHr}
+          items={[
+            { label: "Low", bpm: range.min },
+            { label: "Avg", bpm: avgBpm(samples) },
+            { label: "High", bpm: range.max },
+            { label: "Latest", bpm: latest?.bpm ?? null },
+          ]}
+        />
       )}
+      {latest && <StaleHint latestAt={new Date(latest.t)} />}
     </div>
   );
 }
@@ -386,6 +386,7 @@ function DayCard({
   data,
   loading,
   maxHr,
+  restingHr,
 }: {
   data: {
     connected: boolean;
@@ -395,6 +396,7 @@ function DayCard({
   };
   loading: boolean;
   maxHr?: number | null;
+  restingHr?: number | null;
 }) {
   const buckets = useMemo<Bucket[]>(() => {
     if (!data.samples?.length) return [];
@@ -442,15 +444,12 @@ function DayCard({
   return (
     <div
       className="rounded-2xl p-4"
-      style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--border)",
-      }}
+      style={CARD}
     >
       <RangeHeader
-        label="Range"
+        label="Today"
         primary={dayRange ? `${dayRange.min}–${dayRange.max}` : null}
-        subtitle="Today"
+        subtitle="Lowest to highest reading"
         loading={loading}
       />
       <ScrubbableChart
@@ -463,30 +462,78 @@ function DayCard({
         maxHr={maxHr}
       >
         {(marker) => (
-          <DaySvg buckets={buckets} maxHr={maxHr} marker={marker} />
+          <DaySvg
+            buckets={buckets}
+            maxHr={maxHr}
+            marker={marker}
+            restingHr={restingHr}
+          />
         )}
       </ScrubbableChart>
       <ZoneLegend maxHr={maxHr} />
-      {latest && (
-        <>
-          <div
-            className="mt-3 pt-3 flex items-center justify-between"
-            style={{ borderTop: "1px solid var(--border)" }}
-          >
-            <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
-              Latest:{" "}
-              {new Date(latest.t).toLocaleTimeString(undefined, {
-                hour: "numeric",
-                minute: "2-digit",
-              })}
-            </span>
-            <span className="text-[14px] font-bold tabular-nums">
-              {latest.bpm} BPM
-            </span>
-          </div>
-          <StaleHint latestAt={new Date(latest.t)} />
-        </>
+      {dayRange && (
+        <StatStrip
+          maxHr={maxHr}
+          items={[
+            { label: "Low", bpm: dayRange.min },
+            { label: "Avg", bpm: avgBpm(data.samples) },
+            { label: "High", bpm: dayRange.max },
+            { label: "Resting", bpm: restingHr ?? null, neutral: true },
+          ]}
+        />
       )}
+      {latest && <StaleHint latestAt={new Date(latest.t)} />}
+    </div>
+  );
+}
+
+const CARD: React.CSSProperties = {
+  background: "var(--bg-card)",
+  border: "1px solid var(--border-strong)",
+};
+
+function avgBpm(samples: Sample[]): number | null {
+  if (!samples.length) return null;
+  return Math.round(samples.reduce((a, s) => a + s.bpm, 0) / samples.length);
+}
+
+/// Low / avg / high (and one context reading) under a chart, each number in
+/// the colour of the zone it falls in.
+function StatStrip({
+  items,
+  maxHr,
+}: {
+  items: { label: string; bpm: number | null; neutral?: boolean }[];
+  maxHr?: number | null;
+}) {
+  return (
+    <div
+      className="flex items-stretch mt-3 rounded-xl py-2.5"
+      style={{ background: "var(--bg-elevated)" }}
+    >
+      {items.map((it, i) => (
+        <div key={it.label} className="flex-1 flex">
+          {i > 0 && (
+            <div className="w-px self-stretch" style={{ background: "var(--border)" }} />
+          )}
+          <div className="flex-1 text-center">
+            <p
+              className="text-[17px] font-bold tabular-nums leading-tight"
+              style={{
+                color:
+                  it.bpm != null && maxHr && !it.neutral
+                    ? hrZoneColor(it.bpm, maxHr)
+                    : "var(--fg)",
+              }}
+            >
+              {it.bpm ?? "—"}
+            </p>
+            <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-muted)" }}>
+              {it.label}
+            </p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -509,10 +556,12 @@ function RangeCard({
   range,
   days,
   loading,
+  maxHr,
 }: {
   range: Range;
   days: RangeDay[];
   loading: boolean;
+  maxHr?: number | null;
 }) {
   const summary = useMemo(() => {
     const restings = days.map((d) => d.restingHR).filter((x): x is number => !!x);
@@ -523,7 +572,10 @@ function RangeCard({
     const avgResting = restings.length
       ? Math.round(restings.reduce((a, b) => a + b, 0) / restings.length)
       : null;
-    return { lo, hi, avgResting };
+    const avgPeak = peaks.length
+      ? Math.round(peaks.reduce((a, b) => a + b, 0) / peaks.length)
+      : null;
+    return { lo, hi, avgResting, avgPeak };
   }, [days]);
 
   const subtitle =
@@ -532,13 +584,10 @@ function RangeCard({
   return (
     <div
       className="rounded-2xl p-4"
-      style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--border)",
-      }}
+      style={CARD}
     >
       <RangeHeader
-        label="Range"
+        label={subtitle}
         primary={
           summary
             ? summary.lo !== null && summary.hi !== null
@@ -550,22 +599,20 @@ function RangeCard({
                   : null
             : null
         }
-        subtitle={subtitle}
+        subtitle="Bars run from resting to peak each day"
         loading={loading}
       />
-      <RangeSvg days={days} range={range} />
-      {summary?.avgResting !== null && summary?.avgResting !== undefined && (
-        <div
-          className="mt-3 pt-3 flex items-center justify-between"
-          style={{ borderTop: "1px solid var(--border)" }}
-        >
-          <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
-            Avg resting HR
-          </span>
-          <span className="text-[14px] font-bold tabular-nums">
-            {summary.avgResting} BPM
-          </span>
-        </div>
+      <RangeSvg days={days} range={range} maxHr={maxHr} />
+      {summary && (
+        <StatStrip
+          maxHr={maxHr}
+          items={[
+            { label: "Lowest rest", bpm: summary.lo, neutral: true },
+            { label: "Avg rest", bpm: summary.avgResting, neutral: true },
+            { label: "Avg peak", bpm: summary.avgPeak },
+            { label: "Top peak", bpm: summary.hi },
+          ]}
+        />
       )}
     </div>
   );
@@ -584,34 +631,36 @@ function RangeHeader({
 }) {
   return (
     <>
-      <div className="flex items-baseline justify-between mb-1">
-        <p
-          className="text-[10px] uppercase tracking-wider font-semibold"
-          style={{ color: "var(--fg-dim)" }}
-        >
+      <div className="flex items-baseline justify-between">
+        <p className="text-[13px] font-semibold" style={{ color: "var(--fg-muted)" }}>
           {label}
         </p>
         {loading && (
-          <span className="text-[10px]" style={{ color: "var(--fg-dim)" }}>
+          <span className="text-[11px]" style={{ color: "var(--fg-muted)" }}>
             updating…
           </span>
         )}
       </div>
-      <div className="flex items-baseline gap-2 mb-2 tabular-nums">
+      <div className="flex items-baseline gap-1.5 mt-1 tabular-nums">
         {primary ? (
           <>
-            <span className="text-[28px] font-bold">{primary}</span>
-            <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
-              BPM
+            <span
+              className="text-[30px] font-bold leading-none"
+              style={{ letterSpacing: "-0.02em" }}
+            >
+              {primary}
+            </span>
+            <span className="text-[13px]" style={{ color: "var(--fg-muted)" }}>
+              bpm
             </span>
           </>
         ) : (
-          <span className="text-[14px]" style={{ color: "var(--fg-dim)" }}>
+          <span className="text-[14px]" style={{ color: "var(--fg-muted)" }}>
             No samples yet
           </span>
         )}
       </div>
-      <p className="text-[12px] mb-3" style={{ color: "var(--fg-dim)" }}>
+      <p className="text-[12px] mt-1 mb-2" style={{ color: "var(--fg-muted)" }}>
         {subtitle}
       </p>
     </>
@@ -619,10 +668,9 @@ function RangeHeader({
 }
 
 
-/// Dotted intensity thresholds, drawn in the same colours the readings use.
-/// Only the lower bound of each zone above the first is worth a line — the
-/// floor of zone 1 is the axis.
-function ZoneLines({
+/// Each zone as a faint tinted band with a hairline at its floor, so the
+/// trace reads against intensity without a ladder of dotted lines.
+function ZoneBands({
   bands,
   yFor,
   x1,
@@ -633,11 +681,27 @@ function ZoneLines({
   yFor: (bpm: number) => number;
   x1: number;
   x2: number;
-  /** Where the BPM label sits. Omit to draw lines only. */
+  /** Where the BPM label sits. Omit to draw bands only. */
   labelX?: number;
 }) {
   return (
     <>
+      {bands.map((b) => {
+        const top = yFor(Math.min(b.maxBpm ?? Y_MAX, Y_MAX));
+        const bottom = yFor(Math.max(b.minBpm, Y_MIN));
+        if (bottom - top <= 0) return null;
+        return (
+          <rect
+            key={`zb-${b.zone}`}
+            x={x1}
+            y={top}
+            width={x2 - x1}
+            height={bottom - top}
+            fill={b.color}
+            opacity={0.05}
+          />
+        );
+      })}
       {bands
         .filter((b) => b.minBpm > Y_MIN && b.minBpm < Y_MAX)
         .map((b) => (
@@ -648,9 +712,8 @@ function ZoneLines({
             y1={yFor(b.minBpm)}
             y2={yFor(b.minBpm)}
             stroke={b.color}
-            strokeDasharray={b.dash}
-            strokeWidth={1}
-            strokeOpacity={0.8}
+            strokeWidth={0.6}
+            strokeOpacity={0.35}
           />
         ))}
       {labelX != null &&
@@ -662,8 +725,8 @@ function ZoneLines({
               x={labelX}
               y={yFor(b.minBpm) + 3}
               fontSize="9"
+              fontWeight="600"
               fill={b.color}
-              opacity={0.9}
             >
               {b.minBpm}
             </text>
@@ -773,42 +836,186 @@ function ZoneGradient({
   );
 }
 
-/// The trace. A continuous line rather than a bar per bucket — bars read as a
-/// barcode at day scale, and the shape of the day is what's actually being
-/// looked at. Peaks are preserved by plotting each bucket's high.
-function TraceLine({
-  pts,
-  gradientId,
-  hasZones,
+/// Gradient + fade mask the trace and its fill paint with. One set per chart,
+/// ids prefixed so the hour and day charts never share a definition.
+function TraceDefs({
+  prefix,
+  maxHr,
+  padT,
+  plotH,
+  W,
 }: {
-  pts: { x: number; y: number }[];
-  gradientId: string;
-  hasZones: boolean;
+  prefix: string;
+  maxHr?: number | null;
+  padT: number;
+  plotH: number;
+  W: number;
 }) {
-  if (pts.length === 0) return null;
-  if (pts.length === 1) {
-    return (
-      <circle
-        cx={pts[0].x}
-        cy={pts[0].y}
-        r={1.6}
-        fill={hasZones ? `url(#${gradientId})` : "#ef4444"}
-      />
-    );
-  }
   return (
-    <polyline
-      points={pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ")}
-      fill="none"
-      stroke={hasZones ? `url(#${gradientId})` : "#ef4444"}
-      strokeWidth={1.4}
-      strokeLinejoin="round"
-      strokeLinecap="round"
-      vectorEffect="non-scaling-stroke"
-    />
+    <defs>
+      {maxHr ? (
+        <ZoneGradient id={`${prefix}Zone`} maxHr={maxHr} padT={padT} plotH={plotH} />
+      ) : null}
+      <linearGradient id={`${prefix}Fade`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#fff" stopOpacity={0.42} />
+        <stop offset="100%" stopColor="#fff" stopOpacity={0} />
+      </linearGradient>
+      <mask id={`${prefix}Mask`} maskUnits="userSpaceOnUse">
+        <rect x={0} y={padT} width={W} height={plotH} fill={`url(#${prefix}Fade)`} />
+      </mask>
+    </defs>
   );
 }
 
+/// The trace: a zone-coloured line with a soft fill beneath it. Plotting each
+/// bucket's high keeps the peaks. Breaks wherever the watch went quiet for
+/// longer than `gap`, so a night off the wrist is a gap, not a straight line
+/// pretending to be data.
+function Trace({
+  pts,
+  prefix,
+  hasZones,
+  bottomY,
+  gap,
+}: {
+  pts: { x: number; y: number }[];
+  prefix: string;
+  hasZones: boolean;
+  bottomY: number;
+  gap: number;
+}) {
+  if (pts.length === 0) return null;
+  const paint = hasZones ? `url(#${prefix}Zone)` : "#ef4444";
+  const segs: { x: number; y: number }[][] = [];
+  for (const p of pts) {
+    const cur = segs[segs.length - 1];
+    if (!cur || p.x - cur[cur.length - 1].x > gap) segs.push([p]);
+    else cur.push(p);
+  }
+  const f = (n: number) => n.toFixed(2);
+  return (
+    <>
+      {segs.map((seg, i) => {
+        if (seg.length === 1) {
+          return (
+            <circle key={i} cx={f(seg[0].x)} cy={f(seg[0].y)} r={1.6} fill={paint} />
+          );
+        }
+        const line = seg.map((p) => `${f(p.x)},${f(p.y)}`).join(" ");
+        const area =
+          `M${f(seg[0].x)},${f(bottomY)} ` +
+          seg.map((p) => `L${f(p.x)},${f(p.y)}`).join(" ") +
+          ` L${f(seg[seg.length - 1].x)},${f(bottomY)} Z`;
+        return (
+          <g key={i}>
+            <path d={area} fill={paint} mask={`url(#${prefix}Mask)`} />
+            <polyline
+              points={line}
+              fill="none"
+              stroke={paint}
+              strokeWidth={1.8}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
+/// Dashed resting-HR reference across the plot, its value in the right gutter.
+function RestLine({
+  bpm,
+  yFor,
+  x1,
+  x2,
+}: {
+  bpm: number;
+  yFor: (bpm: number) => number;
+  x1: number;
+  x2: number;
+}) {
+  const y = yFor(bpm);
+  return (
+    <>
+      <line
+        x1={x1}
+        x2={x2}
+        y1={y}
+        y2={y}
+        stroke="#94a3b8"
+        strokeWidth={0.8}
+        strokeDasharray="3 3"
+        opacity={0.7}
+      />
+      <text x={x2 + 5} y={y + 3} fontSize="9" fontWeight="600" fill="#94a3b8">
+        {bpm}
+      </text>
+    </>
+  );
+}
+
+/// Highest point gets a dot and its number; the newest gets a pulsing dot so
+/// the live end of the day is obvious.
+function TraceMarks({
+  pts,
+  color,
+  live,
+  x1,
+  x2,
+}: {
+  pts: { x: number; y: number; bpm: number }[];
+  color: (bpm: number) => string;
+  live: boolean;
+  x1: number;
+  x2: number;
+}) {
+  if (pts.length < 2) return null;
+  let peak = pts[0];
+  for (const p of pts) if (p.bpm > peak.bpm) peak = p;
+  const last = pts[pts.length - 1];
+  const lx = Math.max(x1 + 8, Math.min(x2 - 8, peak.x));
+  return (
+    <>
+      <circle
+        cx={peak.x.toFixed(2)}
+        cy={peak.y.toFixed(2)}
+        r={2.6}
+        fill={color(peak.bpm)}
+        stroke="var(--bg-card)"
+        strokeWidth={1}
+      />
+      <text
+        x={lx.toFixed(2)}
+        y={(peak.y - 6).toFixed(2)}
+        fontSize="9"
+        fontWeight="700"
+        textAnchor="middle"
+        fill={color(peak.bpm)}
+      >
+        {peak.bpm}
+      </text>
+      {live && (
+        <g>
+          <circle cx={last.x.toFixed(2)} cy={last.y.toFixed(2)} r={3} fill={color(last.bpm)} opacity={0.35}>
+            <animate attributeName="r" values="3;8;3" dur="1.8s" repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.45;0;0.45" dur="1.8s" repeatCount="indefinite" />
+          </circle>
+          <circle
+            cx={last.x.toFixed(2)}
+            cy={last.y.toFixed(2)}
+            r={2.8}
+            fill={color(last.bpm)}
+            stroke="var(--bg-card)"
+            strokeWidth={1}
+          />
+        </g>
+      )}
+    </>
+  );
+}
 
 /// Nearest point to a scrub position, matched on where each point actually
 /// sits in the plot rather than on its index.
@@ -980,10 +1187,10 @@ function HourSvg({
   marker?: { xFrac: number; bpm: number } | null;
 }) {
   const W = 320;
-  const H = 200;
+  const H = 190;
   const padL = 8;
   const padR = 32;
-  const padT = 8;
+  const padT = 14;
   const padB = 22;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
@@ -1019,39 +1226,109 @@ function HourSvg({
   const xFor = (offsetMin: number) =>
     padL + (offsetMin / totalMin) * plotW + 0.5;
 
-  const yTicks = [50, 100, 150, 200];
-  // Five x ticks at 0, 15, 30, 45, 60 minutes into the window.
   const tickOffsets = [0, 15, 30, 45, 60];
   const fmt = new Intl.DateTimeFormat(undefined, {
     timeZone: tz,
     hour: "numeric",
     minute: "2-digit",
   });
-
   const tickLabel = (offsetMin: number) => {
     if (startMs === null || endMs === null) return "";
-    const ms =
-      offsetMin === 60 ? endMs : startMs + offsetMin * 60_000;
+    const ms = offsetMin === 60 ? endMs : startMs + offsetMin * 60_000;
     return fmt.format(new Date(ms));
   };
+
+  const pts = buckets.map((b) => ({
+    x: xFor(b.offsetMin) + bucketWidth / 2,
+    y: yFor(b.max),
+    bpm: b.max,
+  }));
+  const color = (bpm: number) => (maxHr ? hrZoneColor(bpm, maxHr) : "#ef4444");
 
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
       width="100%"
-      style={{ display: "block" }}
+      style={{ display: "block", overflow: "visible" }}
       preserveAspectRatio="none"
     >
-      {/* Faint reference lines only where no zone threshold already sits. */}
-      {yTicks
-        .filter(
-          (y) =>
-            !maxHr ||
-            !hrZoneBands(maxHr).some((b) => Math.abs(b.minBpm - y) < 6)
-        )
-        .map((y) => (
+      <TraceDefs prefix="hr-hour" maxHr={maxHr} padT={padT} plotH={plotH} W={W} />
+      <AxisFrame
+        W={W}
+        padL={padL}
+        padR={padR}
+        yFor={yFor}
+        maxHr={maxHr}
+      />
+      {tickOffsets.map((m) => (
+        <text
+          key={`xl-${m}`}
+          x={padL + (m / totalMin) * plotW}
+          y={H - padB + 15}
+          fontSize="9"
+          fill="var(--fg-muted)"
+          textAnchor={m === 0 ? "start" : m === 60 ? "end" : "middle"}
+        >
+          {tickLabel(m)}
+        </text>
+      ))}
+      <Trace
+        pts={pts}
+        prefix="hr-hour"
+        hasZones={!!maxHr}
+        bottomY={padT + plotH}
+        gap={(plotW / totalMin) * 6}
+      />
+      <TraceMarks pts={pts} color={color} live x1={padL} x2={W - padR} />
+      {marker && <ScrubDot x={padL + marker.xFrac * plotW} y={yFor(marker.bpm)} />}
+    </svg>
+  );
+}
+
+function ScrubDot({ x, y }: { x: number; y: number }) {
+  return (
+    <circle
+      cx={x.toFixed(2)}
+      cy={y.toFixed(2)}
+      r={4}
+      fill="var(--bg-card)"
+      stroke="var(--fg)"
+      strokeWidth={2}
+    />
+  );
+}
+
+/// Zone bands with their BPM floors on the right, or plain 50/100/150/200
+/// guides when there's no max HR to build zones from.
+function AxisFrame({
+  W,
+  padL,
+  padR,
+  yFor,
+  maxHr,
+}: {
+  W: number;
+  padL: number;
+  padR: number;
+  yFor: (bpm: number) => number;
+  maxHr?: number | null;
+}) {
+  if (maxHr) {
+    return (
+      <ZoneBands
+        bands={hrZoneBands(maxHr)}
+        yFor={yFor}
+        x1={padL}
+        x2={W - padR}
+        labelX={W - padR + 5}
+      />
+    );
+  }
+  return (
+    <>
+      {[50, 100, 150, 200].map((y) => (
+        <g key={y}>
           <line
-            key={`y-${y}`}
             x1={padL}
             x2={W - padR}
             y1={yFor(y)}
@@ -1060,69 +1337,12 @@ function HourSvg({
             strokeDasharray="2 3"
             strokeWidth={0.5}
           />
-        ))}
-      {maxHr ? (
-        <>
-          <defs>
-            <ZoneGradient id="hourZoneGrad" maxHr={maxHr} padT={padT} plotH={plotH} />
-          </defs>
-          <ZoneLines
-            bands={hrZoneBands(maxHr)}
-            yFor={yFor}
-            x1={padL}
-            x2={W - padR}
-            labelX={W - padR + 4}
-          />
-        </>
-      ) : null}
-      {yTicks
-        .filter(
-          (y) =>
-            !maxHr ||
-            !hrZoneBands(maxHr).some((b) => Math.abs(yFor(b.minBpm) - yFor(y)) < 9)
-        )
-        .map((y) => (
-          <text
-            key={`yl-${y}`}
-            x={W - padR + 4}
-            y={yFor(y) + 3}
-            fontSize="9"
-            fill="var(--fg-dim)"
-          >
+          <text x={W - padR + 5} y={yFor(y) + 3} fontSize="9" fill="var(--fg-muted)">
             {y}
           </text>
-        ))}
-      {tickOffsets.map((m) => (
-        <text
-          key={`xl-${m}`}
-          x={padL + (m / totalMin) * plotW}
-          y={H - padB + 14}
-          fontSize="9"
-          fill="var(--fg-dim)"
-          textAnchor="middle"
-        >
-          {tickLabel(m)}
-        </text>
+        </g>
       ))}
-      <TraceLine
-        pts={buckets.map((b) => ({
-          x: xFor(b.offsetMin) + bucketWidth / 2,
-          y: yFor(b.max),
-        }))}
-        gradientId="hourZoneGrad"
-        hasZones={!!maxHr}
-      />
-      {marker && (
-        <circle
-          cx={padL + marker.xFrac * plotW}
-          cy={yFor(marker.bpm)}
-          r={4}
-          fill="var(--bg-card)"
-          stroke="var(--fg)"
-          strokeWidth={2}
-        />
-      )}
-    </svg>
+    </>
   );
 }
 
@@ -1130,16 +1350,18 @@ function DaySvg({
   buckets,
   maxHr,
   marker,
+  restingHr,
 }: {
   buckets: Bucket[];
   maxHr?: number | null;
   marker?: { xFrac: number; bpm: number } | null;
+  restingHr?: number | null;
 }) {
   const W = 320;
-  const H = 200;
+  const H = 190;
   const padL = 8;
   const padR = 32;
-  const padT = 8;
+  const padT = 14;
   const padB = 22;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
@@ -1154,131 +1376,100 @@ function DaySvg({
   const xFor = (startMin: number) =>
     padL + (startMin / minutesInDay) * plotW + 0.5;
 
-  const yTicks = [50, 100, 150, 200];
   const xTicks = [0, 6 * 60, 12 * 60, 18 * 60, 24 * 60];
+  const pts = buckets.map((b) => ({
+    x: xFor(b.startMin) + bucketWidth / 2,
+    y: yFor(b.max),
+    bpm: b.max,
+  }));
+  const color = (bpm: number) => (maxHr ? hrZoneColor(bpm, maxHr) : "#ef4444");
 
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
       width="100%"
-      style={{ display: "block" }}
+      style={{ display: "block", overflow: "visible" }}
       preserveAspectRatio="none"
     >
-      {/* Faint reference lines only where no zone threshold already sits. */}
-      {yTicks
-        .filter(
-          (y) =>
-            !maxHr ||
-            !hrZoneBands(maxHr).some((b) => Math.abs(b.minBpm - y) < 6)
-        )
-        .map((y) => (
-          <line
-            key={`y-${y}`}
-            x1={padL}
-            x2={W - padR}
-            y1={yFor(y)}
-            y2={yFor(y)}
-            stroke="var(--border)"
-            strokeDasharray="2 3"
-            strokeWidth={0.5}
-          />
-        ))}
-      {maxHr ? (
-        <>
-          <defs>
-            <ZoneGradient id="dayZoneGrad" maxHr={maxHr} padT={padT} plotH={plotH} />
-          </defs>
-          <ZoneLines
-            bands={hrZoneBands(maxHr)}
-            yFor={yFor}
-            x1={padL}
-            x2={W - padR}
-            labelX={W - padR + 4}
-          />
-        </>
-      ) : null}
-      {yTicks
-        .filter(
-          (y) =>
-            !maxHr ||
-            !hrZoneBands(maxHr).some((b) => Math.abs(yFor(b.minBpm) - yFor(y)) < 9)
-        )
-        .map((y) => (
-          <text
-            key={`yl-${y}`}
-            x={W - padR + 4}
-            y={yFor(y) + 3}
-            fontSize="9"
-            fill="var(--fg-dim)"
-          >
-            {y}
-          </text>
-        ))}
+      <TraceDefs prefix="hr-day" maxHr={maxHr} padT={padT} plotH={plotH} W={W} />
+      <AxisFrame W={W} padL={padL} padR={padR} yFor={yFor} maxHr={maxHr} />
+      {xTicks.map((m) => (
+        <line
+          key={`xg-${m}`}
+          x1={padL + (m / minutesInDay) * plotW}
+          x2={padL + (m / minutesInDay) * plotW}
+          y1={padT}
+          y2={padT + plotH}
+          stroke="var(--border)"
+          strokeWidth={0.5}
+          opacity={0.6}
+        />
+      ))}
       {xTicks.map((m) => {
         const label =
           m === 0
-            ? "12 AM"
+            ? "12am"
             : m === 12 * 60
-              ? "12 PM"
+              ? "12pm"
               : m === 24 * 60
                 ? ""
                 : m < 12 * 60
-                  ? `${m / 60}`
-                  : `${m / 60 - 12}`;
+                  ? `${m / 60}am`
+                  : `${m / 60 - 12}pm`;
         return (
           <text
             key={`xl-${m}`}
             x={padL + (m / minutesInDay) * plotW}
-            y={H - padB + 14}
+            y={H - padB + 15}
             fontSize="9"
-            fill="var(--fg-dim)"
-            textAnchor="middle"
+            fill="var(--fg-muted)"
+            textAnchor={m === 0 ? "start" : "middle"}
           >
             {label}
           </text>
         );
       })}
-      <TraceLine
-        pts={buckets.map((b) => ({
-          x: xFor(b.startMin) + bucketWidth / 2,
-          y: yFor(b.max),
-        }))}
-        gradientId="dayZoneGrad"
+      {restingHr ? (
+        <RestLine bpm={restingHr} yFor={yFor} x1={padL} x2={W - padR} />
+      ) : null}
+      <Trace
+        pts={pts}
+        prefix="hr-day"
         hasZones={!!maxHr}
+        bottomY={padT + plotH}
+        gap={(plotW / minutesInDay) * 30}
       />
-      {marker && (
-        <circle
-          cx={padL + marker.xFrac * plotW}
-          cy={yFor(marker.bpm)}
-          r={4}
-          fill="var(--bg-card)"
-          stroke="var(--fg)"
-          strokeWidth={2}
-        />
-      )}
+      <TraceMarks pts={pts} color={color} live x1={padL} x2={W - padR} />
+      {marker && <ScrubDot x={padL + marker.xFrac * plotW} y={yFor(marker.bpm)} />}
     </svg>
   );
 }
 
-function RangeSvg({ days, range }: { days: RangeDay[]; range: Range }) {
+function RangeSvg({
+  days,
+  range,
+  maxHr,
+}: {
+  days: RangeDay[];
+  range: Range;
+  maxHr?: number | null;
+}) {
   const W = 320;
-  const H = 200;
+  const H = 190;
   const padL = 8;
   const padR = 32;
-  const padT = 8;
+  const padT = 10;
   const padB = 22;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
   const n = days.length || 1;
   const slotW = plotW / n;
-  const barW = Math.max(2, slotW - 2);
+  const barW = Math.max(2, Math.min(14, slotW * 0.62));
 
   const yFor = (bpm: number) => {
     const clamped = Math.max(Y_MIN, Math.min(Y_MAX, bpm));
     return padT + plotH * (1 - (clamped - Y_MIN) / (Y_MAX - Y_MIN));
   };
-
-  const yTicks = [50, 100, 150, 200];
 
   // Label cadence: W shows the day-of-month for every day. M and Y label
   // each calendar month seen at the MIDPOINT of its days in the window —
@@ -1315,89 +1506,81 @@ function RangeSvg({ days, range }: { days: RangeDay[]; range: Range }) {
     }
   }
 
+  const cx = (i: number) => padL + i * slotW + slotW / 2;
+  const rest = days
+    .map((d, i) => (typeof d.restingHR === "number" ? { x: cx(i), y: yFor(d.restingHR) } : null))
+    .filter((p): p is { x: number; y: number } => p != null);
+
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
       width="100%"
-      style={{ display: "block" }}
+      style={{ display: "block", overflow: "visible" }}
       preserveAspectRatio="none"
     >
-      {yTicks.map((y) => (
-        <line
-          key={`y-${y}`}
-          x1={padL}
-          x2={W - padR}
-          y1={yFor(y)}
-          y2={yFor(y)}
-          stroke="var(--border)"
-          strokeDasharray="2 3"
-          strokeWidth={0.5}
-        />
-      ))}
-      {yTicks.map((y) => (
-        <text
-          key={`yl-${y}`}
-          x={W - padR + 4}
-          y={yFor(y) + 3}
-          fontSize="9"
-          fill="var(--fg-dim)"
-        >
-          {y}
-        </text>
-      ))}
+      {maxHr ? (
+        <defs>
+          <ZoneGradient id="hr-rangeZone" maxHr={maxHr} padT={padT} plotH={plotH} />
+        </defs>
+      ) : null}
+      <AxisFrame W={W} padL={padL} padR={padR} yFor={yFor} maxHr={maxHr} />
 
       {ticks.map((t) => (
         <text
           key={`xl-${t.index}-${t.label}`}
-          x={padL + t.index * slotW + slotW / 2}
-          y={H - padB + 14}
+          x={cx(t.index)}
+          y={H - padB + 15}
           fontSize="9"
-          fill="var(--fg-dim)"
+          fill="var(--fg-muted)"
           textAnchor="middle"
         >
           {t.label}
         </text>
       ))}
 
-      {days.map((d, i) => {
-        const x = padL + i * slotW + (slotW - barW) / 2;
-        const hasPeak = typeof d.peakHR === "number";
-        const hasRest = typeof d.restingHR === "number";
-        // Workout day: red bar from resting (or 60) to peak.
-        // Rest day: thin gray bar at the resting reading.
-        if (hasPeak) {
-          const top = yFor(d.peakHR!);
-          const bottom = yFor(d.restingHR ?? 60);
-          return (
-            <rect
-              key={d.dateKey}
-              x={x}
-              y={top}
-              width={barW}
-              height={Math.max(2, bottom - top)}
-              rx={1.5}
-              fill="#ef4444"
-              opacity={0.9}
-            />
-          );
-        }
-        if (hasRest) {
-          const y = yFor(d.restingHR!);
-          return (
-            <rect
-              key={d.dateKey}
-              x={x}
-              y={y - 1}
-              width={barW}
-              height={3}
-              rx={1.5}
-              fill="var(--fg-dim)"
-              opacity={0.6}
-            />
-          );
-        }
-        return null;
+      {days.map((d) => {
+        const i = days.indexOf(d);
+        const x = cx(i) - barW / 2;
+        if (typeof d.peakHR !== "number") return null;
+        const top = yFor(d.peakHR);
+        const bottom = yFor(d.restingHR ?? 60);
+        return (
+          <rect
+            key={d.dateKey}
+            x={x.toFixed(2)}
+            y={top.toFixed(2)}
+            width={barW.toFixed(2)}
+            height={Math.max(2, bottom - top).toFixed(2)}
+            rx={Math.min(barW / 2, 4).toFixed(2)}
+            fill={maxHr ? "url(#hr-rangeZone)" : "#ef4444"}
+            opacity={0.95}
+          />
+        );
       })}
+
+      {rest.length > 1 && (
+        <polyline
+          points={rest.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ")}
+          fill="none"
+          stroke="#94a3b8"
+          strokeWidth={1.2}
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+          opacity={0.8}
+        />
+      )}
+      {range !== "Y" &&
+        rest.map((p, i) => (
+          <circle
+            key={`rd-${i}`}
+            cx={p.x.toFixed(2)}
+            cy={p.y.toFixed(2)}
+            r={range === "W" ? 2.6 : 1.6}
+            fill="#cbd5e1"
+            stroke="var(--bg-card)"
+            strokeWidth={0.8}
+          />
+        ))}
     </svg>
   );
 }
