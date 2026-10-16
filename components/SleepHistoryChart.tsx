@@ -46,9 +46,54 @@ function localMinutes(iso: string, offsetSec: number): number {
   return d.getUTCHours() * 60 + d.getUTCMinutes();
 }
 
-type Range = "W" | "M";
+type Range = "W" | "M" | "Y";
 
-type Night = SleepNightHistory & { deep: number; light: number; rem: number; total: number };
+type Night = SleepNightHistory & {
+  deep: number;
+  light: number;
+  rem: number;
+  total: number;
+  /** Bedtime / wake as minutes after local noon, so a night never wraps. */
+  bedSN?: number;
+  wakeSN?: number;
+};
+
+const sinceNoon = (iso: string, off: number) => (localMinutes(iso, off) - 720 + 1440) % 1440;
+
+/// A year of nights is too dense to read, so the year view plots one point
+/// per week: the average of the nights logged in it, dated by its Monday.
+function weekly(nights: Night[]): Night[] {
+  const groups = new Map<string, Night[]>();
+  for (const n of nights) {
+    const d = dateOf(n.date);
+    const dow = (d.getUTCDay() + 6) % 7;
+    const key = new Date(d.getTime() - dow * 86400e3).toISOString().slice(0, 10);
+    const g = groups.get(key);
+    if (g) g.push(n);
+    else groups.set(key, [n]);
+  }
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const meanOpt = (xs: (number | undefined)[]) => {
+    const v = xs.filter((x): x is number => x != null);
+    return v.length ? mean(v) : undefined;
+  };
+  return [...groups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, g]) => ({
+      date,
+      asleepMin: mean(g.map((n) => n.asleepMin)),
+      deepMin: mean(g.map((n) => n.deepMin)),
+      remMin: mean(g.map((n) => n.remMin)),
+      lightMin: mean(g.map((n) => n.lightMin)),
+      awakeMin: mean(g.map((n) => n.awakeMin)),
+      deep: mean(g.map((n) => n.deep)),
+      light: mean(g.map((n) => n.light)),
+      rem: mean(g.map((n) => n.rem)),
+      total: mean(g.map((n) => n.total)),
+      bedSN: meanOpt(g.map((n) => n.bedSN)),
+      wakeSN: meanOpt(g.map((n) => n.wakeSN)),
+    }));
+}
 
 const GOAL_MIN = 480;
 const GOAL = "#4ade80";
@@ -104,7 +149,8 @@ const PLOT_H = H - PAD_T - PAD_B;
 /// Stage layers stacked as smooth areas — deep at the floor, then light, then
 /// REM, whose top edge is time asleep — on an hours axis with the 8h goal.
 /// Press and drag to read a night.
-function StageChart({ nights, isMonth }: { nights: Night[]; isMonth: boolean }) {
+function StageChart({ nights, mode }: { nights: Night[]; mode: Range }) {
+  const isMonth = mode !== "W";
   const { trackRef, frac, handlers } = useScrub<HTMLDivElement>();
   const n = nights.length;
   const maxMin = Math.max(600, ...nights.map((d) => d.total + 30));
@@ -131,7 +177,7 @@ function StageChart({ nights, isMonth }: { nights: Night[]; isMonth: boolean }) 
 
   const hours: number[] = [];
   for (let m = 120; m <= yMax; m += 120) hours.push(m);
-  const labelEvery = isMonth ? Math.ceil(n / 5) : 1;
+  const labelEvery = mode === "W" ? 1 : Math.ceil(n / (mode === "Y" ? 6 : 5));
 
   return (
     <div className="select-none">
@@ -141,7 +187,9 @@ function StageChart({ nights, isMonth }: { nights: Night[]; isMonth: boolean }) 
             <div className="shrink-0">
               <p className="text-[16px] font-bold leading-none">{fmtDur(active.total)}</p>
               <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-muted)" }}>
-                {weekdayFor(active.date)} {labelFor(active.date)}
+                {mode === "Y"
+                  ? `Week of ${labelFor(active.date)}`
+                  : `${weekdayFor(active.date)} ${labelFor(active.date)}`}
               </p>
             </div>
             <div className="flex gap-2.5 text-[11px] flex-wrap">
@@ -242,7 +290,11 @@ function StageChart({ nights, isMonth }: { nights: Night[]; isMonth: boolean }) 
                 fill="var(--fg-muted)"
                 textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"}
               >
-                {isMonth ? labelFor(d.date) : weekdayFor(d.date)}
+                {mode === "W"
+                  ? weekdayFor(d.date)
+                  : mode === "Y"
+                    ? dateOf(d.date).toLocaleDateString(undefined, { month: "short", timeZone: "UTC" })
+                    : labelFor(d.date)}
               </text>
             ) : null,
           )}
@@ -270,15 +322,10 @@ function StageChart({ nights, isMonth }: { nights: Night[]; isMonth: boolean }) 
 /// Bedtime and wake as two lines on a clock axis running down the night, the
 /// band between them is time in bed. Flat, parallel lines = a steady rhythm.
 function ScheduleChart({ nights }: { nights: Night[] }) {
-  const timed = nights.filter((d) => d.startUtc && d.endUtc && d.offsetSec != null);
-  if (timed.length < 3) return null;
-  // Minutes after noon, so a night never wraps.
-  const sinceNoon = (iso: string, off: number) => (localMinutes(iso, off) - 720 + 1440) % 1440;
-  const rows = timed.map((d) => ({
-    d,
-    bed: sinceNoon(d.startUtc!, d.offsetSec!),
-    wake: sinceNoon(d.endUtc!, d.offsetSec!),
-  }));
+  const rows = nights
+    .filter((d) => d.bedSN != null && d.wakeSN != null)
+    .map((d) => ({ d, bed: d.bedSN!, wake: d.wakeSN! }));
+  if (rows.length < 3) return null;
   const lo = Math.floor((Math.min(...rows.map((r) => r.bed)) - 30) / 60) * 60;
   const hi = Math.ceil((Math.max(...rows.map((r) => r.wake)) + 30) / 60) * 60;
   const H2 = 132;
@@ -373,12 +420,30 @@ export default function SleepHistoryChart({
   history: SleepNightHistory[];
 }) {
   const [range, setRange] = useState<Range>("W");
+  // The stored history holds 30 nights; a year is fetched the first time the
+  // Year tab is opened.
+  const [year, setYear] = useState<SleepNightHistory[] | null>(null);
+  const [yearState, setYearState] = useState<"idle" | "loading" | "error">("idle");
+
+  const pick = (r: Range) => {
+    setRange(r);
+    if (r !== "Y" || year || yearState === "loading") return;
+    setYearState("loading");
+    fetch("/api/health/sleep-year", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((body) => {
+        setYear(Array.isArray(body.nights) ? body.nights : []);
+        setYearState("idle");
+      })
+      .catch(() => setYearState("error"));
+  };
 
   const nights = useMemo<Night[]>(() => {
-    const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
+    const src = range === "Y" ? (year ?? []) : history;
+    const sorted = [...src].sort((a, b) => a.date.localeCompare(b.date));
     const cutoff = new Date();
     cutoff.setUTCHours(0, 0, 0, 0);
-    cutoff.setUTCDate(cutoff.getUTCDate() - (range === "W" ? 6 : 29));
+    cutoff.setUTCDate(cutoff.getUTCDate() - (range === "W" ? 6 : range === "M" ? 29 : 364));
     const cutoffKey = cutoff.toISOString().slice(0, 10);
     return sorted
       .filter((d) => d.date >= cutoffKey && d.asleepMin > 0)
@@ -393,9 +458,14 @@ export default function SleepHistoryChart({
           light: sum > 0 ? d.lightMin * k : d.asleepMin,
           rem: d.remMin * k,
           total: d.asleepMin,
+          bedSN:
+            d.startUtc && d.offsetSec != null ? sinceNoon(d.startUtc, d.offsetSec) : undefined,
+          wakeSN:
+            d.endUtc && d.offsetSec != null ? sinceNoon(d.endUtc, d.offsetSec) : undefined,
         };
       });
-  }, [history, range]);
+  }, [history, range, year]);
+  const series = useMemo(() => (range === "Y" ? weekly(nights) : nights), [nights, range]);
 
   if (history.length === 0) return null;
 
@@ -417,11 +487,11 @@ export default function SleepHistoryChart({
       <div className="flex items-center justify-between">
         <h2 className="text-[15px] font-bold tracking-tight">Sleep trend</h2>
         <div className="flex gap-1 p-1 rounded-full" style={{ background: "var(--bg-elevated)" }}>
-          {(["W", "M"] as Range[]).map((r) => (
+          {(["W", "M", "Y"] as Range[]).map((r) => (
             <button
               key={r}
               type="button"
-              onClick={() => setRange(r)}
+              onClick={() => pick(r)}
               className="text-[12px] px-3 py-1 rounded-full font-semibold"
               style={{
                 background: range === r ? "var(--bg-card)" : "transparent",
@@ -429,13 +499,19 @@ export default function SleepHistoryChart({
                 boxShadow: range === r ? "inset 0 0 0 1px var(--border-strong)" : undefined,
               }}
             >
-              {r === "W" ? "Week" : "Month"}
+              {r === "W" ? "Week" : r === "M" ? "Month" : "Year"}
             </button>
           ))}
         </div>
       </div>
 
-      {nights.length === 0 ? (
+      {range === "Y" && yearState !== "idle" ? (
+        <p className="text-[12px] py-16 text-center" style={{ color: "var(--fg-muted)" }}>
+          {yearState === "loading"
+            ? "Loading your year of sleep…"
+            : "Couldn't load the year. Try again in a bit."}
+        </p>
+      ) : nights.length === 0 ? (
         <p className="text-[12px] py-8 text-center" style={{ color: "var(--fg-muted)" }}>
           No sleep tracked in this range.
         </p>
@@ -457,8 +533,8 @@ export default function SleepHistoryChart({
           </div>
 
           <div className="mt-2">
-            {nights.length >= 2 ? (
-              <StageChart nights={nights} isMonth={range === "M"} />
+            {series.length >= 2 ? (
+              <StageChart nights={series} mode={range} />
             ) : (
               <p className="text-[12px] py-6 text-center" style={{ color: "var(--fg-muted)" }}>
                 One night so far. The trend fills in as you sleep with your tracker.
@@ -490,7 +566,7 @@ export default function SleepHistoryChart({
             />
           </div>
 
-          <ScheduleChart nights={nights} />
+          <ScheduleChart nights={series} />
         </>
       )}
     </section>

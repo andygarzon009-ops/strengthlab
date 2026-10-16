@@ -532,101 +532,140 @@ export async function listSleep(
 ): Promise<SleepNight[]> {
   const path = "/users/me/dataTypes/sleep/dataPoints?pageSize=30";
   try {
-    const data = (await healthFetch(userId, path)) as {
-      dataPoints?: {
-        sleep?: {
-          interval?: {
-            startTime?: string;
-            endTime?: string;
-            startUtcOffset?: string;
-          };
-          metadata?: { nap?: boolean };
-          summary?: {
-            minutesAsleep?: string | number;
-            minutesInSleepPeriod?: string | number;
-            minutesToFallAsleep?: string | number;
-            minutesAfterWakeUp?: string | number;
-            stagesSummary?: { type?: string; minutes?: string | number }[];
-          };
-          stages?: {
-            type?: string;
-            startTime?: string;
-            endTime?: string;
-          }[];
-        };
-      }[];
-    };
-
-    // Provider stage names → our lanes. ASLEEP (ungranular) reads as light;
-    // RESTLESS is kept distinct so the UI can surface restlessness separately.
-    const STAGE_MAP: Record<string, SleepStageType> = {
-      DEEP: "deep",
-      REM: "rem",
-      LIGHT: "light",
-      AWAKE: "awake",
-      ASLEEP: "light",
-      RESTLESS: "restless",
-    };
-
-    const num = (x: unknown) => {
-      const n = Number(x);
-      return Number.isFinite(n) ? n : 0;
-    };
-    const startMs = Date.parse(startISO);
-    const endMs = Date.parse(endISO);
-    const out: SleepNight[] = [];
-    for (const p of data.dataPoints ?? []) {
-      const s = p.sleep;
-      const sum = s?.summary;
-      const iv = s?.interval;
-      if (!sum || !iv?.startTime || !iv?.endTime) continue;
-      if (s?.metadata?.nap === true) continue; // skip naps
-      const start = new Date(iv.startTime);
-      const end = new Date(iv.endTime);
-      const t = end.getTime();
-      if (t < startMs || t >= endMs) continue;
-
-      const stages = { deep: 0, rem: 0, light: 0, awake: 0 };
-      for (const st of sum.stagesSummary ?? []) {
-        const m = num(st.minutes);
-        if (st.type === "DEEP") stages.deep = m;
-        else if (st.type === "REM") stages.rem = m;
-        else if (st.type === "LIGHT") stages.light = m;
-        else if (st.type === "AWAKE") stages.awake = m;
-      }
-
-      const segs: SleepStageSeg[] = [];
-      for (const st of s?.stages ?? []) {
-        const type = st.type ? STAGE_MAP[st.type] : undefined;
-        if (!type || !st.startTime || !st.endTime) continue;
-        const sMs = Date.parse(st.startTime);
-        const eMs = Date.parse(st.endTime);
-        if (!Number.isFinite(sMs) || !Number.isFinite(eMs) || eMs <= sMs)
-          continue;
-        segs.push({ type, startMs: sMs, endMs: eMs });
-      }
-      segs.sort((a, b) => a.startMs - b.startMs);
-
-      out.push({
-        start,
-        end,
-        offsetSec: parseInt(iv.startUtcOffset ?? "0", 10) || 0,
-        asleepMin: num(sum.minutesAsleep),
-        inBedMin: num(sum.minutesInSleepPeriod),
-        deepMin: stages.deep,
-        remMin: stages.rem,
-        lightMin: stages.light,
-        awakeMin: stages.awake,
-        toSleepMin: num(sum.minutesToFallAsleep),
-        afterWakeMin: num(sum.minutesAfterWakeUp),
-        stages: segs,
-      });
-    }
-    out.sort((a, b) => b.end.getTime() - a.end.getTime());
-    return out;
+    const data = (await healthFetch(userId, path)) as { dataPoints?: SleepPoint[] };
+    return parseSleepPoints(data.dataPoints ?? [], startISO, endISO);
   } catch {
     return [];
   }
+}
+
+/// Every night back to `startISO`, paging newest-first until the oldest page
+/// passes the start (sleep takes no filter). Capped so a long history can't
+/// run away with the request. Powers the year view of the sleep trend.
+export async function listSleepSince(
+  userId: string,
+  startISO: string,
+  endISO: string,
+  maxPages = 16,
+): Promise<SleepNight[]> {
+  const base = "/users/me/dataTypes/sleep/dataPoints?pageSize=30";
+  const startMs = Date.parse(startISO);
+  const points: SleepPoint[] = [];
+  let pageToken: string | undefined;
+  for (let page = 0; page < maxPages; page++) {
+    const path: string = pageToken
+      ? `${base}&pageToken=${encodeURIComponent(pageToken)}`
+      : base;
+    const data = (await healthFetch(userId, path)) as {
+      dataPoints?: SleepPoint[];
+      nextPageToken?: string;
+    };
+    const batch = data.dataPoints ?? [];
+    points.push(...batch);
+    pageToken = data.nextPageToken;
+    const oldest = Math.min(
+      ...batch.map((p) => Date.parse(p.sleep?.interval?.endTime ?? "") || Infinity),
+    );
+    if (!pageToken || batch.length === 0 || oldest < startMs) break;
+  }
+  return parseSleepPoints(points, startISO, endISO);
+}
+
+type SleepPoint = {
+  sleep?: {
+    interval?: {
+      startTime?: string;
+      endTime?: string;
+      startUtcOffset?: string;
+    };
+    metadata?: { nap?: boolean };
+    summary?: {
+      minutesAsleep?: string | number;
+      minutesInSleepPeriod?: string | number;
+      minutesToFallAsleep?: string | number;
+      minutesAfterWakeUp?: string | number;
+      stagesSummary?: { type?: string; minutes?: string | number }[];
+    };
+    stages?: {
+      type?: string;
+      startTime?: string;
+      endTime?: string;
+    }[];
+  };
+};
+
+function parseSleepPoints(
+  points: SleepPoint[],
+  startISO: string,
+  endISO: string,
+): SleepNight[] {
+  // Provider stage names → our lanes. ASLEEP (ungranular) reads as light;
+  // RESTLESS is kept distinct so the UI can surface restlessness separately.
+  const STAGE_MAP: Record<string, SleepStageType> = {
+    DEEP: "deep",
+    REM: "rem",
+    LIGHT: "light",
+    AWAKE: "awake",
+    ASLEEP: "light",
+    RESTLESS: "restless",
+  };
+
+  const num = (x: unknown) => {
+    const n = Number(x);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const startMs = Date.parse(startISO);
+  const endMs = Date.parse(endISO);
+  const out: SleepNight[] = [];
+  for (const p of points) {
+    const s = p.sleep;
+    const sum = s?.summary;
+    const iv = s?.interval;
+    if (!sum || !iv?.startTime || !iv?.endTime) continue;
+    if (s?.metadata?.nap === true) continue; // skip naps
+    const start = new Date(iv.startTime);
+    const end = new Date(iv.endTime);
+    const t = end.getTime();
+    if (t < startMs || t >= endMs) continue;
+
+    const stages = { deep: 0, rem: 0, light: 0, awake: 0 };
+    for (const st of sum.stagesSummary ?? []) {
+      const m = num(st.minutes);
+      if (st.type === "DEEP") stages.deep = m;
+      else if (st.type === "REM") stages.rem = m;
+      else if (st.type === "LIGHT") stages.light = m;
+      else if (st.type === "AWAKE") stages.awake = m;
+    }
+
+    const segs: SleepStageSeg[] = [];
+    for (const st of s?.stages ?? []) {
+      const type = st.type ? STAGE_MAP[st.type] : undefined;
+      if (!type || !st.startTime || !st.endTime) continue;
+      const sMs = Date.parse(st.startTime);
+      const eMs = Date.parse(st.endTime);
+      if (!Number.isFinite(sMs) || !Number.isFinite(eMs) || eMs <= sMs)
+        continue;
+      segs.push({ type, startMs: sMs, endMs: eMs });
+    }
+    segs.sort((a, b) => a.startMs - b.startMs);
+
+    out.push({
+      start,
+      end,
+      offsetSec: parseInt(iv.startUtcOffset ?? "0", 10) || 0,
+      asleepMin: num(sum.minutesAsleep),
+      inBedMin: num(sum.minutesInSleepPeriod),
+      deepMin: stages.deep,
+      remMin: stages.rem,
+      lightMin: stages.light,
+      awakeMin: stages.awake,
+      toSleepMin: num(sum.minutesToFallAsleep),
+      afterWakeMin: num(sum.minutesAfterWakeUp),
+      stages: segs,
+    });
+  }
+  out.sort((a, b) => b.end.getTime() - a.end.getTime());
+  return out;
 }
 
 export type DailySpo2Sample = {
