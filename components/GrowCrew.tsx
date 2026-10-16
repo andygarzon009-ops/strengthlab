@@ -30,7 +30,7 @@ export default function GrowCrew({
   return (
     <div
       className="rounded-2xl p-4"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+      style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
     >
       <button
         type="button"

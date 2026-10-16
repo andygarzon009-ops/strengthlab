@@ -47,7 +47,7 @@ export default function FriendRequests({
       </p>
       <div
         className="rounded-2xl divide-y"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+        style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
       >
         {items.map((r) => (
           <div key={r.fromUserId} className="flex items-center gap-3 px-4 py-3">

@@ -32,7 +32,7 @@ export default function StoryTile({
   return (
     <div
       className="relative rounded-2xl overflow-hidden"
-      style={{ aspectRatio: "3 / 4", background: bg, border: "1px solid var(--border)" }}
+      style={{ aspectRatio: "3 / 4", background: bg, border: "1px solid var(--border-strong)" }}
     >
       {/* scrim */}
       <div
@@ -49,7 +49,7 @@ export default function StoryTile({
       {badge && (
         <span
           className="absolute top-2 left-2 z-20 text-[10px] font-bold px-2 py-1 rounded-full pointer-events-none"
-          style={{ background: "rgba(0,0,0,0.5)", color: "#fff" }}
+          style={{ background: "rgba(0,0,0,0.45)", color: "#fff", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
         >
           {badge}
         </span>

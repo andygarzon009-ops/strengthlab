@@ -4,10 +4,12 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import StoryTile from "@/components/StoryTile";
 import CheerButton from "@/components/CheerButton";
+import Avatar from "@/components/Avatar";
 
 export type RankRow = {
   id: string;
   name: string;
+  image: string | null;
   isYou: boolean;
   sessions: number;
   volumeLabel: string;
@@ -67,7 +69,7 @@ export default function DiscoverTabs({
   // Highlights leads — it's the most visual, aesthetic page.
   const tabs: { key: TabKey; label: string }[] = [
     { key: "highlights", label: "Highlights" },
-    { key: "leaderboard", label: "Leaderboard" },
+    { key: "leaderboard", label: "Ranks" },
     { key: "challenges", label: "Challenges" },
     { key: "you", label: "For You" },
   ];
@@ -106,10 +108,10 @@ export default function DiscoverTabs({
 
   return (
     <div className="mb-6">
-      {/* Tab bar */}
+      {/* Tab bar: one segmented control, same as the range chips elsewhere */}
       <div
-        className="flex gap-1.5 mb-3 overflow-x-auto -mx-4 px-4 pb-1"
-        style={{ scrollbarWidth: "none" }}
+        className="flex gap-1 p-1 mb-3 rounded-full"
+        style={{ background: "var(--bg-elevated)" }}
       >
         {tabs.map((t) => {
           const on = t.key === active;
@@ -118,16 +120,12 @@ export default function DiscoverTabs({
               key={t.key}
               type="button"
               onClick={() => selectTab(t.key)}
-              className="text-[13px] px-3.5 py-1.5 rounded-full whitespace-nowrap shrink-0 font-semibold transition-colors"
-              style={
-                on
-                  ? { background: "var(--accent)", color: "#0a0a0a" }
-                  : {
-                      background: "var(--bg-elevated)",
-                      color: "var(--fg-dim)",
-                      border: "1px solid var(--border)",
-                    }
-              }
+              className="flex-1 text-[12.5px] py-1.5 rounded-full whitespace-nowrap font-semibold transition-colors"
+              style={{
+                background: on ? "var(--bg-card)" : "transparent",
+                color: on ? "var(--fg)" : "var(--fg-muted)",
+                boxShadow: on ? "inset 0 0 0 1px var(--border-strong)" : undefined,
+              }}
             >
               {t.label}
             </button>
@@ -283,7 +281,7 @@ function Empty({ text }: { text: string }) {
   return (
     <div
       className="col-span-2 rounded-2xl p-5 text-center"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+      style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
     >
       <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
         {text}
@@ -291,6 +289,12 @@ function Empty({ text }: { text: string }) {
     </div>
   );
 }
+
+const PODIUM = [
+  { color: "#facc15", glow: "rgba(250,204,21,0.18)", h: 78 },
+  { color: "#cbd5e1", glow: "rgba(203,213,225,0.14)", h: 62 },
+  { color: "#f59e0b", glow: "rgba(245,158,11,0.14)", h: 50 },
+];
 
 function Leaderboard({
   ranking,
@@ -304,51 +308,113 @@ function Leaderboard({
     return (
       <div
         className="rounded-2xl p-5 text-center"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+        style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
       >
-        <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
+        <p className="text-[13px]" style={{ color: "var(--fg-muted)" }}>
           No sessions logged this week yet. Be first.
         </p>
       </div>
     );
   }
+  const top = ranking.slice(0, 3).filter((r) => r.sessions > 0);
+  // Podium order: 2nd, 1st, 3rd.
+  const order = [1, 0, 2].filter((i) => i < top.length);
+  const max = Math.max(1, ...ranking.map((r) => r.sessions));
   return (
-    <div>
-      {myRankLabel && (
-        <p
-          className="text-[11px] mb-2 text-right"
-          style={{ color: "var(--fg-dim)" }}
-        >
-          {myRankLabel}
-        </p>
-      )}
-      <div
-        className="rounded-2xl divide-y"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-      >
-        {ranking.map((r, i) => (
+    <div
+      className="rounded-3xl p-4"
+      style={{
+        background:
+          "radial-gradient(120% 70% at 50% 0%, rgba(250,204,21,0.1) 0%, transparent 60%), var(--bg-card)",
+        border: "1px solid var(--border-strong)",
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-[15px] font-bold tracking-tight">This week</p>
+        {myRankLabel && (
+          <p className="text-[12px] font-semibold" style={{ color: "var(--fg-muted)" }}>
+            {myRankLabel}
+          </p>
+        )}
+      </div>
+
+      {/* podium */}
+      <div className="flex items-end justify-center gap-3 mt-4">
+        {order.map((i) => {
+          const r = top[i];
+          const p = PODIUM[i];
+          return (
+            <div key={r.id} className="flex flex-col items-center" style={{ width: 92 }}>
+              <span className="text-[18px] leading-none mb-1">{MEDAL[i]}</span>
+              <Avatar
+                name={r.name}
+                image={r.image}
+                size={i === 0 ? 60 : 48}
+                ring={`linear-gradient(135deg, ${p.color}, ${p.color}88)`}
+              />
+              <p className="text-[12px] font-semibold mt-1.5 truncate w-full text-center">
+                {r.isYou ? "You" : r.name.split(" ")[0]}
+              </p>
+              <div
+                className="w-full mt-1.5 rounded-t-xl flex flex-col items-center justify-start pt-1.5"
+                style={{
+                  height: p.h,
+                  background: `linear-gradient(180deg, ${p.glow}, transparent)`,
+                  borderTop: `2px solid ${p.color}`,
+                }}
+              >
+                <span className="text-[16px] font-bold tabular-nums leading-none">{r.sessions}</span>
+                <span className="text-[10px] mt-0.5" style={{ color: "var(--fg-muted)" }}>
+                  {r.volumeLabel}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* everyone off the podium */}
+      <div className="mt-3 flex flex-col gap-1.5">
+        {ranking.slice(top.length).map((r, j) => {
+          const i = j + top.length;
+          return (
           <div
             key={r.id}
-            className="flex items-center gap-3 px-4 py-3"
-            style={r.isYou ? { background: "var(--accent-dim)" } : undefined}
+            className="flex items-center gap-3 rounded-2xl px-3 py-2.5"
+            style={{
+              background: r.isYou ? "rgba(74,222,128,0.1)" : "var(--bg-elevated)",
+              boxShadow: r.isYou ? "inset 0 0 0 1px rgba(74,222,128,0.35)" : undefined,
+            }}
           >
             <span
-              className="w-6 text-center text-[13px] font-bold tabular-nums shrink-0"
-              style={{ color: i < 3 ? "var(--fg)" : "var(--fg-dim)" }}
+              className="w-5 text-center text-[13px] font-bold tabular-nums shrink-0"
+              style={{ color: i < 3 && r.sessions > 0 ? PODIUM[i].color : "var(--fg-muted)" }}
             >
-              {i < 3 ? MEDAL[i] : i + 1}
+              {i + 1}
             </span>
-            <span className="flex-1 min-w-0 text-[14px] font-medium truncate">
-              {r.name}
-            </span>
-            <span className="text-right tabular-nums shrink-0">
-              <span className="text-[14px] font-bold">{r.sessions}</span>
-              <span className="text-[11px] ml-1" style={{ color: "var(--fg-dim)" }}>
-                {r.sessions === 1 ? "session" : "sessions"} · {r.volumeLabel}
-              </span>
-            </span>
+            <Avatar name={r.name} image={r.image} size={32} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[14px] font-semibold truncate">{r.name}</span>
+                <span className="text-[11px] tabular-nums shrink-0" style={{ color: "var(--fg-muted)" }}>
+                  <b className="text-[13px]" style={{ color: "var(--fg)" }}>{r.sessions}</b>{" "}
+                  {r.sessions === 1 ? "session" : "sessions"} · {r.volumeLabel}
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full mt-1.5" style={{ background: "var(--bg-card)" }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${(r.sessions / max) * 100}%`,
+                    minWidth: r.sessions ? 6 : 0,
+                    background: r.isYou ? "#4ade80" : "rgba(74,222,128,0.5)",
+                  }}
+                />
+              </div>
+            </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

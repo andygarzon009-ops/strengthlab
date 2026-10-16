@@ -8,7 +8,7 @@ import GrowCrew from "@/components/GrowCrew";
 import PendingInvites from "@/components/PendingInvites";
 import EnablePushButton from "@/components/EnablePushButton";
 import PullToRefresh from "@/components/PullToRefresh";
-import Avatar from "@/components/Avatar";
+import CrewHero from "@/components/CrewHero";
 import FriendRequests, { type IncomingRequest } from "@/components/FriendRequests";
 import DiscoverTabs, {
   type RankRow,
@@ -52,16 +52,6 @@ function fmtVol(v: number): string {
   return v >= 1000 ? `${(v / 1000).toFixed(1)}k lb` : `${Math.round(v)} lb`;
 }
 
-// Story-style ring: bright gradient if trained today, soft accent within a
-// week, no ring when quiet.
-function ringFor(last: Date | null): string | undefined {
-  if (!last) return undefined;
-  const days = Math.floor((Date.now() - last.getTime()) / 86_400_000);
-  if (days <= 0) return "linear-gradient(135deg, #22c55e, #a3e635)";
-  if (days <= 7) return "rgba(34,197,94,0.45)";
-  return undefined;
-}
-
 const MEDAL = ["🥇", "🥈", "🥉"];
 
 export default async function CrewPage() {
@@ -94,7 +84,7 @@ export default async function CrewPage() {
   ] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: everyoneIds } },
-      select: { id: true, name: true, image: true },
+      select: { id: true, name: true, image: true, timezone: true },
     }),
     prisma.workout.groupBy({
       by: ["userId"],
@@ -109,6 +99,7 @@ export default async function CrewPage() {
       select: {
         userId: true,
         type: true,
+        date: true,
         exercises: {
           select: { sets: { select: { type: true, weight: true, reps: true } } },
         },
@@ -353,9 +344,32 @@ export default async function CrewPage() {
     .sort((a, b) => b.mutuals - a.mutuals)
     .slice(0, 8);
 
+  // Crew sessions per local day over the last week, for the hero's bar strip.
+  const tz = people.find((p) => p.id === userId)?.timezone ?? "UTC";
+  const dayKey = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d);
+  const perDayCount = new Map<string, number>();
+  for (const w of weekWorkouts) {
+    const k = dayKey(w.date);
+    perDayCount.set(k, (perDayCount.get(k) ?? 0) + 1);
+  }
+  const perDay = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(Date.now() - (6 - i) * 86_400_000);
+    return {
+      label: new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "narrow" }).format(d),
+      count: perDayCount.get(dayKey(d)) ?? 0,
+      today: i === 6,
+    };
+  });
+  const todayKey = dayKey(new Date());
+  const trainedToday = circles.filter((c) => c.last && dayKey(c.last) === todayKey).length;
+  const crewSessions = ranked.reduce((n, r) => n + r.sessions, 0);
+  const crewVolume = ranked.reduce((n, r) => n + r.volume, 0);
+
   const ranking: RankRow[] = ranked.map((r) => ({
     id: r.id,
     name: r.name,
+    image: imageById.get(r.id) ?? null,
     isYou: r.isYou,
     sessions: r.sessions,
     volumeLabel: fmtVol(r.volume),
@@ -375,46 +389,16 @@ export default async function CrewPage() {
         </h1>
       </div>
 
-      {/* Story-style circles */}
-      <div
-        className="flex gap-3 mb-6 overflow-x-auto -mx-4 px-4 pb-1"
-        style={{ scrollbarWidth: "none" }}
-      >
-        {circles.map((c) => (
-          <Link
-            key={c.id}
-            href={`/u/${c.id}`}
-            className="flex flex-col items-center gap-1.5 shrink-0"
-            style={{ width: 64 }}
-          >
-            <Avatar name={c.name} image={c.image} size={60} ring={ringFor(c.last)} />
-            <span className="text-[11px] truncate w-full text-center">
-              {c.name === "You" ? "You" : c.name.split(" ")[0]}
-            </span>
-          </Link>
-        ))}
-        <a
-          href="#grow"
-          className="flex flex-col items-center gap-1.5 shrink-0"
-          style={{ width: 64 }}
-        >
-          <span
-            className="rounded-full flex items-center justify-center text-[24px]"
-            style={{
-              width: 60,
-              height: 60,
-              background: "var(--bg-elevated)",
-              border: "1px dashed var(--border-strong)",
-              color: "var(--fg-dim)",
-            }}
-          >
-            +
-          </span>
-          <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
-            Add
-          </span>
-        </a>
-      </div>
+      <CrewHero
+        circles={circles}
+        sessions={crewSessions}
+        volumeLabel={fmtVol(crewVolume)}
+        perDay={perDay}
+        active={ranked.filter((r) => r.sessions > 0).length}
+        crewSize={ranked.length}
+        trainedToday={trainedToday}
+        myRank={anyActivity && myRank > 0 ? myRank : null}
+      />
 
       {/* Same banner as the feed. The Crew page is the other place someone
           looks when they think a friend is trying to reach them. */}
