@@ -599,7 +599,7 @@ function RangeCard({
                   : null
             : null
         }
-        subtitle="Bars run from resting to peak each day"
+        subtitle={range === "Y" ? "Weekly averages of your daily peak and resting" : "Your peak and resting heart rate each day"}
         loading={loading}
       />
       <RangeSvg days={days} range={range} maxHr={maxHr} />
@@ -795,23 +795,27 @@ function ZoneGradient({
   maxHr,
   padT,
   plotH,
+  yMin = Y_MIN,
+  yMax = Y_MAX,
 }: {
   id: string;
   maxHr: number;
   padT: number;
   plotH: number;
+  yMin?: number;
+  yMax?: number;
 }) {
   const yFor = (bpm: number) => {
-    const c = Math.max(Y_MIN, Math.min(Y_MAX, bpm));
-    return padT + plotH * (1 - (c - Y_MIN) / (Y_MAX - Y_MIN));
+    const c = Math.max(yMin, Math.min(yMax, bpm));
+    return padT + plotH * (1 - (c - yMin) / (yMax - yMin));
   };
   // Top zone first. SVG clamps any stop whose offset is below the previous
   // one, and zone 1 sits at the BOTTOM of the plot — so emitting in zone
   // order made every stop after the first collapse, painting the whole line
   // zone 1's blue no matter how high it went.
   const stops = [...hrZoneBands(maxHr)].reverse().flatMap((b) => {
-    const top = Math.min(b.maxBpm ?? Y_MAX, Y_MAX);
-    const bottom = Math.max(b.minBpm, Y_MIN);
+    const top = Math.min(b.maxBpm ?? yMax, yMax);
+    const bottom = Math.max(b.minBpm, yMin);
     if (top <= bottom) return [];
     const o1 = (yFor(top) - padT) / plotH;
     const o2 = (yFor(bottom) - padT) / plotH;
@@ -1445,8 +1449,57 @@ function DaySvg({
   );
 }
 
+/// Catmull-Rom through the points, the same curve as the sleep and vitals
+/// trends.
+function curvePath(pts: { x: number; y: number }[], move = true): string {
+  const f = (n: number) => n.toFixed(2);
+  if (pts.length === 0) return "";
+  let d = `${move ? "M" : "L"}${f(pts[0].x)},${f(pts[0].y)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    d += ` C${f(p1.x + (p2.x - p0.x) / 6)},${f(p1.y + (p2.y - p0.y) / 6)} ${f(p2.x - (p3.x - p1.x) / 6)},${f(p2.y - (p3.y - p1.y) / 6)} ${f(p2.x)},${f(p2.y)}`;
+  }
+  return d;
+}
+
+/// A year of days is too dense to read, so the year view plots one point per
+/// week (by its Monday): the average resting and peak of the days in it.
+function weeklyDays(days: RangeDay[]): RangeDay[] {
+  const groups = new Map<string, RangeDay[]>();
+  for (const d of days) {
+    const [yy, mm, dd] = d.dateKey.split("-").map(Number);
+    const t = Date.UTC(yy, mm - 1, dd);
+    const dow = (new Date(t).getUTCDay() + 6) % 7;
+    const key = new Date(t - dow * 86_400_000).toISOString().slice(0, 10);
+    const g = groups.get(key);
+    if (g) g.push(d);
+    else groups.set(key, [d]);
+  }
+  const mean = (xs: (number | undefined)[]) => {
+    const v = xs.filter((x): x is number => typeof x === "number");
+    return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : undefined;
+  };
+  return [...groups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dateKey, g]) => ({
+      dateKey,
+      restingHR: mean(g.map((d) => d.restingHR)),
+      peakHR: mean(g.map((d) => d.peakHR)),
+      avgHR: mean(g.map((d) => d.avgHR)),
+    }));
+}
+
+const REST_COLOR = "#cbd5e1";
+
+/// Peak and resting heart rate per day as two smooth lines with the day's
+/// range shaded between them. The peak line takes the zone colours, so a hard
+/// training day visibly climbs into orange and red. Press and drag to read a
+/// day.
 function RangeSvg({
-  days,
+  days: rawDays,
   range,
   maxHr,
 }: {
@@ -1454,6 +1507,14 @@ function RangeSvg({
   range: Range;
   maxHr?: number | null;
 }) {
+  const days = useMemo(
+    () =>
+      (range === "Y" ? weeklyDays(rawDays) : rawDays).filter(
+        (d) => typeof d.peakHR === "number" || typeof d.restingHR === "number",
+      ),
+    [rawDays, range],
+  );
+  const { trackRef, frac, handlers } = useScrub<HTMLDivElement>();
   const W = 320;
   const H = 190;
   const padL = 8;
@@ -1462,30 +1523,34 @@ function RangeSvg({
   const padB = 22;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
-  const n = days.length || 1;
-  const slotW = plotW / n;
-  const barW = Math.max(2, Math.min(14, slotW * 0.62));
+  const n = days.length;
 
+  // Its own scale: resting sits in the 40s–60s, so the day view's 50 floor
+  // would pin that line to the bottom edge.
+  const topPeak = Math.max(0, ...days.map((d) => d.peakHR ?? 0));
+  const yLo = 40;
+  const yHi = Math.min(210, Math.max(160, Math.ceil((topPeak + 10) / 10) * 10));
   const yFor = (bpm: number) => {
-    const clamped = Math.max(Y_MIN, Math.min(Y_MAX, bpm));
-    return padT + plotH * (1 - (clamped - Y_MIN) / (Y_MAX - Y_MIN));
+    const clamped = Math.max(yLo, Math.min(yHi, bpm));
+    return padT + plotH * (1 - (clamped - yLo) / (yHi - yLo));
   };
+  const cx = (i: number) => padL + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
 
-  // Label cadence: W shows the day-of-month for every day. M and Y label
-  // each calendar month seen at the MIDPOINT of its days in the window —
-  // anchoring at the first day bunched labels at the left when the window
-  // straddled a month boundary (e.g. last 30 days starting Apr 28 placed
-  // Apr at index 0 and May right next to it at index 3).
+  // Label cadence: W shows the weekday for every day. M and Y label each
+  // calendar month at the MIDPOINT of its days in the window, so a window
+  // straddling a month boundary doesn't bunch two labels at the left edge.
   const MONTH_ABBR = [
     "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec",
   ];
   const DAY_ABBR = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const dateOfKey = (k: string) => {
+    const [yy, mm, dd] = k.split("-").map(Number);
+    return new Date(Date.UTC(yy, mm - 1, dd));
+  };
   const ticks: { index: number; label: string }[] = [];
   if (range === "W") {
     days.forEach((d, i) => {
-      const [yy, mm, dd] = d.dateKey.split("-").map(Number);
-      const dow = new Date(Date.UTC(yy, mm - 1, dd)).getUTCDay();
-      ticks.push({ index: i, label: DAY_ABBR[dow] });
+      ticks.push({ index: i, label: DAY_ABBR[dateOfKey(d.dateKey).getUTCDay()] });
     });
   } else {
     const byMonth = new Map<string, number[]>();
@@ -1495,92 +1560,191 @@ function RangeSvg({
       if (cur) cur.push(i);
       else byMonth.set(m, [i]);
     });
-    // Drop a month if it only has 2 or fewer days in-window — its label
-    // would crowd the next one. Keep it only when it occupies real space.
-    const minSpan = range === "M" ? 3 : 1;
+    const minSpan = 3;
     for (const [month, indices] of byMonth) {
       if (indices.length < minSpan) continue;
       const midIdx = indices[Math.floor(indices.length / 2)];
-      const monthNum = Number(month.slice(5, 7));
-      ticks.push({ index: midIdx, label: MONTH_ABBR[monthNum - 1] ?? "" });
+      ticks.push({ index: midIdx, label: MONTH_ABBR[Number(month.slice(5, 7)) - 1] ?? "" });
     }
   }
 
-  const cx = (i: number) => padL + i * slotW + slotW / 2;
-  const rest = days
-    .map((d, i) => (typeof d.restingHR === "number" ? { x: cx(i), y: yFor(d.restingHR) } : null))
-    .filter((p): p is { x: number; y: number } => p != null);
+  const peak = days.flatMap((d, i) =>
+    typeof d.peakHR === "number" ? [{ x: cx(i), y: yFor(d.peakHR) }] : [],
+  );
+  const rest = days.flatMap((d, i) =>
+    typeof d.restingHR === "number" ? [{ x: cx(i), y: yFor(d.restingHR) }] : [],
+  );
+  // The shaded range only where a day has both ends.
+  const both = days.flatMap((d, i) =>
+    typeof d.peakHR === "number" && typeof d.restingHR === "number"
+      ? [{ x: cx(i), top: yFor(d.peakHR), bottom: yFor(d.restingHR) }]
+      : [],
+  );
+  const band =
+    both.length >= 2
+      ? `${curvePath(both.map((b) => ({ x: b.x, y: b.top })))} ${curvePath(
+          [...both].reverse().map((b) => ({ x: b.x, y: b.bottom })),
+          false,
+        )} Z`
+      : null;
+  const base = padT + plotH;
+  const restArea =
+    rest.length >= 2
+      ? `${curvePath(rest)} L${rest[rest.length - 1].x.toFixed(2)},${base} L${rest[0].x.toFixed(2)},${base} Z`
+      : null;
+
+  const idx = frac == null || n === 0 ? null : scrubIndex(frac, n, padL / W, padR / W);
+  const active = idx != null && idx >= 0 ? days[idx] : null;
+  const peakFill = maxHr ? "url(#hr-rangeZone)" : "#ef4444";
+  const dotR = range === "W" ? 3 : range === "M" ? 1.8 : 1.4;
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      width="100%"
-      style={{ display: "block", overflow: "visible" }}
-      preserveAspectRatio="none"
-    >
-      {maxHr ? (
-        <defs>
-          <ZoneGradient id="hr-rangeZone" maxHr={maxHr} padT={padT} plotH={plotH} />
-        </defs>
-      ) : null}
-      <AxisFrame W={W} padL={padL} padR={padR} yFor={yFor} maxHr={maxHr} />
+    <div className="select-none">
+      <div className="h-9 flex items-center">
+        {active ? (
+          <div className="flex items-center gap-3 tabular-nums">
+            <p className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
+              {range === "Y" ? "Week of " : `${DAY_ABBR[dateOfKey(active.dateKey).getUTCDay()]} `}
+              {dateOfKey(active.dateKey).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+                timeZone: "UTC",
+              })}
+            </p>
+            {typeof active.peakHR === "number" && (
+              <p className="text-[13px]">
+                <span style={{ color: "var(--fg-muted)" }}>Peak </span>
+                <b style={{ color: maxHr ? hrZoneColor(active.peakHR, maxHr) : "#ef4444" }}>
+                  {active.peakHR}
+                </b>
+              </p>
+            )}
+            {typeof active.restingHR === "number" && (
+              <p className="text-[13px]">
+                <span style={{ color: "var(--fg-muted)" }}>Rest </span>
+                <b>{active.restingHR}</b>
+              </p>
+            )}
+            <span className="text-[11px]" style={{ color: "var(--fg-muted)" }}>bpm</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 text-[11px]" style={{ color: "var(--fg-muted)" }}>
+            <span className="flex items-center gap-1.5">
+              <span
+                className="w-3 h-0.5 rounded"
+                style={{ background: "linear-gradient(90deg, #22c55e, #f59e0b, #ef4444)" }}
+              />
+              Peak
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-0.5 rounded" style={{ background: REST_COLOR }} />
+              Resting
+            </span>
+            <span className="ml-1">· hold and drag to read a {range === "Y" ? "week" : "day"}</span>
+          </div>
+        )}
+      </div>
 
-      {ticks.map((t) => (
-        <text
-          key={`xl-${t.index}-${t.label}`}
-          x={cx(t.index)}
-          y={H - padB + 15}
-          fontSize="9"
-          fill="var(--fg-muted)"
-          textAnchor="middle"
+      <div ref={trackRef} className="relative touch-none cursor-ew-resize" {...handlers}>
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          width="100%"
+          style={{ display: "block", overflow: "visible" }}
+          aria-hidden
         >
-          {t.label}
-        </text>
-      ))}
+          <defs>
+            {maxHr ? (
+              <ZoneGradient
+                id="hr-rangeZone"
+                maxHr={maxHr}
+                padT={padT}
+                plotH={plotH}
+                yMin={yLo}
+                yMax={yHi}
+              />
+            ) : null}
+            <linearGradient id="hr-restArea" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={REST_COLOR} stopOpacity={0.16} />
+              <stop offset="100%" stopColor={REST_COLOR} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <AxisFrame W={W} padL={padL} padR={padR} yFor={yFor} maxHr={maxHr} />
 
-      {days.map((d) => {
-        const i = days.indexOf(d);
-        const x = cx(i) - barW / 2;
-        if (typeof d.peakHR !== "number") return null;
-        const top = yFor(d.peakHR);
-        const bottom = yFor(d.restingHR ?? 60);
-        return (
-          <rect
-            key={d.dateKey}
-            x={x.toFixed(2)}
-            y={top.toFixed(2)}
-            width={barW.toFixed(2)}
-            height={Math.max(2, bottom - top).toFixed(2)}
-            rx={Math.min(barW / 2, 4).toFixed(2)}
-            fill={maxHr ? "url(#hr-rangeZone)" : "#ef4444"}
-            opacity={0.95}
-          />
-        );
-      })}
+          {ticks.map((t) => (
+            <text
+              key={`xl-${t.index}-${t.label}`}
+              x={cx(t.index).toFixed(2)}
+              y={H - padB + 15}
+              fontSize="9"
+              fill="var(--fg-muted)"
+              textAnchor={n > 1 && t.index === 0 ? "start" : n > 1 && t.index === n - 1 ? "end" : "middle"}
+            >
+              {t.label}
+            </text>
+          ))}
 
-      {rest.length > 1 && (
-        <polyline
-          points={rest.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ")}
-          fill="none"
-          stroke="#94a3b8"
-          strokeWidth={1.2}
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-          opacity={0.8}
-        />
-      )}
-      {range !== "Y" &&
-        rest.map((p, i) => (
-          <circle
-            key={`rd-${i}`}
-            cx={p.x.toFixed(2)}
-            cy={p.y.toFixed(2)}
-            r={range === "W" ? 2.6 : 1.6}
-            fill="#cbd5e1"
-            stroke="var(--bg-card)"
-            strokeWidth={0.8}
-          />
-        ))}
-    </svg>
+          {band && <path d={band} fill={peakFill} opacity={0.14} />}
+          {restArea && <path d={restArea} fill="url(#hr-restArea)" />}
+          {rest.length >= 2 && (
+            <path
+              d={curvePath(rest)}
+              fill="none"
+              stroke={REST_COLOR}
+              strokeWidth={1.8}
+              strokeLinecap="round"
+            />
+          )}
+          {peak.length >= 2 && (
+            <path
+              d={curvePath(peak)}
+              fill="none"
+              stroke={peakFill}
+              strokeWidth={2.4}
+              strokeLinecap="round"
+              style={{ filter: "drop-shadow(0 0 4px rgba(239,68,68,0.35))" }}
+            />
+          )}
+
+          {days.map((d, i) =>
+            typeof d.peakHR === "number" ? (
+              <circle
+                key={`p-${d.dateKey}`}
+                cx={cx(i).toFixed(2)}
+                cy={yFor(d.peakHR).toFixed(2)}
+                r={dotR}
+                fill={maxHr ? hrZoneColor(d.peakHR, maxHr) : "#ef4444"}
+                stroke="var(--bg-card)"
+                strokeWidth={0.8}
+              />
+            ) : null,
+          )}
+          {days.map((d, i) =>
+            typeof d.restingHR === "number" ? (
+              <circle
+                key={`r-${d.dateKey}`}
+                cx={cx(i).toFixed(2)}
+                cy={yFor(d.restingHR).toFixed(2)}
+                r={dotR}
+                fill={REST_COLOR}
+                stroke="var(--bg-card)"
+                strokeWidth={0.8}
+              />
+            ) : null,
+          )}
+
+          {idx != null && idx >= 0 && (
+            <>
+              <line x1={cx(idx)} x2={cx(idx)} y1={padT} y2={base} stroke="var(--fg)" strokeWidth={1.2} />
+              {typeof days[idx].peakHR === "number" && (
+                <ScrubDot x={cx(idx)} y={yFor(days[idx].peakHR!)} />
+              )}
+              {typeof days[idx].restingHR === "number" && (
+                <ScrubDot x={cx(idx)} y={yFor(days[idx].restingHR!)} />
+              )}
+            </>
+          )}
+        </svg>
+      </div>
+    </div>
   );
 }

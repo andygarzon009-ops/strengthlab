@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import DailyHRChart, { type Range } from "@/components/DailyHRChart";
 import { hrZone, hrZoneBands, hrZoneColor } from "@/lib/hrZones";
 
@@ -353,11 +354,12 @@ function RestingTrend({ days }: { days: Resting["days"] }) {
   };
 
   return (
-    <section className="rounded-2xl p-4 mb-4" style={CARD}>
+    <Link href="/recovery/rhr" className="block rounded-2xl p-4 mb-4 active:opacity-80" style={CARD}>
       <div className="flex items-baseline justify-between">
         <h2 className="text-[15px] font-bold tracking-tight">Resting heart rate</h2>
-        <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
+        <span className="flex items-center gap-0.5 text-[12px]" style={{ color: "var(--fg-muted)" }}>
           Last {days.length} days
+          <ChevronRight size={14} strokeWidth={2.2} className="self-center" />
         </span>
       </div>
       <div className="flex items-baseline gap-2 mt-1">
@@ -400,7 +402,7 @@ function RestingTrend({ days }: { days: Resting["days"] }) {
           {fmtKey(days[days.length - 1].dateKey)}
         </text>
       </svg>
-    </section>
+    </Link>
   );
 }
 
