@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 
 type Spo2Response = {
   connected: boolean;
@@ -24,7 +26,7 @@ const FLAG_META: Record<string, { color: string; text: string }> = {
 /// Google Health (the recovery snapshot doesn't persist SpO2). Renders nothing
 /// until there's at least one night of data, so it stays invisible for users
 /// who don't wear a tracker that reports SpO2.
-export default function Spo2Card() {
+export default function Spo2Card({ href }: { href?: string }) {
   const [data, setData] = useState<Spo2Response | null>(null);
 
   useEffect(() => {
@@ -51,8 +53,9 @@ export default function Spo2Card() {
   return (
     <div className="mb-5">
       <p className="label mb-2">Blood oxygen</p>
-      <div
-        className="rounded-xl p-4"
+      <Link
+        href={href ?? "#"}
+        className="block rounded-xl p-4 active:opacity-80"
         style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
       >
         <div className="flex items-baseline justify-between">
@@ -73,6 +76,7 @@ export default function Spo2Card() {
             style={{ color: "var(--fg-dim)" }}
           >
             low {last.minPct}%
+            <ChevronRight size={14} strokeWidth={2.2} className="inline ml-1 -mt-0.5" style={{ opacity: 0.6 }} />
           </p>
         </div>
 
@@ -90,7 +94,7 @@ export default function Spo2Card() {
             {flagMeta.text}
           </p>
         )}
-      </div>
+      </Link>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 // stays a thin data loader.
 
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { ChevronRight, Sparkles } from "lucide-react";
 import ReadinessHero, { scaleColor } from "@/components/ReadinessHero";
 import RecoveryDays from "@/components/RecoveryDays";
 import SleepDetail, { type SleepSummary } from "@/components/SleepDetail";
@@ -76,7 +76,9 @@ function VitalTile({
   note,
   good,
   series,
+  href,
 }: {
+  href: string;
   label: string;
   value: string;
   unit: string;
@@ -86,12 +88,14 @@ function VitalTile({
 }) {
   const tint = good === null ? "var(--fg)" : good ? GOOD : WARN;
   return (
-    <div
-      className="rounded-2xl px-4 pt-3.5 pb-3"
+    <Link
+      href={href}
+      className="block rounded-2xl px-4 pt-3.5 pb-3 active:opacity-80"
       style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
     >
-      <p className="text-[12px] font-semibold" style={{ color: "var(--fg-muted)" }}>
+      <p className="flex items-center justify-between text-[12px] font-semibold" style={{ color: "var(--fg-muted)" }}>
         {label}
+        <ChevronRight size={14} strokeWidth={2.2} style={{ opacity: 0.6 }} />
       </p>
       <p className="mt-1 leading-none">
         <span className="text-[26px] font-bold tabular-nums" style={{ color: tint, letterSpacing: "-0.02em" }}>
@@ -107,7 +111,7 @@ function VitalTile({
         {note}
       </p>
       {series && <Sparkline series={series} color={good === false ? WARN : GOOD} />}
-    </div>
+    </Link>
   );
 }
 
@@ -152,6 +156,7 @@ export default function ReadinessView(p: ReadinessViewProps) {
       <div className="grid grid-cols-2 gap-2 mb-5">
         <VitalTile
           label="HRV"
+          href="/recovery/hrv"
           value={p.hrv.now != null ? `${Math.round(p.hrv.now)}` : "—"}
           unit="ms"
           note={
@@ -168,6 +173,7 @@ export default function ReadinessView(p: ReadinessViewProps) {
         />
         <VitalTile
           label="Resting HR"
+          href="/recovery/rhr"
           value={p.rhr.now != null ? `${p.rhr.now}` : "—"}
           unit="bpm"
           note={
@@ -183,6 +189,7 @@ export default function ReadinessView(p: ReadinessViewProps) {
         {resp && (
           <VitalTile
             label="Breathing"
+          href="/recovery/resp"
             value={resp.value.replace(" /min", "")}
             unit="/min"
             note={resp.note}
@@ -192,6 +199,7 @@ export default function ReadinessView(p: ReadinessViewProps) {
         {temp && (
           <VitalTile
             label="Skin temp"
+          href="/recovery/temp"
             value={temp.value}
             unit=""
             note={temp.note === "normal" ? "vs your normal" : temp.note}
@@ -200,7 +208,7 @@ export default function ReadinessView(p: ReadinessViewProps) {
         )}
       </div>
 
-      <Spo2Card />
+      <Spo2Card href="/recovery/spo2" />
 
       {p.sleepHistory.length >= 2 && <SleepHistoryChart history={p.sleepHistory} />}
 

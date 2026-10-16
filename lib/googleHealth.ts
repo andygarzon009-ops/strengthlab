@@ -1112,3 +1112,238 @@ export async function listHeartRateBetween(
   return samples;
 }
 
+
+// ---------------------------------------------------------------------------
+// Vitals detail pages (/recovery/[metric]): a month or a year of nightly
+// values, and the individual readings inside one night.
+
+type VitalDailyPoint = { date: string; v: number; lo?: number };
+
+/// Per-day data types take no filter and come back newest first, so page
+/// until the oldest civil date in a page is before the start.
+async function pageCivilDaily<P>(
+  userId: string,
+  base: string,
+  dateOf: (p: P) => string | null,
+  startKey: string,
+  maxPages: number,
+): Promise<P[]> {
+  const out: P[] = [];
+  let pageToken: string | undefined;
+  for (let page = 0; page < maxPages; page++) {
+    const path: string = pageToken
+      ? `${base}&pageToken=${encodeURIComponent(pageToken)}`
+      : base;
+    const data = (await healthFetch(userId, path)) as {
+      dataPoints?: P[];
+      nextPageToken?: string;
+    };
+    const batch = data.dataPoints ?? [];
+    out.push(...batch);
+    pageToken = data.nextPageToken;
+    const keys = batch.map(dateOf).filter((k): k is string => !!k).sort();
+    if (!pageToken || batch.length === 0 || (keys[0] ?? "") < startKey) break;
+  }
+  return out;
+}
+
+const SAMPLE_TYPES = {
+  hrv: {
+    path: "heart-rate-variability",
+    field: "heart_rate_variability",
+    pageSize: 500,
+    read: (p: Record<string, unknown>) => {
+      const h = p.heartRateVariability as
+        | { sampleTime?: { physicalTime?: string }; rootMeanSquareOfSuccessiveDifferencesMilliseconds?: number }
+        | undefined;
+      return { ts: h?.sampleTime?.physicalTime, v: h?.rootMeanSquareOfSuccessiveDifferencesMilliseconds };
+    },
+    ok: (v: number) => v > 0 && v < 400,
+  },
+  spo2: {
+    path: "oxygen-saturation",
+    field: "oxygen_saturation",
+    pageSize: 1000,
+    read: (p: Record<string, unknown>) => {
+      const o = p.oxygenSaturation as
+        | { sampleTime?: { physicalTime?: string }; percentage?: number }
+        | undefined;
+      return { ts: o?.sampleTime?.physicalTime, v: o?.percentage };
+    },
+    ok: (v: number) => v >= 50 && v <= 100,
+  },
+} as const;
+
+/// Every HRV or blood-oxygen reading in [start, end), oldest first.
+export async function listVitalSamples(
+  userId: string,
+  kind: "hrv" | "spo2",
+  startISO: string,
+  endISO: string,
+  maxPages = 6,
+): Promise<{ t: number; v: number }[]> {
+  const cfg = SAMPLE_TYPES[kind];
+  const filter =
+    `${cfg.field}.sample_time.physical_time >= "${new Date(startISO).toISOString()}"` +
+    ` AND ${cfg.field}.sample_time.physical_time < "${new Date(endISO).toISOString()}"`;
+  const base =
+    `/users/me/dataTypes/${cfg.path}/dataPoints?pageSize=${cfg.pageSize}&filter=` +
+    encodeURIComponent(filter);
+  const out: { t: number; v: number }[] = [];
+  let pageToken: string | undefined;
+  for (let page = 0; page < maxPages; page++) {
+    const path: string = pageToken
+      ? `${base}&pageToken=${encodeURIComponent(pageToken)}`
+      : base;
+    const data = (await healthFetch(userId, path)) as {
+      dataPoints?: Record<string, unknown>[];
+      nextPageToken?: string;
+    };
+    for (const p of data.dataPoints ?? []) {
+      const { ts, v } = cfg.read(p);
+      const t = ts ? Date.parse(ts) : NaN;
+      if (!Number.isFinite(t) || typeof v !== "number" || !Number.isFinite(v) || !cfg.ok(v))
+        continue;
+      out.push({ t, v });
+    }
+    pageToken = data.nextPageToken;
+    if (!pageToken) break;
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+
+/// One value per night for the last `days` days, oldest first. HRV and blood
+/// oxygen are averaged from their raw readings (fetched a month at a time,
+/// a few months in parallel); the rest are already one point per day.
+/// Skin temp is the deviation from Google's own baseline.
+export async function listVitalDaily(
+  userId: string,
+  kind: "hrv" | "rhr" | "spo2" | "resp" | "temp",
+  days: number,
+): Promise<VitalDailyPoint[]> {
+  const now = new Date();
+  const start = new Date(now.getTime() - days * 86_400_000);
+  const startKey = start.toISOString().slice(0, 10);
+  const pages = Math.min(16, Math.ceil(days / 30) + 2);
+
+  if (kind === "hrv" || kind === "spo2") {
+    const windows: [Date, Date][] = [];
+    for (let s = start.getTime(); s < now.getTime(); s += 30 * 86_400_000) {
+      windows.push([new Date(s), new Date(Math.min(now.getTime(), s + 30 * 86_400_000))]);
+    }
+    const samples: { t: number; v: number }[] = [];
+    for (let i = 0; i < windows.length; i += 4) {
+      const chunk = await Promise.all(
+        windows
+          .slice(i, i + 4)
+          .map(([a, b]) => listVitalSamples(userId, kind, a.toISOString(), b.toISOString(), 8)),
+      );
+      for (const c of chunk) samples.push(...c);
+    }
+    // Same day keying as listDailyHrv / listOxygenSaturation.
+    const byDay = new Map<string, { sum: number; n: number; min: number }>();
+    for (const s of samples) {
+      const key = new Date(s.t).toISOString().slice(0, 10);
+      const cur = byDay.get(key);
+      if (cur) {
+        cur.sum += s.v;
+        cur.n += 1;
+        cur.min = Math.min(cur.min, s.v);
+      } else byDay.set(key, { sum: s.v, n: 1, min: s.v });
+    }
+    return [...byDay.entries()]
+      .map(([date, { sum, n, min }]) => ({
+        date,
+        v: Math.round((sum / n) * 10) / 10,
+        ...(kind === "spo2" ? { lo: Math.round(min * 10) / 10 } : {}),
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  if (kind === "rhr") {
+    type P = {
+      dataSource?: { platform?: string };
+      dailyRestingHeartRate?: {
+        date?: CivilDate;
+        beatsPerMinute?: string | number;
+        dailyRestingHeartRateMetadata?: { calculationMethod?: string };
+      };
+    };
+    const points = await pageCivilDaily<P>(
+      userId,
+      "/users/me/dataTypes/daily-resting-heart-rate/dataPoints?pageSize=60",
+      (p) => (p.dailyRestingHeartRate?.date ? civilKey(p.dailyRestingHeartRate.date) : null),
+      startKey,
+      pages * 2, // Fitbit + HealthKit can both report a day
+    );
+    // Best reading per day, Fitbit sleep-based first — as listRestingHeartRate.
+    const byDay = new Map<string, { v: number; score: number }>();
+    for (const p of points) {
+      const r = p.dailyRestingHeartRate;
+      const bpm = Number(r?.beatsPerMinute);
+      if (!r?.date || !Number.isFinite(bpm) || bpm <= 0) continue;
+      const key = civilKey(r.date);
+      if (key < startKey) continue;
+      const score =
+        (p.dataSource?.platform === "FITBIT" ? 2 : 0) +
+        (r.dailyRestingHeartRateMetadata?.calculationMethod === "WITH_SLEEP" ? 1 : 0);
+      const prev = byDay.get(key);
+      if (!prev || score > prev.score) byDay.set(key, { v: Math.round(bpm), score });
+    }
+    return [...byDay.entries()]
+      .map(([date, { v }]) => ({ date, v }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  if (kind === "resp") {
+    type P = { dailyRespiratoryRate?: { date?: CivilDate; breathsPerMinute?: number } };
+    const points = await pageCivilDaily<P>(
+      userId,
+      "/users/me/dataTypes/daily-respiratory-rate/dataPoints?pageSize=60",
+      (p) => (p.dailyRespiratoryRate?.date ? civilKey(p.dailyRespiratoryRate.date) : null),
+      startKey,
+      pages,
+    );
+    const byDay = new Map<string, number>();
+    for (const p of points) {
+      const d = p.dailyRespiratoryRate?.date;
+      const bpm = Number(p.dailyRespiratoryRate?.breathsPerMinute);
+      if (!d || !Number.isFinite(bpm) || bpm <= 0) continue;
+      const key = civilKey(d);
+      if (key >= startKey) byDay.set(key, Math.round(bpm * 10) / 10);
+    }
+    return [...byDay.entries()]
+      .map(([date, v]) => ({ date, v }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  type P = {
+    dailySleepTemperatureDerivations?: {
+      date?: CivilDate;
+      nightlyTemperatureCelsius?: number;
+      baselineTemperatureCelsius?: number;
+    };
+  };
+  const points = await pageCivilDaily<P>(
+    userId,
+    "/users/me/dataTypes/daily-sleep-temperature-derivations/dataPoints?pageSize=60",
+    (p) =>
+      p.dailySleepTemperatureDerivations?.date
+        ? civilKey(p.dailySleepTemperatureDerivations.date)
+        : null,
+    startKey,
+    pages,
+  );
+  const byDay = new Map<string, number>();
+  for (const p of points) {
+    const t = p.dailySleepTemperatureDerivations;
+    const nightly = Number(t?.nightlyTemperatureCelsius);
+    const base = Number(t?.baselineTemperatureCelsius);
+    if (!t?.date || !Number.isFinite(nightly) || !Number.isFinite(base) || base <= 0) continue;
+    const key = civilKey(t.date);
+    if (key >= startKey) byDay.set(key, Math.round((nightly - base) * 100) / 100);
+  }
+  return [...byDay.entries()]
+    .map(([date, v]) => ({ date, v }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
