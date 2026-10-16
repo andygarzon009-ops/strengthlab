@@ -1,9 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { previousPath } from "@/lib/navStack";
 
 export default function BackButton({
   href,
+  alsoFrom = [],
   fallbackHref = "/",
   ariaLabel = "Back",
 }: {
@@ -11,6 +13,10 @@ export default function BackButton({
   // the app hierarchy (e.g. a lift detail always belongs under the rhythm
   // page) so back is deterministic regardless of browser history.
   href?: string;
+  // Other pages that open this one. Coming from any of them (or from `href`)
+  // makes back a real history back, which returns to that exact page with
+  // its scroll position instead of a fresh copy of the parent.
+  alsoFrom?: string[];
   fallbackHref?: string;
   ariaLabel?: string;
 }) {
@@ -21,25 +27,30 @@ export default function BackButton({
     // instead of a hardcoded parent that feels like a jump to a different page.
     // Read it from the URL at click time to avoid needing a Suspense boundary
     // around useSearchParams on statically-renderable pages.
+    const prev = previousPath();
     if (typeof window !== "undefined") {
       const from = new URLSearchParams(window.location.search).get("from");
       if (from) {
-        router.push(from);
+        if (prev === from.split("?")[0]) router.back();
+        else router.push(from);
         return;
       }
     }
     if (href) {
-      router.push(href);
+      const parents = [href, ...alsoFrom].map((p) => p.split("?")[0]);
+      if (prev && parents.includes(prev)) router.back();
+      else router.push(href);
       return;
     }
     // No fixed parent: return to whichever page they came from (history
-    // calendar, feed, coach chat, etc.). Fall back to the provided href so
-    // deep-links still land somewhere useful.
-    if (typeof window !== "undefined" && window.history.length > 1) {
+    // calendar, feed, coach chat, etc.).
+    if (prev) {
       router.back();
-    } else {
-      router.push(fallbackHref);
+      return;
     }
+    // No fixed parent and nothing in-app behind us (a deep link or a push):
+    // land somewhere useful rather than leaving the app.
+    router.push(fallbackHref);
   };
   return (
     <button

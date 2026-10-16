@@ -12,6 +12,7 @@ import PushAutoSubscribe from "@/components/PushAutoSubscribe";
 import { Suspense } from "react";
 import { AppGlow } from "@/components/FeedGlow";
 import GlowGate from "@/components/GlowGate";
+import NavTracker from "@/components/NavTracker";
 
 export default function DashboardLayout({
   children,
@@ -39,6 +40,7 @@ export default function DashboardLayout({
           <AppGlow />
         </Suspense>
       </GlowGate>
+      <NavTracker />
       {children}
       <NotificationsBell />
       <BottomNav />

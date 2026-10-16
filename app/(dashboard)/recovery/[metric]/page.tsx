@@ -42,7 +42,11 @@ export default async function VitalPage({
   return (
     <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-3 mb-5">
-        <BackButton href="/recovery" ariaLabel="Back to readiness" />
+        <BackButton
+          href="/recovery"
+          alsoFrom={["/heart-rate"]}
+          ariaLabel="Back"
+        />
         <h1 className="text-[22px] font-bold tracking-tight">{VITALS[metric].title}</h1>
       </div>
       <HealthReconnectBanner />
