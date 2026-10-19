@@ -414,3 +414,18 @@ input[type="number"]::-webkit-outer-spin-button {
   content: attr(placeholder);
   color: var(--fg-dim);
 }
+
+/* Cheer button: a pop on tap and a burst of sparks flying out of it. */
+@keyframes cheer-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.18); }
+  65% { transform: scale(0.94); }
+  100% { transform: scale(1); }
+}
+@keyframes cheer-spark {
+  0% { transform: translate(-50%, -50%) rotate(var(--a)) translateY(-14px) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -50%) rotate(var(--a)) translateY(-40px) scale(0.2); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cheer-pop, .cheer-spark { animation: none !important; }
+}

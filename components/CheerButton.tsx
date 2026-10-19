@@ -4,9 +4,12 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addReaction } from "@/lib/actions/workouts";
 
+const SPARKS = [0, 45, 90, 135, 180, 225, 270, 315];
+
 /// One-tap cheer on a crew member's highlight. A cheer is a 🏆 reaction on
 /// the underlying workout, so it reuses the existing reactions system and
-/// shows up on the workout's feed card too.
+/// shows up on the workout's feed card too. It *looks* like 👏, though — the
+/// tile it sits on already carries a 🏆 PR badge.
 export default function CheerButton({
   workoutId,
   initialCheered,
@@ -19,12 +22,15 @@ export default function CheerButton({
   const router = useRouter();
   const [cheered, setCheered] = useState(initialCheered);
   const [count, setCount] = useState(initialCount);
+  // Bumped per cheer so the pop and burst replay on every tap.
+  const [burst, setBurst] = useState(0);
   const [pending, startTransition] = useTransition();
 
   const toggle = () => {
     const next = !cheered;
     setCheered(next);
     setCount((c) => Math.max(0, c + (next ? 1 : -1)));
+    if (next) setBurst((b) => b + 1);
     startTransition(async () => {
       await addReaction(workoutId, "🏆");
       router.refresh();
@@ -36,23 +42,63 @@ export default function CheerButton({
       type="button"
       onClick={toggle}
       disabled={pending}
-      className="shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-colors disabled:opacity-60"
-      style={
-        cheered
-          ? {
-              background: "var(--accent-dim)",
-              border: "1px solid rgba(34,197,94,0.35)",
-              color: "var(--accent)",
-            }
-          : {
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-              color: "var(--fg)",
-            }
-      }
+      aria-pressed={cheered}
+      aria-label={cheered ? `Cheered${count ? `, ${count} cheers` : ""}` : `Cheer${count ? `, ${count} cheers` : ""}`}
+      className="relative shrink-0"
     >
-      🏆 {cheered ? "Cheered" : "Cheer"}
-      {count > 0 ? ` · ${count}` : ""}
+      <span
+        key={burst}
+        className={`relative flex items-center gap-1.5 h-8 pl-2.5 ${count > 0 ? "pr-1" : "pr-3"} rounded-full text-[12px] font-bold ${burst ? "cheer-pop" : ""}`}
+        style={{
+          animation: burst ? "cheer-pop 420ms cubic-bezier(.3,1.6,.5,1)" : undefined,
+          ...(cheered
+            ? {
+                background: "linear-gradient(135deg, #ecfccb 0%, #a3e635 55%, #4ade80 100%)",
+                color: "#0a0a0a",
+                boxShadow: "0 0 18px rgba(163,230,53,0.55), inset 0 1px 0 rgba(255,255,255,0.6)",
+              }
+            : {
+                background: "rgba(10,10,10,0.55)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                border: "1px solid rgba(255,255,255,0.18)",
+                color: "#fff",
+              }),
+        }}
+      >
+        <span className="text-[14px] leading-none" aria-hidden>👏</span>
+        {cheered ? "Cheered" : "Cheer"}
+        {count > 0 && (
+          <span
+            className="min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[11px] font-extrabold tabular-nums"
+            style={
+              cheered
+                ? { background: "rgba(10,10,10,0.85)", color: "#d9f99d" }
+                : { background: "rgba(255,255,255,0.16)", color: "#fff" }
+            }
+          >
+            {count}
+          </span>
+        )}
+      </span>
+
+      {burst > 0 && cheered && (
+        <span key={`b${burst}`} className="pointer-events-none absolute left-1/2 top-1/2" aria-hidden>
+          {SPARKS.map((a, i) => (
+            <span
+              key={a}
+              className="cheer-spark absolute left-0 top-0 rounded-full"
+              style={{
+                width: i % 2 ? 4 : 5,
+                height: i % 2 ? 4 : 5,
+                background: i % 2 ? "#d9f99d" : "#4ade80",
+                ["--a" as string]: `${a}deg`,
+                animation: "cheer-spark 520ms ease-out forwards",
+              }}
+            />
+          ))}
+        </span>
+      )}
     </button>
   );
 }
