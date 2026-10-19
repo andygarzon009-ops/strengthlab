@@ -72,3 +72,37 @@ export async function deleteFoodLog(id: string) {
   revalidatePath("/fuel");
   revalidatePath("/");
 }
+
+/// Edit one logged food. Only the owner's row is touched.
+export async function updateFoodLog(
+  id: string,
+  input: {
+    name: string;
+    meal: Meal;
+    portion?: string | null;
+    kcal: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+  },
+) {
+  const userId = await requireAuth();
+  const name = String(input.name ?? "").trim().slice(0, 80);
+  const kcal = num(input.kcal, 5000);
+  if (!name || kcal <= 0) return { ok: false as const };
+  await prisma.foodLog.updateMany({
+    where: { id, userId },
+    data: {
+      name,
+      meal: MEALS.includes(input.meal) ? input.meal : "SNACK",
+      portion: input.portion ? String(input.portion).trim().slice(0, 60) : null,
+      kcal,
+      proteinG: num(input.proteinG, 500),
+      carbsG: num(input.carbsG, 1000),
+      fatG: num(input.fatG, 500),
+    },
+  });
+  revalidatePath("/fuel");
+  revalidatePath("/");
+  return { ok: true as const };
+}
