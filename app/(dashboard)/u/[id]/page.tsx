@@ -89,31 +89,6 @@ export default async function PublicProfilePage({
   // Level from lifetime workouts.
   const level = Math.floor(totalWorkouts / 10) + 1;
 
-  // Weeks in a row with at least one session (Mon-start), counting back from
-  // this week — or from last week, so a Monday before training doesn't read 0.
-  const weekStart = (d: Date) => {
-    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
-    return x.getTime();
-  };
-  const trainedWeeks = new Set(workouts.map((w) => weekStart(new Date(w.date))));
-  const WEEK = 7 * 86_400_000;
-  let cursor = weekStart(now);
-  if (!trainedWeeks.has(cursor)) cursor -= WEEK;
-  let streak = 0;
-  // DST can shift a Monday's midnight by an hour; match within a day.
-  const hasWeek = (t: number) =>
-    [...trainedWeeks].some((w) => Math.abs(w - t) < 86_400_000);
-  while (hasWeek(cursor)) {
-    streak++;
-    cursor -= WEEK;
-  }
-
-  // Sessions per day this month, for the hero's bar strip.
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const perDay = Array.from({ length: daysInMonth }, () => 0);
-  for (const w of monthWorkouts) perDay[new Date(w.date).getDate() - 1]++;
-
   // Group every loaded workout by month, then by day. Keeping only the first
   // hit per day (workouts is date-desc) meant a double session showed one cell
   // linking to the later workout, with the earlier one unreachable from here.
@@ -168,108 +143,113 @@ export default async function PublicProfilePage({
       {/* Cover */}
       <div className="relative">
         <div
-          className="w-full"
+          className="w-full relative overflow-hidden"
           style={{
-            height: 112,
+            height: 160,
             background: user.coverImage
               ? `center/cover url(${user.coverImage})`
-              : "radial-gradient(120% 140% at 0% 0%, rgba(34,197,94,0.35) 0%, rgba(34,197,94,0.08) 45%, transparent 75%), var(--bg)",
+              : "radial-gradient(90% 120% at 15% 0%, rgba(34,197,94,0.55) 0%, rgba(34,197,94,0.12) 45%, transparent 70%), radial-gradient(70% 100% at 100% 20%, rgba(163,230,53,0.22) 0%, transparent 60%), #070a07",
           }}
-        />
+        >
+          {!user.coverImage && (
+            // Faint grid, like a lifting-platform floor, fading out downward.
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)",
+                backgroundSize: "22px 22px",
+                maskImage: "linear-gradient(180deg, black 0%, transparent 85%)",
+                WebkitMaskImage: "linear-gradient(180deg, black 0%, transparent 85%)",
+              }}
+            />
+          )}
+          {/* Melt into the page instead of a hard edge. */}
+          <div
+            className="absolute inset-x-0 bottom-0 h-16"
+            style={{ background: "linear-gradient(180deg, transparent, var(--bg))" }}
+          />
+        </div>
         <div className="absolute top-4 left-4">
           <BackButton href="/group" ariaLabel="Back to crew" />
         </div>
-        <div className="absolute left-4" style={{ bottom: -34 }}>
+        {/* Avatar overlaps the cover */}
+        <div className="absolute left-4" style={{ bottom: -40 }}>
           <div className="relative">
-            <div style={{ padding: 3, background: "var(--bg)", borderRadius: "9999px" }}>
-              <Avatar name={user.name} image={user.image} size={76} />
+            <div
+              style={{
+                padding: 3,
+                borderRadius: "9999px",
+                background: "conic-gradient(from 200deg, #22c55e, #a3e635, #4ade80, #22c55e)",
+                boxShadow: "0 0 28px rgba(74,222,128,0.35)",
+              }}
+            >
+              <div style={{ padding: 3, background: "var(--bg)", borderRadius: "9999px" }}>
+                <Avatar name={user.name} image={user.image} size={86} />
+              </div>
             </div>
             <span
-              className="absolute -bottom-0.5 -right-1 text-[11px] font-bold px-1.5 py-0.5 rounded-md tabular-nums"
-              style={{ background: "#a3e635", color: "#0a0a0a", border: "2px solid var(--bg)" }}
+              className="absolute -bottom-1 -right-2 text-[12px] font-extrabold px-2 py-0.5 rounded-lg tabular-nums"
+              style={{
+                background: "linear-gradient(135deg, #d9f99d, #a3e635)",
+                color: "#0a0a0a",
+                border: "2px solid var(--bg)",
+                boxShadow: "0 0 14px rgba(163,230,53,0.55)",
+              }}
               title={`Level ${level}`}
             >
-              Lv {level}
+              ⚡{level}
             </span>
           </div>
-        </div>
-        <div className="absolute right-4" style={{ bottom: -46 }}>
-          {isSelf ? (
-            <ShareProfileButton userId={user.id} />
-          ) : (
-            <FriendButton targetUserId={user.id} initialState={friendState} />
-          )}
         </div>
       </div>
 
-      <div className="px-4 pt-11">
-        <h1 className="text-[26px] font-extrabold tracking-tight leading-none truncate">
-          {user.name}
-        </h1>
-        <p className="text-[13px] mt-1.5 truncate" style={{ color: "var(--fg-muted)" }}>
-          {[user.username && `@${user.username}`, user.bio || user.preferredSplit]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
+      <div className="px-4 pt-14">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-[28px] font-extrabold tracking-tight leading-none truncate">
+              {user.name}
+            </h1>
+            {user.username && (
+              <p className="text-[13px] mt-1.5 font-medium" style={{ color: "#86efac" }}>
+                @{user.username}
+              </p>
+            )}
+            {(user.preferredSplit || user.bio) && (
+              <p className="text-[13px] mt-1" style={{ color: "var(--fg-muted)" }}>
+                {user.bio || user.preferredSplit}
+              </p>
+            )}
+          </div>
+          <div className="shrink-0">
+            {isSelf ? (
+              <ShareProfileButton userId={user.id} />
+            ) : (
+              <FriendButton targetUserId={user.id} initialState={friendState} />
+            )}
+          </div>
+        </div>
 
-        {/* This month */}
+        {/* Stat rings (this month) */}
         <section
-          className="relative rounded-3xl p-5 mt-5 overflow-hidden"
+          className="relative rounded-3xl pt-4 pb-4 px-2 mt-5 overflow-hidden"
           style={{
             background:
-              "radial-gradient(140% 90% at 0% 0%, rgba(34,197,94,0.16) 0%, transparent 60%), var(--bg-card)",
+              "radial-gradient(120% 100% at 50% 0%, rgba(34,197,94,0.10) 0%, transparent 65%), var(--bg-card)",
             border: "1px solid var(--border-strong)",
           }}
         >
-          <p className="text-[12px] font-semibold" style={{ color: "var(--fg-muted)" }}>
+          <p
+            className="text-[11px] font-semibold tracking-[0.14em] uppercase px-3"
+            style={{ color: "var(--fg-muted)" }}
+          >
             {monthName}
           </p>
-          <p className="mt-1 leading-none">
-            <span className="text-[52px] font-bold tabular-nums" style={{ letterSpacing: "-0.04em" }}>
-              {monthSessions}
-            </span>
-            <span className="text-[15px] font-semibold ml-1.5" style={{ color: "var(--fg-muted)" }}>
-              {monthSessions === 1 ? "session" : "sessions"}
-            </span>
-          </p>
-          <p className="text-[12px] mt-1.5 tabular-nums" style={{ color: "var(--fg-muted)" }}>
-            {[
-              monthMinutes > 0 && `${monthMinutes.toLocaleString()} min`,
-              monthCalories > 0 && `${monthCalories.toLocaleString()} kcal`,
-            ]
-              .filter(Boolean)
-              .join(" · ") || "Nothing logged yet this month"}
-          </p>
-
-          {/* one bar per day of the month */}
-          <div className="flex items-end gap-[3px] mt-4" style={{ height: 28 }} aria-hidden>
-            {perDay.map((n, i) => (
-              <div
-                key={i}
-                className="flex-1 rounded-full"
-                style={{
-                  height: n ? (n > 1 ? 28 : 20) : 4,
-                  background: n
-                    ? i === now.getDate() - 1
-                      ? "linear-gradient(180deg, #a3e635, #22c55e)"
-                      : "rgba(74,222,128,0.6)"
-                    : i < now.getDate()
-                      ? "var(--bg-elevated)"
-                      : "rgba(255,255,255,0.03)",
-                }}
-              />
-            ))}
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 mt-4">
-            <Tile
-              label="Streak"
-              value={`${streak}`}
-              note={streak === 1 ? "week in a row" : "weeks in a row"}
-              color={streak > 0 ? "#4ade80" : undefined}
-            />
-            <Tile label="Cheers" value={`${cheers}`} note="received" />
-            <Tile label="All-time" value={`${totalWorkouts}`} note="sessions" />
+          <div className="grid grid-cols-4 gap-1 mt-3">
+            <Ring id="w" label="Workouts" value={monthSessions} goal={20} from="#60a5fa" to="#3b82f6" />
+            <Ring id="m" label="Minutes" value={monthMinutes} goal={1000} from="#67e8f9" to="#06b6d4" />
+            <Ring id="c" label="Calories" value={monthCalories} goal={6000} from="#fdba74" to="#f97316" />
+            <Ring id="h" label="Cheers" value={cheers} goal={Math.max(10, cheers)} from="#f9a8d4" to="#ec4899" />
           </div>
         </section>
 
@@ -355,14 +335,68 @@ export default async function PublicProfilePage({
   );
 }
 
-function Tile({ label, value, note, color }: { label: string; value: string; note: string; color?: string }) {
+function Ring({
+  id,
+  label,
+  value,
+  goal,
+  from,
+  to,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  goal: number;
+  from: string;
+  to: string;
+}) {
+  const frac = Math.max(0, Math.min(1, value / Math.max(1, goal)));
+  const r = 30;
+  const c = 2 * Math.PI * r;
+  const display =
+    value >= 1000 ? `${(value / 1000).toFixed(1)}K` : String(value);
+  const grad = `ring-${id}`;
   return (
-    <div className="rounded-2xl py-2.5 px-2 text-center" style={{ background: "var(--bg-elevated)" }}>
-      <p className="text-[11px] font-semibold" style={{ color: "var(--fg-muted)" }}>{label}</p>
-      <p className="text-[20px] font-bold tabular-nums leading-tight mt-0.5" style={{ color: color ?? "var(--fg)" }}>
-        {value}
-      </p>
-      <p className="text-[10px] mt-0.5 truncate" style={{ color: "var(--fg-muted)" }}>{note}</p>
+    <div className="flex flex-col items-center">
+      <svg width="76" height="76" viewBox="0 0 76 76" style={{ overflow: "visible" }}>
+        <defs>
+          <linearGradient id={grad} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={from} />
+            <stop offset="100%" stopColor={to} />
+          </linearGradient>
+        </defs>
+        {/* Track tinted with the ring's own colour */}
+        <circle cx="38" cy="38" r={r} fill="none" stroke={to} strokeOpacity="0.14" strokeWidth="7" />
+        {frac > 0 && (
+          <circle
+            cx="38"
+            cy="38"
+            r={r}
+            fill="none"
+            stroke={`url(#${grad})`}
+            strokeWidth="7"
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={c * (1 - frac)}
+            transform="rotate(-90 38 38)"
+            style={{ filter: `drop-shadow(0 0 6px ${to}99)` }}
+          />
+        )}
+        <text
+          x="38"
+          y="43"
+          textAnchor="middle"
+          fontSize="16"
+          fontWeight="800"
+          fill="var(--fg)"
+          style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}
+        >
+          {display}
+        </text>
+      </svg>
+      <span className="text-[11px] font-semibold mt-1.5" style={{ color: "var(--fg-muted)" }}>
+        {label}
+      </span>
     </div>
   );
 }
