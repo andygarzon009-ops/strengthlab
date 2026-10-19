@@ -12,6 +12,7 @@ import Wordmark from "@/components/Wordmark";
 import FeedTop from "@/components/FeedTop";
 import CycleCard from "@/components/PhaseCard";
 import CrewPulse from "@/components/CrewPulse";
+import NewButton from "@/components/NewButton";
 import { loadSessionProgress } from "@/lib/sessionProgress";
 
 export default async function FeedPage() {
@@ -38,24 +39,7 @@ export default async function FeedPage() {
           </p>
           <Wordmark size={28} />
         </div>
-        <Link
-          href="/log"
-          className="btn-accent px-4 py-2.5 rounded-xl text-sm inline-flex items-center gap-1.5"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          New
-        </Link>
+<NewButton />
       </div>
 
       {/* Each card streams in independently. The glance rings make live

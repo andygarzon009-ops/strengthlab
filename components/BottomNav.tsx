@@ -7,6 +7,7 @@ import {
   hasLiveStretchSession,
   subscribeStretchSession,
 } from "@/lib/stretchSession";
+import NewChooser from "@/components/NewChooser";
 
 const navItems = [
   { href: "/", label: "Feed" },
@@ -117,37 +118,45 @@ export default function BottomNav() {
             // Mid-routine this button returns to the stretch player, and shows
             // a play glyph instead of the plus so it reads as "resume" rather
             // than "start something new".
-            return (
-              <Link
-                key={item.href}
-                href={stretching ? "/stretch" : item.href}
-                className="flex flex-col items-center justify-center w-14 h-14 -mt-6 rounded-full active:scale-95 transition-transform"
-                style={{
-                  background: "var(--accent)",
-                  boxShadow:
-                    "0 8px 24px -6px rgba(34, 197, 94, 0.5), 0 0 0 4px var(--bg)",
-                }}
-                aria-label={stretching ? "Resume stretching" : item.label}
-              >
-                {stretching ? (
+            const accentClass =
+              "flex flex-col items-center justify-center w-14 h-14 -mt-6 rounded-full active:scale-95 transition-transform";
+            const accentStyle = {
+              background: "var(--accent)",
+              boxShadow: "0 8px 24px -6px rgba(34, 197, 94, 0.5), 0 0 0 4px var(--bg)",
+            };
+            if (stretching) {
+              return (
+                <Link
+                  key={item.href}
+                  href="/stretch"
+                  className={accentClass}
+                  style={accentStyle}
+                  aria-label="Resume stretching"
+                >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="#0a0a0a" aria-hidden>
                     <path d="M8 5v14l11-7z" />
                   </svg>
-                ) : (
-                  <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#0a0a0a"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                </Link>
+              );
+            }
+            // Otherwise it asks what's being logged: a workout or a meal.
+            return (
+              <NewChooser
+                key={item.href}
+                trigger={(openSheet) => (
+                  <button
+                    type="button"
+                    onClick={openSheet}
+                    className={accentClass}
+                    style={accentStyle}
+                    aria-label="Log something new"
                   >
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </button>
                 )}
-              </Link>
+              />
             );
           }
           return (

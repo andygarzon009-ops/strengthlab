@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { shrinkImage } from "@/lib/shrinkImage";
 import { saveFoodItems } from "@/lib/actions/food";
 import { mealForHour, MEALS, type Meal } from "@/lib/meals";
+import { takePendingMeal } from "@/lib/pendingMeal";
 import type { DetectedFood } from "@/app/api/food/analyze/route";
 
 type Item = DetectedFood & { scale: number };
@@ -100,10 +101,7 @@ export default function FoodLogger() {
     }
   };
 
-  const onPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const picked = e.target.files?.[0];
-    if (fileRef.current) fileRef.current.value = "";
-    if (!picked) return;
+  const startPhoto = async (picked: File) => {
     setMeal(mealForHour(new Date().getHours()));
     const file = await shrinkImage(picked, 1280);
     const preview = URL.createObjectURL(file);
@@ -111,6 +109,28 @@ export default function FoodLogger() {
     fd.append("photo", file);
     analyze(fd, preview, "photo");
   };
+
+  const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0];
+    if (fileRef.current) fileRef.current.value = "";
+    if (picked) startPhoto(picked);
+  };
+
+  // Arrived from the New chooser with a photo already taken (or asking to
+  // describe): go straight into the flow.
+  useEffect(() => {
+    const p = takePendingMeal();
+    if (!p) return;
+    // Deferred a tick so it isn't a synchronous in-effect setState.
+    queueMicrotask(() => {
+      if ("file" in p) startPhoto(p.file);
+      else {
+        setMeal(mealForHour(new Date().getHours()));
+        setStage({ kind: "describe" });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onDescribe = () => {
     const t = text.trim();
