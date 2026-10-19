@@ -95,3 +95,89 @@ export function mergeFoodLog(
   }
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
+
+export type RecentMeal = {
+  key: string;
+  title: string;
+  items: {
+    name: string;
+    portion: string;
+    kcal: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+    fiberG: number | null;
+  }[];
+  kcal: number;
+  photoUrl: string | null;
+  times: number;
+  lastDate: string;
+};
+
+/// Meals logged lately, for one-tap re-logging. A "meal" is one save — the
+/// foods written together share a createdAt — and the same set of foods
+/// eaten again collapses into one entry, ranked by how often then how
+/// recently it was eaten.
+export async function listRecentMeals(userId: string, limit = 8): Promise<RecentMeal[]> {
+  const since = new Date(Date.now() - 45 * 86_400_000);
+  const rows = await prisma.foodLog.findMany({
+    where: { userId, createdAt: { gte: since } },
+    select: {
+      createdAt: true,
+      meal: true,
+      localDate: true,
+      name: true,
+      portion: true,
+      kcal: true,
+      proteinG: true,
+      carbsG: true,
+      fatG: true,
+      fiberG: true,
+      photoUrl: true,
+    },
+    orderBy: { createdAt: "desc" },
+    take: 600,
+  });
+
+  const saves = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const k = `${r.createdAt.getTime()}|${r.meal}`;
+    (saves.get(k) ?? saves.set(k, []).get(k)!).push(r);
+  }
+
+  const byFoods = new Map<string, RecentMeal>();
+  for (const list of saves.values()) {
+    const sig = list
+      .map((r) => r.name.trim().toLowerCase())
+      .sort()
+      .join("|");
+    const seen = byFoods.get(sig);
+    if (seen) {
+      seen.times += 1;
+      continue;
+    }
+    // Biggest item names the meal.
+    const lead = [...list].sort((a, b) => b.kcal - a.kcal)[0];
+    byFoods.set(sig, {
+      key: sig,
+      title: list.length > 1 ? `${lead.name} +${list.length - 1}` : lead.name,
+      items: list.map((r) => ({
+        name: r.name,
+        portion: r.portion ?? "",
+        kcal: r.kcal,
+        proteinG: r.proteinG,
+        carbsG: r.carbsG,
+        fatG: r.fatG,
+        fiberG: r.fiberG,
+      })),
+      kcal: Math.round(list.reduce((s, r) => s + r.kcal, 0)),
+      photoUrl: list.find((r) => r.photoUrl)?.photoUrl ?? null,
+      times: 1,
+      lastDate: list[0].localDate,
+    });
+  }
+
+  return [...byFoods.values()]
+    .sort((a, b) => b.times - a.times || b.lastDate.localeCompare(a.lastDate))
+    .slice(0, limit);
+}

@@ -6,7 +6,7 @@ import FuelWeek from "@/components/FuelWeek";
 import HealthReconnectBanner from "@/components/HealthReconnectBanner";
 import FoodLogger from "@/components/FoodLogger";
 import FoodLogToday from "@/components/FoodLogToday";
-import { listFoodLog } from "@/lib/foodLog";
+import { listFoodLog, listRecentMeals } from "@/lib/foodLog";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -23,9 +23,10 @@ export default async function FuelPage() {
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
-  const [week, todayRows] = await Promise.all([
+  const [week, todayRows, recent] = await Promise.all([
     getFuelWeek(userId),
     listFoodLog(userId, today),
+    listRecentMeals(userId),
   ]);
 
   return (
@@ -43,12 +44,12 @@ export default async function FuelPage() {
           today={week.today}
           calibration={week.calibration}
         >
-          <FoodLogger />
+          <FoodLogger recent={recent} />
           <FoodLogToday rows={todayRows.filter((r) => r.localDate === today)} />
         </FuelWeek>
       ) : (
         <>
-          <FoodLogger />
+          <FoodLogger recent={recent} />
           <EmptyState state={week.state} />
         </>
       )}

@@ -7,6 +7,7 @@ import { shrinkImage } from "@/lib/shrinkImage";
 import { saveFoodItems } from "@/lib/actions/food";
 import { mealForHour, MEALS, type Meal } from "@/lib/meals";
 import { takePendingMeal } from "@/lib/pendingMeal";
+import type { RecentMeal } from "@/lib/foodLog";
 import type { DetectedFood } from "@/app/api/food/analyze/route";
 
 type Item = DetectedFood & { scale: number };
@@ -42,7 +43,7 @@ const scaled = (it: Item) => ({
 /// Log a meal from a photo or a sentence. Gemini estimates each food; the
 /// athlete trims, rescales or removes items, picks the meal, and saves it to
 /// Fuel. Nothing is stored until Save.
-export default function FoodLogger() {
+export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [stage, setStage] = useState<Stage>({ kind: "closed" });
@@ -138,6 +139,20 @@ export default function FoodLogger() {
     const fd = new FormData();
     fd.append("text", t);
     analyze(fd, null, "text");
+  };
+
+  // A recent meal skips the estimate: same foods, same numbers, straight to
+  // review so the portion or meal can still be tweaked before saving.
+  const relog = (r: RecentMeal) => {
+    setMeal(mealForHour(new Date().getHours()));
+    setStage({
+      kind: "review",
+      items: r.items.map((it) => ({ ...it, scale: 1 })),
+      photoUrl: r.photoUrl,
+      preview: r.photoUrl,
+      note: null,
+      source: r.photoUrl ? "photo" : "text",
+    });
   };
 
   const close = () => {
@@ -271,6 +286,48 @@ export default function FoodLogger() {
           </span>
         </button>
       </div>
+      {recent.length > 0 && (
+        <div className="mt-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] mb-2" style={{ color: "var(--fg-muted)" }}>
+            Recent
+          </p>
+          <div className="-mx-4 px-4 flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+            {recent.map((r) => (
+              <button
+                key={r.key}
+                type="button"
+                onClick={() => relog(r)}
+                className="shrink-0 w-[150px] rounded-2xl p-2.5 text-left active:scale-[0.98] transition-transform"
+                style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
+              >
+                <div className="flex items-center gap-2">
+                  {r.photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={r.photoUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
+                  ) : (
+                    <span className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-[15px]" style={{ background: "rgba(255,255,255,0.06)" }} aria-hidden>
+                      🍽️
+                    </span>
+                  )}
+                  <span
+                    className="ml-auto w-7 h-7 rounded-full flex items-center justify-center text-[16px] font-bold shrink-0"
+                    style={{ background: "rgba(74,222,128,0.16)", color: "#86efac" }}
+                    aria-hidden
+                  >
+                    +
+                  </span>
+                </div>
+                <p className="text-[13px] font-semibold leading-snug mt-2 line-clamp-2" style={{ minHeight: 34 }}>
+                  {r.title}
+                </p>
+                <p className="text-[11px] mt-0.5 tabular-nums" style={{ color: "var(--fg-muted)" }}>
+                  {r.kcal.toLocaleString()} kcal{r.times > 1 ? ` · ${r.times}×` : ""}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <p className="text-[11px] mt-2.5" style={{ color: "var(--fg-dim)" }}>
         Estimates from a photo are rough — check portions before saving.
       </p>
