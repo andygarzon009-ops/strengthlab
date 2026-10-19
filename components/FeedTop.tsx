@@ -70,7 +70,7 @@ function TodayCard({
   const href = done
     ? `/workout/${done.id}`
     : next
-      ? `/log?clone=${next.templateId}`
+      ? `/log?next=${next.templateId}`
       : "/log";
   const cta = done ? "View log" : next ? `Start ${next.label} day` : "Start a session";
   // A deload overrides the readiness advice: however good the numbers look,

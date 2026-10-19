@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { localDateKey } from "@/lib/blockStamp";
 import { STRENGTH_SPLITS, isTimedExercise, shapeForType } from "@/lib/exercises";
 import { isMainCompoundLift } from "@/lib/workoutPlan";
+import { isOtherCompound } from "@/lib/prescribe";
 
 const LOOKBACK_DAYS = 28;
 
@@ -19,7 +20,7 @@ export type TodayPlan = {
   next: {
     split: string; // "PULL"
     label: string; // "Pull"
-    templateId: string; // last session of this split — Start clones it
+    templateId: string; // last session of this split — Start re-prescribes it
     lifts: number;
     minutes: number | null;
     topLift: string | null; // heaviest working lift in that session
@@ -172,17 +173,6 @@ export const loadTodayPlan = cache(async (userId: string): Promise<TodayPlan> =>
     },
   };
 });
-
-// Multi-joint movements that can carry a top set when the day has no main
-// barbell lift (a dumbbell push day, a pull-up pull day).
-const COMPOUND =
-  /\b(press|row|squat|deadlift|rdl|pull[- ]?ups?|chin[- ]?ups?|dips?|lunges?|hip thrust|clean|snatch|good ?morning)\b/i;
-const ACCESSORY =
-  /\b(calf|calves|curl|extension|raise|fly|flye|pushdown|kickback|shrug|face pull|tricep|triceps|skull|crunch|abduct|adduct)\b/i;
-
-function isOtherCompound(name: string): boolean {
-  return COMPOUND.test(name) && !ACCESSORY.test(name);
-}
 
 type Recovery = {
   recoveryScore: number | null;

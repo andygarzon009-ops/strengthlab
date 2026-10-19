@@ -72,7 +72,7 @@ export function isMainCompoundLift(name: string): boolean {
 // (but never reaching) the working load, with descending reps. Mirrors how a
 // real lifter ramps a main compound: e.g. to 275 → 45×10, 150×5, 190×3,
 // 235×2, 255×1. Returns [] for loads too light to ramp.
-function buildRampUpSets(working: number): WorkoutPlanSet[] {
+export function rampUpSets(working: number): WorkoutPlanSet[] {
   const round5 = (n: number) => Math.round(n / 5) * 5;
   const BAR = 45;
   const steps: { weight: number; reps: number }[] = [
@@ -112,7 +112,7 @@ export function ensureRampUpWarmup(plan: WorkoutPlan): WorkoutPlan {
     const w = toNum(firstWorking.weight);
     // Bodyweight / unloaded / non-numeric load — no barbell ramp-up to add.
     if (!w || w <= 0) return plan;
-    const ramp = buildRampUpSets(w);
+    const ramp = rampUpSets(w);
     if (ramp.length === 0) return plan; // too light to ramp
     ex.sets = [...ramp, ...ex.sets];
     return plan; // only the first main compound lift earns it
