@@ -215,17 +215,35 @@ export default function FoodLogger() {
           </span>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      {/* Same two tiles as the New sheet's meal options, so logging a meal
+          looks the same wherever it starts. */}
+      <div className="grid grid-cols-2 gap-2.5">
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          className="btn-accent min-h-[48px] rounded-2xl flex items-center justify-center gap-2 text-[14px] font-bold"
+          className="flex flex-col gap-3 rounded-2xl p-4 text-left active:scale-[0.99] transition-transform"
+          style={{
+            background:
+              "radial-gradient(120% 140% at 0% 0%, rgba(56,189,248,0.18) 0%, transparent 60%), var(--bg-elevated)",
+            border: "1px solid rgba(56,189,248,0.3)",
+          }}
         >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-            <circle cx="12" cy="13" r="4" />
-          </svg>
-          Snap a photo
+          <span
+            className="w-11 h-11 rounded-2xl flex items-center justify-center"
+            style={{ background: "#38bdf8" }}
+            aria-hidden
+          >
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+          </span>
+          <span>
+            <span className="block text-[15px] font-bold">Meal photo</span>
+            <span className="block text-[12px] mt-0.5" style={{ color: "var(--fg-muted)" }}>
+              Snap it, we count it
+            </span>
+          </span>
         </button>
         <button
           type="button"
@@ -233,13 +251,24 @@ export default function FoodLogger() {
             setMeal(mealForHour(new Date().getHours()));
             setStage({ kind: "describe" });
           }}
-          className="min-h-[48px] rounded-2xl flex items-center justify-center gap-2 text-[14px] font-bold"
-          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+          className="flex flex-col gap-3 rounded-2xl p-4 text-left active:scale-[0.99] transition-transform"
+          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
-          </svg>
-          Describe it
+          <span
+            className="w-11 h-11 rounded-2xl flex items-center justify-center"
+            style={{ background: "rgba(255,255,255,0.08)" }}
+            aria-hidden
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--fg)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+            </svg>
+          </span>
+          <span>
+            <span className="block text-[15px] font-bold">Describe a meal</span>
+            <span className="block text-[12px] mt-0.5" style={{ color: "var(--fg-muted)" }}>
+              Type what you ate
+            </span>
+          </span>
         </button>
       </div>
       <p className="text-[11px] mt-2.5" style={{ color: "var(--fg-dim)" }}>
