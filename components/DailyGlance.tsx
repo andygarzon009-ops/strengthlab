@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import FuelDetail, { type NutritionResponse } from "@/components/FuelDetail";
+import { type NutritionResponse } from "@/components/FuelDetail";
 import TickGauge from "@/components/TickGauge";
 
 /// Continuous performance color: red (0) → amber (50) → green (100). Used for
@@ -52,7 +52,7 @@ export type ActivityGlance = {
   rows: { label: string; value: number; goal: number; unit: string; color: string; done: boolean }[];
 };
 
-type Section = "fuel" | "activity";
+type Section = "activity";
 
 /// Fuel / Activity under the plan: label, a slim bar, the reading. The whole
 /// row is the tap target that expands its detail.
@@ -63,8 +63,9 @@ function StatRow({
   color,
   value,
   sub,
-  active,
+  active = false,
   onClick,
+  href,
 }: {
   label: string;
   icon: ReactNode;
@@ -72,51 +73,62 @@ function StatRow({
   color: string;
   value: string;
   sub: string;
-  active: boolean;
-  onClick: () => void;
+  active?: boolean;
+  onClick?: () => void;
+  /// Navigate instead of expanding.
+  href?: string;
 }) {
   // A real button, not a bare line: its own tile, a full tap height and a
   // chevron that turns when the detail opens, so it reads as something to tap.
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-expanded={active}
-      className="w-full grid items-center gap-2.5 rounded-xl px-3 min-h-[44px] text-left transition-colors active:scale-[0.99]"
-      style={{
-        gridTemplateColumns: "72px minmax(0,1fr) auto 14px",
-        background: active ? "var(--bg-elevated)" : "rgba(255,255,255,0.025)",
-        border: `1px solid ${active ? "var(--border-strong)" : "var(--border)"}`,
-      }}
-    >
+  const cls =
+    "w-full grid items-center gap-2.5 rounded-xl px-3 min-h-[44px] text-left transition-colors active:scale-[0.99]";
+  const style = {
+    gridTemplateColumns: "72px minmax(0,1fr) auto 14px",
+    background: active ? "var(--bg-elevated)" : "rgba(255,255,255,0.025)",
+    border: `1px solid ${active ? "var(--border-strong)" : "var(--border)"}`,
+  };
+  const content = (
+    <>
       <span className="flex items-center gap-1.5 text-[13px] font-semibold">
-        <span style={{ color }}>{icon}</span>
-        {label}
-      </span>
-      <span className="h-[7px] rounded-full overflow-hidden" style={{ background: "var(--bg-elevated)" }}>
-        <span
-          className="block h-full rounded-full"
-          style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: color }}
-        />
-      </span>
-      <span className="text-[12px] tabular-nums whitespace-nowrap" style={{ color: "var(--fg-muted)" }}>
-        <b className="font-bold" style={{ color: "var(--fg)" }}>{value}</b>
-        {sub ? ` · ${sub}` : ""}
-      </span>
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="var(--fg-muted)"
-        strokeWidth="2.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-        style={{ transform: active ? "rotate(90deg)" : undefined, transition: "transform 160ms" }}
-      >
-        <path d="M9 6l6 6-6 6" />
-      </svg>
+          <span style={{ color }}>{icon}</span>
+          {label}
+        </span>
+        <span className="h-[7px] rounded-full overflow-hidden" style={{ background: "var(--bg-elevated)" }}>
+          <span
+            className="block h-full rounded-full"
+            style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: color }}
+          />
+        </span>
+        <span className="text-[12px] tabular-nums whitespace-nowrap" style={{ color: "var(--fg-muted)" }}>
+          <b className="font-bold" style={{ color: "var(--fg)" }}>{value}</b>
+          {sub ? ` · ${sub}` : ""}
+        </span>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="var(--fg-muted)"
+          strokeWidth="2.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+          style={{ transform: active ? "rotate(90deg)" : undefined, transition: "transform 160ms" }}
+        >
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+    </>
+  );
+  if (href) {
+    return (
+      <Link href={href} className={cls} style={style}>
+        {content}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} aria-expanded={active} className={cls} style={style}>
+      {content}
     </button>
   );
 }
@@ -271,18 +283,6 @@ export default function DailyGlance({
       </div>
 
       <div className="mt-3 space-y-1.5">
-          {activity && (
-            <StatRow
-              label="Activity"
-              icon={<ZapIcon />}
-              pct={activity.pct}
-              color={scoreColor(activity.pct)}
-              value={`${activity.pct}%`}
-              sub={`${activity.moveCal.toLocaleString()} cal`}
-              active={open === "activity"}
-              onClick={() => toggle("activity")}
-            />
-          )}
           {fuelRow ? (
             <StatRow
               label="Fuel"
@@ -291,8 +291,7 @@ export default function DailyGlance({
               color={fuelRow.color}
               value={fuelRow.value}
               sub={fuelRow.sub}
-              active={open === "fuel"}
-              onClick={() => toggle("fuel")}
+              href="/fuel"
             />
           ) : (
             // Nothing eaten logged yet: no empty Fuel bar, just the way in.
@@ -320,39 +319,22 @@ export default function DailyGlance({
               </span>
             </Link>
           )}
+          {activity && (
+            <StatRow
+              label="Activity"
+              icon={<ZapIcon />}
+              pct={activity.pct}
+              color={scoreColor(activity.pct)}
+              value={`${activity.pct}%`}
+              sub={`${activity.moveCal.toLocaleString()} cal`}
+              active={open === "activity"}
+              onClick={() => toggle("activity")}
+            />
+          )}
         </div>
 
       {open && (
         <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
-          {open === "fuel" && fuel && (
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "var(--accent-dim)", color: "var(--accent)" }}>
-                  🎯 {fuel.targets?.phaseLabel ?? "Nutrition"}
-                </span>
-              </div>
-              <FuelDetail data={fuel} />
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                <Link
-                  href="/fuel"
-                  className="flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl text-[14px] font-bold"
-                  style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
-                >
-                  Open Fuel
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M5 12h14M13 6l6 6-6 6" />
-                  </svg>
-                </Link>
-                <Link
-                  href="/fuel#log"
-                  className="btn-accent flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl text-[14px] font-bold"
-                >
-                  + Log a meal
-                </Link>
-              </div>
-            </div>
-          )}
-
           {open === "activity" && activity && (
             <div>
               <div className="space-y-3">
@@ -360,16 +342,6 @@ export default function DailyGlance({
                   <ActivityBar key={r.label} {...r} />
                 ))}
               </div>
-              <Link
-                href="/activity"
-                className="mt-3 flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl text-[14px] font-bold"
-                style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
-              >
-                Open Activity
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
-              </Link>
             </div>
           )}
         </div>
