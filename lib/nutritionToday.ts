@@ -17,6 +17,7 @@ import {
   type FuelProgress,
   type MaintenanceCalibration,
 } from "@/lib/nutritionScore";
+import { listFoodLog, mergeFoodLog } from "@/lib/foodLog";
 
 /// How far back to look when solving maintenance from intake vs weight trend.
 /// Long enough for a 0.25%/week trend to clear scale noise, short enough to
@@ -129,24 +130,22 @@ export async function getFuelWeek(
     },
   });
 
+  // Google Health is one source of intake; StrengthLab's own food log is the
+  // other. Either one is enough to score a day, so a missing or lapsed Google
+  // connection only blocks Fuel when nothing has been logged in-app either.
   const account = await prisma.healthAccount.findUnique({ where: { userId } });
-  if (!account) return { state: "no-account" };
-
-  const auth = await checkHealthAuth(userId);
-  if (auth.needsReconnect) return { state: "reconnect" };
-
+  let googleState: "ok" | "no-account" | "reconnect" | "no-nutrition-scope" = "ok";
+  if (!account) googleState = "no-account";
+  else if ((await checkHealthAuth(userId)).needsReconnect) googleState = "reconnect";
   // The nutrition scope was added after the first users connected, and Google
   // only grants it on re-consent. Their tokens are perfectly valid, so the
   // nutrition-log call just 403s and gets swallowed into an empty day — which
   // renders as "nothing logged" and would never resolve itself, no matter how
   // diligently they logged food. Detect it and say what's actually wrong.
-  if (!account.scope.includes("googlehealth.nutrition"))
-    return { state: "no-nutrition-scope" };
+  else if (!account.scope.includes("googlehealth.nutrition"))
+    googleState = "no-nutrition-scope";
 
-  if (user?.bodyweight == null || user.bodyweight <= 0)
-    return { state: "no-profile" };
-
-  const tz = user.timezone ?? "UTC";
+  const tz = user?.timezone ?? "UTC";
   const localKey = (d: Date) =>
     new Intl.DateTimeFormat("en-CA", {
       timeZone: tz,
@@ -176,6 +175,12 @@ export async function getFuelWeek(
     now.getTime() - CALIBRATION_DAYS * 86_400_000,
   ).toISOString();
 
+  const ownRows = await listFoodLog(userId, calibrationStart);
+  if (googleState !== "ok" && ownRows.length === 0) return { state: googleState };
+  if (user?.bodyweight == null || user.bodyweight <= 0)
+    return { state: "no-profile" };
+  const google = googleState === "ok";
+
   // Local clock time, used to grade today on pace rather than as a finished day.
   const hm = new Intl.DateTimeFormat("en-GB", {
     timeZone: tz,
@@ -186,11 +191,14 @@ export async function getFuelWeek(
   const [nowH, nowM] = hm.split(":").map(Number);
   const todayIsOver = dayIsOver(nowH, nowM);
 
-  const [days, activeByDay, weights] = await Promise.all([
-    getDailyNutrition(userId, sinceCivil),
-    getActiveEnergyByDay(userId, sinceShort),
-    listDailyWeights(userId, weightSinceISO),
-  ]);
+  const [googleDays, activeByDay, weights] = google
+    ? await Promise.all([
+        getDailyNutrition(userId, sinceCivil),
+        getActiveEnergyByDay(userId, sinceShort),
+        listDailyWeights(userId, weightSinceISO),
+      ])
+    : [[], {} as Record<string, number>, []];
+  const days = mergeFoodLog(googleDays, ownRows);
   const byDate = new Map(days.map((d) => [d.date, d]));
 
   // Solve maintenance from what actually happened. Today is excluded — it's

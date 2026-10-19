@@ -254,8 +254,7 @@ export default function DailyGlance({
         <div className="min-w-0 flex-1">{head}</div>
       </div>
 
-      {(activity || fuelRow) && (
-        <div className="mt-3 space-y-1">
+      <div className="mt-3 space-y-1">
           {activity && (
             <StatRow
               label="Activity"
@@ -268,7 +267,7 @@ export default function DailyGlance({
               onClick={() => toggle("activity")}
             />
           )}
-          {fuelRow && (
+          {fuelRow ? (
             <StatRow
               label="Fuel"
               icon={<FlameIcon />}
@@ -279,9 +278,26 @@ export default function DailyGlance({
               active={open === "fuel"}
               onClick={() => toggle("fuel")}
             />
+          ) : (
+            // Nothing eaten logged yet: no empty Fuel bar, just the way in.
+            <Link
+              href="/fuel#log"
+              className="grid items-center gap-2.5 rounded-lg -mx-1.5 px-1.5 py-1 active:opacity-70"
+              style={{ gridTemplateColumns: "76px minmax(0,1fr) auto", width: "calc(100% + 12px)" }}
+            >
+              <span className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: "var(--fg-muted)" }}>
+                <FlameIcon />
+                Fuel
+              </span>
+              <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
+                Log a meal
+              </span>
+              <span className="text-[12px] font-semibold" style={{ color: "var(--accent)" }}>
+                📷 +
+              </span>
+            </Link>
           )}
         </div>
-      )}
 
       {open && (
         <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>

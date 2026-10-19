@@ -98,6 +98,7 @@ model User {
   customExercises        Exercise[]               @relation("ExerciseOwner")
   passwordResetTokens    PasswordResetToken[]
   healthAccount          HealthAccount?
+  foodLogs               FoodLog[]
   following              Follow[]                 @relation("Following")
   followers              Follow[]                 @relation("Followers")
   crewChallenges         CrewChallenge[]          @relation("CrewChallengeCreator")
@@ -704,4 +705,31 @@ model Reaction {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([workoutId, userId, type])
+}
+
+/// A food logged in StrengthLab itself (photo or description, estimated by
+/// Gemini, confirmed by the athlete). Added to Google Health intake for Fuel.
+model FoodLog {
+  id        String   @id @default(cuid())
+  userId    String
+  /// The athlete's local calendar day, YYYY-MM-DD.
+  localDate String
+  loggedAt  DateTime @default(now())
+  /// BREAKFAST | LUNCH | DINNER | SNACK
+  meal      String
+  name      String
+  portion   String?
+  kcal      Float
+  proteinG  Float    @default(0)
+  carbsG    Float    @default(0)
+  fatG      Float    @default(0)
+  fiberG    Float?
+  photoUrl  String?
+  /// photo | text
+  source    String   @default("photo")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, localDate])
 }

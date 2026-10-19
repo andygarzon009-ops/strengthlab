@@ -4,15 +4,29 @@ import { getFuelWeek } from "@/lib/nutritionToday";
 import BackButton from "@/components/BackButton";
 import FuelWeek from "@/components/FuelWeek";
 import HealthReconnectBanner from "@/components/HealthReconnectBanner";
+import FoodLogger from "@/components/FoodLogger";
+import FoodLogToday from "@/components/FoodLogToday";
+import { listFoodLog } from "@/lib/foodLog";
+import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-/// The Fuel page — seven days of intake from MyFitnessPal via Google Health,
-/// with every logged food and its macros. Live read: getFuelWeek pulls the
-/// window in one nutrition-log call, so there's no history table behind this.
+/// The Fuel page — log a meal (photo or description), then seven days of
+/// intake: StrengthLab's own food log plus anything MyFitnessPal sends via
+/// Google Health, with every food and its macros.
 export default async function FuelPage() {
   const userId = await requireAuth();
-  const week = await getFuelWeek(userId);
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { timezone: true } });
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: user?.timezone || "UTC",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const [week, todayRows] = await Promise.all([
+    getFuelWeek(userId),
+    listFoodLog(userId, today),
+  ]);
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8">
@@ -22,6 +36,9 @@ export default async function FuelPage() {
       </div>
 
       <HealthReconnectBanner />
+
+      <FoodLogger />
+      <FoodLogToday rows={todayRows.filter((r) => r.localDate === today)} />
 
       {week.state === "ok" ? (
         <FuelWeek
@@ -44,8 +61,8 @@ function EmptyState({
   const copy = {
     "no-account": {
       icon: "🍳",
-      title: "Health isn't connected",
-      body: "Connect Google Health to pull the meals you log in MyFitnessPal — calories, protein, carbs and fat, food by food.",
+      title: "Your week of fuel starts here",
+      body: "Log a meal above and your Fuel score fills in. Already use MyFitnessPal? Connect Google Health and those meals count too.",
       cta: { href: "/health", label: "Connect Google Health" },
     },
     reconnect: {
