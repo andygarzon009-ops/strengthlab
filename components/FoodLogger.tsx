@@ -179,7 +179,7 @@ export default function FoodLogger() {
       : null;
 
   return (
-    <section id="log" className="card p-4 mb-4">
+    <section id="log" className="rounded-2xl p-4 mb-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}>
       <input
         ref={fileRef}
         type="file"

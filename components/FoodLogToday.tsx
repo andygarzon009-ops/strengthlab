@@ -40,7 +40,7 @@ export default function FoodLogToday({ rows }: { rows: Row[] }) {
   };
 
   return (
-    <section className="card p-4 mb-4">
+    <section className="rounded-2xl p-4 mb-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}>
       <h2 className="text-[15px] font-bold tracking-tight">Logged today</h2>
       {ORDER.filter((m) => live.some((r) => r.meal === m)).map((m) => {
         const list = live.filter((r) => r.meal === m);

@@ -6,8 +6,10 @@
 // there's no history table behind this — the strip is whatever Google Health
 // has for the last seven local days.
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { Sparkles } from "lucide-react";
+import TickGauge, { scaleColor } from "@/components/TickGauge";
 
 export type FoodRow = {
   name: string;
@@ -117,10 +119,13 @@ export default function FuelWeek({
   days,
   today,
   calibration,
+  children,
 }: {
   days: FuelDayView[];
   today: string;
   calibration: Calibration | null;
+  /// Rendered under the hero — the meal logger and today's entries.
+  children?: ReactNode;
 }) {
   const [selected, setSelected] = useState(today);
   const day = days.find((d) => d.date === selected) ?? days[days.length - 1];
@@ -149,19 +154,27 @@ export default function FuelWeek({
 
   return (
     <>
+      <FuelHero
+        day={day}
+        isToday={isToday}
+        scoreColor={scoreColor}
+      />
+
+      {children}
+
       {/* ── 7-day strip, stacked by macro ── */}
-      <p className="label mb-2">
-        Last 7 days
+      <p className="label mb-2" style={{ color: "var(--fg-muted)" }}>
+        This week
         <span
           className="float-right normal-case tracking-normal font-medium"
           style={{ color: "var(--fg-dim)" }}
         >
-          stacked by macro
+          tap a day · stacked by macro
         </span>
       </p>
       <div
-        className="rounded-xl px-2 py-3 mb-5"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+        className="rounded-2xl px-2 py-3 mb-5"
+        style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
       >
         <div className="flex items-end gap-1">
           {days.map((d) => {
@@ -244,74 +257,14 @@ export default function FuelWeek({
         </div>
       </div>
 
-      {/* ── selected day header ── */}
-      <p className="label mb-2">
-        {isToday ? "Today" : longDate(day.date)}
-        <span
-          className="float-right normal-case tracking-normal font-medium tabular-nums"
-          style={{ color: "var(--fg-dim)" }}
-        >
-          {t.phaseLabel}
-        </span>
-      </p>
 
-      {!day.logged ? (
-        <div
-          className="rounded-2xl px-5 py-10 text-center mb-5"
-          style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-        >
-          <div className="text-[28px] mb-2">🍽️</div>
-          <p className="text-[14px] font-semibold">Nothing logged</p>
-          <p
-            className="text-[13px] mt-1.5 leading-snug max-w-[19rem] mx-auto"
-            style={{ color: "var(--fg-dim)" }}
-          >
-            {isToday
-              ? `No food from MyFitnessPal yet today. Your target is ${t.proteinTargetG}g protein and ~${t.calorieTargetKcal.toLocaleString()} kcal.`
-              : "No food reached Google Health for this day."}
-          </p>
-        </div>
-      ) : (
+      {day.logged && (
         <>
-          {/* score + calories */}
-          <div
-            className="rounded-2xl p-5 mb-4 flex items-center gap-5"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-          >
-            <Ring
-              value={inProgress ? day.progress.pct : day.score.score}
-              color={inProgress ? PROGRESS : scoreColor}
-              inProgress={inProgress}
-            />
-            <div className="min-w-0">
-              <p className="text-[22px] font-bold tabular-nums leading-none">
-                {i.kcal.toLocaleString()}
-                <span className="text-[13px] font-normal" style={{ color: "var(--fg-dim)" }}>
-                  {" "}
-                  / {t.calorieTargetKcal.toLocaleString()} kcal
-                </span>
-              </p>
-              <p
-                className="text-[12px] mt-1.5"
-                style={{ color: inProgress ? "var(--fg-muted)" : scoreColor }}
-              >
-                {inProgress
-                  ? `${day.progress.caloriePct}% of calories · ${day.progress.proteinPct}% of protein`
-                  : `${day.score.rating} · ${day.score.direction}`}
-              </p>
-              <p className="text-[11px] mt-1 tabular-nums" style={{ color: "var(--fg-dim)" }}>
-                {Math.max(0, t.calorieTargetKcal - i.kcal).toLocaleString()} kcal left ·
-                ~{t.maintenanceKcal.toLocaleString()} burned
-                {t.maintenanceSource === "observed" ? " (measured)" : " (estimated)"}
-              </p>
-            </div>
-          </div>
-
           {/* ── macros ── */}
-          <p className="label mb-2">Macros</p>
+          <p className="label mb-2" style={{ color: "var(--fg-muted)" }}>Macros</p>
           <div
             className="rounded-2xl p-4 mb-4"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
           >
             <MacroBar
               label="Protein"
@@ -359,7 +312,7 @@ export default function FuelWeek({
           </div>
 
           {/* ── the diary ── */}
-          <p className="label mb-2">
+          <p className="label mb-2" style={{ color: "var(--fg-muted)" }}>
             {isToday ? "Today's food" : "Food"}
             <span
               className="float-right normal-case tracking-normal font-medium tabular-nums"
@@ -370,7 +323,7 @@ export default function FuelWeek({
           </p>
           <div
             className="rounded-2xl p-4 mb-4"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
           >
             {meals.map((meal, mi) => {
               const foods = i.foods.filter((f) => f.meal === meal);
@@ -434,10 +387,10 @@ export default function FuelWeek({
           </div>
 
           {/* ── micronutrients ── */}
-          <p className="label mb-2">Fiber &amp; the rest</p>
+          <p className="label mb-2" style={{ color: "var(--fg-muted)" }}>Fiber &amp; the rest</p>
           <div
             className="rounded-2xl p-4 mb-5"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
           >
             <Micro
               label="Fiber"
@@ -477,23 +430,210 @@ export default function FuelWeek({
         </>
       )}
 
+      <p className="label mb-2" style={{ color: "var(--fg-muted)" }}>Your plan</p>
       <GoalCard targets={day.targets} calibration={calibration} />
 
       <Link
         href="/group?coach=1"
-        className="flex items-center justify-center gap-2 w-full rounded-xl py-3 text-[14px] font-semibold"
-        style={{ background: "var(--accent)", color: "#0a0a0a" }}
+        className="flex items-center justify-center gap-2 w-full rounded-2xl py-3.5 text-[15px] font-semibold"
+        style={{
+          background: "linear-gradient(180deg, #34d36b 0%, #22c55e 100%)",
+          color: "#06150b",
+          boxShadow: "0 6px 24px -8px rgba(34,197,94,0.55)",
+        }}
       >
-        🤖 Ask your coach about your intake
+        <Sparkles size={17} strokeWidth={2.2} />
+        Ask your coach about your intake
       </Link>
 
-      <p className="text-[11px] mt-4 leading-snug" style={{ color: "var(--fg-dim)" }}>
-        Food comes from MyFitnessPal via Google Health. Protein and calorie targets follow
-        your training phase and bodyweight; carbs and fat are split from the calorie
-        target after protein. Calories burned is an estimate — resting metabolism plus the
-        day&apos;s logged movement.
+      <p className="text-[12px] mt-4 mb-8 leading-relaxed" style={{ color: "var(--fg-muted)" }}>
+        Food is what you log here plus anything MyFitnessPal sends through Google
+        Health. Protein and calorie targets follow your training phase and
+        bodyweight; carbs and fat are split from the calorie target after protein.
+        Calories burned is an estimate: resting metabolism plus the day&apos;s
+        logged movement.
       </p>
     </>
+  );
+}
+
+function MiniRing({ pct, color, label }: { pct: number; color: string; label: string }) {
+  const r = 17;
+  const circ = 2 * Math.PI * r;
+  const f = (Math.max(0, Math.min(100, pct)) / 100) * circ;
+  return (
+    <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden>
+      <circle cx="22" cy="22" r={r} fill="none" stroke="#26262b" strokeWidth="4.5" />
+      {pct > 0 && (
+        <circle
+          cx="22"
+          cy="22"
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="4.5"
+          strokeLinecap="round"
+          strokeDasharray={`${f} ${circ - f}`}
+          transform="rotate(-90 22 22)"
+        />
+      )}
+      <text
+        x="22"
+        y="26"
+        textAnchor="middle"
+        fontSize="11.5"
+        fontWeight="700"
+        fill="var(--fg)"
+        style={{ fontVariantNumeric: "tabular-nums" }}
+      >
+        {label}
+      </text>
+    </svg>
+  );
+}
+
+/// The readiness-style hero for the selected day: a big gauge with the Fuel
+/// score (or, while the day is open, how much of the targets is in), the
+/// verdict pill, one plain sentence, and three ring tiles.
+function FuelHero({
+  day,
+  isToday,
+  scoreColor,
+}: {
+  day: FuelDayView;
+  isToday: boolean;
+  scoreColor: string;
+}) {
+  const i = day.intake;
+  const t = day.targets;
+  const inProgress = day.partial;
+  const value = !day.logged ? null : inProgress ? day.progress.pct : day.score.score;
+  const tint = !day.logged ? "var(--fg-dim)" : inProgress ? PROGRESS : scoreColor;
+  const glow =
+    value == null ? "rgba(255,255,255,0.03)" : inProgress ? "rgba(56,189,248,0.1)" : scaleColor(value, 0.1);
+  const pill = !day.logged
+    ? "Nothing logged"
+    : inProgress
+      ? "In progress"
+      : day.score.rating.charAt(0).toUpperCase() + day.score.rating.slice(1);
+  const left = Math.max(0, t.calorieTargetKcal - i.kcal);
+  const sentence = !day.logged
+    ? isToday
+      ? `Aim for ~${t.calorieTargetKcal.toLocaleString()} kcal and ${t.proteinTargetG} g protein today.`
+      : "No food logged for this day."
+    : inProgress
+      ? `${i.kcal.toLocaleString()} of ${t.calorieTargetKcal.toLocaleString()} kcal in · ${left.toLocaleString()} to go`
+      : `${i.kcal.toLocaleString()} kcal against a ${t.calorieTargetKcal.toLocaleString()} target · ${day.score.direction}`;
+  const tiles = [
+    {
+      key: "Calories",
+      pct: (i.kcal / Math.max(1, t.calorieTargetKcal)) * 100,
+      color: "#22c55e",
+      value: `${i.kcal.toLocaleString()}`,
+      note: `of ${t.calorieTargetKcal.toLocaleString()}`,
+    },
+    {
+      key: "Protein",
+      pct: (i.proteinG / Math.max(1, t.proteinTargetG)) * 100,
+      color: PROTEIN,
+      value: `${Math.round(i.proteinG)} g`,
+      note: `of ${t.proteinTargetG} g`,
+    },
+    {
+      key: "Fiber",
+      pct: (i.fiberG / FIBER_TARGET_G) * 100,
+      color: FIBER,
+      value: `${Math.round(i.fiberG)} g`,
+      note: `of ${FIBER_TARGET_G} g`,
+    },
+  ];
+
+  return (
+    <section
+      className="relative rounded-3xl px-5 pt-5 pb-5 mb-5 overflow-hidden"
+      style={{
+        background: `radial-gradient(140% 90% at 50% 0%, ${glow} 0%, transparent 55%), var(--bg-card)`,
+        border: "1px solid var(--border-strong)",
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-[12px] font-semibold" style={{ color: "var(--fg-muted)" }}>
+          {isToday ? `Today · ${longDate(day.date)}` : longDate(day.date)}
+        </p>
+        <p className="text-[11px] font-semibold" style={{ color: "var(--fg-muted)" }}>
+          {t.phaseLabel}
+        </p>
+      </div>
+
+      <div className="relative -mt-1">
+        <div className="flex justify-center">
+          <TickGauge score={value} size={240} id="fuel-glow" tint={inProgress ? PROGRESS : undefined} />
+        </div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pb-2">
+          <span
+            className="text-[11px] font-semibold uppercase"
+            style={{ color: "var(--fg-muted)", letterSpacing: "0.16em" }}
+          >
+            {inProgress ? "Fuel so far" : "Fuel"}
+          </span>
+          <span
+            className="text-[68px] font-bold leading-none tabular-nums mt-1"
+            style={{ letterSpacing: "-0.04em", color: value == null ? "var(--fg-dim)" : "var(--fg)" }}
+          >
+            {value ?? "—"}
+            {inProgress && value != null && (
+              <span className="text-[28px]" style={{ color: "var(--fg-muted)" }}>%</span>
+            )}
+          </span>
+        </div>
+        <div className="absolute left-0 right-0 flex justify-center" style={{ bottom: 18 }}>
+          <span
+            className="text-[13px] font-bold px-3.5 py-1 rounded-full"
+            style={{
+              color: tint,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid var(--border-strong)",
+            }}
+          >
+            {pill}
+          </span>
+        </div>
+      </div>
+
+      <p
+        className="text-[15px] leading-snug text-center max-w-[19rem] mx-auto -mt-1 tabular-nums"
+        style={{ textWrap: "balance" }}
+      >
+        {sentence}
+      </p>
+      {day.logged && (
+        <p className="text-[11px] text-center mt-1.5 tabular-nums" style={{ color: "var(--fg-muted)" }}>
+          ~{t.maintenanceKcal.toLocaleString()} kcal burned
+          {t.maintenanceSource === "observed" ? " (measured)" : " (estimated)"}
+        </p>
+      )}
+
+      <div className="grid grid-cols-3 gap-2 mt-5">
+        {tiles.map((tl) => (
+          <div
+            key={tl.key}
+            className="rounded-2xl py-3 px-2 flex flex-col items-center text-center"
+            style={{ background: "var(--bg-elevated)" }}
+          >
+            <MiniRing
+              pct={tl.pct}
+              color={tl.color}
+              label={`${Math.min(999, Math.round(tl.pct))}`}
+            />
+            <p className="text-[12px] font-semibold mt-1.5">{tl.key}</p>
+            <p className="text-[12px] tabular-nums">{tl.value}</p>
+            <p className="text-[11px] leading-tight tabular-nums" style={{ color: "var(--fg-muted)" }}>
+              {tl.note}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -522,7 +662,7 @@ function GoalCard({
   return (
     <div
       className="rounded-2xl p-4 mb-4"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+      style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
     >
       <div className="flex items-baseline justify-between">
         <span className="text-[13px] font-semibold">{targets.phaseLabel} plan</span>
@@ -572,47 +712,6 @@ function GoalCard({
           </Link>
         </p>
       )}
-    </div>
-  );
-}
-
-function Ring({
-  value,
-  color,
-  inProgress,
-}: {
-  value: number;
-  color: string;
-  inProgress: boolean;
-}) {
-  const r = 32;
-  const c = 2 * Math.PI * r;
-  const filled = (Math.max(0, Math.min(100, value)) / 100) * c;
-  return (
-    <div className="relative shrink-0" style={{ width: 80, height: 80 }}>
-      <svg width="80" height="80" viewBox="0 0 80 80">
-        <circle cx="40" cy="40" r={r} fill="none" stroke="var(--bg-elevated)" strokeWidth="7" />
-        <circle
-          cx="40"
-          cy="40"
-          r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth="7"
-          strokeLinecap="round"
-          strokeDasharray={`${filled} ${c - filled}`}
-          transform="rotate(-90 40 40)"
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[22px] font-bold leading-none tabular-nums">
-          {value}
-          {inProgress && <span className="text-[13px]">%</span>}
-        </span>
-        <span className="text-[9px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
-          {inProgress ? "logged" : "/ 100"}
-        </span>
-      </div>
     </div>
   );
 }

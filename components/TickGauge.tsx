@@ -25,18 +25,22 @@ export default function TickGauge({
   size,
   id,
   ticks = 54,
+  tint,
 }: {
   score: number | null;
   size: number;
   id: string;
   ticks?: number;
+  /// One colour for the whole fill instead of the red→green scale — for a
+  /// value that's progress rather than a verdict.
+  tint?: string;
 }) {
   const k = size / 240; // geometry is drawn for 240 and scaled
   const c = size / 2;
   const s = score == null ? 0 : Math.max(0, Math.min(100, score));
   const filled = score == null ? 0 : Math.round((s / 100) * ticks);
   const knob = polar(c, 101 * k, START + (s / 100) * SWEEP);
-  const color = score == null ? "#3f3f46" : scaleColor(s);
+  const color = score == null ? "#3f3f46" : (tint ?? scaleColor(s));
   const majorEvery = Math.round(ticks / 6);
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block" aria-hidden>
@@ -59,7 +63,7 @@ export default function TickGauge({
             y1={a.y}
             x2={b.x}
             y2={b.y}
-            stroke={i < filled ? scaleColor((i / (ticks - 1)) * 100) : "#26262b"}
+            stroke={i < filled ? (tint ?? scaleColor((i / (ticks - 1)) * 100)) : "#26262b"}
             strokeWidth={Math.round(Math.max(1.6, (major ? 3.2 : 2.6) * Math.max(k, 0.62)) * 100) / 100}
             strokeLinecap="round"
           />

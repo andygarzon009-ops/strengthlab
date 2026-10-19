@@ -30,24 +30,27 @@ export default async function FuelPage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-5">
         <BackButton href="/" ariaLabel="Back to feed" />
         <h1 className="text-[22px] font-bold tracking-tight">Fuel</h1>
       </div>
 
       <HealthReconnectBanner />
 
-      <FoodLogger />
-      <FoodLogToday rows={todayRows.filter((r) => r.localDate === today)} />
-
       {week.state === "ok" ? (
         <FuelWeek
           days={week.days}
           today={week.today}
           calibration={week.calibration}
-        />
+        >
+          <FoodLogger />
+          <FoodLogToday rows={todayRows.filter((r) => r.localDate === today)} />
+        </FuelWeek>
       ) : (
-        <EmptyState state={week.state} />
+        <>
+          <FoodLogger />
+          <EmptyState state={week.state} />
+        </>
       )}
     </div>
   );
