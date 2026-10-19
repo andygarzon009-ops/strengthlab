@@ -29,7 +29,7 @@ export default function ProfileCalendar({
   /** Month shown first — normally the current one. */
   year: number;
   month: number;
-  /** Day of the month that is today in `year`/`month`, outlined. */
+  /** Day of the month that is today in `year`/`month`. */
   today?: number;
   /** Oldest month with loaded data; stepping back stops here. */
   earliestYear: number;
@@ -67,28 +67,24 @@ export default function ProfileCalendar({
 
   const openList = openDay !== null ? workoutsByDay[openDay] ?? [] : [];
   const isCurrent = view.year === year && view.month === month;
-  const sessionCount = Object.values(workoutsByDay).reduce((n, l) => n + l.length, 0);
 
   return (
     <>
       <div className="flex items-center justify-between mb-3">
-        <div className="min-w-0">
-          <h2 className="text-[16px] font-bold tracking-tight leading-tight">
-            {monthLabel} <span style={{ color: "var(--fg-muted)", fontWeight: 600 }}>{view.year}</span>
-          </h2>
-          <p className="text-[11px] mt-0.5 tabular-nums" style={{ color: "var(--fg-muted)" }}>
-            {sessionCount === 0
-              ? "No sessions"
-              : `${sessionCount} session${sessionCount === 1 ? "" : "s"}`}
-          </p>
-        </div>
-        <div className="flex items-center gap-1.5">
+        <h2 className="text-[18px] font-extrabold tracking-tight">History</h2>
+        <div className="flex items-center gap-1">
           <MonthArrow
             dir="prev"
             disabled={!canGoBack}
             label={`Previous month${canGoBack ? "" : " — no earlier sessions loaded"}`}
             onClick={() => step(-1)}
           />
+          <span
+            className="text-[13px] font-semibold text-center"
+            style={{ color: "var(--fg)", minWidth: 116 }}
+          >
+            {monthLabel} {view.year}
+          </span>
           <MonthArrow
             dir="next"
             disabled={!canGoForward}
@@ -102,7 +98,7 @@ export default function ProfileCalendar({
         {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
           <div
             key={i}
-            className="text-center text-[10px] font-semibold uppercase pb-1"
+            className="text-center text-[10px] font-bold uppercase tracking-wider"
             style={{ color: "var(--fg-muted)" }}
           >
             {d}
@@ -114,78 +110,99 @@ export default function ProfileCalendar({
           const isOpen = day !== null && day === openDay;
 
           if (day === null) {
-            return <div key={i} className="h-10" />;
+            return <div key={i} className="aspect-square" />;
           }
 
           const isToday = isCurrent && day === today;
-          const base =
-            "relative h-10 rounded-xl flex items-center justify-center text-[13px] tabular-nums";
-          const trained = {
-            background: "rgba(74,222,128,0.18)",
-            color: "#bbf7d0",
-            fontWeight: 700,
-            boxShadow: isToday ? "inset 0 0 0 1.5px #a3e635" : undefined,
-          } as const;
+          // Gradient ring with a soft glow, matching the stat rings above.
+          // Trained today fills in solid.
+          const ring = isToday
+            ? {
+                background: "linear-gradient(135deg, #a3e635, #22c55e)",
+                color: "#0a0a0a",
+                fontWeight: 800,
+                boxShadow: "0 0 16px rgba(163,230,53,0.55)",
+              }
+            : {
+                border: "2px solid transparent",
+                background:
+                  "linear-gradient(var(--bg-card), var(--bg-card)) padding-box, linear-gradient(135deg, #a3e635, #22c55e) border-box",
+                color: "var(--fg)",
+                fontWeight: 700,
+                boxShadow: "0 0 10px rgba(74,222,128,0.28)",
+              };
 
-          if (list.length === 0) {
-            return (
-              <div
-                key={i}
-                className={base}
-                style={{
-                  color: isToday ? "var(--fg)" : "var(--fg-dim)",
-                  fontWeight: isToday ? 700 : 400,
-                  boxShadow: isToday ? "inset 0 0 0 1.5px var(--border-strong)" : undefined,
-                }}
-              >
-                {day}
-              </div>
-            );
-          }
-          if (list.length === 1) {
-            return (
-              <Link
-                key={i}
-                href={`/workout/${list[0].id}`}
-                aria-label={`View workout on ${monthLabel} ${day}`}
-                className={`${base} active:scale-95 transition-transform`}
-                style={trained}
-              >
-                {day}
-              </Link>
-            );
-          }
-          // Several sessions: tapping opens the list rather than guessing
-          // which one they meant. Brighter fill and a dot per session make it
-          // obvious there's more than one before you tap.
           return (
-            <button
-              key={i}
-              type="button"
-              onClick={() => setOpenDay(isOpen ? null : day)}
-              aria-expanded={isOpen}
-              aria-label={`${list.length} workouts on ${monthLabel} ${day} — show all`}
-              className={`${base} active:scale-95 transition-transform`}
-              style={{
-                ...trained,
-                background: isOpen ? "#a3e635" : "rgba(74,222,128,0.34)",
-                color: isOpen ? "#0a0a0a" : "#dcfce7",
-              }}
-            >
-              {day}
-              <span className="absolute bottom-1 flex gap-[2px]" aria-hidden>
-                {Array.from({ length: Math.min(3, list.length) }, (_, k) => (
+            <div key={i} className="flex items-center justify-center aspect-square">
+              {list.length === 0 ? (
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] tabular-nums"
+                  style={
+                    isToday
+                      ? { color: "var(--fg)", fontWeight: 700, border: "1.5px dashed var(--border-strong)" }
+                      : { color: "var(--fg-dim)", opacity: 0.7 }
+                  }
+                >
+                  {day}
+                </div>
+              ) : list.length === 1 ? (
+                <Link
+                  href={`/workout/${list[0].id}`}
+                  aria-label={`View workout on ${monthLabel} ${day}`}
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] tabular-nums active:scale-95 transition-transform"
+                  style={ring}
+                >
+                  {day}
+                </Link>
+              ) : (
+                // Several sessions: tapping opens the list rather than guessing
+                // which one they meant. The filled ring and count make it
+                // obvious there's more than one before you tap.
+                <button
+                  type="button"
+                  onClick={() => setOpenDay(isOpen ? null : day)}
+                  aria-expanded={isOpen}
+                  aria-label={`${list.length} workouts on ${monthLabel} ${day} — show all`}
+                  className="relative w-9 h-9 rounded-full flex items-center justify-center text-[13px] tabular-nums active:scale-95 transition-transform"
+                  style={
+                    isOpen || isToday
+                      ? {
+                          background: "linear-gradient(135deg, #a3e635, #22c55e)",
+                          color: "#0a0a0a",
+                          fontWeight: 800,
+                          boxShadow: "0 0 16px rgba(163,230,53,0.55)",
+                        }
+                      : {
+                          ...ring,
+                          background:
+                            "linear-gradient(rgba(74,222,128,0.2), rgba(74,222,128,0.2)) padding-box, linear-gradient(var(--bg-card), var(--bg-card)) padding-box, linear-gradient(135deg, #a3e635, #22c55e) border-box",
+                        }
+                  }
+                >
+                  {day}
                   <span
-                    key={k}
-                    className="w-[3px] h-[3px] rounded-full"
-                    style={{ background: isOpen ? "#0a0a0a" : "#a3e635" }}
-                  />
-                ))}
-              </span>
-            </button>
+                    className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-[3px] rounded-full flex items-center justify-center text-[9px] font-extrabold"
+                    style={{
+                      background: "#d9f99d",
+                      color: "#0a0a0a",
+                      border: "1.5px solid var(--bg-card)",
+                      boxShadow: "0 0 8px rgba(217,249,157,0.6)",
+                    }}
+                  >
+                    {list.length}
+                  </span>
+                </button>
+              )}
+            </div>
           );
         })}
       </div>
+
+      {Object.keys(workoutsByDay).length === 0 && (
+        <p className="text-[12px] text-center mt-3" style={{ color: "var(--fg-dim)" }}>
+          No sessions in {monthLabel}.
+        </p>
+      )}
 
       {openDay !== null && openList.length > 0 && (
         <div
