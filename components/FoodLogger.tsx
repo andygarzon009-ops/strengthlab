@@ -50,6 +50,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
   const [text, setText] = useState("");
   const [meal, setMeal] = useState<Meal>(() => mealForHour(new Date().getHours()));
   const [saved, setSaved] = useState<string | null>(null);
+  const [showRecent, setShowRecent] = useState(false);
   const [pending, startTransition] = useTransition();
   const [vh, setVh] = useState<number | null>(null);
   const [vTop, setVTop] = useState(0);
@@ -287,45 +288,95 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
         </button>
       </div>
       {recent.length > 0 && (
-        <div className="mt-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] mb-2" style={{ color: "var(--fg-muted)" }}>
-            Recent
-          </p>
-          <div className="-mx-4 px-4 flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
-            {recent.map((r) => (
-              <button
-                key={r.key}
-                type="button"
-                onClick={() => relog(r)}
-                className="shrink-0 w-[150px] rounded-2xl p-2.5 text-left active:scale-[0.98] transition-transform"
-                style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
+        <div className="mt-3">
+          {/* Collapsed until asked for: a dropdown of past meals, the ones
+              logged most often first. */}
+          <button
+            type="button"
+            onClick={() => setShowRecent((v) => !v)}
+            aria-expanded={showRecent}
+            className="w-full flex items-center justify-between min-h-[44px] px-3.5 rounded-xl text-[14px] font-semibold"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
+          >
+            <span className="flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                <path d="M3 3v5h5M12 7v5l3 2" />
+              </svg>
+              Log a past meal
+            </span>
+            <span className="flex items-center gap-2 text-[12px]" style={{ color: "var(--fg-muted)" }}>
+              {recent.length}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+                style={{ transform: showRecent ? "rotate(180deg)" : undefined, transition: "transform 160ms" }}
               >
-                <div className="flex items-center gap-2">
-                  {r.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={r.photoUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
-                  ) : (
-                    <span className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-[15px]" style={{ background: "rgba(255,255,255,0.06)" }} aria-hidden>
-                      🍽️
-                    </span>
-                  )}
-                  <span
-                    className="ml-auto w-7 h-7 rounded-full flex items-center justify-center text-[16px] font-bold shrink-0"
-                    style={{ background: "rgba(74,222,128,0.16)", color: "#86efac" }}
-                    aria-hidden
-                  >
-                    +
-                  </span>
-                </div>
-                <p className="text-[13px] font-semibold leading-snug mt-2 line-clamp-2" style={{ minHeight: 34 }}>
-                  {r.title}
-                </p>
-                <p className="text-[11px] mt-0.5 tabular-nums" style={{ color: "var(--fg-muted)" }}>
-                  {r.kcal.toLocaleString()} kcal{r.times > 1 ? ` · ${r.times}×` : ""}
-                </p>
-              </button>
-            ))}
-          </div>
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </span>
+          </button>
+
+          {showRecent && (
+            <div className="mt-2 rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+              {(
+                [
+                  ["Most logged", recent.filter((r) => r.times > 1)],
+                  ["Logged once", recent.filter((r) => r.times === 1)],
+                ] as const
+              )
+                .filter(([, list]) => list.length > 0)
+                .map(([heading, list]) => (
+                  <div key={heading}>
+                    <p
+                      className="px-3.5 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                      style={{ color: "var(--fg-dim)", background: "rgba(255,255,255,0.02)" }}
+                    >
+                      {heading}
+                    </p>
+                    {list.map((r) => (
+                      <button
+                        key={r.key}
+                        type="button"
+                        onClick={() => relog(r)}
+                        className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left active:opacity-70"
+                        style={{ borderTop: "1px solid var(--border)" }}
+                      >
+                        {r.photoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={r.photoUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
+                        ) : (
+                          <span className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-[15px]" style={{ background: "var(--bg-elevated)" }} aria-hidden>
+                            🍽️
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[14px] font-medium truncate">{r.title}</span>
+                          <span className="block text-[11px] tabular-nums" style={{ color: "var(--fg-muted)" }}>
+                            {r.kcal.toLocaleString()} kcal
+                            {r.times > 1 ? ` · logged ${r.times}×` : ""}
+                          </span>
+                        </span>
+                        <span
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-[16px] font-bold shrink-0"
+                          style={{ background: "rgba(74,222,128,0.16)", color: "#86efac" }}
+                          aria-hidden
+                        >
+                          +
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
       )}
       <p className="text-[11px] mt-2.5" style={{ color: "var(--fg-dim)" }}>
