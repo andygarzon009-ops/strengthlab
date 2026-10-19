@@ -1,15 +1,17 @@
 "use client";
 
-// The Fuel page body: a tappable 7-day strip over the selected day's diary.
-// Every food carries kcal / protein / carbs / fat, meals subtotal, and the day
-// totals against phase-derived targets. Data is a live read (getFuelWeek), so
-// there's no history table behind this — the strip is whatever Google Health
-// has for the last seven local days.
+// The Fuel page body: a readiness-style hero for the selected day, then the
+// week as stacked macro bars under each day's target, the macro split, the
+// day's diary by meal, and fiber & the limits — charts in FuelCharts.tsx.
+// Data is a live read (getFuelWeek): StrengthLab's own food log plus whatever
+// Google Health has for the last seven local days.
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import TickGauge, { scaleColor } from "@/components/TickGauge";
+import { CARBS, FAT, FIBER, FoodDiary, MacroPanel, MicroGrid, PROTEIN, WeekChart } from "@/components/FuelCharts";
+
 
 export type FoodRow = {
   name: string;
@@ -61,10 +63,6 @@ export type FuelDayView = {
   partial: boolean;
 };
 
-const PROTEIN = "#a78bfa";
-const CARBS = "#38bdf8";
-const FAT = "#fbbf24";
-const FIBER = "#2dd4bf";
 // Progress isn't a verdict, so it gets its own neutral hue rather than borrowing
 // the red→green rating scale. The grade takes over once the day closes.
 const PROGRESS = "#38bdf8";
@@ -76,27 +74,11 @@ const RATING_COLOR: Record<string, string> = {
   "needs work": "#ef4444",
 };
 
-const MEAL_META: Record<string, { icon: string; label: string; order: number }> = {
-  BREAKFAST: { icon: "☀️", label: "Breakfast", order: 0 },
-  LUNCH: { icon: "🍽️", label: "Lunch", order: 1 },
-  DINNER: { icon: "🌙", label: "Dinner", order: 2 },
-  SNACK: { icon: "🍎", label: "Snack", order: 3 },
-  ANYTIME: { icon: "🍴", label: "Anytime", order: 4 },
-  OTHER: { icon: "🍴", label: "Other", order: 5 },
-};
-const mealMeta = (k: string) =>
-  MEAL_META[k] ?? { icon: "🍴", label: k.charAt(0) + k.slice(1).toLowerCase(), order: 6 };
-
 // Daily reference intakes for the nutrients that have no phase target.
 const FIBER_TARGET_G = 30;
 const SUGAR_LIMIT_G = 40;
 const SODIUM_LIMIT_MG = 2300;
 
-function dow(dateKey: string): string {
-  return ["S", "M", "T", "W", "T", "F", "S"][
-    new Date(`${dateKey}T12:00:00Z`).getUTCDay()
-  ];
-}
 
 function longDate(dateKey: string): string {
   return new Date(`${dateKey}T12:00:00Z`).toLocaleDateString(undefined, {
@@ -137,20 +119,10 @@ export default function FuelWeek({
   const i = day.intake;
   const t = day.targets;
 
-  // Calories contributed by each macro — the honest read on balance, since a
-  // day can hit its calorie target with the wrong mix entirely.
-  const pKcal = i.proteinG * 4;
-  const cKcal = i.carbsG * 4;
-  const fKcal = i.fatG * 9;
-  const macroKcal = pKcal + cKcal + fKcal || 1;
 
-  const tallest = Math.max(1, ...days.map((d) => d.intake.kcal));
   const scoreColor = RATING_COLOR[day.score.rating] ?? "var(--fg-dim)";
 
   // Group the diary by meal, in eating order.
-  const meals = [...new Set(i.foods.map((f) => f.meal))].sort(
-    (a, b) => mealMeta(a).order - mealMeta(b).order,
-  );
 
   return (
     <>
@@ -173,90 +145,11 @@ export default function FuelWeek({
         </span>
       </p>
       <div
-        className="rounded-2xl px-2 py-3 mb-5"
+        className="rounded-2xl px-3 pt-3 pb-3.5 mb-5"
         style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
       >
-        <div className="flex items-end gap-1">
-          {days.map((d) => {
-            const on = d.date === selected;
-            const dp = d.intake.proteinG * 4;
-            const dc = d.intake.carbsG * 4;
-            const df = d.intake.fatG * 9;
-            const total = dp + dc + df;
-            const h = total > 0 ? Math.max(10, (d.intake.kcal / tallest) * 74) : 0;
-            const c = RATING_COLOR[d.score.rating] ?? "var(--fg-dim)";
-            return (
-              <button
-                key={d.date}
-                type="button"
-                onClick={() => setSelected(d.date)}
-                aria-pressed={on}
-                aria-label={`${longDate(d.date)} — ${d.logged ? `${d.intake.kcal} calories` : "nothing logged"}`}
-                className="flex-1 flex flex-col items-center rounded-lg py-1.5"
-                style={{ background: on ? "var(--bg-elevated)" : "transparent" }}
-              >
-                <div className="h-[76px] w-full flex flex-col justify-end items-center">
-                  {d.logged ? (
-                    <div
-                      className="w-[62%] flex flex-col overflow-hidden rounded-[3px]"
-                      style={{ height: h, opacity: on ? 1 : 0.55 }}
-                    >
-                      <div style={{ height: `${(dp / total) * 100}%`, background: PROTEIN }} />
-                      <div style={{ height: `${(dc / total) * 100}%`, background: CARBS }} />
-                      <div style={{ height: `${(df / total) * 100}%`, background: FAT }} />
-                    </div>
-                  ) : (
-                    <div
-                      className="w-[62%] rounded-[3px]"
-                      style={{ height: 6, border: "1px dashed var(--border-strong)" }}
-                    />
-                  )}
-                </div>
-                <span
-                  className="text-[10px] font-bold tabular-nums mt-1.5"
-                  style={{
-                    color: !d.logged
-                      ? "var(--fg-dim)"
-                      : on
-                        ? d.partial
-                          ? PROGRESS
-                          : c
-                        : "var(--fg-dim)",
-                  }}
-                >
-                  {!d.logged ? "—" : d.partial ? `${d.progress.pct}%` : d.score.score}
-                </span>
-                <span
-                  className="text-[10px]"
-                  style={{
-                    color: on ? "var(--fg)" : "var(--fg-dim)",
-                    fontWeight: on ? 700 : 400,
-                  }}
-                >
-                  {dow(d.date)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="flex items-center gap-3 mt-2 px-1">
-          {[
-            { c: PROTEIN, l: "Protein" },
-            { c: CARBS, l: "Carbs" },
-            { c: FAT, l: "Fat" },
-          ].map((s) => (
-            <span
-              key={s.l}
-              className="text-[10px] flex items-center gap-1"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              <span className="inline-block w-2 h-2 rounded-sm" style={{ background: s.c }} />
-              {s.l}
-            </span>
-          ))}
-        </div>
+        <WeekChart days={days} selected={day.date} onSelect={setSelected} />
       </div>
-
 
       {day.logged && (
         <>
@@ -266,46 +159,7 @@ export default function FuelWeek({
             className="rounded-2xl p-4 mb-4"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
           >
-            <MacroBar
-              label="Protein"
-              color={PROTEIN}
-              value={i.proteinG}
-              target={t.proteinTargetG}
-              pctOfKcal={(pKcal / macroKcal) * 100}
-            />
-            <MacroBar
-              label="Carbs"
-              color={CARBS}
-              value={i.carbsG}
-              target={t.carbTargetG}
-              pctOfKcal={(cKcal / macroKcal) * 100}
-            />
-            <MacroBar
-              label="Fat"
-              color={FAT}
-              value={i.fatG}
-              target={t.fatTargetG}
-              pctOfKcal={(fKcal / macroKcal) * 100}
-              last
-            />
-
-            <p className="label mt-4 mb-2">Calories from</p>
-            <div className="flex h-2 rounded-full overflow-hidden">
-              <div style={{ width: `${(pKcal / macroKcal) * 100}%`, background: PROTEIN }} />
-              <div style={{ width: `${(cKcal / macroKcal) * 100}%`, background: CARBS }} />
-              <div style={{ width: `${(fKcal / macroKcal) * 100}%`, background: FAT }} />
-            </div>
-            <div className="flex justify-between mt-1.5 text-[10px] tabular-nums">
-              <span style={{ color: PROTEIN }}>
-                <b>{Math.round((pKcal / macroKcal) * 100)}%</b> protein
-              </span>
-              <span style={{ color: CARBS }}>
-                <b>{Math.round((cKcal / macroKcal) * 100)}%</b> carbs
-              </span>
-              <span style={{ color: FAT }}>
-                <b>{Math.round((fKcal / macroKcal) * 100)}%</b> fat
-              </span>
-            </div>
+            <MacroPanel day={day} />
 
             <MacroReconcile intake={i} />
             {inProgress && <RoomLeft intake={i} targets={t} />}
@@ -325,65 +179,7 @@ export default function FuelWeek({
             className="rounded-2xl p-4 mb-4"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
           >
-            {meals.map((meal, mi) => {
-              const foods = i.foods.filter((f) => f.meal === meal);
-              const m = mealMeta(meal);
-              const sum = foods.reduce(
-                (a, f) => ({
-                  kcal: a.kcal + f.kcal,
-                  p: a.p + f.proteinG,
-                  c: a.c + f.carbsG,
-                  f: a.f + f.fatG,
-                }),
-                { kcal: 0, p: 0, c: 0, f: 0 },
-              );
-              return (
-                <div
-                  key={meal}
-                  className={mi > 0 ? "mt-3 pt-3" : ""}
-                  style={mi > 0 ? { borderTop: "1px solid var(--border)" } : undefined}
-                >
-                  <p className="text-[13px] font-bold tracking-tight mb-1.5">
-                    {m.icon} {m.label}
-                  </p>
-                  <MacroHead />
-                  {foods.map((f, fi) => (
-                    <FoodLine key={`${f.name}-${fi}`} food={f} />
-                  ))}
-                  {/* meal subtotal sits under its foods, where the eye lands
-                      after reading them */}
-                  <div
-                    className="grid items-baseline gap-1 mt-1 pt-1.5 text-[12px] font-semibold tabular-nums"
-                    style={{
-                      gridTemplateColumns: "minmax(0,1fr) 44px 32px 32px 30px",
-                      borderTop: "1px solid var(--border)",
-                    }}
-                  >
-                    <span style={{ color: "var(--fg-dim)" }}>{m.label} total</span>
-                    <span className="text-right" style={{ color: "var(--fg-muted)" }}>
-                      {sum.kcal.toLocaleString()}
-                    </span>
-                    <span className="text-right" style={{ color: PROTEIN }}>{sum.p}</span>
-                    <span className="text-right" style={{ color: CARBS }}>{sum.c}</span>
-                    <span className="text-right" style={{ color: FAT }}>{sum.f}</span>
-                  </div>
-                </div>
-              );
-            })}
-
-            <div
-              className="grid items-baseline gap-1 mt-3 pt-2.5 text-[13px] font-bold tabular-nums"
-              style={{
-                gridTemplateColumns: "minmax(0,1fr) 44px 32px 32px 30px",
-                borderTop: "1px solid var(--border-strong)",
-              }}
-            >
-              <span>Total</span>
-              <span className="text-right">{i.kcal.toLocaleString()}</span>
-              <span className="text-right" style={{ color: PROTEIN }}>{i.proteinG}</span>
-              <span className="text-right" style={{ color: CARBS }}>{i.carbsG}</span>
-              <span className="text-right" style={{ color: FAT }}>{i.fatG}</span>
-            </div>
+            <FoodDiary foods={i.foods} intake={i} />
           </div>
 
           {/* ── micronutrients ── */}
@@ -392,40 +188,13 @@ export default function FuelWeek({
             className="rounded-2xl p-4 mb-5"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
           >
-            <Micro
-              label="Fiber"
-              value={i.fiberG}
-              target={FIBER_TARGET_G}
-              unit="g"
-              color={FIBER}
-              coverage={i.kcal > 0 ? i.microCoverageKcal.fiber / i.kcal : 1}
+            <MicroGrid
+              day={day}
+              fiberTarget={FIBER_TARGET_G}
+              sugarLimit={SUGAR_LIMIT_G}
+              sodiumLimit={SODIUM_LIMIT_MG}
             />
-            <Micro
-              label="Sugar"
-              value={i.sugarG}
-              target={SUGAR_LIMIT_G}
-              unit="g"
-              color={CARBS}
-              coverage={i.kcal > 0 ? i.microCoverageKcal.sugar / i.kcal : 1}
-            />
-            <Micro
-              label="Sat. fat"
-              value={i.satFatG}
-              target={Math.round((t.calorieTargetKcal * 0.06) / 9)}
-              unit="g"
-              color={FAT}
-              coverage={i.kcal > 0 ? i.microCoverageKcal.satFat / i.kcal : 1}
-            />
-            <Micro
-              label="Sodium"
-              value={i.sodiumMg}
-              target={SODIUM_LIMIT_MG}
-              unit="mg"
-              color="var(--fg-muted)"
-              coverage={i.kcal > 0 ? i.microCoverageKcal.sodium / i.kcal : 1}
-              last
-            />
-            <MicroCaveat foods={i.foods} dayKcal={i.kcal} />
+            <MicroCaveat foods={i.foods} dayKcal={i.kcal} />            <MicroCaveat foods={i.foods} dayKcal={i.kcal} />
           </div>
         </>
       )}
@@ -716,102 +485,9 @@ function GoalCard({
   );
 }
 
-function MacroBar({
-  label,
-  color,
-  value,
-  target,
-  pctOfKcal,
-  last,
-}: {
-  label: string;
-  color: string;
-  value: number;
-  target: number;
-  pctOfKcal: number;
-  last?: boolean;
-}) {
-  const pct = target > 0 ? (value / target) * 100 : 0;
-  const left = Math.max(0, target - value);
-  return (
-    <div className={last ? "" : "mb-3.5"}>
-      <div className="flex items-baseline justify-between text-[13px]">
-        <span style={{ color }}>{label}</span>
-        <span className="tabular-nums text-[12px]">
-          <b className="font-semibold">{value}</b>
-          <span style={{ color: "var(--fg-dim)" }}>
-            {" "}
-            / {target}g · {Math.round(pctOfKcal)}% of kcal
-          </span>
-        </span>
-      </div>
-      <div
-        className="h-[7px] rounded-full mt-1.5 overflow-hidden"
-        style={{ background: "var(--bg-elevated)" }}
-      >
-        <div
-          className="h-full rounded-full"
-          style={{ width: `${Math.min(100, pct)}%`, background: color }}
-        />
-      </div>
-      <p className="text-[10px] mt-1 tabular-nums" style={{ color: "var(--fg-dim)" }}>
-        {left > 0 ? `${left}g left` : `${value - target}g over target`}
-      </p>
-    </div>
-  );
-}
 
-function MacroHead() {
-  return (
-    <div
-      className="grid items-baseline gap-1 pb-1.5 mb-1 text-[10px] uppercase tracking-wide"
-      style={{
-        gridTemplateColumns: "minmax(0,1fr) 44px 32px 32px 30px",
-        borderBottom: "1px solid var(--border)",
-        color: "var(--fg-dim)",
-      }}
-    >
-      <span />
-      <span className="text-right">kcal</span>
-      <span className="text-right font-bold" style={{ color: PROTEIN }}>P</span>
-      <span className="text-right font-bold" style={{ color: CARBS }}>C</span>
-      <span className="text-right font-bold" style={{ color: FAT }}>F</span>
-    </div>
-  );
-}
 
-function FoodLine({ food }: { food: FoodRow }) {
-  // Zeros are dimmed so the eye lands on what a food actually contributed.
-  const tint = (v: number, color: string) => ({
-    color: v > 0 ? color : "var(--fg-dim)",
-  });
-  return (
-    <div
-      className="grid items-baseline gap-1 py-[3px] text-[12px] tabular-nums"
-      style={{ gridTemplateColumns: "minmax(0,1fr) 44px 32px 32px 30px" }}
-    >
-      <span className="truncate text-[13px]" title={food.name}>
-        {food.name}
-      </span>
-      <span className="text-right" style={{ color: "var(--fg-muted)" }}>
-        {food.kcal.toLocaleString()}
-      </span>
-      <span className="text-right font-semibold" style={tint(food.proteinG, PROTEIN)}>
-        {food.proteinG}
-      </span>
-      <span className="text-right" style={tint(food.carbsG, CARBS)}>
-        {food.carbsG}
-      </span>
-      <span className="text-right" style={tint(food.fatG, FAT)}>
-        {food.fatG}
-      </span>
-    </div>
-  );
-}
 
-/// Below this share of the day's calories, the total is too incomplete to state
-/// as a number — it's shown as a floor instead.
-const MICRO_COVERAGE_OK = 0.9;
 
 /// What's actually left to eat, as one budget rather than three. Each macro bar
 /// above shows its own distance to target, and those distances don't reconcile
@@ -933,59 +609,6 @@ function MacroReconcile({ intake }: { intake: FuelDayView["intake"] }) {
   );
 }
 
-function Micro({
-  label,
-  value,
-  target,
-  unit,
-  color,
-  coverage,
-  last,
-}: {
-  label: string;
-  value: number;
-  target: number;
-  unit: string;
-  color: string;
-  coverage: number; // 0..1 share of the day's calories that reported this
-  last?: boolean;
-}) {
-  const partial = coverage < MICRO_COVERAGE_OK;
-  const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
-  return (
-    <div className={`flex items-center gap-2.5 ${last ? "" : "mb-2.5"}`}>
-      <span className="text-[12px] w-[58px] shrink-0" style={{ color: "var(--fg-muted)" }}>
-        {label}
-      </span>
-      <span
-        className="flex-1 h-[6px] rounded-full overflow-hidden"
-        style={{ background: "var(--bg-elevated)" }}
-      >
-        <span
-          className="block h-full rounded-full"
-          style={{
-            width: `${pct}%`,
-            // A partial total gets a faded, striped bar so it can't be read as
-            // a confident measurement.
-            background: partial
-              ? `repeating-linear-gradient(90deg, ${color} 0 4px, transparent 4px 7px)`
-              : color,
-            opacity: partial ? 0.6 : 1,
-          }}
-        />
-      </span>
-      <span
-        className="text-[11px] tabular-nums w-[92px] text-right shrink-0"
-        style={{ color: "var(--fg-muted)" }}
-      >
-        {Math.round(value).toLocaleString()}
-        {partial && <span style={{ color: "var(--fg-dim)" }}>+</span>} /{" "}
-        {target.toLocaleString()}
-        {unit}
-      </span>
-    </div>
-  );
-}
 
 /// Names the reason the numbers above are floors. Without this the card reads
 /// as "you ate 4g of fiber today" when the truth is "the one item that was
