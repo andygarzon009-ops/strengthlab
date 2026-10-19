@@ -417,11 +417,7 @@ export default async function PublicProfilePage({
                 <div className="flex items-center gap-3">
                   <span
                     className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 tabular-nums"
-                    style={
-                      i === 0
-                        ? { background: "#a3e635", color: "#0a0a0a" }
-                        : { background: "var(--bg-elevated)", color: "var(--fg-muted)" }
-                    }
+                    style={{ background: "var(--bg-elevated)", color: "var(--fg-muted)" }}
                   >
                     {i + 1}
                   </span>
@@ -443,7 +439,7 @@ export default async function PublicProfilePage({
                     className="h-full rounded-full"
                     style={{
                       width: `${Math.max(8, (l.oneRM / topOneRM) * 100)}%`,
-                      background: i === 0 ? "linear-gradient(90deg, #22c55e, #a3e635)" : "rgba(74,222,128,0.55)",
+                      background: "rgba(74,222,128,0.55)",
                     }}
                   />
                 </div>
