@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import {
   checkHealthAuth,
@@ -18,6 +19,24 @@ import {
   type MaintenanceCalibration,
 } from "@/lib/nutritionScore";
 import { listFoodLog, mergeFoodLog } from "@/lib/foodLog";
+
+/// Google Health reads, kept for five minutes. Active energy arrives
+/// per-minute — a week is ~10k points paged through one request at a time —
+/// so a cold read takes seconds; this is what made the Fuel page slow to open.
+/// Five minutes is short enough that a meal logged in MyFitnessPal shows up
+/// almost straight away; StrengthLab's own food log is read live, never from
+/// here. The day-dependent window strings are part of the key, so a new day
+/// starts a fresh entry.
+const googleFuelReads = unstable_cache(
+  async (userId: string, sinceCivil: string, sinceShort: string, weightSinceISO: string) =>
+    Promise.all([
+      getDailyNutrition(userId, sinceCivil),
+      getActiveEnergyByDay(userId, sinceShort),
+      listDailyWeights(userId, weightSinceISO),
+    ]),
+  ["fuel-google-reads-v1"],
+  { revalidate: 300 },
+);
 
 /// How far back to look when solving maintenance from intake vs weight trend.
 /// Long enough for a 0.25%/week trend to clear scale noise, short enough to
@@ -171,15 +190,22 @@ export async function getFuelWeek(
   );
   const sinceCivil = `${calibrationStart}T00:00:00`;
   const sinceShort = `${window[0]}T00:00:00`;
-  const weightSinceISO = new Date(
-    now.getTime() - CALIBRATION_DAYS * 86_400_000,
-  ).toISOString();
+  // Day-rounded so it's a stable cache key, not a new one every millisecond.
+  const weightSinceISO = new Date(`${calibrationStart}T00:00:00Z`).toISOString();
 
-  const ownRows = await listFoodLog(userId, calibrationStart);
+  const google = googleState === "ok";
+  // Own log and Google reads run side by side rather than one after the other.
+  const ownRowsP = listFoodLog(userId, calibrationStart);
+  const googleP = google
+    ? googleFuelReads(userId, sinceCivil, sinceShort, weightSinceISO)
+    : null;
+  // If we return early below, the Google read is abandoned — don't let a
+  // failure there surface as an unhandled rejection.
+  googleP?.catch(() => {});
+  const ownRows = await ownRowsP;
   if (googleState !== "ok" && ownRows.length === 0) return { state: googleState };
   if (user?.bodyweight == null || user.bodyweight <= 0)
     return { state: "no-profile" };
-  const google = googleState === "ok";
 
   // Local clock time, used to grade today on pace rather than as a finished day.
   const hm = new Intl.DateTimeFormat("en-GB", {
@@ -191,12 +217,8 @@ export async function getFuelWeek(
   const [nowH, nowM] = hm.split(":").map(Number);
   const todayIsOver = dayIsOver(nowH, nowM);
 
-  const [googleDays, activeByDay, weights] = google
-    ? await Promise.all([
-        getDailyNutrition(userId, sinceCivil),
-        getActiveEnergyByDay(userId, sinceShort),
-        listDailyWeights(userId, weightSinceISO),
-      ])
+  const [googleDays, activeByDay, weights] = googleP
+    ? await googleP
     : [[], {} as Record<string, number>, []];
   const days = mergeFoodLog(googleDays, ownRows);
   const byDate = new Map(days.map((d) => [d.date, d]));
