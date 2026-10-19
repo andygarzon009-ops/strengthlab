@@ -54,9 +54,9 @@ export type ActivityGlance = {
 
 type Section = "fuel" | "activity";
 
-/// Fuel / Activity beside the gauge: label + reading on one line, a slim bar
-/// under it. The whole row is the tap target that expands its detail.
-function MeterRow({
+/// Fuel / Activity under the plan: label, a slim bar, the reading. The whole
+/// row is the tap target that expands its detail.
+function StatRow({
   label,
   icon,
   pct,
@@ -80,36 +80,27 @@ function MeterRow({
       type="button"
       onClick={onClick}
       aria-expanded={active}
-      className="w-full text-left rounded-xl px-2.5 py-2 transition-colors"
-      style={{ background: active ? "var(--bg-elevated)" : "transparent" }}
+      className="w-full grid items-center gap-2.5 rounded-lg -mx-1.5 px-1.5 py-1 text-left transition-colors"
+      style={{
+        gridTemplateColumns: "76px minmax(0,1fr) auto",
+        width: "calc(100% + 12px)",
+        background: active ? "var(--bg-elevated)" : "transparent",
+      }}
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-[13px] font-semibold">
-          <span style={{ color }}>{icon}</span>
-          {label}
-        </span>
-        <span className="text-[12px] tabular-nums truncate" style={{ color: "var(--fg-muted)" }}>
-          {value && (
-            <b className="font-bold mr-1" style={{ color: "var(--fg)" }}>
-              {value}
-            </b>
-          )}
-          {sub}
-        </span>
-      </div>
-      <div
-        className="mt-1.5 h-[7px] rounded-full overflow-hidden"
-        style={{ background: "var(--bg-elevated)" }}
-      >
-        <div
-          className="h-full rounded-full"
-          style={{
-            width: `${Math.max(0, Math.min(100, pct))}%`,
-            background: color,
-            boxShadow: pct > 0 ? `0 0 8px ${color}` : undefined,
-          }}
+      <span className="flex items-center gap-1.5 text-[13px] font-semibold">
+        <span style={{ color }}>{icon}</span>
+        {label}
+      </span>
+      <span className="h-[7px] rounded-full overflow-hidden" style={{ background: "var(--bg-elevated)" }}>
+        <span
+          className="block h-full rounded-full"
+          style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: color }}
         />
-      </div>
+      </span>
+      <span className="text-[12px] tabular-nums whitespace-nowrap" style={{ color: "var(--fg-muted)" }}>
+        <b className="font-bold" style={{ color: "var(--fg)" }}>{value}</b>
+        {sub ? ` · ${sub}` : ""}
+      </span>
     </button>
   );
 }
@@ -150,14 +141,17 @@ function ActivityBar({
 export default function DailyGlance({
   recovery,
   activity,
+  head,
   children,
 }: {
   recovery: RecoveryGlance | null;
   activity: ActivityGlance | null;
+  /// The plan's title block, set beside the gauge.
+  head: ReactNode;
+  /// The coach's line and the call to action, under the stats.
   children: ReactNode;
 }) {
   const [fuel, setFuel] = useState<NutritionResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<Section | null>(null);
 
   // Stale-while-revalidate: paint the last cached Fuel value instantly (the
@@ -170,10 +164,14 @@ export default function DailyGlance({
     queueMicrotask(() => {
       if (!active) return;
       try {
+        // Only today's snapshot: yesterday's "logged" would flash a Fuel row
+        // in this morning and then pull it out when the fetch lands.
         const raw = localStorage.getItem("fuelGlanceCache");
-        if (raw) {
-          setFuel(JSON.parse(raw) as NutritionResponse);
-          setLoading(false);
+        const cached = raw
+          ? (JSON.parse(raw) as { day?: string; data?: NutritionResponse })
+          : null;
+        if (cached?.day === new Date().toDateString() && cached.data) {
+          setFuel(cached.data);
         }
       } catch {}
     });
@@ -181,15 +179,17 @@ export default function DailyGlance({
       .then((r) => (r.ok ? r.json() : null))
       .then((d: NutritionResponse | null) => {
         if (!active) return;
-        setLoading(false);
         if (d) {
           setFuel(d);
           try {
-            localStorage.setItem("fuelGlanceCache", JSON.stringify(d));
+            localStorage.setItem(
+              "fuelGlanceCache",
+              JSON.stringify({ day: new Date().toDateString(), data: d }),
+            );
           } catch {}
         }
       })
-      .catch(() => active && setLoading(false));
+      .catch(() => {});
     return () => {
       active = false;
     };
@@ -197,89 +197,67 @@ export default function DailyGlance({
 
   const toggle = (s: Section) => setOpen((cur) => (cur === s ? null : s));
 
-  // Fuel ring presentation across its states.
-  const fuelRing = (() => {
-    if (loading && !fuel)
-      return { value: "·", color: "var(--fg-dim)", sub: "loading…" };
-    if (!fuel || !fuel.connected || fuel.needsReconnect)
-      return { value: "—", color: "var(--fg-dim)", sub: "not connected" };
-    if (fuel.needsNutritionScope)
-      return { value: "—", color: "var(--fg-dim)", sub: "reconnect health" };
-    if (fuel.needsProfile) return { value: "—", color: "var(--fg-dim)", sub: "set profile" };
-    if (!fuel.loggedToday) return { value: "—", color: "var(--fg-dim)", sub: "not logged" };
-    // Mid-day there's no grade to give — show how much of the targets are in.
-    // The score only appears once the eating day has closed.
-    if (fuel.partial && fuel.progress)
-      return {
-        value: `${fuel.progress.pct}%`,
-        color: "#38bdf8",
-        sub: "logged so far",
-      };
-    const s = fuel.score!;
-    return { value: String(s.score), color: scoreColor(s.score), sub: s.rating };
-  })();
-
-  // Bar fill: the day's score once it's graded, how much is in so far mid-day.
-  const fuelPct =
-    fuel?.loggedToday && fuel.partial && fuel.progress
-      ? fuel.progress.pct
-      : fuel?.loggedToday && fuel.score
-        ? fuel.score.score
-        : 0;
-
-  const fuelInteractive =
-    !!fuel && fuel.connected && !fuel.needsReconnect;
+  // Fuel only shows once something's been logged today — before that it was
+  // a row of dashes ("not logged", "not connected") taking up the card.
+  const fuelLogged =
+    !!fuel &&
+    fuel.connected &&
+    !fuel.needsReconnect &&
+    !fuel.needsNutritionScope &&
+    !fuel.needsProfile &&
+    fuel.loggedToday;
+  // Mid-day there's no grade to give — show how much of the targets are in.
+  // The score only appears once the eating day has closed.
+  const fuelRow = !fuelLogged
+    ? null
+    : fuel.partial && fuel.progress
+      ? { pct: fuel.progress.pct, value: `${fuel.progress.pct}%`, sub: "so far", color: "#38bdf8" }
+      : fuel.score
+        ? {
+            pct: fuel.score.score,
+            value: String(fuel.score.score),
+            sub: fuel.score.rating,
+            color: scoreColor(fuel.score.score),
+          }
+        : null;
 
   const r = recovery;
   return (
-    <section aria-label="Today" className="card mb-3 overflow-hidden">
-      <div className="flex items-center gap-3 px-3 pt-3 pb-2">
-        {/* Readiness leads: the gauge, number and band. Tapping it opens the
+    <section aria-label="Today" className="card mb-3 overflow-hidden px-[18px] pt-4 pb-[18px]">
+      <div className="flex items-center gap-3.5">
+        {/* Readiness: the gauge, number and band. Tapping it opens the
             readiness page — the full breakdown lives there. */}
         <Link
           href="/recovery"
           aria-label={r ? `Readiness ${r.score}, ${r.label}. Open readiness` : "Open readiness"}
           className="relative shrink-0 rounded-2xl active:opacity-80"
         >
-          <TickGauge score={r?.score ?? null} size={112} id="feed-gauge" ticks={40} />
-          <span className="absolute inset-0 flex flex-col items-center justify-center pb-1">
+          <TickGauge score={r?.score ?? null} size={96} id="feed-gauge" ticks={40} />
+          <span className="absolute inset-0 flex items-center justify-center pb-1.5">
             <span
-              className="text-[34px] font-bold leading-none tabular-nums"
+              className="text-[26px] font-bold leading-none tabular-nums"
               style={{ letterSpacing: "-0.04em" }}
             >
               {r?.score ?? "—"}
             </span>
-            <span
-              className="text-[9px] font-semibold uppercase mt-1"
-              style={{ color: "var(--fg-muted)", letterSpacing: "0.14em" }}
-            >
-              Ready
-            </span>
           </span>
           <span
-            className="absolute left-0 right-0 flex items-center justify-center gap-0.5 text-[11px] font-bold"
-            style={{ bottom: 4, color: r?.color ?? "var(--fg-muted)" }}
+            className="absolute left-0 right-0 flex items-center justify-center gap-0.5 text-[10px] font-bold"
+            style={{ bottom: 1, color: r?.color ?? "var(--fg-muted)" }}
           >
             {r?.label ?? "Readiness"}
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M9 6l6 6-6 6" />
             </svg>
           </span>
         </Link>
+        <div className="min-w-0 flex-1">{head}</div>
+      </div>
 
-        <div className="flex-1 min-w-0 space-y-1">
-          <MeterRow
-            label="Fuel"
-            icon={<FlameIcon />}
-            pct={fuelPct}
-            color={fuelRing.color}
-            value={fuelRing.value === "—" || fuelRing.value === "·" ? "" : fuelRing.value}
-            sub={fuelRing.sub}
-            active={open === "fuel"}
-            onClick={() => fuelInteractive && toggle("fuel")}
-          />
+      {(activity || fuelRow) && (
+        <div className="mt-3 space-y-1">
           {activity && (
-            <MeterRow
+            <StatRow
               label="Activity"
               icon={<ZapIcon />}
               pct={activity.pct}
@@ -290,11 +268,23 @@ export default function DailyGlance({
               onClick={() => toggle("activity")}
             />
           )}
+          {fuelRow && (
+            <StatRow
+              label="Fuel"
+              icon={<FlameIcon />}
+              pct={fuelRow.pct}
+              color={fuelRow.color}
+              value={fuelRow.value}
+              sub={fuelRow.sub}
+              active={open === "fuel"}
+              onClick={() => toggle("fuel")}
+            />
+          )}
         </div>
-      </div>
+      )}
 
       {open && (
-        <div className="mx-4 mb-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+        <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
           {open === "fuel" && fuel && (
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -327,12 +317,7 @@ export default function DailyGlance({
       )}
 
       {/* What to do today — the coach's line lives here. */}
-      <div
-        className="px-[18px] pt-3.5 pb-[18px]"
-        style={{ borderTop: "1px solid var(--border)" }}
-      >
-        {children}
-      </div>
+      {children}
     </section>
   );
 }

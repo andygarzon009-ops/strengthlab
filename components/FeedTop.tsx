@@ -5,7 +5,7 @@ import { loadRecentPRs, type RecentPR } from "@/lib/recentPRs";
 import { loadPhase, DELOAD_BLUE } from "@/components/PhaseCard";
 import Sparkline from "@/components/Sparkline";
 import SharePRButton from "@/components/SharePRButton";
-import DailyGlance from "@/components/DailyGlance";
+import DailyGlance, { type ActivityGlance, type RecoveryGlance } from "@/components/DailyGlance";
 import { loadGlance } from "@/lib/glance";
 
 export const PR_LIME = "#a3e635";
@@ -27,17 +27,14 @@ export default async function FeedTop({ userId }: { userId: string }) {
   return (
     <>
       {prs.length > 0 && <PRCard prs={prs} />}
-      <DailyGlance
+      <TodayCard
+        plan={plan}
+        deload={deload}
+        deloadPct={deloadPct}
+        compact={prs.length > 0}
         recovery={glance?.recovery ?? null}
         activity={glance?.activity ?? null}
-      >
-        <TodayCard
-          plan={plan}
-          deload={deload}
-          deloadPct={deloadPct}
-          compact={prs.length > 0}
-        />
-      </DailyGlance>
+      />
     </>
   );
 }
@@ -47,11 +44,15 @@ function TodayCard({
   deload,
   deloadPct,
   compact,
+  recovery,
+  activity,
 }: {
   plan: TodayPlan;
   deload: boolean;
   deloadPct: number;
   compact: boolean;
+  recovery: RecoveryGlance | null;
+  activity: ActivityGlance | null;
 }) {
   const done = plan.doneToday;
   const next = plan.next;
@@ -86,60 +87,50 @@ function TodayCard({
     </svg>
   );
 
-  return (
+  // Option A: the plan sits beside the readiness gauge, Activity (and Fuel,
+  // once logged) run under it, then the coach's line and the button. With a
+  // PR card above, the title steps down and the button slims.
+  const head = (
     <>
-      <div className="flex items-center gap-4">
-        <div className="min-w-0 flex-1">
-          <p
-            className="label text-[11px]"
-            style={{ color: deload ? DELOAD_BLUE : "var(--fg-dim)" }}
-          >
-            {eyebrow}
-          </p>
-          <h2
-            className="font-extrabold tracking-tight leading-none mt-1.5 truncate"
-            style={{ fontSize: compact ? 18 : 26 }}
-          >
-            {title}
-          </h2>
-          {metaLine && (
-            <p
-              className="text-[13px] mt-2 truncate"
-              style={{ color: "var(--fg-muted)", fontFamily: "var(--font-geist-mono)" }}
-            >
-              {metaLine}
-            </p>
-          )}
-        </div>
-        {compact && (
-          <Link
-            href={href}
-            // A finished session is a quiet link to its log; only a session
-            // still to do gets the green call to action.
-            className={`${done ? "" : "btn-accent"} shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-xl text-[14px] font-bold`}
-            style={done ? { background: "var(--bg-elevated)", color: "var(--fg)" } : undefined}
-          >
-            {done ? "View log" : "Start"}
-            {Arrow}
-          </Link>
-        )}
-      </div>
+      <p
+        className="label text-[11px]"
+        style={{ color: deload ? DELOAD_BLUE : "var(--fg-dim)" }}
+      >
+        {eyebrow}
+      </p>
+      <h2
+        className="font-extrabold tracking-tight leading-none mt-1.5 truncate"
+        style={{ fontSize: compact ? 19 : 24 }}
+      >
+        {title}
+      </h2>
+      {metaLine && (
+        <p
+          className="text-[13px] mt-2 truncate"
+          style={{ color: "var(--fg-muted)", fontFamily: "var(--font-geist-mono)" }}
+        >
+          {metaLine}
+        </p>
+      )}
+    </>
+  );
 
+  return (
+    <DailyGlance recovery={recovery} activity={activity} head={head}>
       <p className="text-[14px] leading-snug mt-3.5" style={{ color: "var(--fg)", opacity: 0.85 }}>
         {line}
       </p>
-
-      {!compact && (
-        <Link
-          href={href}
-          className={`${done ? "" : "btn-accent"} mt-4 flex items-center justify-center gap-2 min-h-[48px] rounded-2xl text-[15px] font-bold`}
-          style={done ? { background: "var(--bg-elevated)", color: "var(--fg)" } : undefined}
-        >
-          {cta}
-          {Arrow}
-        </Link>
-      )}
-    </>
+      <Link
+        href={href}
+        // A finished session is a quiet link to its log; only a session
+        // still to do gets the green call to action.
+        className={`${done ? "" : "btn-accent"} ${compact ? "mt-3 min-h-[42px] rounded-xl text-[14px]" : "mt-4 min-h-[48px] rounded-2xl text-[15px]"} flex items-center justify-center gap-2 font-bold`}
+        style={done ? { background: "var(--bg-elevated)", color: "var(--fg)" } : undefined}
+      >
+        {cta}
+        {Arrow}
+      </Link>
+    </DailyGlance>
   );
 }
 
