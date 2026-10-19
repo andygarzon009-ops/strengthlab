@@ -15,6 +15,7 @@ import ShareProfileButton from "@/components/ShareProfileButton";
 import { getFriendState } from "@/lib/actions/friends";
 import Avatar from "@/components/Avatar";
 import ProfileCalendar from "@/components/ProfileCalendar";
+import ProfilePhotoEdit from "@/components/ProfilePhotoEdit";
 import { monthKey, type CalendarWorkout } from "@/lib/profileCalendar";
 
 export const dynamic = "force-dynamic";
@@ -173,6 +174,11 @@ export default async function PublicProfilePage({
         <div className="absolute top-4 left-4">
           <BackButton href="/group" ariaLabel="Back to crew" />
         </div>
+        {isSelf && (
+          <div className="absolute top-4 right-4">
+            <ProfilePhotoEdit kind="cover" hasImage={!!user.coverImage} />
+          </div>
+        )}
         {/* Avatar overlaps the cover */}
         <div className="absolute left-4" style={{ bottom: -40 }}>
           <div className="relative">
@@ -200,6 +206,11 @@ export default async function PublicProfilePage({
             >
               ⚡{level}
             </span>
+            {isSelf && (
+              <div className="absolute -bottom-1 -left-1">
+                <ProfilePhotoEdit kind="avatar" hasImage={!!user.image} />
+              </div>
+            )}
           </div>
         </div>
       </div>

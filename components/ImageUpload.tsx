@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Avatar from "@/components/Avatar";
+import { shrinkImage } from "@/lib/shrinkImage";
 
 /// Uploads to /api/upload (Vercel Blob) on file pick and hands the URL back
 /// via onChange. Two shapes: a round avatar tile, or a wide cover banner.
@@ -23,11 +24,12 @@ export default function ImageUpload({
   const [err, setErr] = useState<string | null>(null);
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const picked = e.target.files?.[0];
+    if (!picked) return;
     setUploading(true);
     setErr(null);
     try {
+      const file = await shrinkImage(picked, kind === "cover" ? 1800 : 800);
       const fd = new FormData();
       fd.append("file", file);
       fd.append("kind", kind);

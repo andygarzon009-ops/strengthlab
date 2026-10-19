@@ -789,3 +789,19 @@ async function notifyFriendsOfWorkout(
     // Swallow — motivating the crew must never block logging a workout.
   }
 }
+
+/// Profile photo / cover from the in-place editor on your own profile page.
+/// Only the field passed changes; null removes it.
+export async function updateProfilePhotos(p: {
+  image?: string | null;
+  coverImage?: string | null;
+}) {
+  const userId = await requireAuth();
+  const data: { image?: string | null; coverImage?: string | null } = {};
+  if (p.image !== undefined) data.image = p.image;
+  if (p.coverImage !== undefined) data.coverImage = p.coverImage;
+  if (Object.keys(data).length === 0) return;
+  await prisma.user.update({ where: { id: userId }, data });
+  revalidatePath(`/u/${userId}`);
+  revalidatePath("/profile");
+}
