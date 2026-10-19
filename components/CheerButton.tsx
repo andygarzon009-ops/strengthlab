@@ -53,9 +53,11 @@ export default function CheerButton({
           animation: burst ? "cheer-pop 420ms cubic-bezier(.3,1.6,.5,1)" : undefined,
           ...(cheered
             ? {
-                background: "linear-gradient(135deg, #ecfccb 0%, #a3e635 55%, #4ade80 100%)",
+                // Deeper greens, faint glow — reads as "on" without
+                // pulling the eye off the tile.
+                background: "linear-gradient(135deg, #84cc16 0%, #22c55e 100%)",
                 color: "#0a0a0a",
-                boxShadow: "0 0 18px rgba(163,230,53,0.55), inset 0 1px 0 rgba(255,255,255,0.6)",
+                boxShadow: "0 0 8px rgba(132,204,22,0.25)",
               }
             : {
                 background: "rgba(10,10,10,0.55)",
