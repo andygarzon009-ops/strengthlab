@@ -7,7 +7,10 @@ export const maxDuration = 30;
 export async function POST(req: NextRequest) {
   const userId = await requireAuth();
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  // A store connected the current way authenticates over OIDC and only sets
+  // BLOB_STORE_ID; older connections set a read-write token. @vercel/blob
+  // handles either, so accept either.
+  if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.BLOB_STORE_ID) {
     return Response.json(
       { error: "Image upload is not configured" },
       { status: 500 }
@@ -33,10 +36,14 @@ export async function POST(req: NextRequest) {
   const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
   const key = `${kind}/${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-  const blob = await put(key, file, {
-    access: "public",
-    contentType: file.type,
-  });
-
-  return Response.json({ url: blob.url });
+  try {
+    const blob = await put(key, file, {
+      access: "public",
+      contentType: file.type,
+    });
+    return Response.json({ url: blob.url });
+  } catch (err) {
+    console.error("upload failed:", err);
+    return Response.json({ error: "Upload failed — try again" }, { status: 500 });
+  }
 }
