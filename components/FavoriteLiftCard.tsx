@@ -33,13 +33,13 @@ function ago(days: number | null): string {
 function Chip({ label, value }: { label: string; value: string }) {
   return (
     <div
-      className="rounded-2xl py-2 px-2 text-center min-w-0"
+      className="rounded-xl py-1.5 px-2 text-center min-w-0"
       style={{ background: "rgba(0,0,0,0.28)", border: "1px solid rgba(255,255,255,0.06)" }}
     >
-      <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--fg-muted)" }}>
+      <p className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--fg-muted)" }}>
         {label}
       </p>
-      <p className="text-[14px] font-bold tabular-nums mt-0.5 truncate">{value}</p>
+      <p className="text-[13px] font-bold tabular-nums truncate">{value}</p>
     </div>
   );
 }
@@ -56,7 +56,7 @@ export default function FavoriteLiftCard({
   const unit = stats.mode === "load" ? "lb" : "reps";
   return (
     <section
-      className="relative rounded-3xl p-5 mt-3 overflow-hidden"
+      className="relative rounded-3xl px-4 pt-3.5 pb-4 mt-3 overflow-hidden"
       style={{
         background:
           "radial-gradient(90% 80% at 100% 0%, rgba(163,230,53,0.22) 0%, transparent 60%), radial-gradient(80% 90% at 0% 100%, rgba(34,197,94,0.16) 0%, transparent 60%), var(--bg-card)",
@@ -65,8 +65,8 @@ export default function FavoriteLiftCard({
       }}
     >
       {/* Watermark flame */}
-      <div className="absolute pointer-events-none" style={{ right: -18, bottom: -22, opacity: 0.08 }} aria-hidden>
-        <Flame size={170} />
+      <div className="absolute pointer-events-none" style={{ right: -14, bottom: -18, opacity: 0.08 }} aria-hidden>
+        <Flame size={120} />
       </div>
 
       <div className="relative flex items-center justify-between gap-3">
@@ -80,15 +80,15 @@ export default function FavoriteLiftCard({
         {isSelf && <FavoriteLiftPicker lifts={pickable} current={stats.name} variant="edit" />}
       </div>
 
-      <h3 className="relative text-[24px] font-extrabold tracking-tight leading-tight mt-2 truncate">
+      <h3 className="relative text-[19px] font-extrabold tracking-tight leading-tight mt-1 truncate">
         {stats.name}
       </h3>
 
-      <div className="relative flex items-end justify-between gap-3 mt-3">
+      <div className="relative flex items-end justify-between gap-3 mt-2">
         <div>
           <p className="leading-none">
             <span
-              className="text-[46px] font-extrabold tabular-nums"
+              className="text-[36px] font-extrabold tabular-nums"
               style={{
                 letterSpacing: "-0.04em",
                 background: "linear-gradient(180deg, #ecfccb 0%, #a3e635 55%, #22c55e 100%)",
@@ -100,12 +100,12 @@ export default function FavoriteLiftCard({
             >
               {stats.best > 0 ? Math.round(stats.best) : "—"}
             </span>
-            <span className="text-[14px] font-semibold ml-1.5" style={{ color: "var(--fg-muted)" }}>
+            <span className="text-[12px] font-semibold ml-1.5" style={{ color: "var(--fg-muted)" }}>
               {stats.mode === "load" ? "lb est. max" : "best reps"}
             </span>
           </p>
           {stats.gain != null && stats.gain > 0 && stats.since && (
-            <p className="text-[12px] font-semibold mt-2 tabular-nums" style={{ color: "#4ade80" }}>
+            <p className="text-[11px] font-semibold mt-1.5 tabular-nums" style={{ color: "#4ade80" }}>
               ▲ {Math.round(stats.gain)} {unit} since {stats.since}
             </p>
           )}
@@ -114,8 +114,8 @@ export default function FavoriteLiftCard({
           <div style={{ filter: "drop-shadow(0 0 6px rgba(163,230,53,0.55))" }}>
             <Sparkline
               values={stats.trend}
-              width={124}
-              height={48}
+              width={104}
+              height={38}
               color={LIME}
               strokeWidth={2.5}
               dot
@@ -125,7 +125,7 @@ export default function FavoriteLiftCard({
         )}
       </div>
 
-      <div className="relative grid grid-cols-3 gap-2 mt-4">
+      <div className="relative grid grid-cols-3 gap-2 mt-3">
         <Chip label="Best set" value={stats.bestSet ?? "—"} />
         <Chip label="Sessions" value={String(stats.sessions)} />
         <Chip label="Last" value={ago(stats.lastDaysAgo)} />

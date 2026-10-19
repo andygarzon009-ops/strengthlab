@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { setFavoriteLift } from "@/lib/actions/workouts";
 import Flame from "@/components/FlameIcon";
@@ -23,6 +24,32 @@ export default function FavoriteLiftPicker({
   const [q, setQ] = useState("");
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  // Height of the part of the screen the keyboard isn't covering. iOS doesn't
+  // shrink the layout for the keyboard, so a bottom sheet sized off 100vh ends
+  // up underneath it; sizing off the visual viewport keeps the list above it.
+  const [vh, setVh] = useState<number | null>(null);
+  const [vTop, setVTop] = useState(0);
+
+  useEffect(() => {
+    if (!open) return;
+    const vv = window.visualViewport;
+    const sync = () => {
+      setVh(vv ? vv.height : window.innerHeight);
+      // iOS can also scroll the visual viewport when the keyboard opens.
+      setVTop(vv ? vv.offsetTop : 0);
+    };
+    sync();
+    vv?.addEventListener("resize", sync);
+    vv?.addEventListener("scroll", sync);
+    // Freeze the page behind the sheet so a drag on the list can't scroll it.
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      vv?.removeEventListener("resize", sync);
+      vv?.removeEventListener("scroll", sync);
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -68,7 +95,7 @@ export default function FavoriteLiftPicker({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="h-8 px-3 rounded-full text-[12px] font-semibold active:scale-95 transition-transform"
+          className="h-7 px-2.5 rounded-full text-[11px] font-semibold active:scale-95 transition-transform"
           style={{
             background: "rgba(0,0,0,0.35)",
             border: "1px solid rgba(255,255,255,0.12)",
@@ -79,20 +106,30 @@ export default function FavoriteLiftPicker({
         </button>
       )}
 
-      {open && (
+      {open && createPortal(
+        // Portalled to <body> and above the bottom nav (z-50), so no card's
+        // overflow or stacking can clip it and the nav can't sit on top.
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center"
-          style={{ background: "rgba(0,0,0,0.6)" }}
+          className="fixed inset-x-0 z-[70] flex items-end justify-center"
+          style={{
+            top: vTop,
+            height: vh ?? "100dvh",
+            background: "rgba(0,0,0,0.6)",
+            overscrollBehavior: "contain",
+          }}
           onClick={() => !pending && setOpen(false)}
         >
           <div
             role="dialog"
+            aria-modal="true"
             aria-label="Choose your favourite lift"
             className="w-full max-w-lg rounded-t-3xl flex flex-col"
             style={{
               background: "var(--bg-card)",
               borderTop: "1px solid var(--border-strong)",
-              maxHeight: "78vh",
+              // Fixed height (not max) so filtering doesn't make the sheet
+              // jump up and down as results come and go.
+              height: vh ? Math.min(vh - 48, 620) : "min(78dvh, 620px)",
               paddingBottom: "env(safe-area-inset-bottom)",
             }}
             onClick={(e) => e.stopPropagation()}
@@ -119,11 +156,20 @@ export default function FavoriteLiftPicker({
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search your lifts"
-                className="mt-3 w-full h-11 px-4 rounded-xl text-[15px] outline-none"
+                type="search"
+                enterKeyHint="search"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                // 16px or iOS zooms the whole page in on focus.
+                className="mt-3 w-full h-11 px-4 rounded-xl text-[16px] outline-none"
                 style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
               />
             </div>
-            <div className="overflow-y-auto px-2 pb-3">
+            <div
+              className="flex-1 min-h-0 overflow-y-auto px-2 pb-3"
+              style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
+            >
               {shown.length === 0 && (
                 <p className="text-[13px] text-center py-8" style={{ color: "var(--fg-muted)" }}>
                   {lifts.length === 0 ? "Log a session first — your lifts show up here." : "No lifts match."}
@@ -156,7 +202,8 @@ export default function FavoriteLiftPicker({
               })}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
