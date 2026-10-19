@@ -286,10 +286,7 @@ export default async function PublicProfilePage({
           <BackButton href="/group" ariaLabel="Back to crew" />
         </div>
         {isSelf && (
-          <div
-            className="absolute right-4"
-            style={{ top: "calc(env(safe-area-inset-top, 0px) + 16px)" }}
-          >
+          <div className="absolute right-3" style={{ bottom: 12 }}>
             <ProfilePhotoEdit kind="cover" hasImage={!!user.coverImage} />
           </div>
         )}

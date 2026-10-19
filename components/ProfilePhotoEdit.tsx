@@ -69,7 +69,7 @@ export default function ProfilePhotoEdit({
         aria-label={label}
         className={
           kind === "cover"
-            ? "h-9 px-3 rounded-full flex items-center gap-1.5 text-[12px] font-semibold active:scale-95 transition-transform"
+            ? "h-7 px-2.5 rounded-full flex items-center gap-1 text-[11px] font-semibold active:scale-95 transition-transform"
             : "w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-transform"
         }
         style={
@@ -98,8 +98,8 @@ export default function ProfilePhotoEdit({
           />
         ) : (
           <svg
-            width={kind === "cover" ? 15 : 14}
-            height={kind === "cover" ? 15 : 14}
+            width={kind === "cover" ? 12 : 14}
+            height={kind === "cover" ? 12 : 14}
             viewBox="0 0 24 24"
             fill="none"
             stroke={kind === "cover" ? "#fff" : "#0a0a0a"}
@@ -117,7 +117,7 @@ export default function ProfilePhotoEdit({
       {err && (
         <span
           role="alert"
-          className="absolute top-full mt-1 right-0 whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-lg"
+          className="absolute bottom-full mb-1 right-0 whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-lg"
           style={{ background: "rgba(0,0,0,0.75)", color: "#fca5a5" }}
         >
           {err}
