@@ -16,6 +16,8 @@ import { getFriendState } from "@/lib/actions/friends";
 import Avatar from "@/components/Avatar";
 import ProfileCalendar from "@/components/ProfileCalendar";
 import ProfilePhotoEdit from "@/components/ProfilePhotoEdit";
+import FavoriteLiftCard, { type FavoriteLiftStats } from "@/components/FavoriteLiftCard";
+import FavoriteLiftPicker, { type PickableLift } from "@/components/FavoriteLiftPicker";
 import { monthKey, type CalendarWorkout } from "@/lib/profileCalendar";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +38,7 @@ export default async function PublicProfilePage({
       username: true,
       image: true,
       coverImage: true,
+      favoriteLift: true,
       preferredSplit: true,
       bio: true,
     },
@@ -52,7 +55,10 @@ export default async function PublicProfilePage({
   // empty and make it look like the friend skipped those weeks.
   const earliest = new Date(now.getFullYear(), now.getMonth() - 11, 1);
 
-  const [totalWorkouts, cheers, workouts] = await Promise.all([
+  // All-time sets, but only when they're needed: the favourite lift's
+  // numbers, or the owner's picker list of everything they've logged.
+  const needHistory = isSelf || !!user.favoriteLift;
+  const [totalWorkouts, cheers, workouts, history] = await Promise.all([
     prisma.workout.count({ where: { userId: user.id } }),
     prisma.reaction.count({ where: { workout: { userId: user.id } } }),
     prisma.workout.findMany({
@@ -73,7 +79,96 @@ export default async function PublicProfilePage({
         },
       },
     }),
+    needHistory
+      ? prisma.workoutExercise.findMany({
+          where: { workout: { userId: user.id } },
+          select: {
+            workoutId: true,
+            exercise: { select: { name: true } },
+            workout: { select: { date: true } },
+            sets: { select: { type: true, weight: true, reps: true } },
+          },
+          orderBy: { workout: { date: "asc" } },
+        })
+      : Promise.resolve([]),
   ]);
+
+  // Picker list: every lift with logged reps, most-trained first.
+  const pickable: PickableLift[] = [];
+  if (isSelf) {
+    const byKey = new Map<string, { name: string; workouts: Set<string> }>();
+    for (const we of history) {
+      if (!we.sets.some((st) => (st.reps ?? 0) > 0)) continue;
+      const key = normalizeExerciseName(we.exercise.name) || we.exercise.name;
+      const slot = byKey.get(key) ?? { name: we.exercise.name, workouts: new Set<string>() };
+      slot.name = we.exercise.name; // latest spelling (history is date-asc)
+      slot.workouts.add(we.workoutId);
+      byKey.set(key, slot);
+    }
+    for (const v of byKey.values()) pickable.push({ name: v.name, sessions: v.workouts.size });
+    pickable.sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name));
+  }
+
+  // The favourite lift's numbers, from its whole history.
+  let favorite: FavoriteLiftStats | null = null;
+  if (user.favoriteLift) {
+    const favKey = normalizeExerciseName(user.favoriteLift) || user.favoriteLift;
+    const perSession = new Map<
+      string,
+      { date: Date; e1: number; reps: number; set: { w: number; r: number } | null }
+    >();
+    for (const we of history) {
+      const key = normalizeExerciseName(we.exercise.name) || we.exercise.name;
+      if (key !== favKey) continue;
+      const slot =
+        perSession.get(we.workoutId) ?? { date: we.workout.date, e1: 0, reps: 0, set: null };
+      for (const st of we.sets) {
+        if (st.type === "WARMUP") continue;
+        const w = st.weight ?? 0;
+        const r = st.reps ?? 0;
+        if (r <= 0) continue;
+        slot.reps = Math.max(slot.reps, r);
+        const est = w > 0 ? e1rm(w, r) : 0;
+        if (est > slot.e1) {
+          slot.e1 = est;
+          slot.set = { w, r };
+        }
+      }
+      perSession.set(we.workoutId, slot);
+    }
+    const sessions = [...perSession.values()].sort((a, b) => +a.date - +b.date);
+    const loaded = sessions.some((x) => x.e1 > 0);
+    const series = sessions
+      .map((x) => (loaded ? x.e1 : x.reps))
+      .filter((v) => v > 0);
+    const bestIdx = series.length
+      ? series.indexOf(Math.max(...series))
+      : -1;
+    const bestSession = loaded
+      ? sessions.filter((x) => x.e1 > 0)[bestIdx]
+      : sessions.filter((x) => x.reps > 0)[bestIdx];
+    const first = loaded ? sessions.find((x) => x.e1 > 0) : sessions.find((x) => x.reps > 0);
+    const last = sessions[sessions.length - 1];
+    favorite = {
+      name: user.favoriteLift,
+      mode: loaded ? "load" : "reps",
+      best: bestIdx >= 0 ? series[bestIdx] : 0,
+      bestSet: bestSession
+        ? loaded && bestSession.set
+          ? `${formatLoad(user.favoriteLift, bestSession.set.w)} × ${bestSession.set.r}`
+          : `${bestSession.reps} reps`
+        : null,
+      sessions: sessions.length,
+      lastDaysAgo: last
+        ? Math.floor((now.getTime() - last.date.getTime()) / 86_400_000)
+        : null,
+      trend: series.slice(-16),
+      gain: series.length >= 2 ? Math.max(...series) - series[0] : null,
+      since: first
+        ? first.date.toLocaleString("en-US", { month: "short", year: "numeric" })
+        : null,
+    };
+  }
 
   // This-month rings
   const monthWorkouts = workouts.filter((w) => new Date(w.date) >= monthStart);
@@ -263,6 +358,13 @@ export default async function PublicProfilePage({
             <Ring id="h" label="Cheers" value={cheers} goal={Math.max(10, cheers)} from="#f9a8d4" to="#ec4899" />
           </div>
         </section>
+
+        {/* Favourite lift */}
+        {favorite ? (
+          <FavoriteLiftCard stats={favorite} isSelf={isSelf} pickable={pickable} />
+        ) : (
+          isSelf && <FavoriteLiftPicker lifts={pickable} current={null} variant="empty" />
+        )}
 
         {/* History calendar */}
         <section

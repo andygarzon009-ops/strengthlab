@@ -34,6 +34,8 @@ model User {
   password             String
   image                String?
   coverImage           String?
+  /// Exercise name shown as the favourite lift on the crew profile.
+  favoriteLift         String?
   bodyweight           Float?
   birthDate            DateTime?
   sex                  String?

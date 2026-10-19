@@ -805,3 +805,11 @@ export async function updateProfilePhotos(p: {
   revalidatePath(`/u/${userId}`);
   revalidatePath("/profile");
 }
+
+/// The favourite lift on your crew profile. Null clears it.
+export async function setFavoriteLift(name: string | null) {
+  const userId = await requireAuth();
+  const clean = name?.trim().slice(0, 80) || null;
+  await prisma.user.update({ where: { id: userId }, data: { favoriteLift: clean } });
+  revalidatePath(`/u/${userId}`);
+}
