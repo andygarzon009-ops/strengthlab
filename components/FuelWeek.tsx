@@ -215,13 +215,7 @@ export default function FuelWeek({
         Ask your coach about your intake
       </Link>
 
-      <p className="text-[12px] mt-4 mb-8 leading-relaxed" style={{ color: "var(--fg-muted)" }}>
-        Food is what you log here plus anything MyFitnessPal sends through Google
-        Health. Protein and calorie targets follow your training phase and
-        bodyweight; carbs and fat are split from the calorie target after protein.
-        Calories burned is an estimate: resting metabolism plus the day&apos;s
-        logged movement.
-      </p>
+      <div className="mb-8" />
     </>
   );
 }
