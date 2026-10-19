@@ -75,16 +75,18 @@ function StatRow({
   active: boolean;
   onClick: () => void;
 }) {
+  // A real button, not a bare line: its own tile, a full tap height and a
+  // chevron that turns when the detail opens, so it reads as something to tap.
   return (
     <button
       type="button"
       onClick={onClick}
       aria-expanded={active}
-      className="w-full grid items-center gap-2.5 rounded-lg -mx-1.5 px-1.5 py-1 text-left transition-colors"
+      className="w-full grid items-center gap-2.5 rounded-xl px-3 min-h-[44px] text-left transition-colors active:scale-[0.99]"
       style={{
-        gridTemplateColumns: "76px minmax(0,1fr) auto",
-        width: "calc(100% + 12px)",
-        background: active ? "var(--bg-elevated)" : "transparent",
+        gridTemplateColumns: "72px minmax(0,1fr) auto 14px",
+        background: active ? "var(--bg-elevated)" : "rgba(255,255,255,0.025)",
+        border: `1px solid ${active ? "var(--border-strong)" : "var(--border)"}`,
       }}
     >
       <span className="flex items-center gap-1.5 text-[13px] font-semibold">
@@ -101,6 +103,20 @@ function StatRow({
         <b className="font-bold" style={{ color: "var(--fg)" }}>{value}</b>
         {sub ? ` · ${sub}` : ""}
       </span>
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="var(--fg-muted)"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+        style={{ transform: active ? "rotate(90deg)" : undefined, transition: "transform 160ms" }}
+      >
+        <path d="M9 6l6 6-6 6" />
+      </svg>
     </button>
   );
 }
@@ -254,7 +270,7 @@ export default function DailyGlance({
         <div className="min-w-0 flex-1">{head}</div>
       </div>
 
-      <div className="mt-3 space-y-1">
+      <div className="mt-3 space-y-1.5">
           {activity && (
             <StatRow
               label="Activity"
@@ -282,18 +298,25 @@ export default function DailyGlance({
             // Nothing eaten logged yet: no empty Fuel bar, just the way in.
             <Link
               href="/fuel#log"
-              className="grid items-center gap-2.5 rounded-lg -mx-1.5 px-1.5 py-1 active:opacity-70"
-              style={{ gridTemplateColumns: "76px minmax(0,1fr) auto", width: "calc(100% + 12px)" }}
+              className="grid items-center gap-2.5 rounded-xl px-3 min-h-[44px] active:scale-[0.99]"
+              style={{
+                gridTemplateColumns: "72px minmax(0,1fr) auto",
+                background: "rgba(255,255,255,0.025)",
+                border: "1px dashed var(--border-strong)",
+              }}
             >
               <span className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: "var(--fg-muted)" }}>
                 <FlameIcon />
                 Fuel
               </span>
-              <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>
-                Log a meal
+              <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
+                Nothing logged yet
               </span>
-              <span className="text-[12px] font-semibold" style={{ color: "var(--accent)" }}>
-                📷 +
+              <span
+                className="text-[12px] font-bold px-2.5 py-1 rounded-full"
+                style={{ background: "var(--accent)", color: "#04130a" }}
+              >
+                Log a meal
               </span>
             </Link>
           )}
@@ -307,26 +330,46 @@ export default function DailyGlance({
                 <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "var(--accent-dim)", color: "var(--accent)" }}>
                   🎯 {fuel.targets?.phaseLabel ?? "Nutrition"}
                 </span>
-                <Link href="/fuel" className="text-[12px]" style={{ color: "var(--accent)" }}>
-                  Details →
-                </Link>
               </div>
               <FuelDetail data={fuel} />
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <Link
+                  href="/fuel"
+                  className="flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl text-[14px] font-bold"
+                  style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
+                >
+                  Open Fuel
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </Link>
+                <Link
+                  href="/fuel#log"
+                  className="btn-accent flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl text-[14px] font-bold"
+                >
+                  + Log a meal
+                </Link>
+              </div>
             </div>
           )}
 
           {open === "activity" && activity && (
             <div>
-              <div className="flex items-center justify-end mb-2">
-                <Link href="/activity" className="text-[12px]" style={{ color: "var(--accent)" }}>
-                  Details →
-                </Link>
-              </div>
               <div className="space-y-3">
                 {activity.rows.map((r) => (
                   <ActivityBar key={r.label} {...r} />
                 ))}
               </div>
+              <Link
+                href="/activity"
+                className="mt-3 flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl text-[14px] font-bold"
+                style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
+              >
+                Open Activity
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </Link>
             </div>
           )}
         </div>
