@@ -16,6 +16,7 @@ import { getFriendState } from "@/lib/actions/friends";
 import Avatar from "@/components/Avatar";
 import ProfileCalendar from "@/components/ProfileCalendar";
 import ProfilePhotoEdit from "@/components/ProfilePhotoEdit";
+import StretchyCover from "@/components/StretchyCover";
 import FavoriteLiftCard, { type FavoriteLiftStats } from "@/components/FavoriteLiftCard";
 import FavoriteLiftPicker, { type PickableLift } from "@/components/FavoriteLiftPicker";
 import { monthKey, type CalendarWorkout } from "@/lib/profileCalendar";
@@ -236,17 +237,28 @@ export default async function PublicProfilePage({
 
   return (
     <div className="max-w-lg mx-auto pb-6">
-      {/* Cover */}
-      <div className="relative">
+      {/* Cover — runs up under the status bar (the layout pads the top by
+          the safe area; this takes it back) and stretches on overscroll. */}
+      <div
+        className="relative"
+        style={{
+          marginTop: "calc(-1 * env(safe-area-inset-top, 0px))",
+          // clip, not hidden: trims the stretched cover's sides without
+          // turning this into a scroll container or cutting off the avatar.
+          overflowX: "clip",
+        }}
+      >
         <div
-          className="w-full relative overflow-hidden"
-          style={{
-            height: 160,
-            background: user.coverImage
-              ? `center/cover url(${user.coverImage})`
-              : "radial-gradient(90% 120% at 15% 0%, rgba(34,197,94,0.55) 0%, rgba(34,197,94,0.12) 45%, transparent 70%), radial-gradient(70% 100% at 100% 20%, rgba(163,230,53,0.22) 0%, transparent 60%), #070a07",
-          }}
+          className="w-full relative"
+          style={{ height: "calc(160px + env(safe-area-inset-top, 0px))" }}
         >
+          <StretchyCover
+            background={
+              user.coverImage
+                ? `center/cover url(${user.coverImage})`
+                : "radial-gradient(90% 120% at 15% 0%, rgba(34,197,94,0.55) 0%, rgba(34,197,94,0.12) 45%, transparent 70%), radial-gradient(70% 100% at 100% 20%, rgba(163,230,53,0.22) 0%, transparent 60%), #070a07"
+            }
+          >
           {!user.coverImage && (
             // Faint grid, like a lifting-platform floor, fading out downward.
             <div
@@ -265,12 +277,19 @@ export default async function PublicProfilePage({
             className="absolute inset-x-0 bottom-0 h-16"
             style={{ background: "linear-gradient(180deg, transparent, var(--bg))" }}
           />
+          </StretchyCover>
         </div>
-        <div className="absolute top-4 left-4">
+        <div
+          className="absolute left-4"
+          style={{ top: "calc(env(safe-area-inset-top, 0px) + 16px)" }}
+        >
           <BackButton href="/group" ariaLabel="Back to crew" />
         </div>
         {isSelf && (
-          <div className="absolute top-4 right-4">
+          <div
+            className="absolute right-4"
+            style={{ top: "calc(env(safe-area-inset-top, 0px) + 16px)" }}
+          >
             <ProfilePhotoEdit kind="cover" hasImage={!!user.coverImage} />
           </div>
         )}
