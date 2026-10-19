@@ -80,6 +80,14 @@ const SUGAR_LIMIT_G = 40;
 const SODIUM_LIMIT_MG = 2300;
 
 
+function weekdayName(dateKey: string): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+    weekday: "long",
+    timeZone: "UTC",
+  });
+}
+
 function longDate(dateKey: string): string {
   return new Date(`${dateKey}T12:00:00Z`).toLocaleDateString(undefined, {
     weekday: "long",
@@ -165,22 +173,27 @@ export default function FuelWeek({
             {inProgress && <RoomLeft intake={i} targets={t} />}
           </div>
 
-          {/* ── the diary ── */}
-          <p className="label mb-2" style={{ color: "var(--fg-muted)" }}>
-            {isToday ? "Today's food" : "Food"}
-            <span
-              className="float-right normal-case tracking-normal font-medium tabular-nums"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              {i.entries} item{i.entries === 1 ? "" : "s"}
-            </span>
-          </p>
-          <div
-            className="rounded-2xl p-4 mb-4"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
-          >
-            <FoodDiary foods={i.foods} intake={i} />
-          </div>
+          {/* ── the diary — past days only. Today's foods are already listed,
+              editable, under "Logged today" at the top. ── */}
+          {!isToday && (
+            <>
+              <p className="label mb-2" style={{ color: "var(--fg-muted)" }}>
+                {weekdayName(day.date)}&apos;s food
+                <span
+                  className="float-right normal-case tracking-normal font-medium tabular-nums"
+                  style={{ color: "var(--fg-dim)" }}
+                >
+                  {i.entries} item{i.entries === 1 ? "" : "s"}
+                </span>
+              </p>
+              <div
+                className="rounded-2xl p-4 mb-4"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
+              >
+                <FoodDiary foods={i.foods} intake={i} />
+              </div>
+            </>
+          )}
 
           {/* ── micronutrients ── */}
           <p className="label mb-2" style={{ color: "var(--fg-muted)" }}>Fiber &amp; the rest</p>
