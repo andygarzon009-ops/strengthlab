@@ -12,8 +12,7 @@ import { prisma } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 /// The Fuel page — log a meal (photo or description), then seven days of
-/// intake: StrengthLab's own food log plus anything MyFitnessPal sends via
-/// Google Health, with every food and its macros.
+/// intake from StrengthLab's own food log, with every food and its macros.
 export default async function FuelPage() {
   const userId = await requireAuth();
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { timezone: true } });
@@ -66,7 +65,7 @@ function EmptyState({
     "no-account": {
       icon: "🍳",
       title: "Your week of fuel starts here",
-      body: "Log a meal above and your Fuel score fills in. Already use MyFitnessPal? Connect Google Health and those meals count too.",
+      body: "Log a meal above and your Fuel score fills in.",
       cta: { href: "/health", label: "Connect Google Health" },
     },
     reconnect: {

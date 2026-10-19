@@ -2,7 +2,6 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import {
   checkHealthAuth,
-  getDailyNutrition,
   getActiveEnergyByDay,
   listDailyWeights,
   type FoodEntry,
@@ -20,21 +19,18 @@ import {
 } from "@/lib/nutritionScore";
 import { listFoodLog, mergeFoodLog } from "@/lib/foodLog";
 
-/// Google Health reads, kept for five minutes. Active energy arrives
-/// per-minute — a week is ~10k points paged through one request at a time —
-/// so a cold read takes seconds; this is what made the Fuel page slow to open.
-/// Five minutes is short enough that a meal logged in MyFitnessPal shows up
-/// almost straight away; StrengthLab's own food log is read live, never from
-/// here. The day-dependent window strings are part of the key, so a new day
-/// starts a fresh entry.
+/// Google Health reads, kept for five minutes: active energy (it arrives
+/// per-minute — a week is ~10k points paged one request at a time, which is
+/// what made the Fuel page slow to open) and weigh-ins. Food isn't read from
+/// Google any more — it's StrengthLab's own log, read live. The day-dependent
+/// window strings are part of the key, so a new day starts a fresh entry.
 const googleFuelReads = unstable_cache(
-  async (userId: string, sinceCivil: string, sinceShort: string, weightSinceISO: string) =>
+  async (userId: string, sinceShort: string, weightSinceISO: string) =>
     Promise.all([
-      getDailyNutrition(userId, sinceCivil),
       getActiveEnergyByDay(userId, sinceShort),
       listDailyWeights(userId, weightSinceISO),
     ]),
-  ["fuel-google-reads-v1"],
+  ["fuel-google-reads-v2"],
   { revalidate: 300 },
 );
 
@@ -106,7 +102,7 @@ export type FuelWeek =
     };
 
 /// Computes the athlete's goal-aware Fuel Score for *their* local today —
-/// today's logged intake from Google Health vs phase-based targets. Shared by
+/// today's logged intake (StrengthLab's food log) vs phase-based targets. Shared by
 /// the Health page API route and the AI coach so they agree. Live read; tolerant
 /// of a missing connection / dead token / unfilled profile via the state union.
 /// Thin wrapper over getFuelWeek so today's numbers can never drift from the
@@ -149,20 +145,12 @@ export async function getFuelWeek(
     },
   });
 
-  // Google Health is one source of intake; StrengthLab's own food log is the
-  // other. Either one is enough to score a day, so a missing or lapsed Google
-  // connection only blocks Fuel when nothing has been logged in-app either.
+  // Intake is StrengthLab's own food log. Google Health only contributes
+  // active energy (it raises the calorie target on training days) and
+  // weigh-ins (to measure maintenance) — when it's connected and healthy.
   const account = await prisma.healthAccount.findUnique({ where: { userId } });
-  let googleState: "ok" | "no-account" | "reconnect" | "no-nutrition-scope" = "ok";
-  if (!account) googleState = "no-account";
-  else if ((await checkHealthAuth(userId)).needsReconnect) googleState = "reconnect";
-  // The nutrition scope was added after the first users connected, and Google
-  // only grants it on re-consent. Their tokens are perfectly valid, so the
-  // nutrition-log call just 403s and gets swallowed into an empty day — which
-  // renders as "nothing logged" and would never resolve itself, no matter how
-  // diligently they logged food. Detect it and say what's actually wrong.
-  else if (!account.scope.includes("googlehealth.nutrition"))
-    googleState = "no-nutrition-scope";
+  const google =
+    !!account && !(await checkHealthAuth(userId)).needsReconnect;
 
   const tz = user?.timezone ?? "UTC";
   const localKey = (d: Date) =>
@@ -181,29 +169,26 @@ export async function getFuelWeek(
   for (let i = daysBack; i >= 0; i--) {
     window.push(localKey(new Date(now.getTime() - i * 86_400_000)));
   }
-  // The nutrition window is widened to the calibration span and the display
-  // week sliced out of it, so solving maintenance costs no extra API call.
-  // Active energy stays on the short window — it arrives per-minute, and a
-  // month of it would be tens of thousands of points to page through.
+  // The food log is read over the calibration span and the display week
+  // sliced out of it, so solving maintenance costs no extra query. Active
+  // energy stays on the short window — it arrives per-minute, and a month of
+  // it would be tens of thousands of points to page through.
   const calibrationStart = localKey(
     new Date(now.getTime() - CALIBRATION_DAYS * 86_400_000),
   );
-  const sinceCivil = `${calibrationStart}T00:00:00`;
   const sinceShort = `${window[0]}T00:00:00`;
   // Day-rounded so it's a stable cache key, not a new one every millisecond.
   const weightSinceISO = new Date(`${calibrationStart}T00:00:00Z`).toISOString();
 
-  const google = googleState === "ok";
   // Own log and Google reads run side by side rather than one after the other.
   const ownRowsP = listFoodLog(userId, calibrationStart);
   const googleP = google
-    ? googleFuelReads(userId, sinceCivil, sinceShort, weightSinceISO)
+    ? googleFuelReads(userId, sinceShort, weightSinceISO)
     : null;
   // If we return early below, the Google read is abandoned — don't let a
   // failure there surface as an unhandled rejection.
   googleP?.catch(() => {});
   const ownRows = await ownRowsP;
-  if (googleState !== "ok" && ownRows.length === 0) return { state: googleState };
   if (user?.bodyweight == null || user.bodyweight <= 0)
     return { state: "no-profile" };
 
@@ -217,10 +202,10 @@ export async function getFuelWeek(
   const [nowH, nowM] = hm.split(":").map(Number);
   const todayIsOver = dayIsOver(nowH, nowM);
 
-  const [googleDays, activeByDay, weights] = googleP
+  const [activeByDay, weights] = googleP
     ? await googleP
-    : [[], {} as Record<string, number>, []];
-  const days = mergeFoodLog(googleDays, ownRows);
+    : [{} as Record<string, number>, []];
+  const days = mergeFoodLog([], ownRows);
   const byDate = new Map(days.map((d) => [d.date, d]));
 
   // Solve maintenance from what actually happened. Today is excluded — it's

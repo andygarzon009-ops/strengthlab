@@ -980,7 +980,7 @@ ${
               " reported no micronutrients, so the real figures are higher by an unknown amount. Never tell the athlete they are low on fiber or sodium on the strength of these."
             : "."
         }
-${diary ? `- What they actually ate (${i.entries} item${i.entries === 1 ? "" : "s"}, logged in MyFitnessPal):\n${diary}` : "- Individual foods not available for today."}
+${diary ? `- What they actually ate (${i.entries} item${i.entries === 1 ? "" : "s"}, logged in StrengthLab):\n${diary}` : "- Individual foods not available for today."}
 Use this: you can see the actual foods, so coach the FOOD, not just the macros — name what they ate, and make concrete swaps or additions ("your breakfast was 8g of protein short; another egg covers it").${
           f.partial
             ? ` Judge the day only once it is done. Mid-day the useful answer is what to eat next, sized to the gap above — never a warning about under-eating, and never a "deficit" framing when meals are still ahead of them.`
