@@ -48,7 +48,7 @@ export default function CheerButton({
     >
       <span
         key={burst}
-        className={`relative flex items-center gap-1.5 h-8 pl-2.5 ${count > 0 ? "pr-1" : "pr-3"} rounded-full text-[12px] font-bold ${burst ? "cheer-pop" : ""}`}
+        className={`relative flex items-center gap-1.5 h-8 pl-2.5 ${!cheered && count > 0 ? "pr-1" : "pr-3"} rounded-full text-[12px] font-bold ${burst ? "cheer-pop" : ""}`}
         style={{
           animation: burst ? "cheer-pop 420ms cubic-bezier(.3,1.6,.5,1)" : undefined,
           ...(cheered
@@ -67,15 +67,16 @@ export default function CheerButton({
         }}
       >
         <span className="text-[14px] leading-none" aria-hidden>👏</span>
-        {cheered ? "Cheered" : "Cheer"}
-        {count > 0 && (
+        {/* Once cheered the glow says so — just the count, like a like. */}
+        {cheered ? (
+          <span className="text-[13px] font-extrabold tabular-nums">{Math.max(1, count)}</span>
+        ) : (
+          "Cheer"
+        )}
+        {!cheered && count > 0 && (
           <span
             className="min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[11px] font-extrabold tabular-nums"
-            style={
-              cheered
-                ? { background: "rgba(10,10,10,0.85)", color: "#d9f99d" }
-                : { background: "rgba(255,255,255,0.16)", color: "#fff" }
-            }
+            style={{ background: "rgba(255,255,255,0.16)", color: "#fff" }}
           >
             {count}
           </span>
