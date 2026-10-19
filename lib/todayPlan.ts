@@ -7,6 +7,7 @@ import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { localDateKey } from "@/lib/blockStamp";
 import { STRENGTH_SPLITS, isTimedExercise, shapeForType } from "@/lib/exercises";
+import { isMainCompoundLift } from "@/lib/workoutPlan";
 
 const LOOKBACK_DAYS = 28;
 
@@ -126,17 +127,26 @@ export const loadTodayPlan = cache(async (userId: string): Promise<TodayPlan> =>
     const [split, w] = candidates.reduce((a, b) =>
       a[1].date < b[1].date ? a : b,
     );
-    let topLift: string | null = null;
-    let topWeight = 0;
-    for (const ex of w.exercises) {
-      if (isTimedExercise(ex.exercise.name)) continue;
-      for (const s of ex.sets) {
-        if (s.type === "WORKING" && (s.weight ?? 0) > topWeight) {
-          topWeight = s.weight ?? 0;
-          topLift = ex.exercise.name;
+    // The lift the advice names is the session's top set — a main barbell
+    // compound, else another compound. Never an accessory: a heavy calf-raise
+    // machine can outweigh the squat, but nobody pushes a top set on it.
+    const heaviestOf = (keep: (name: string) => boolean) => {
+      let lift: string | null = null;
+      let weight = 0;
+      for (const ex of w.exercises) {
+        const name = ex.exercise.name;
+        if (isTimedExercise(name) || !keep(name)) continue;
+        for (const s of ex.sets) {
+          if (s.type === "WORKING" && (s.weight ?? 0) > weight) {
+            weight = s.weight ?? 0;
+            lift = name;
+          }
         }
       }
-    }
+      return lift;
+    };
+    const topLift =
+      heaviestOf(isMainCompoundLift) ?? heaviestOf(isOtherCompound);
     next = {
       split,
       label: splitLabel(split)!,
@@ -162,6 +172,17 @@ export const loadTodayPlan = cache(async (userId: string): Promise<TodayPlan> =>
     },
   };
 });
+
+// Multi-joint movements that can carry a top set when the day has no main
+// barbell lift (a dumbbell push day, a pull-up pull day).
+const COMPOUND =
+  /\b(press|row|squat|deadlift|rdl|pull[- ]?ups?|chin[- ]?ups?|dips?|lunges?|hip thrust|clean|snatch|good ?morning)\b/i;
+const ACCESSORY =
+  /\b(calf|calves|curl|extension|raise|fly|flye|pushdown|kickback|shrug|face pull|tricep|triceps|skull|crunch|abduct|adduct)\b/i;
+
+function isOtherCompound(name: string): boolean {
+  return COMPOUND.test(name) && !ACCESSORY.test(name);
+}
 
 type Recovery = {
   recoveryScore: number | null;
