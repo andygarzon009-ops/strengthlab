@@ -53,11 +53,13 @@ export default function CheerButton({
           animation: burst ? "cheer-pop 420ms cubic-bezier(.3,1.6,.5,1)" : undefined,
           ...(cheered
             ? {
-                // Deeper greens, faint glow — reads as "on" without
-                // pulling the eye off the tile.
-                background: "linear-gradient(135deg, #84cc16 0%, #22c55e 100%)",
-                color: "#0a0a0a",
-                boxShadow: "0 0 8px rgba(132,204,22,0.25)",
+                // Mint glass: a see-through green tint, so it reads as "on"
+                // without a solid fill pulling the eye off the tile.
+                background: "rgba(74,222,128,0.16)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                border: "1px solid rgba(134,239,172,0.5)",
+                color: "#dcfce7",
               }
             : {
                 background: "rgba(10,10,10,0.55)",
@@ -94,7 +96,7 @@ export default function CheerButton({
               style={{
                 width: i % 2 ? 4 : 5,
                 height: i % 2 ? 4 : 5,
-                background: i % 2 ? "#d9f99d" : "#4ade80",
+                background: i % 2 ? "#bbf7d0" : "#4ade80",
                 ["--a" as string]: `${a}deg`,
                 animation: "cheer-spark 520ms ease-out forwards",
               }}
