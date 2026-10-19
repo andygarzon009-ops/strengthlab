@@ -24,10 +24,13 @@ export default function ProfileCalendar({
   earliestYear,
   earliestMonth,
   workoutsByMonth,
+  today,
 }: {
   /** Month shown first — normally the current one. */
   year: number;
   month: number;
+  /** Day of the month that is today in `year`/`month`, outlined. */
+  today?: number;
   /** Oldest month with loaded data; stepping back stops here. */
   earliestYear: number;
   earliestMonth: number;
@@ -63,24 +66,29 @@ export default function ProfileCalendar({
   ];
 
   const openList = openDay !== null ? workoutsByDay[openDay] ?? [] : [];
+  const isCurrent = view.year === year && view.month === month;
+  const sessionCount = Object.values(workoutsByDay).reduce((n, l) => n + l.length, 0);
 
   return (
     <>
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-[16px] font-bold tracking-tight">History</h2>
-        <div className="flex items-center gap-1">
+        <div className="min-w-0">
+          <h2 className="text-[16px] font-bold tracking-tight leading-tight">
+            {monthLabel} <span style={{ color: "var(--fg-muted)", fontWeight: 600 }}>{view.year}</span>
+          </h2>
+          <p className="text-[11px] mt-0.5 tabular-nums" style={{ color: "var(--fg-muted)" }}>
+            {sessionCount === 0
+              ? "No sessions"
+              : `${sessionCount} session${sessionCount === 1 ? "" : "s"}`}
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
           <MonthArrow
             dir="prev"
             disabled={!canGoBack}
             label={`Previous month${canGoBack ? "" : " — no earlier sessions loaded"}`}
             onClick={() => step(-1)}
           />
-          <span
-            className="text-[13px] text-center"
-            style={{ color: "var(--fg-dim)", minWidth: 116 }}
-          >
-            {monthLabel} {view.year}
-          </span>
           <MonthArrow
             dir="next"
             disabled={!canGoForward}
@@ -94,8 +102,8 @@ export default function ProfileCalendar({
         {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
           <div
             key={i}
-            className="text-center text-[10px] font-semibold uppercase"
-            style={{ color: "var(--fg-dim)" }}
+            className="text-center text-[10px] font-semibold uppercase pb-1"
+            style={{ color: "var(--fg-muted)" }}
           >
             {d}
           </div>
@@ -106,73 +114,83 @@ export default function ProfileCalendar({
           const isOpen = day !== null && day === openDay;
 
           if (day === null) {
-            return <div key={i} className="aspect-square" />;
+            return <div key={i} className="h-10" />;
           }
 
-          const ring = {
-            border: "1.5px solid #a3e635",
-            color: "var(--fg)",
-            fontWeight: 600,
+          const isToday = isCurrent && day === today;
+          const base =
+            "relative h-10 rounded-xl flex items-center justify-center text-[13px] tabular-nums";
+          const trained = {
+            background: "rgba(74,222,128,0.18)",
+            color: "#bbf7d0",
+            fontWeight: 700,
+            boxShadow: isToday ? "inset 0 0 0 1.5px #a3e635" : undefined,
           } as const;
 
+          if (list.length === 0) {
+            return (
+              <div
+                key={i}
+                className={base}
+                style={{
+                  color: isToday ? "var(--fg)" : "var(--fg-dim)",
+                  fontWeight: isToday ? 700 : 400,
+                  boxShadow: isToday ? "inset 0 0 0 1.5px var(--border-strong)" : undefined,
+                }}
+              >
+                {day}
+              </div>
+            );
+          }
+          if (list.length === 1) {
+            return (
+              <Link
+                key={i}
+                href={`/workout/${list[0].id}`}
+                aria-label={`View workout on ${monthLabel} ${day}`}
+                className={`${base} active:scale-95 transition-transform`}
+                style={trained}
+              >
+                {day}
+              </Link>
+            );
+          }
+          // Several sessions: tapping opens the list rather than guessing
+          // which one they meant. Brighter fill and a dot per session make it
+          // obvious there's more than one before you tap.
           return (
-            <div key={i} className="flex items-center justify-center aspect-square">
-              {list.length === 0 ? (
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-[12px]"
-                  style={{ color: "var(--fg-dim)" }}
-                >
-                  {day}
-                </div>
-              ) : list.length === 1 ? (
-                <Link
-                  href={`/workout/${list[0].id}`}
-                  aria-label={`View workout on ${monthLabel} ${day}`}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] active:scale-95 transition-transform"
-                  style={ring}
-                >
-                  {day}
-                </Link>
-              ) : (
-                // Several sessions: tapping opens the list rather than guessing
-                // which one they meant. The filled ring and count make it
-                // obvious there's more than one before you tap.
-                <button
-                  type="button"
-                  onClick={() => setOpenDay(isOpen ? null : day)}
-                  aria-expanded={isOpen}
-                  aria-label={`${list.length} workouts on ${monthLabel} ${day} — show all`}
-                  className="relative w-8 h-8 rounded-full flex items-center justify-center text-[12px] active:scale-95 transition-transform"
-                  style={{
-                    ...ring,
-                    background: isOpen ? "#a3e635" : "rgba(163,230,53,0.16)",
-                    color: isOpen ? "#0a0a0a" : "var(--fg)",
-                  }}
-                >
-                  {day}
+            <button
+              key={i}
+              type="button"
+              onClick={() => setOpenDay(isOpen ? null : day)}
+              aria-expanded={isOpen}
+              aria-label={`${list.length} workouts on ${monthLabel} ${day} — show all`}
+              className={`${base} active:scale-95 transition-transform`}
+              style={{
+                ...trained,
+                background: isOpen ? "#a3e635" : "rgba(74,222,128,0.34)",
+                color: isOpen ? "#0a0a0a" : "#dcfce7",
+              }}
+            >
+              {day}
+              <span className="absolute bottom-1 flex gap-[2px]" aria-hidden>
+                {Array.from({ length: Math.min(3, list.length) }, (_, k) => (
                   <span
-                    className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-[3px] rounded-full flex items-center justify-center text-[9px] font-bold"
-                    style={{ background: "#a3e635", color: "#0a0a0a" }}
-                  >
-                    {list.length}
-                  </span>
-                </button>
-              )}
-            </div>
+                    key={k}
+                    className="w-[3px] h-[3px] rounded-full"
+                    style={{ background: isOpen ? "#0a0a0a" : "#a3e635" }}
+                  />
+                ))}
+              </span>
+            </button>
           );
         })}
       </div>
 
-      {Object.keys(workoutsByDay).length === 0 && (
-        <p className="text-[12px] text-center mt-3" style={{ color: "var(--fg-dim)" }}>
-          No sessions in {monthLabel}.
-        </p>
-      )}
-
       {openDay !== null && openList.length > 0 && (
         <div
           className="mt-3 rounded-2xl overflow-hidden"
-          style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
         >
           <div
             className="px-4 py-2.5 text-[11px] font-semibold tracking-[0.12em] uppercase"
