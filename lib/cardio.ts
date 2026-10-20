@@ -32,12 +32,24 @@ export type CardioSpec =
   /// Time cap plus rounds completed. Work/rest intervals don't apply.
   | { kind: "amrap"; capSec: number };
 
+/// Where an activity sits in the exercise picker's dropdowns. Lifts are
+/// "lifting"; everything in this file is one of the others.
+export type ActivityCategory =
+  | "lifting"
+  | "machine"
+  | "outdoor"
+  | "conditioning"
+  | "sport"
+  | "mind";
+
 type CardioEntry = {
   name: string;
   muscleGroup: "Cardio" | "Conditioning";
   spec: CardioSpec;
   /// Other names people search for — "stairmaster" finds the Stair Climber.
   aliases?: string[];
+  /// Defaults: Conditioning → "conditioning", Cardio → "machine".
+  category?: Exclude<ActivityCategory, "lifting">;
 };
 
 const machine = (...fields: CardioField[]): CardioSpec => ({
@@ -135,30 +147,35 @@ export const CARDIO_EXERCISES: CardioEntry[] = [
   {
     name: "Outdoor Run",
     muscleGroup: "Cardio",
+    category: "outdoor",
     spec: machine("time", "distance", "calories"),
     aliases: ["Run", "Running", "Jog"],
   },
   {
     name: "Outdoor Walk",
     muscleGroup: "Cardio",
+    category: "outdoor",
     spec: machine("time", "distance", "calories"),
     aliases: ["Walk", "Walking"],
   },
   {
     name: "Hike",
     muscleGroup: "Cardio",
+    category: "outdoor",
     spec: machine("time", "distance", "calories"),
-    aliases: ["Hiking", "Rucking", "Ruck"],
+    aliases: ["Hiking"],
   },
   {
     name: "Outdoor Cycling",
     muscleGroup: "Cardio",
+    category: "outdoor",
     spec: machine("time", "distance", "calories"),
     aliases: ["Bike Ride", "Cycling", "Road Bike"],
   },
   {
     name: "Swimming",
     muscleGroup: "Cardio",
+    category: "outdoor",
     spec: machine("time", "distance", "calories"),
     aliases: ["Swim", "Laps"],
   },
@@ -236,6 +253,282 @@ export const CARDIO_EXERCISES: CardioEntry[] = [
     spec: circuit(4, 45, 15, ["KB Swings"]),
     aliases: ["Kettlebell", "KB"],
   },
+
+  // Outdoor, water and snow.
+  {
+    name: "Trail Run",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "distance", "calories"),
+    aliases: ["Trail Running", "Trail"],
+  },
+  {
+    name: "Mountain Biking",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "distance", "calories"),
+    aliases: ["MTB", "Mountain Bike", "Cycling"],
+  },
+  {
+    name: "Rucking",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "distance", "calories"),
+    aliases: ["Ruck", "Weighted Walk"],
+  },
+  {
+    name: "Open Water Swim",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "distance", "calories"),
+    aliases: ["Swim", "Lake Swim", "Ocean Swim"],
+  },
+  {
+    name: "Kayaking",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "distance", "calories"),
+    aliases: ["Kayak", "Canoe", "Paddling"],
+  },
+  {
+    name: "Stand-Up Paddleboarding",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "distance", "calories"),
+    aliases: ["SUP", "Paddleboard", "Paddling"],
+  },
+  {
+    name: "Downhill Skiing",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "distance", "calories"),
+    aliases: ["Skiing", "Ski"],
+  },
+  {
+    name: "Snowboarding",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "distance", "calories"),
+    aliases: ["Snowboard"],
+  },
+  {
+    name: "Cross-Country Skiing",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "distance", "calories"),
+    aliases: ["XC Ski", "Nordic Ski", "Skiing"],
+  },
+  {
+    name: "Snowshoeing",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "distance", "calories"),
+    aliases: ["Snowshoe"],
+  },
+  {
+    name: "Inline Skating",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "distance", "calories"),
+    aliases: ["Rollerblading", "Skating"],
+  },
+  {
+    name: "Ice Skating",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "distance", "calories"),
+    aliases: ["Skating"],
+  },
+  {
+    name: "Surfing",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "calories"),
+    aliases: ["Surf"],
+  },
+  {
+    name: "Rock Climbing",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "calories"),
+    aliases: ["Climbing", "Outdoor Climbing"],
+  },
+  {
+    name: "Golf",
+    muscleGroup: "Cardio",
+    category: "outdoor",
+    spec: machine("time", "distance", "calories"),
+    aliases: ["Golfing", "18 Holes", "9 Holes"],
+  },
+
+  // Sports and combat.
+  {
+    name: "Basketball",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+    aliases: ["Hoops", "Pickup"],
+  },
+  {
+    name: "Soccer",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+    aliases: ["Football", "Futsal"],
+  },
+  {
+    name: "Tennis",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+  },
+  {
+    name: "Pickleball",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+  },
+  {
+    name: "Squash",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+    aliases: ["Racquetball"],
+  },
+  {
+    name: "Badminton",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+  },
+  {
+    name: "Volleyball",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+    aliases: ["Beach Volleyball"],
+  },
+  {
+    name: "Hockey",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+    aliases: ["Ice Hockey", "Ball Hockey"],
+  },
+  {
+    name: "Flag Football",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+    aliases: ["Football"],
+  },
+  {
+    name: "Baseball / Softball",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+    aliases: ["Baseball", "Softball"],
+  },
+  {
+    name: "Ultimate Frisbee",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+    aliases: ["Ultimate", "Frisbee"],
+  },
+  {
+    name: "Brazilian Jiu-Jitsu",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+    aliases: ["BJJ", "Jiu Jitsu", "Grappling"],
+  },
+  {
+    name: "Muay Thai",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+    aliases: ["Kickboxing", "Thai Boxing"],
+  },
+  {
+    name: "Martial Arts",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+    aliases: ["MMA", "Karate", "Taekwondo", "Judo"],
+  },
+  {
+    name: "Wrestling",
+    muscleGroup: "Cardio",
+    category: "sport",
+    spec: machine("time", "calories"),
+    aliases: ["Grappling"],
+  },
+
+  // Mind and body.
+  {
+    name: "Yoga",
+    muscleGroup: "Cardio",
+    category: "mind",
+    spec: machine("time", "calories"),
+    aliases: ["Vinyasa", "Flow"],
+  },
+  {
+    name: "Hot Yoga",
+    muscleGroup: "Cardio",
+    category: "mind",
+    spec: machine("time", "calories"),
+    aliases: ["Bikram", "Yoga"],
+  },
+  {
+    name: "Pilates",
+    muscleGroup: "Cardio",
+    category: "mind",
+    spec: machine("time", "calories"),
+    aliases: ["Reformer"],
+  },
+  {
+    name: "Barre",
+    muscleGroup: "Cardio",
+    category: "mind",
+    spec: machine("time", "calories"),
+  },
+  {
+    name: "Stretching",
+    muscleGroup: "Cardio",
+    category: "mind",
+    spec: machine("time", "calories"),
+    aliases: ["Stretch", "Flexibility"],
+  },
+  {
+    name: "Mobility Flow",
+    muscleGroup: "Cardio",
+    category: "mind",
+    spec: machine("time", "calories"),
+    aliases: ["Mobility"],
+  },
+  {
+    name: "Dance",
+    muscleGroup: "Cardio",
+    category: "mind",
+    spec: machine("time", "calories"),
+    aliases: ["Zumba", "Dance Class"],
+  },
+  {
+    name: "Bouldering",
+    muscleGroup: "Cardio",
+    category: "mind",
+    spec: machine("time", "calories"),
+    aliases: ["Climbing", "Climbing Gym"],
+  },
+
+  // More machines.
+  {
+    name: "Treadmill Walk",
+    muscleGroup: "Cardio",
+    spec: machine("time", "distance", "speed", "incline"),
+    aliases: ["Treadmill", "Walking"],
+  },
 ];
 
 const BY_NAME = new Map(
@@ -243,6 +536,20 @@ const BY_NAME = new Map(
 );
 
 export const CARDIO_GROUPS = new Set(["Cardio", "Conditioning"]);
+
+/// Which picker dropdown an exercise belongs in. A custom exercise filed
+/// under Cardio lands with the machines, Conditioning with conditioning,
+/// anything else with the lifts.
+export function activityCategory(
+  name: string,
+  muscleGroup?: string | null,
+): ActivityCategory {
+  const hit = BY_NAME.get(name.trim().toLowerCase());
+  if (hit) return hit.category ?? (hit.muscleGroup === "Conditioning" ? "conditioning" : "machine");
+  if (muscleGroup === "Cardio") return "machine";
+  if (muscleGroup === "Conditioning") return "conditioning";
+  return "lifting";
+}
 
 /// How a card for this exercise should look, or null for an ordinary lift.
 ///

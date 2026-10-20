@@ -14,25 +14,52 @@ import {
 } from "@/lib/exercises";
 import CardioCard from "@/components/CardioCard";
 import {
+  activityCategory,
   CARDIO_SET_TYPE,
   cardioAliases,
   cardioSpecFor,
   cardioTotal,
   defaultCardioInput,
   fromCardioMetrics,
+  type ActivityCategory,
   type CardioInput,
 } from "@/lib/cardio";
 
-/// One-tap adds at the top of the picker. Stair climber first: it's the
-/// single most requested thing to log alongside a lift.
-const QUICK_CARDIO = [
-  "Stair Climber",
-  "Treadmill Incline Walk",
-  "Air Bike",
-  "Rowing Machine",
-  "HIIT Circuit",
-  "Outdoor Run",
+/// The picker's dropdowns, in the order they're listed. Every exercise in the
+/// library lands in exactly one (see activityCategory).
+const CATEGORIES: {
+  key: ActivityCategory;
+  label: string;
+  blurb: string;
+  emoji: string;
+  tint: string;
+}[] = [
+  { key: "lifting", label: "Weightlifting", blurb: "Barbell, dumbbell, machines, bodyweight", emoji: "🏋️", tint: "34,197,94" },
+  { key: "machine", label: "Cardio machines", blurb: "Treadmill, spin, rower, stairs", emoji: "🚴", tint: "56,189,248" },
+  { key: "outdoor", label: "Outdoors", blurb: "Run, hike, ride, swim, ski, paddle", emoji: "🥾", tint: "163,230,53" },
+  { key: "conditioning", label: "HIIT & conditioning", blurb: "Intervals, circuits, EMOM, AMRAP", emoji: "🔥", tint: "249,115,22" },
+  { key: "sport", label: "Sports & combat", blurb: "Court, field, ice, mat", emoji: "🏀", tint: "250,204,21" },
+  { key: "mind", label: "Mind & body", blurb: "Yoga, pilates, stretching, dance", emoji: "🧘", tint: "192,132,252" },
 ];
+
+/// Weightlifting's filter chips, in body order rather than A–Z.
+const MUSCLE_ORDER = [
+  "Chest",
+  "Back",
+  "Shoulders",
+  "Biceps",
+  "Triceps",
+  "Forearms",
+  "Quads",
+  "Hamstrings",
+  "Glutes",
+  "Calves",
+  "Core",
+];
+const muscleRank = (g: string) => {
+  const i = MUSCLE_ORDER.indexOf(g);
+  return i === -1 ? (g === "Other" ? 99 : 50) : i;
+};
 
 // Common gym shorthand → canonical phrases that appear in the exercise
 // names. Lets a user type "db bench" and find "Flat Dumbbell Bench
@@ -188,6 +215,11 @@ export default function ExerciseLogger({
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  // Which picker dropdown is open, and Weightlifting's muscle filter. Kept
+  // across openings so the next lift starts where the last one was found.
+  const [openCat, setOpenCat] = useState<ActivityCategory | null>(null);
+  const [muscle, setMuscle] = useState<string | null>(null);
+  const catRefs = useRef<Partial<Record<ActivityCategory, HTMLDivElement | null>>>({});
   const [showVoice, setShowVoice] = useState(false);
   const [previousData, setPreviousData] = useState<
     Record<string, PreviousData>
@@ -310,17 +342,39 @@ export default function ExerciseLogger({
       return a.name.localeCompare(b.name);
     });
 
-  // Group by muscle when not actively searching, so the dropdown is
-  // scannable as "Back ▸ ...", "Biceps ▸ ...", etc.
-  const grouped = search
+  // Not searching: the library split into the category dropdowns. Lifts
+  // are further grouped by muscle, in body order.
+  const byCategory = search
     ? null
-    : filtered.reduce<{ group: string; items: Exercise[] }[]>((acc, ex) => {
-        const group = ex.muscleGroup ?? "Other";
-        const last = acc[acc.length - 1];
-        if (last && last.group === group) last.items.push(ex);
-        else acc.push({ group, items: [ex] });
-        return acc;
-      }, []);
+    : (() => {
+        const out = {} as Record<ActivityCategory, Exercise[]>;
+        for (const c of CATEGORIES) out[c.key] = [];
+        for (const ex of filtered) out[activityCategory(ex.name, ex.muscleGroup)].push(ex);
+        for (const c of CATEGORIES) out[c.key].sort((a, b) => a.name.localeCompare(b.name));
+        return out;
+      })();
+  const liftGroups = byCategory
+    ? byCategory.lifting
+        .reduce<{ group: string; items: Exercise[] }[]>((acc, ex) => {
+          const group = ex.muscleGroup ?? "Other";
+          const hit = acc.find((g) => g.group === group);
+          if (hit) hit.items.push(ex);
+          else acc.push({ group, items: [ex] });
+          return acc;
+        }, [])
+        .sort((a, b) => muscleRank(a.group) - muscleRank(b.group) || a.group.localeCompare(b.group))
+    : [];
+
+  const toggleCat = (key: ActivityCategory) => {
+    const next = openCat === key ? null : key;
+    setOpenCat(next);
+    if (!next) return;
+    // Bring the opened section's header to the top once the one above it
+    // has folded away.
+    requestAnimationFrame(() =>
+      catRefs.current[next]?.scrollIntoView({ block: "start", behavior: "smooth" }),
+    );
+  };
 
   const addExercise = async (ex: Exercise) => {
     requestedPrev.current.add(ex.id);
@@ -1397,61 +1451,117 @@ export default function ExerciseLogger({
             />
           </div>
           <div className="flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-6">
-            {grouped && swapTargetIdx === null && (
-              <div className="mb-3">
-                <p
-                  className="label text-[10px] mb-1.5 px-1"
-                  style={{ color: "var(--fg-dim)" }}
-                >
-                  Cardio &amp; HIIT
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {QUICK_CARDIO.map((name) => {
-                    const hit = allExercises.find((e) => e.name === name);
-                    if (!hit) return null;
-                    return (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() => addExercise(hit)}
-                        className="text-[12px] px-2.5 py-1.5 rounded-full active:scale-95 transition-transform"
-                        style={{
-                          background: "var(--bg-elevated)",
-                          border: "1px solid var(--border)",
-                          color: "var(--fg-muted)",
-                        }}
-                      >
-                        {name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            {grouped ? (
-              <div className="space-y-3">
-                {grouped.map(({ group, items }) => (
-                  <div key={group}>
-                    <p
-                      className="label text-[10px] mb-1 px-1 sticky top-0 py-1"
+            {byCategory ? (
+              <div className="space-y-2">
+                {CATEGORIES.map((c) => {
+                  const items = byCategory[c.key];
+                  if (items.length === 0) return null;
+                  const isOpen = openCat === c.key;
+                  const groups =
+                    c.key === "lifting"
+                      ? liftGroups.filter((g) => !muscle || g.group === muscle)
+                      : [{ group: "", items }];
+                  return (
+                    <div
+                      key={c.key}
+                      ref={(el) => {
+                        catRefs.current[c.key] = el;
+                      }}
+                      className="rounded-2xl overflow-hidden"
                       style={{
-                        color: "var(--fg-dim)",
-                        background: "var(--bg)",
+                        scrollMarginTop: 4,
+                        background: isOpen
+                          ? `linear-gradient(180deg, rgba(${c.tint},0.08) 0%, var(--bg-card) 120px)`
+                          : "var(--bg-card)",
+                        border: `1px solid ${isOpen ? `rgba(${c.tint},0.35)` : "var(--border)"}`,
+                        transition: "border-color 160ms",
                       }}
                     >
-                      {group}
-                    </p>
-                    <div className="space-y-0.5">
-                      {items.map((ex) => (
-                        <ExerciseRow
-                          key={ex.id}
-                          ex={ex}
-                          onClick={() => addExercise(ex)}
-                        />
-                      ))}
+                      <button
+                        type="button"
+                        onClick={() => toggleCat(c.key)}
+                        aria-expanded={isOpen}
+                        className="w-full flex items-center gap-3 px-3.5 py-3 text-left active:opacity-80"
+                      >
+                        <span
+                          className="w-11 h-11 rounded-xl flex items-center justify-center text-[21px] shrink-0"
+                          style={{ background: `rgba(${c.tint},0.16)` }}
+                          aria-hidden
+                        >
+                          {c.emoji}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[15px] font-bold tracking-tight">{c.label}</span>
+                          <span className="block text-[12px] mt-0.5 truncate" style={{ color: "var(--fg-muted)" }}>
+                            {c.blurb}
+                          </span>
+                        </span>
+                        <span className="text-[12px] tabular-nums shrink-0" style={{ color: "var(--fg-dim)" }}>
+                          {items.length}
+                        </span>
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="var(--fg-dim)"
+                          strokeWidth="2.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                          className="shrink-0"
+                          style={{ transform: isOpen ? "rotate(180deg)" : undefined, transition: "transform 160ms" }}
+                        >
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </button>
+
+                      {isOpen && (
+                        <div className="pb-2" style={{ borderTop: "1px solid var(--border)" }}>
+                          {c.key === "lifting" && (
+                            <div className="flex gap-1.5 overflow-x-auto px-3.5 py-2.5 scrollbar-hide">
+                              {[null, ...liftGroups.map((g) => g.group)].map((g) => {
+                                const on = muscle === g;
+                                return (
+                                  <button
+                                    key={g ?? "all"}
+                                    type="button"
+                                    onClick={() => setMuscle(g)}
+                                    className="h-8 px-3 rounded-full text-[12px] font-semibold whitespace-nowrap shrink-0"
+                                    style={
+                                      on
+                                        ? { background: `rgba(${c.tint},0.18)`, border: `1px solid rgba(${c.tint},0.5)`, color: "var(--fg)" }
+                                        : { background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--fg-muted)" }
+                                    }
+                                  >
+                                    {g ?? "All"}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {groups.map(({ group, items: list }) => (
+                            <div key={group || c.key} className="px-1.5">
+                              {group && (
+                                <p className="label text-[10px] px-2 pt-2 pb-1" style={{ color: "var(--fg-dim)" }}>
+                                  {group}
+                                </p>
+                              )}
+                              {list.map((ex) => (
+                                <ExerciseRow
+                                  key={ex.id}
+                                  ex={ex}
+                                  detail={c.key === "lifting" ? undefined : ""}
+                                  onClick={() => addExercise(ex)}
+                                />
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="space-y-0.5">
@@ -2432,11 +2542,15 @@ function SetRow({
 function ExerciseRow({
   ex,
   onClick,
+  detail: detailOverride,
 }: {
   ex: Exercise;
   onClick: () => void;
+  /// Replaces the muscle/category tag on the right; "" hides it (inside a
+  /// category dropdown it would only repeat the heading).
+  detail?: string;
 }) {
-  const detail = (() => {
+  const detail = detailOverride ?? (() => {
     // "Rowing Machine" would otherwise read as a lat exercise.
     if (cardioSpecFor(ex.name, ex.muscleGroup)) return ex.muscleGroup ?? "Cardio";
     const s = specificMuscleFor(ex.name);
