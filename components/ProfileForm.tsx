@@ -410,158 +410,8 @@ export default function ProfileForm({
               />
             </div>
           </div>
-          <div>
-            <label className="label block mb-1.5">Bio</label>
-            <textarea
-              value={form.bio}
-              onChange={(e) => set("bio")(e.target.value)}
-              placeholder="A bit about you…"
-              rows={2}
-              className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none leading-relaxed"
-              style={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
-                color: "var(--fg)",
-              }}
-            />
-          </div>
-
-          <p className="label text-[10px] pt-3" style={{ color: "var(--accent)" }}>
-            Training
-          </p>
-          <div id="cycle" style={{ scrollMarginTop: 16 }} />
-          <PeriodizationEditor
-            value={periodization}
-            onChange={setPeriodization}
-            trainedDates={trainedDates}
-            deloadDates={deloadDates}
-          />
-          {cycleError && (
-            <p className="text-[12px] -mt-1" style={{ color: "#f87171" }}>
-              {cycleError}
-            </p>
-          )}
-
-          <div className="grid grid-cols-2 gap-2.5">
-            <Field
-              label="Days / week"
-              type="number"
-              value={form.trainingDays}
-              onChange={set("trainingDays")}
-              placeholder="4"
-            />
-            <Field
-              label="Preferred split"
-              value={form.preferredSplit}
-              onChange={set("preferredSplit")}
-              placeholder="e.g. PPL"
-            />
-          </div>
-          <div>
-            <label className="label block mb-1.5">
-              Injuries / limitations
-            </label>
-            <textarea
-              value={form.injuries}
-              onChange={(e) => set("injuries")(e.target.value)}
-              placeholder="e.g. Tweaky left shoulder on heavy overhead. Warm up longer for lower back."
-              rows={2}
-              className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none leading-relaxed"
-              style={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
-                color: "var(--fg)",
-              }}
-            />
-          </div>
-
-          <p className="label text-[10px] pt-3" style={{ color: "var(--accent)" }}>
-            Goals
-          </p>
-          <div>
-            <label className="label block mb-1.5">Nutrition goal</label>
-            <Select
-              value={form.trainingPhase}
-              onChange={set("trainingPhase")}
-              options={[
-                { value: "", label: "—" },
-                { value: "CUT", label: "Cut" },
-                { value: "BULK", label: "Lean bulk" },
-                { value: "MAINTAIN", label: "Maintain" },
-                { value: "RECOMP", label: "Recomp" },
-                // Older choices stay selectable for whoever already has them.
-                ...(form.trainingPhase === "PEAK"
-                  ? [{ value: "PEAK", label: "Peaking" }]
-                  : []),
-                ...(form.trainingPhase === "OFFSEASON"
-                  ? [{ value: "OFFSEASON", label: "Off-season" }]
-                  : []),
-              ]}
-            />
-            <p className="text-[11px] mt-1.5" style={{ color: "var(--fg-dim)" }}>
-              Sets your Fuel Score&apos;s calorie and protein targets.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <Field
-              label="Move goal"
-              type="number"
-              value={form.moveGoalKcal}
-              onChange={set("moveGoalKcal")}
-              placeholder="500"
-              suffix="kcal"
-            />
-            <Field
-              label="Exercise goal"
-              type="number"
-              value={form.exerciseGoalMin}
-              onChange={set("exerciseGoalMin")}
-              placeholder="30"
-              suffix="min"
-            />
-          </div>
-
-          <div>
-            <div className="flex items-baseline justify-between mb-1.5">
-              <label className="label">
-                Coach AI notes
-              </label>
-              <span
-                className="text-[10px]"
-                style={{ color: "var(--accent)" }}
-              >
-                Feeds the AI prompt
-              </span>
-            </div>
-            <textarea
-              value={form.coachPrompt}
-              onChange={(e) => set("coachPrompt")(e.target.value)}
-              placeholder={`Anything the Coach AI should use when programming for you. Examples:
-• Priority body parts: "Chest and shoulders 3× / week, arms 2× / week"
-• Tone: "Be blunt, no fluff"
-• Equipment: "Only barbell + dumbbells up to 80lb"
-• Schedule: "No sessions Tuesdays or Sundays"
-• Technique notes: "Left shoulder prefers DB over BB overhead press"`}
-              rows={7}
-              className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none leading-relaxed"
-              style={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
-                color: "var(--fg)",
-              }}
-            />
-            <p
-              className="text-[11px] mt-1.5 leading-snug"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              Everything you write here is injected into your Coach AI&apos;s
-              prompt on every message, so programming, workout suggestions,
-              and advice always respect it.
-            </p>
-          </div>
-
-          {/* Body measurements — nested, so it only appears once Training
-              profile is expanded. */}
+          {/* Body measurements — nested under body weight, so the body stats sit
+              together. */}
           <div
             className="rounded-xl overflow-hidden"
             style={{
@@ -762,6 +612,156 @@ export default function ProfileForm({
                 </div>
               </div>
             )}
+          </div>
+
+          <div>
+            <label className="label block mb-1.5">Bio</label>
+            <textarea
+              value={form.bio}
+              onChange={(e) => set("bio")(e.target.value)}
+              placeholder="A bit about you…"
+              rows={2}
+              className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none leading-relaxed"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
+              }}
+            />
+          </div>
+
+          <p className="label text-[10px] pt-3" style={{ color: "var(--accent)" }}>
+            Training
+          </p>
+          <div id="cycle" style={{ scrollMarginTop: 16 }} />
+          <PeriodizationEditor
+            value={periodization}
+            onChange={setPeriodization}
+            trainedDates={trainedDates}
+            deloadDates={deloadDates}
+          />
+          {cycleError && (
+            <p className="text-[12px] -mt-1" style={{ color: "#f87171" }}>
+              {cycleError}
+            </p>
+          )}
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <Field
+              label="Days / week"
+              type="number"
+              value={form.trainingDays}
+              onChange={set("trainingDays")}
+              placeholder="4"
+            />
+            <Field
+              label="Preferred split"
+              value={form.preferredSplit}
+              onChange={set("preferredSplit")}
+              placeholder="e.g. PPL"
+            />
+          </div>
+          <div>
+            <label className="label block mb-1.5">
+              Injuries / limitations
+            </label>
+            <textarea
+              value={form.injuries}
+              onChange={(e) => set("injuries")(e.target.value)}
+              placeholder="e.g. Tweaky left shoulder on heavy overhead. Warm up longer for lower back."
+              rows={2}
+              className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none leading-relaxed"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
+              }}
+            />
+          </div>
+
+          <p className="label text-[10px] pt-3" style={{ color: "var(--accent)" }}>
+            Goals
+          </p>
+          <div>
+            <label className="label block mb-1.5">Nutrition goal</label>
+            <Select
+              value={form.trainingPhase}
+              onChange={set("trainingPhase")}
+              options={[
+                { value: "", label: "—" },
+                { value: "CUT", label: "Cut" },
+                { value: "BULK", label: "Lean bulk" },
+                { value: "MAINTAIN", label: "Maintain" },
+                { value: "RECOMP", label: "Recomp" },
+                // Older choices stay selectable for whoever already has them.
+                ...(form.trainingPhase === "PEAK"
+                  ? [{ value: "PEAK", label: "Peaking" }]
+                  : []),
+                ...(form.trainingPhase === "OFFSEASON"
+                  ? [{ value: "OFFSEASON", label: "Off-season" }]
+                  : []),
+              ]}
+            />
+            <p className="text-[11px] mt-1.5" style={{ color: "var(--fg-dim)" }}>
+              Sets your Fuel Score&apos;s calorie and protein targets.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <Field
+              label="Move goal"
+              type="number"
+              value={form.moveGoalKcal}
+              onChange={set("moveGoalKcal")}
+              placeholder="500"
+              suffix="kcal"
+            />
+            <Field
+              label="Exercise goal"
+              type="number"
+              value={form.exerciseGoalMin}
+              onChange={set("exerciseGoalMin")}
+              placeholder="30"
+              suffix="min"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-baseline justify-between mb-1.5">
+              <label className="label">
+                Coach AI notes
+              </label>
+              <span
+                className="text-[10px]"
+                style={{ color: "var(--accent)" }}
+              >
+                Feeds the AI prompt
+              </span>
+            </div>
+            <textarea
+              value={form.coachPrompt}
+              onChange={(e) => set("coachPrompt")(e.target.value)}
+              placeholder={`Anything the Coach AI should use when programming for you. Examples:
+• Priority body parts: "Chest and shoulders 3× / week, arms 2× / week"
+• Tone: "Be blunt, no fluff"
+• Equipment: "Only barbell + dumbbells up to 80lb"
+• Schedule: "No sessions Tuesdays or Sundays"
+• Technique notes: "Left shoulder prefers DB over BB overhead press"`}
+              rows={7}
+              className="w-full rounded-xl px-4 py-3 text-[13px] focus:outline-none resize-none leading-relaxed"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
+              }}
+            />
+            <p
+              className="text-[11px] mt-1.5 leading-snug"
+              style={{ color: "var(--fg-dim)" }}
+            >
+              Everything you write here is injected into your Coach AI&apos;s
+              prompt on every message, so programming, workout suggestions,
+              and advice always respect it.
+            </p>
           </div>
 
           {report && (
