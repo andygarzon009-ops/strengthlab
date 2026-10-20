@@ -108,7 +108,12 @@ export type FuelWeek =
 /// Thin wrapper over getFuelWeek so today's numbers can never drift from the
 /// week's.
 export async function getTodayFuel(userId: string): Promise<TodayFuel> {
-  const week = await getFuelWeek(userId);
+  return todayOf(await getFuelWeek(userId));
+}
+
+/// Today's slice of an already-computed week, for callers that also want the
+/// days behind it (the coach).
+export function todayOf(week: FuelWeek): TodayFuel {
   if (week.state !== "ok") return week;
   const today = week.days[week.days.length - 1];
   return {

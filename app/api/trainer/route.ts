@@ -27,7 +27,8 @@ import {
   formatMobilityLibraryForPrompt,
   matchTemplate,
 } from "@/lib/mobilityLibrary";
-import { getTodayFuel } from "@/lib/nutritionToday";
+import { getFuelWeek, todayOf } from "@/lib/nutritionToday";
+import { asksAboutFood, foodHistoryContext, requestedFoodDays } from "@/lib/foodHistory";
 import { asksAboutSleep, requestedNights, sleepHistoryContext } from "@/lib/sleepDigest";
 import { ageFromBirthDate, estimateMaxHr } from "@/lib/hrZones";
 import {
@@ -215,7 +216,7 @@ export async function POST(req: NextRequest) {
       history,
       goals,
       healthAccount,
-      fuel,
+      fuelWeek,
       workoutDates,
       liveDraft,
       measurementHistory,
@@ -268,7 +269,8 @@ export async function POST(req: NextRequest) {
       // Live Google Health intake — fetched in parallel with the DB reads
       // (not serially after) so it never adds latency before the coach can
       // start streaming. Degrades to null on any failure.
-      getTodayFuel(userId).catch(() => null),
+      // The whole week, not just today: the coach gets a line per past day too.
+      getFuelWeek(userId).catch(() => null),
       // Just the dates, ~18 months back: enough to tell which weeks of the
       // cycle were actually trained. The `take: 30` workouts above can't
       // answer that — 30 sessions is ~7 weeks for a 4-day lifter, and a gap
@@ -864,6 +866,41 @@ ${lines}${reading ? `\n  Read: ${reading}` : ""}
   Use this. A waist trending up in a growth block means the surplus is too aggressive; a limb flat for months means that lift needs volume. Cite the number when you act on it, and never contradict it.`;
     })();
 
+    const fuel = fuelWeek ? todayOf(fuelWeek) : null;
+
+    // Local date → what was trained, for the week and food-history lines.
+    const localDateOf = (d: Date) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+    const trainedOn = new Map<string, string>();
+    for (const w of workoutDates) {
+      const k = localDateOf(w.date);
+      const label = labelForType(w.type);
+      trainedOn.set(k, trainedOn.has(k) ? `${trainedOn.get(k)} + ${label}` : label);
+    }
+
+    // The six days before today, one line each: the trend the coach was told
+    // to use ("foods from their recent days") but never actually had.
+    const fuelWeekLines = (() => {
+      if (!fuelWeek || fuelWeek.state !== "ok") return "";
+      const past = fuelWeek.days.slice(0, -1);
+      if (past.length === 0) return "";
+      const rows = past.map((d) => {
+        const dow = new Date(`${d.date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+        const tr = trainedOn.get(d.date);
+        const day = `${d.date} ${dow}${tr ? ` [trained: ${tr}]` : " [rest]"}`;
+        if (!d.logged) return `  ${day}: nothing logged (unknown, not zero)`;
+        return `  ${day}: ${Math.round(d.intake.kcal)} / ${d.targets.calorieTargetKcal} kcal, ${Math.round(d.intake.proteinG)} / ${d.targets.proteinTargetG}g protein — Fuel ${d.score.score} (${d.score.rating})`;
+      });
+      return `\nLAST 6 DAYS (StrengthLab food log, scored against each day's own targets):\n${rows.join("\n")}`;
+    })();
+
+    // Day-by-day food log for food questions. After the Promise.all because
+    // it needs today's local date and the training days; one indexed query.
+    const foodHistory =
+      fuelWeek && fuelWeek.state === "ok" && asksAboutFood(message)
+        ? await foodHistoryContext(userId, fuelWeek.today, requestedFoodDays(message), trainedOn).catch(() => "")
+        : "";
+
     const nutritionContext = (() => {
       try {
         const f = fuel;
@@ -875,10 +912,10 @@ ${lines}${reading ? `\n  Read: ${reading}` : ""}
         if (f.state === "no-profile")
           return "NUTRITION (intake): bodyweight not set, so no intake targets. If diet comes up, tell the athlete to add bodyweight + training phase in their profile.";
         if (!f.loggedToday)
-          return `NUTRITION (today, from Google Health — a HARD INPUT alongside training):
+          return `NUTRITION (today, from the StrengthLab food log — a HARD INPUT alongside training):
 - Nothing logged yet today.
 - Targets for ${f.targets.phaseLabel}: ${f.targets.proteinTargetG}g protein, ~${f.targets.calorieTargetKcal} kcal (maintenance ~${f.targets.maintenanceKcal}).
-If diet/recovery comes up, nudge the athlete to log meals so you can coach intake.`;
+If diet/recovery comes up, nudge the athlete to log meals so you can coach intake.${fuelWeekLines}`;
         const i = f.intake;
         // The actual diary, grouped by meal — this is what lets the coach say
         // "swap the butter for another egg" instead of "eat more protein".
@@ -944,7 +981,7 @@ If diet/recovery comes up, nudge the athlete to log meals so you can coach intak
         const proteinShortfall =
           left(i.proteinG, f.targets.proteinTargetG) - leftProtein;
 
-        return `NUTRITION (today, from Google Health — a HARD INPUT alongside training):
+        return `NUTRITION (today, from the StrengthLab food log — a HARD INPUT alongside training):
 - Phase: ${f.targets.phaseLabel}. ${
           f.partial
             ? `THE DAY IS NOT OVER. What follows is progress, not a verdict. Do NOT tell the athlete they are "under-eating", "in a deficit", or "short of surplus" — the meals they haven't eaten yet are not a failure. They are ${f.progress.pct}% of the way to today's targets.`
@@ -992,7 +1029,7 @@ Use this: you can see the actual foods, so coach the FOOD, not just the macros �
           f.partial
             ? ` Judge the day only once it is done. Mid-day the useful answer is what to eat next, sized to the gap above — never a warning about under-eating, and never a "deficit" framing when meals are still ahead of them.`
             : ` Protein short of target undercuts muscle retention (cut) or growth (bulk), and calories drifting the wrong way for the phase (surplus on a cut, deficit on a bulk) is worth flagging.`
-        }`;
+        }${fuelWeekLines}`;
       } catch {
         return "NUTRITION (intake): temporarily unavailable.";
       }
@@ -1415,6 +1452,7 @@ ${measurementTrend}
 ${recoveryContext}
 ${sleepHistory ? `\n${sleepHistory}\n` : ""}
 ${nutritionContext}
+${foodHistory ? `\n${foodHistory}\n` : ""}
 ${liveSession.block}
 
 ACTIVE GOALS (explicit targets the athlete is chasing):
