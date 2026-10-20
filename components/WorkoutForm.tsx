@@ -1479,8 +1479,13 @@ export default function WorkoutForm({
         <button
           onClick={handleSave}
           disabled={!canSave || pending}
-          className="btn-accent flex-1 py-3.5 rounded-xl text-[15px] font-semibold tracking-tight"
+          className="btn-accent flex-1 min-h-[52px] rounded-[14px] text-[15px] font-bold tracking-tight flex items-center justify-center gap-2"
         >
+          {!pending && (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M5 12.5l4.5 4.5L19 7.5" />
+            </svg>
+          )}
           {pending ? "Saving…" : mode === "edit" ? "Save changes" : "Log workout"}
         </button>
         {mode === "create" && (
