@@ -12,7 +12,6 @@ import {
 } from "@/lib/actions/workoutDrafts";
 import {
   STRENGTH_SPLITS,
-  FEELING_OPTIONS,
   shapeForType,
   labelForType,
   detectSplit,
@@ -1462,37 +1461,6 @@ export default function WorkoutForm({
       )}
 
       <div className="mt-6 space-y-2.5">
-        <div>
-          <p className="label mb-2">Feeling</p>
-          <div className="flex gap-2">
-            {FEELING_OPTIONS.map((f) => {
-              const selected = feeling === f.value;
-              return (
-                <button
-                  key={f.value}
-                  onClick={() => setFeeling(selected ? "" : f.value)}
-                  className="flex-1 py-2.5 rounded-xl text-[12px] font-medium transition-all"
-                  style={
-                    selected
-                      ? {
-                          background: "var(--accent-dim)",
-                          border: "1px solid rgba(34,197,94,0.4)",
-                          color: "var(--accent)",
-                        }
-                      : {
-                          background: "var(--bg-card)",
-                          border: "1px solid var(--border)",
-                          color: "var(--fg-muted)",
-                        }
-                  }
-                >
-                  {f.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
