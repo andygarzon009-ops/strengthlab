@@ -1395,8 +1395,9 @@ export default function WorkoutForm({
           today's plan and the athlete is standing in the gym holding it. The
           date picker and its Today/Yesterday shortcuts are only noise there,
           so they're left out. The date still saves as today, set by
-          /api/coach-plan. */}
-      {!initial?.fromCoachPlan && (
+          /api/coach-plan. Same once the clock is running: a live session is
+          happening today, so there's no date to pick. */}
+      {!initial?.fromCoachPlan && !startedAt && (
         <DateSelector date={date} setDate={setDate} />
       )}
 

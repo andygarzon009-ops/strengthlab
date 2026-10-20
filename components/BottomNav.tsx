@@ -8,6 +8,7 @@ import {
   subscribeStretchSession,
 } from "@/lib/stretchSession";
 import NewChooser from "@/components/NewChooser";
+import { hasLiveWorkout } from "@/lib/liveWorkout";
 
 const navItems = [
   { href: "/", label: "Feed" },
@@ -81,6 +82,15 @@ export default function BottomNav() {
     return subscribeStretchSession(sync);
   }, [pathname]);
 
+  // Same idea for a live workout: once the clock is running, the button goes
+  // back to /log, where the draft restores the session. Checked on every
+  // navigation, which is the only time the button is visible off /log.
+  const [training, setTraining] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTraining(hasLiveWorkout());
+  }, [pathname]);
+
   return (
     <>
     {/* Content fades into the bar instead of hard-clipping at its edge.
@@ -124,6 +134,21 @@ export default function BottomNav() {
               background: "var(--accent)",
               boxShadow: "0 8px 24px -6px rgba(34, 197, 94, 0.5), 0 0 0 4px var(--bg)",
             };
+            if (training) {
+              return (
+                <Link
+                  key={item.href}
+                  href="/log"
+                  className={accentClass}
+                  style={accentStyle}
+                  aria-label="Back to your workout"
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="#0a0a0a" aria-hidden>
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </Link>
+              );
+            }
             if (stretching) {
               return (
                 <Link
