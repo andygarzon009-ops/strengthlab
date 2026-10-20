@@ -14,6 +14,7 @@ import {
 } from "@/lib/exercises";
 import CardioCard from "@/components/CardioCard";
 import {
+  ACTIVITY_CATEGORIES,
   activityCategory,
   CARDIO_SET_TYPE,
   cardioAliases,
@@ -25,22 +26,7 @@ import {
   type CardioInput,
 } from "@/lib/cardio";
 
-/// The picker's dropdowns, in the order they're listed. Every exercise in the
-/// library lands in exactly one (see activityCategory).
-const CATEGORIES: {
-  key: ActivityCategory;
-  label: string;
-  blurb: string;
-  emoji: string;
-  tint: string;
-}[] = [
-  { key: "lifting", label: "Weightlifting", blurb: "Barbell, dumbbell, machines, bodyweight", emoji: "🏋️", tint: "34,197,94" },
-  { key: "machine", label: "Cardio machines", blurb: "Treadmill, spin, rower, stairs", emoji: "🚴", tint: "56,189,248" },
-  { key: "outdoor", label: "Outdoors", blurb: "Run, hike, ride, swim, ski, paddle", emoji: "🥾", tint: "163,230,53" },
-  { key: "conditioning", label: "HIIT & conditioning", blurb: "Intervals, circuits, EMOM, AMRAP", emoji: "🔥", tint: "249,115,22" },
-  { key: "sport", label: "Sports & combat", blurb: "Court, field, ice, mat", emoji: "🏀", tint: "250,204,21" },
-  { key: "mind", label: "Mind & body", blurb: "Yoga, pilates, stretching, dance", emoji: "🧘", tint: "192,132,252" },
-];
+const CATEGORIES = ACTIVITY_CATEGORIES;
 
 /// Weightlifting's filter chips, in body order rather than A–Z.
 const MUSCLE_ORDER = [

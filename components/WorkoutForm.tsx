@@ -237,6 +237,20 @@ export default function WorkoutForm({
     null,
   );
 
+  // Tapping Start on a cardio card is beginning the workout: if the session
+  // clock isn't running yet, it starts at that card's start time — same as
+  // "Begin workout", so the header clock, Finish and the HR window all follow.
+  useEffect(() => {
+    if (mode !== "create" || startedAt) return;
+    const starts = exercises
+      .flatMap((e) => e.sets)
+      .map((st) => (st.cardio?.startedAt ? Date.parse(st.cardio.startedAt) : NaN))
+      .filter((t) => Number.isFinite(t));
+    if (starts.length === 0) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStartedAt(new Date(Math.min(...starts)));
+  }, [mode, startedAt, exercises]);
+
   // Drives the elapsed clock in the pinned header. Only ticks while a session
   // is actually running.
   const [nowTick, setNowTick] = useState(() => Date.now());

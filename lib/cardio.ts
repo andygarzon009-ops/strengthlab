@@ -535,7 +535,27 @@ const BY_NAME = new Map(
   CARDIO_EXERCISES.map((e) => [e.name.toLowerCase(), e]),
 );
 
-export const CARDIO_GROUPS = new Set(["Cardio", "Conditioning"]);
+export const CARDIO_GROUPS = new Set(["Cardio", "Conditioning", "Outdoor", "Sport", "Mind & Body"]);
+
+/// The exercise picker's and the library's dropdowns, in order. `group` is
+/// the muscleGroup a custom activity is saved under so it lands back here
+/// (lifting customs use a real muscle instead).
+export const ACTIVITY_CATEGORIES: {
+  key: ActivityCategory;
+  label: string;
+  blurb: string;
+  emoji: string;
+  /// "r,g,b" — used at different alphas for the tile, border and chips.
+  tint: string;
+  group: string | null;
+}[] = [
+  { key: "lifting", label: "Weightlifting", blurb: "Barbell, dumbbell, machines, bodyweight", emoji: "🏋️", tint: "34,197,94", group: null },
+  { key: "machine", label: "Cardio machines", blurb: "Treadmill, spin, rower, stairs", emoji: "🚴", tint: "56,189,248", group: "Cardio" },
+  { key: "outdoor", label: "Outdoors", blurb: "Run, hike, ride, swim, ski, paddle", emoji: "🥾", tint: "163,230,53", group: "Outdoor" },
+  { key: "conditioning", label: "HIIT & conditioning", blurb: "Intervals, circuits, EMOM, AMRAP", emoji: "🔥", tint: "249,115,22", group: "Conditioning" },
+  { key: "sport", label: "Sports & combat", blurb: "Court, field, ice, mat", emoji: "🏀", tint: "250,204,21", group: "Sport" },
+  { key: "mind", label: "Mind & body", blurb: "Yoga, pilates, stretching, dance", emoji: "🧘", tint: "192,132,252", group: "Mind & Body" },
+];
 
 /// Which picker dropdown an exercise belongs in. A custom exercise filed
 /// under Cardio lands with the machines, Conditioning with conditioning,
@@ -548,6 +568,9 @@ export function activityCategory(
   if (hit) return hit.category ?? (hit.muscleGroup === "Conditioning" ? "conditioning" : "machine");
   if (muscleGroup === "Cardio") return "machine";
   if (muscleGroup === "Conditioning") return "conditioning";
+  if (muscleGroup === "Outdoor") return "outdoor";
+  if (muscleGroup === "Sport") return "sport";
+  if (muscleGroup === "Mind & Body") return "mind";
   return "lifting";
 }
 
@@ -564,6 +587,8 @@ export function cardioSpecFor(
   if (hit) return hit.spec;
   if (muscleGroup === "Cardio") return machine("time", "distance", "calories");
   if (muscleGroup === "Conditioning") return circuit(5, 40, 20);
+  if (muscleGroup === "Outdoor") return machine("time", "distance", "calories");
+  if (muscleGroup === "Sport" || muscleGroup === "Mind & Body") return machine("time", "calories");
   return null;
 }
 
