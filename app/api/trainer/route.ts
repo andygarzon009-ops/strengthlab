@@ -28,6 +28,7 @@ import {
   matchTemplate,
 } from "@/lib/mobilityLibrary";
 import { getTodayFuel } from "@/lib/nutritionToday";
+import { asksAboutSleep, requestedNights, sleepHistoryContext } from "@/lib/sleepDigest";
 import { ageFromBirthDate, estimateMaxHr } from "@/lib/hrZones";
 import {
   readSetHeartRate,
@@ -218,6 +219,7 @@ export async function POST(req: NextRequest) {
       workoutDates,
       liveDraft,
       measurementHistory,
+      sleepHistory,
     ] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId } }),
       prisma.workout.findMany({
@@ -293,6 +295,11 @@ export async function POST(req: NextRequest) {
         },
         orderBy: { takenAt: "asc" },
       }),
+      // Sleep questions need more than last night. Only fetched when the
+      // message is about sleep — it's several Google Health pages.
+      asksAboutSleep(message)
+        ? sleepHistoryContext(userId, requestedNights(message)).catch(() => "")
+        : Promise.resolve(""),
     ]);
 
     // Anchor "today" to the athlete's local timezone, not the server's
@@ -1406,7 +1413,7 @@ BODY METRICS (inches unless noted, optional — may be blank):
 ${measurementTrend}
 
 ${recoveryContext}
-
+${sleepHistory ? `\n${sleepHistory}\n` : ""}
 ${nutritionContext}
 ${liveSession.block}
 
