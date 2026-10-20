@@ -860,3 +860,32 @@ export function cardioTotal(rows: unknown[]): string {
   if (rounds) t.rounds = rounds;
   return cardioSummary(t);
 }
+
+const RUN = new Set(["outdoor run", "trail run"]);
+const HIKE = new Set(["hike", "outdoor walk", "rucking", "snowshoeing"]);
+const RIDE = new Set(["outdoor cycling", "mountain biking"]);
+const INDOOR_BIKE = new Set(["spin bike", "stationary bike", "recumbent bike", "air bike"]);
+const SWIM = new Set(["swimming", "open water swim"]);
+const COMBAT = new Set(["brazilian jiu-jitsu", "muay thai", "martial arts", "wrestling", "boxing rounds"]);
+
+/// The workout type (lib/exercises WORKOUT_TYPES) a session of only this
+/// activity is filed under, so a lone hike shows as Hiking in the feed.
+export function workoutTypeFor(name: string, muscleGroup?: string | null): string {
+  const n = name.trim().toLowerCase();
+  const cat = activityCategory(name, muscleGroup);
+  if (cat === "lifting") return "WEIGHT_TRAINING";
+  if (RUN.has(n)) return "RUNNING";
+  if (HIKE.has(n)) return "HIKING";
+  if (RIDE.has(n)) return "CYCLING";
+  if (INDOOR_BIKE.has(n)) return "SPIN";
+  if (SWIM.has(n)) return "SWIMMING";
+  if (COMBAT.has(n)) return "COMBAT";
+  if (n.startsWith("treadmill")) return "TREADMILL";
+  if (n === "elliptical") return "ELLIPTICAL";
+  if (n === "stair climber") return "STAIR_CLIMBER";
+  if (n === "rowing machine") return "ROWING";
+  if (cat === "conditioning") return "HIIT";
+  if (cat === "mind") return "MOBILITY";
+  if (cat === "sport" || cat === "outdoor") return "SPORT";
+  return "CARDIO_MACHINE";
+}

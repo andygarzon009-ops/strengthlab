@@ -22,8 +22,10 @@ import {
 } from "@/lib/exercises";
 import ExerciseLogger from "@/components/ExerciseLogger";
 import {
+  activityCategory,
   CARDIO_SET_TYPE,
   cardioSpecFor,
+  workoutTypeFor,
   defaultCardioInput,
   toCardioMetrics,
   type CardioInput,
@@ -191,10 +193,13 @@ export default function WorkoutForm({
     };
   }, []);
 
-  const [step, setStep] = useState<"type" | "log">(
-    mode === "edit" || initial ? "log" : "type"
-  );
-  const [workoutType, setWorkoutType] = useState(initial?.type ?? "");
+  // There's no "pick a session type" step any more: the log opens straight
+  // away and the type is read off what gets logged (see the auto-type effect).
+  // Weight training until something says otherwise.
+  const [workoutType, setWorkoutType] = useState(initial?.type || "WEIGHT_TRAINING");
+  // Set once the athlete picks a type by hand; from then on the exercises
+  // don't get to change it. Editing a saved workout starts locked.
+  const [typeLocked, setTypeLocked] = useState(mode === "edit");
   const [split, setSplit] = useState(initial?.split ?? "");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
@@ -273,8 +278,8 @@ export default function WorkoutForm({
   const applyDraft = (d: Record<string, unknown>) => {
     if (typeof d.workoutType === "string" && d.workoutType) {
       setWorkoutType(d.workoutType);
-      setStep("log");
     }
+    if (d.typeLocked === true) setTypeLocked(true);
     // The URL wins. Arriving at /log?session=<id> is the athlete saying which
     // session they're in right now; the draft is a memory of the last one. Let
     // the draft overwrite it and leaving one session to join another silently
@@ -359,9 +364,7 @@ export default function WorkoutForm({
     }
     clearWorkoutDraft().catch(() => {});
     setAutosaveStatus("idle");
-    setWorkoutType("");
     setSplit("");
-    setTitle("");
     setNotes("");
     setFeeling("");
     setIsDeload(false);
@@ -380,7 +383,9 @@ export default function WorkoutForm({
     setRpe("");
     setWarmup(null);
     setWarmupProgress(null);
-    setStep("type");
+    setWorkoutType("WEIGHT_TRAINING");
+    setTypeLocked(false);
+    setTitle(titleFor("WEIGHT_TRAINING"));
     baselineRef.current = null;
   };
 
@@ -394,6 +399,7 @@ export default function WorkoutForm({
     if (mode !== "create" || !hydratedRef.current) return;
     const draft = {
       workoutType,
+      typeLocked,
       sessionId: jointSessionId,
       split,
       title,
@@ -428,12 +434,15 @@ export default function WorkoutForm({
     // No real change since baseline — user is just browsing the template.
     if (serialized === baselineRef.current) return;
 
+    // The type and title fill themselves in now, so they don't make a draft
+    // worth keeping — only a title the athlete typed does.
     const empty =
-      !workoutType &&
       !split &&
-      !title &&
+      (!title || title === titleFor(workoutType)) &&
       !notes &&
       exercises.length === 0 &&
+      !startedAt &&
+      !warmup &&
       !durationMin &&
       !durationSec &&
       !distance;
@@ -467,6 +476,7 @@ export default function WorkoutForm({
   }, [
     mode,
     workoutType,
+    typeLocked,
     // The session id has to re-save the draft on its own: an athlete who
     // invites someone and then logs nothing else would otherwise have a draft
     // that doesn't know about the session, and a reload would drop them out.
@@ -546,7 +556,16 @@ export default function WorkoutForm({
     return () => window.removeEventListener(COACH_LOG_EVENT, onLog);
   }, [mode, workoutType]);
 
-  const shape: WorkoutShape = workoutType ? shapeForType(workoutType) : "STRENGTH";
+  // Everything is logged as exercise cards now — a hike is a Hike card, not a
+  // distance form — so the type is only a label. The one exception is editing
+  // an old run/hike/class saved before cards existed: those have no exercises,
+  // only workout-level distance/duration, and keep their original form.
+  const legacyShape: WorkoutShape | null =
+    mode === "edit" && (initial?.exercises?.length ?? 0) === 0 && initial?.type
+      ? shapeForType(initial.type)
+      : null;
+  const shape: WorkoutShape =
+    legacyShape && legacyShape !== "STRENGTH" ? legacyShape : "STRENGTH";
 
   /// A lift taken from someone else's plan: their loads are theirs, so it
   /// starts with one empty working set and the logger fills in this athlete's
@@ -585,12 +604,6 @@ export default function WorkoutForm({
     if (!url.searchParams.has("session")) return;
     url.searchParams.delete("session");
     window.history.replaceState(null, "", url.pathname + url.search);
-  };
-
-  const handleTypeSelect = (type: string) => {
-    setWorkoutType(type);
-    setTitle(titleFor(type, split));
-    setStep("log");
   };
 
   // Accepting an invite from the type picker should open the log, not leave
@@ -641,8 +654,8 @@ export default function WorkoutForm({
     planSplit: string | null,
     plan: { exerciseId: string; exerciseName: string }[],
   ) => {
-    // Accepting has to work from the log step too. An invitee with a leftover
-    // draft opens straight there — never on the type picker — and that is
+    // Accepting has to work mid-log too. An invitee with a leftover draft
+    // opens straight into it — and that is
     // exactly the athlete who ends up in the wrong workout: they accepted a
     // lower day and sat in yesterday's unsaved push day, with no way across.
     const type = planType || "WEIGHT_TRAINING";
@@ -654,11 +667,34 @@ export default function WorkoutForm({
     }
     // Mid-session with real sets down, the invite doesn't get to rewrite the
     // log — "add their lifts" in the strip is how that athlete crosses over.
-    if (step === "type") setStep("log");
   };
 
   const splitDrivesTitle =
     workoutType === "WEIGHT_TRAINING" || workoutType === "CALISTHENICS";
+
+  // The session type, read off what's logged: any lift makes it weight
+  // training; otherwise it's the first activity's type (a lone Hike files as
+  // Hiking). A one-activity session is titled after the activity ("Tennis"),
+  // unless the athlete has typed a title of their own.
+  useEffect(() => {
+    if (typeLocked || exercises.length === 0) return;
+    const lifting = exercises.some(
+      (e) => activityCategory(e.exerciseName, e.muscleGroup) === "lifting",
+    );
+    const next = lifting
+      ? "WEIGHT_TRAINING"
+      : workoutTypeFor(exercises[0].exerciseName, exercises[0].muscleGroup);
+    const names = [...new Set(exercises.map((e) => e.exerciseName))];
+    const autoTitle = lifting ? titleFor(next, split) : names.length === 1 ? names[0] : titleFor(next);
+    const titleIsAuto =
+      title === "" ||
+      title === titleFor(workoutType, split) ||
+      title === titleFor(workoutType) ||
+      exercises.some((e) => e.exerciseName === title);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (next !== workoutType) setWorkoutType(next);
+    if (titleIsAuto && title !== autoTitle) setTitle(autoTitle);
+  }, [exercises, typeLocked, workoutType, split, title]);
 
   // Auto-detect split from the exercises the user added — runs in both
   // create and edit so swapping or removing an exercise re-derives the
@@ -972,169 +1008,6 @@ export default function WorkoutForm({
   }, [online]);
 
   // STEP 1: Pick type
-  if (step === "type" && mode === "create") {
-    return (
-      <div className="max-w-lg mx-auto px-4 pt-8">
-        <div className="flex items-center gap-2 mb-8">
-          <Link
-            href={backHref}
-            className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{
-              background: "var(--bg-card)",
-              border: "1px solid var(--border)",
-              color: "var(--fg-muted)",
-            }}
-          >
-            <BackIcon />
-          </Link>
-          <div>
-            <p className="label">Step 1 of 2</p>
-            <h1 className="text-[22px] font-bold tracking-tight leading-none mt-1">
-              {jointSessionId ? "Join the session" : "Session type"}
-            </h1>
-          </div>
-        </div>
-
-        {/* An invite has to be answerable here: tapping the push lands on this
-            screen before any type exists, and the strip is the only thing that
-            can say who's asking. Joining picks the type and opens the log. */}
-        {jointSessionId && (
-          <SessionPartners
-            sessionId={jointSessionId}
-            plan={[]}
-            onJoined={handleJoinedSession}
-            onSession={setJointSessionId}
-            onLeft={clearSessionParam}
-          />
-        )}
-
-        <Link
-          href="/log/voice"
-          className="card p-4 flex items-center justify-between mb-3 transition-all active:scale-[0.98]"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(34,197,94,0.1) 0%, var(--bg-card) 80%)",
-            border: "1px solid rgba(34,197,94,0.3)",
-          }}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-              style={{
-                background: "var(--accent-dim)",
-                color: "var(--accent)",
-              }}
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect x="9" y="2" width="6" height="12" rx="3" />
-                <path d="M5 10a7 7 0 0 0 14 0" />
-                <path d="M12 17v5" />
-              </svg>
-            </div>
-            <div className="min-w-0">
-              <p
-                className="font-semibold text-[15px] tracking-tight truncate"
-                style={{ color: "var(--accent)" }}
-              >
-                Voice log
-              </p>
-              <p
-                className="text-[11px] mt-0.5"
-                style={{ color: "var(--fg-dim)" }}
-              >
-                Speak it, we&apos;ll structure it
-              </p>
-            </div>
-          </div>
-          <span style={{ color: "var(--accent)" }}>›</span>
-        </Link>
-
-        <div className="grid grid-cols-1 gap-2">
-          {WORKOUT_TYPES.map((type) => (
-            <button
-              key={type.value}
-              onClick={() => handleTypeSelect(type.value)}
-              className="card p-4 flex items-center justify-between text-left transition-all active:scale-[0.98]"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-                  style={{ background: "var(--bg-elevated)" }}
-                >
-                  <TypeIcon type={type.value} />
-                </div>
-                <div className="min-w-0">
-                  <p className="font-semibold text-[15px] tracking-tight truncate">
-                    {type.label}
-                  </p>
-                  <p
-                    className="text-[11px] mt-0.5"
-                    style={{ color: "var(--fg-dim)" }}
-                  >
-                    {shapeHint(type.shape)}
-                  </p>
-                </div>
-              </div>
-              <span style={{ color: "var(--fg-dim)" }}>›</span>
-            </button>
-          ))}
-        </div>
-
-        <p
-          className="text-center text-[12px] mt-8"
-          style={{ color: "var(--fg-dim)" }}
-        >
-          Forgot a session? You can backdate to any past day on the next step.
-        </p>
-
-        <Link
-          href="/exercises"
-          className="mt-4 w-full card px-4 py-3.5 flex items-center justify-between transition-all active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: "var(--bg-elevated)" }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--fg-muted)"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-[13px] font-medium">Exercise library</p>
-              <p
-                className="text-[11px] mt-0.5"
-                style={{ color: "var(--fg-dim)" }}
-              >
-                Add, edit, or tag exercises
-              </p>
-            </div>
-          </div>
-          <span style={{ color: "var(--fg-dim)" }}>→</span>
-        </Link>
-      </div>
-    );
-  }
-
-  // STEP 2: Log details
   return (
     <div className="max-w-lg mx-auto px-4 pt-8">
       {/* Pinned so the clock, the session's progress and Finish stay reachable
@@ -1158,8 +1031,9 @@ export default function WorkoutForm({
       >
       <div className="flex items-center gap-2">
         {mode === "create" ? (
-          <button
-            onClick={() => setStep("type")}
+          <Link
+            href={backHref}
+            aria-label="Back"
             className="w-9 h-9 rounded-full flex items-center justify-center"
             style={{
               background: "var(--bg-card)",
@@ -1168,7 +1042,7 @@ export default function WorkoutForm({
             }}
           >
             <BackIcon />
-          </button>
+          </Link>
         ) : (
           <button
             type="button"
@@ -1221,7 +1095,7 @@ export default function WorkoutForm({
 
       {/* Live session line. Only while the clock runs, and only where the
           numbers mean something — a run has no sets to count. */}
-      {step === "log" && startedAt && (
+      {startedAt && (
         <div className="mt-2.5">
           <div className="flex items-baseline justify-between gap-3">
             <div className="flex items-baseline gap-2.5 min-w-0">
@@ -1291,7 +1165,7 @@ export default function WorkoutForm({
       )}
       </div>
 
-      {step === "log" && warmup && warmup.items.length > 0 && (
+      {warmup && warmup.items.length > 0 && (
         <GuidedWarmup
           items={warmup.items}
           // Beginning the warm-up starts the session clock — no separate
@@ -1306,7 +1180,7 @@ export default function WorkoutForm({
       {/* Only the "Begin workout" state now, and only when there's no warm-up
           to start the clock for us. Once running, the pinned header carries
           the clock and its Cancel, so the strip would just repeat itself. */}
-      {step === "log" && !startedAt && !(warmup && warmup.items.length > 0) && (
+      {!startedAt && !(warmup && warmup.items.length > 0) && (
         <WorkoutTimerStrip
           startedAt={null}
           onBegin={() => setStartedAt(new Date())}
@@ -1314,7 +1188,7 @@ export default function WorkoutForm({
         />
       )}
 
-      {step === "log" && startedAt && <LiveHRWidget />}
+      {startedAt && <LiveHRWidget />}
 
       {(submitError || !online) && (
         <div
@@ -1435,6 +1309,7 @@ export default function WorkoutForm({
             value={workoutType}
             onChange={(v) => {
               setWorkoutType(v);
+              setTypeLocked(true);
               if (title.trim() === "" || title === labelForType(workoutType))
                 setTitle(titleFor(v, split));
             }}
@@ -1552,6 +1427,42 @@ export default function WorkoutForm({
           onSession={setJointSessionId}
           onLeft={clearSessionParam}
         />
+      )}
+
+      {/* An empty new log offers voice first: say the whole session and it's
+          structured into cards. (This used to sit on the session-type screen.) */}
+      {mode === "create" && shape === "STRENGTH" && exercises.length === 0 && (
+        <Link
+          href="/log/voice"
+          className="card p-4 flex items-center justify-between mb-3 transition-all active:scale-[0.98]"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(34,197,94,0.1) 0%, var(--bg-card) 80%)",
+            border: "1px solid rgba(34,197,94,0.3)",
+          }}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: "var(--accent-dim)", color: "var(--accent)" }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M5 10a7 7 0 0 0 14 0" />
+                <path d="M12 17v5" />
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-[15px] tracking-tight truncate" style={{ color: "var(--accent)" }}>
+                Voice log
+              </p>
+              <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
+                Speak the whole session, we&apos;ll structure it
+              </p>
+            </div>
+          </div>
+          <span style={{ color: "var(--accent)" }}>›</span>
+        </Link>
       )}
 
       {shape === "STRENGTH" && (
@@ -1989,13 +1900,7 @@ function Select({
   );
 }
 
-/* ---------------- Icons + shape helpers ---------------- */
-
-function shapeHint(shape: WorkoutShape): string {
-  if (shape === "STRENGTH") return "Sets, reps, weight";
-  if (shape === "DISTANCE") return "Distance, pace, duration";
-  return "Duration and intensity";
-}
+/* ---------------- Icons ---------------- */
 
 function BackIcon() {
   return (
@@ -2012,137 +1917,6 @@ function BackIcon() {
       <path d="M19 12H5M12 19l-7-7 7-7" />
     </svg>
   );
-}
-
-function TypeIcon({ type }: { type: string }) {
-  const stroke = "var(--fg-muted)";
-  const common = {
-    width: 18,
-    height: 18,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke,
-    strokeWidth: 1.8,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-  };
-  switch (type) {
-    case "WEIGHT_TRAINING":
-      return (
-        <svg {...common}>
-          <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
-        </svg>
-      );
-    case "RUNNING":
-      return (
-        <svg {...common}>
-          <circle cx="13" cy="4" r="1.5" />
-          <path d="M4 22l3-7 4-2-2-5 4-1 4 3 3-1" />
-          <path d="M15 13l1 4-3 5" />
-        </svg>
-      );
-    case "HIKING":
-      return (
-        <svg {...common}>
-          <path d="M3 20h18L14 7l-3 5-2-3-6 11z" />
-          <circle cx="17" cy="5" r="1.5" />
-        </svg>
-      );
-    case "CYCLING":
-      return (
-        <svg {...common}>
-          <circle cx="6" cy="17" r="3.5" />
-          <circle cx="18" cy="17" r="3.5" />
-          <path d="M6 17l4-9h4l4 9M12 8V5h2" />
-        </svg>
-      );
-    case "SWIMMING":
-      return (
-        <svg {...common}>
-          <path d="M3 13c2-1 4 1 6 0s4-2 6 0 4 1 6 0" />
-          <path d="M3 18c2-1 4 1 6 0s4-2 6 0 4 1 6 0" />
-          <circle cx="16" cy="6" r="2" />
-        </svg>
-      );
-    case "ROWING":
-      return (
-        <svg {...common}>
-          <path d="M4 18L20 6M8 14l2 2M14 8l2 2" />
-          <circle cx="4" cy="18" r="1.5" />
-          <circle cx="20" cy="6" r="1.5" />
-        </svg>
-      );
-    case "HIIT":
-      return (
-        <svg {...common}>
-          <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />
-        </svg>
-      );
-    case "COMBAT":
-      return (
-        <svg {...common}>
-          <path d="M14 4v6h4v10H6V10h4V4h4z" />
-          <path d="M9 13h6" />
-        </svg>
-      );
-    case "MOBILITY":
-      return (
-        <svg {...common}>
-          <circle cx="12" cy="5" r="2" />
-          <path d="M12 7v7M8 11h8M7 22l5-8 5 8" />
-        </svg>
-      );
-    case "SPORT":
-      return (
-        <svg {...common}>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
-        </svg>
-      );
-    case "TREADMILL":
-      return (
-        <svg {...common}>
-          <path d="M3 18h14l3-9M5 18l1-7h9" />
-          <circle cx="13" cy="5" r="1.5" />
-          <path d="M11 8l2 1 2-1" />
-        </svg>
-      );
-    case "SPIN":
-      return (
-        <svg {...common}>
-          <circle cx="6" cy="17" r="3" />
-          <path d="M9 17h6l2-7M11 10h5M13 7l-1 3M6 17l4-7" />
-        </svg>
-      );
-    case "ELLIPTICAL":
-      return (
-        <svg {...common}>
-          <ellipse cx="12" cy="17" rx="8" ry="3" />
-          <path d="M7 16l4-9 3 2" />
-          <circle cx="14" cy="9" r="1.5" />
-        </svg>
-      );
-    case "STAIR_CLIMBER":
-      return (
-        <svg {...common}>
-          <path d="M3 20h4v-4h4v-4h4V8h4V4" />
-        </svg>
-      );
-    case "CARDIO_MACHINE":
-      return (
-        <svg {...common}>
-          <rect x="4" y="4" width="16" height="12" rx="2" />
-          <path d="M8 20h8M12 16v4M8 8l2 4 2-4 2 4" />
-        </svg>
-      );
-    default:
-      return (
-        <svg {...common}>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 8v4M12 16h.01" />
-        </svg>
-      );
-  }
 }
 
 /* ---------------- Date selector ---------------- */
