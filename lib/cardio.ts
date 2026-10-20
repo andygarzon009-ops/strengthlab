@@ -18,7 +18,8 @@ export type CardioField =
   | "level"
   | "incline"
   | "speed"
-  | "floors";
+  | "floors"
+  | "elevation";
 
 export type CardioSpec =
   | { kind: "machine"; fields: CardioField[] }
@@ -148,28 +149,28 @@ export const CARDIO_EXERCISES: CardioEntry[] = [
     name: "Outdoor Run",
     muscleGroup: "Cardio",
     category: "outdoor",
-    spec: machine("time", "distance", "calories"),
+    spec: machine("time", "distance", "elevation", "calories"),
     aliases: ["Run", "Running", "Jog"],
   },
   {
     name: "Outdoor Walk",
     muscleGroup: "Cardio",
     category: "outdoor",
-    spec: machine("time", "distance", "calories"),
+    spec: machine("time", "distance", "elevation", "calories"),
     aliases: ["Walk", "Walking"],
   },
   {
     name: "Hike",
     muscleGroup: "Cardio",
     category: "outdoor",
-    spec: machine("time", "distance", "calories"),
+    spec: machine("time", "distance", "elevation", "calories"),
     aliases: ["Hiking"],
   },
   {
     name: "Outdoor Cycling",
     muscleGroup: "Cardio",
     category: "outdoor",
-    spec: machine("time", "distance", "calories"),
+    spec: machine("time", "distance", "elevation", "calories"),
     aliases: ["Bike Ride", "Cycling", "Road Bike"],
   },
   {
@@ -259,21 +260,21 @@ export const CARDIO_EXERCISES: CardioEntry[] = [
     name: "Trail Run",
     muscleGroup: "Cardio",
     category: "outdoor",
-    spec: machine("time", "distance", "calories"),
+    spec: machine("time", "distance", "elevation", "calories"),
     aliases: ["Trail Running", "Trail"],
   },
   {
     name: "Mountain Biking",
     muscleGroup: "Cardio",
     category: "outdoor",
-    spec: machine("time", "distance", "calories"),
+    spec: machine("time", "distance", "elevation", "calories"),
     aliases: ["MTB", "Mountain Bike", "Cycling"],
   },
   {
     name: "Rucking",
     muscleGroup: "Cardio",
     category: "outdoor",
-    spec: machine("time", "distance", "calories"),
+    spec: machine("time", "distance", "elevation", "calories"),
     aliases: ["Ruck", "Weighted Walk"],
   },
   {
@@ -322,7 +323,7 @@ export const CARDIO_EXERCISES: CardioEntry[] = [
     name: "Snowshoeing",
     muscleGroup: "Cardio",
     category: "outdoor",
-    spec: machine("time", "distance", "calories"),
+    spec: machine("time", "distance", "elevation", "calories"),
     aliases: ["Snowshoe"],
   },
   {
@@ -651,6 +652,7 @@ export const FIELD_LABEL: Record<CardioField, { label: string; unit: string }> =
     incline: { label: "Incline", unit: "%" },
     speed: { label: "Speed", unit: "km/h" },
     floors: { label: "Floors", unit: "" },
+    elevation: { label: "Climb", unit: "m" },
   };
 
 /// Stored numbers for one cardio row. Everything optional — log what the
@@ -663,6 +665,10 @@ export type CardioMetrics = {
   incline?: number;
   speed?: number;
   floors?: number;
+  /// Metres climbed — typed for a hike, worked out from incline on a treadmill.
+  elevationM?: number;
+  /// Average heart rate, when it came from the watch.
+  avgHr?: number;
   rounds?: number;
   workSec?: number;
   restSec?: number;
@@ -683,6 +689,8 @@ export type CardioInput = {
   incline?: string;
   speed?: string;
   floors?: string;
+  elevation?: string;
+  avgHr?: string;
   rounds?: string;
   work?: string;
   rest?: string;
@@ -745,6 +753,23 @@ export function circuitSeconds(
   return rounds * workSec + Math.max(0, rounds - 1) * restSec;
 }
 
+/// Distance and climb from a treadmill row's speed, time and incline, or null
+/// when there isn't enough to work them out. Distance uses the typed value
+/// when there is one; climb is distance × incline (the grade, as % rise).
+export function treadmillDerived(
+  input: CardioInput,
+): { distanceKm: number; elevationM: number } | null {
+  const sec = parseMinutes(input.time);
+  const speed = num(input.speed);
+  const incline = num(input.incline);
+  const typed = num(input.distance);
+  const distanceKm =
+    typed ?? (speed && sec ? Math.round((speed * sec) / 36) / 100 : undefined);
+  if (!distanceKm || (!speed && !incline)) return null;
+  const elevationM = incline ? Math.round(distanceKm * 1000 * (incline / 100)) : 0;
+  return { distanceKm, elevationM };
+}
+
 export function toCardioMetrics(
   spec: CardioSpec,
   input: CardioInput,
@@ -758,6 +783,15 @@ export function toCardioMetrics(
     m.incline = num(input.incline);
     m.speed = num(input.speed);
     m.floors = int(input.floors);
+    m.elevationM = int(input.elevation);
+    m.avgHr = int(input.avgHr);
+    // A treadmill knows its own distance and climb: speed × time, and the
+    // incline's share of that. Typed numbers always win.
+    const t = treadmillDerived(input);
+    if (t) {
+      if (m.distanceKm === undefined) m.distanceKm = t.distanceKm;
+      if (m.elevationM === undefined && t.elevationM > 0) m.elevationM = t.elevationM;
+    }
   } else if (spec.kind === "circuit") {
     m.rounds = int(input.rounds);
     m.workSec = int(input.work);
@@ -796,6 +830,8 @@ export function fromCardioMetrics(
     incline: s(m.incline),
     speed: s(m.speed),
     floors: s(m.floors),
+    elevation: s(m.elevationM),
+    avgHr: s(m.avgHr),
     rounds: s(m.rounds),
     work: s(m.workSec),
     rest: s(m.restSec),
@@ -842,11 +878,13 @@ export function cardioSummary(raw: unknown): string {
     );
   }
   if (m.distanceKm) bits.push(`${m.distanceKm} km`);
+  if (m.elevationM) bits.push(`↑${m.elevationM} m`);
   if (m.floors) bits.push(`${m.floors} floors`);
   if (m.level) bits.push(`L${m.level}`);
   if (m.incline) bits.push(`${m.incline}%`);
   if (m.speed) bits.push(`${m.speed} km/h`);
   if (m.calories) bits.push(`${m.calories} cal`);
+  if (m.avgHr) bits.push(`${m.avgHr} bpm avg`);
   return bits.join(" · ");
 }
 
@@ -879,6 +917,7 @@ export function cardioTotal(rows: unknown[]): string {
     if (m.durationSec) t.durationSec = (t.durationSec ?? 0) + m.durationSec;
     if (m.distanceKm) t.distanceKm = +((t.distanceKm ?? 0) + m.distanceKm).toFixed(2);
     if (m.floors) t.floors = (t.floors ?? 0) + m.floors;
+    if (m.elevationM) t.elevationM = (t.elevationM ?? 0) + m.elevationM;
     if (m.calories) t.calories = (t.calories ?? 0) + m.calories;
     if (m.rounds) rounds += m.rounds;
   }

@@ -12,7 +12,7 @@ type ExercisePoint = {
     activeDuration?: string;
     metricsSummary?: {
       caloriesKcal?: number;
-      distanceMillimiters?: number;
+      distanceMillimeters?: number;
       steps?: string;
       averageHeartRateBeatsPerMinute?: string;
     };

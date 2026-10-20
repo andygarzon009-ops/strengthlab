@@ -90,8 +90,8 @@ function parsePoint(p: ExercisePoint): Omit<DetectedSession, "importedWorkoutId"
         ? Math.round(Number(m.activeZoneMinutes))
         : undefined,
     distanceMm:
-      m.distanceMillimiters !== undefined && m.distanceMillimiters !== null
-        ? Math.round(Number(m.distanceMillimiters))
+      m.distanceMillimeters !== undefined && m.distanceMillimeters !== null
+        ? Math.round(Number(m.distanceMillimeters))
         : undefined,
   };
 }

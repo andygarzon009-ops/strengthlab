@@ -17,6 +17,7 @@ import {
   formatClock,
   minutesInput,
   parseMinutes,
+  treadmillDerived,
   type CardioField,
   type CardioInput,
   type CardioSpec,
@@ -43,6 +44,7 @@ const FIELD_KEY: Record<CardioField, keyof CardioInput> = {
   incline: "incline",
   speed: "speed",
   floors: "floors",
+  elevation: "elevation",
 };
 
 export default function CardioCard({
@@ -106,6 +108,7 @@ export default function CardioCard({
                   done={!!row.completed}
                   onToggleDone={toggle}
                   onStart={start}
+                  onFill={(patch) => onChange(i, { ...cardio, ...patch })}
                   onRemove={rows.length > 1 ? () => onRemoveRow(i) : undefined}
                 />
               ) : (
@@ -146,6 +149,7 @@ function MachineRow({
   done,
   onToggleDone,
   onStart,
+  onFill,
   onRemove,
 }: {
   fields: CardioField[];
@@ -154,8 +158,12 @@ function MachineRow({
   done: boolean;
   onToggleDone: () => void;
   onStart: () => void;
+  onFill: (patch: Partial<CardioInput>) => void;
   onRemove?: () => void;
 }) {
+  // Treadmill rows work out their own distance and climb as you type.
+  const derived = fields.includes("incline") ? treadmillDerived(value) : null;
+  const typedDistance = (value.distance ?? "").trim() !== "";
   return (
     <div>
     <div className="flex items-end gap-1.5">
@@ -195,9 +203,145 @@ function MachineRow({
       <DoneButton done={done} onClick={onToggleDone} />
       {onRemove && <RemoveButton onClick={onRemove} />}
     </div>
-      <div className="mt-1.5">
+      {derived && (derived.elevationM > 0 || !typedDistance) && (
+        <p className="mt-1.5 text-[11px] nums" style={{ color: "var(--fg-muted)", fontFamily: "var(--font-geist-mono)" }}>
+          {typedDistance ? "" : `≈ ${derived.distanceKm} km`}
+          {derived.elevationM > 0 && `${typedDistance ? "" : " · "}↑ ${derived.elevationM} m climbed`}
+        </p>
+      )}
+      {value.avgHr && (
+        <p className="mt-1.5 text-[11px] nums" style={{ color: "var(--fg-muted)", fontFamily: "var(--font-geist-mono)" }}>
+          ♥ {value.avgHr} bpm avg · from watch
+        </p>
+      )}
+      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
         <StartLine startedAt={value.startedAt} done={done} onStart={onStart} />
+        <WatchFill onFill={onFill} />
       </div>
+    </div>
+  );
+}
+
+type WatchSession = {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  durationSec: number;
+  distanceKm: number | null;
+  calories: number | null;
+  avgHr: number | null;
+};
+
+/// Pull a session the watch recorded (Fitbit via Google Health) into this row:
+/// time, distance, calories, average heart rate and the start time.
+function WatchFill({ onFill }: { onFill: (patch: Partial<CardioInput>) => void }) {
+  const [state, setState] = useState<
+    | { kind: "idle" }
+    | { kind: "loading" }
+    | { kind: "list"; sessions: WatchSession[] }
+    | { kind: "msg"; text: string }
+  >({ kind: "idle" });
+
+  const load = async () => {
+    setState({ kind: "loading" });
+    try {
+      const res = await fetch("/api/health/recent-sessions");
+      const body = await res.json().catch(() => ({}));
+      if (body.connected === false) {
+        setState({ kind: "msg", text: "Connect Google Health in your profile to pull from your watch." });
+      } else if (!res.ok) {
+        setState({ kind: "msg", text: body.error ?? "Couldn't reach your watch data — try again." });
+      } else if (!body.sessions?.length) {
+        setState({ kind: "msg", text: "No watch sessions in the last day and a half. It can take a few minutes to sync after you stop." });
+      } else {
+        setState({ kind: "list", sessions: body.sessions });
+      }
+    } catch {
+      setState({ kind: "msg", text: "No connection — try again." });
+    }
+  };
+
+  const pick = (s: WatchSession) => {
+    onFill({
+      time: minutesInput(s.durationSec),
+      ...(s.distanceKm ? { distance: String(s.distanceKm) } : {}),
+      ...(s.calories ? { calories: String(Math.round(s.calories)) } : {}),
+      ...(s.avgHr ? { avgHr: String(Math.round(s.avgHr)) } : {}),
+      startedAt: s.startTime,
+    });
+    setState({ kind: "idle" });
+  };
+
+  const clock = (iso: string) =>
+    new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const day = (iso: string) => {
+    const d = new Date(iso);
+    return d.toDateString() === new Date().toDateString()
+      ? "Today"
+      : d.toLocaleDateString(undefined, { weekday: "short" });
+  };
+
+  if (state.kind === "idle" || state.kind === "loading") {
+    return (
+      <button
+        type="button"
+        onClick={load}
+        disabled={state.kind === "loading"}
+        className="px-2.5 h-6 rounded-full text-[11px] font-semibold active:scale-95 transition-transform inline-flex items-center gap-1 disabled:opacity-60"
+        style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)", color: "var(--fg-muted)" }}
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <rect x="6" y="6" width="12" height="12" rx="3" />
+          <path d="M9 6V3h6v3M9 18v3h6v-3M12 10v2.5l1.5 1" />
+        </svg>
+        {state.kind === "loading" ? "Checking watch…" : "Fill from watch"}
+      </button>
+    );
+  }
+
+  return (
+    <div className="w-full mt-1 rounded-xl overflow-hidden" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}>
+      <div className="flex items-center justify-between px-3 pt-2 pb-1">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--fg-dim)" }}>
+          {state.kind === "list" ? "Pick the session" : "Watch"}
+        </span>
+        <button
+          type="button"
+          onClick={() => setState({ kind: "idle" })}
+          className="text-[11px] font-semibold"
+          style={{ color: "var(--fg-muted)" }}
+        >
+          Close
+        </button>
+      </div>
+      {state.kind === "msg" ? (
+        <p className="px-3 pb-2.5 text-[12px]" style={{ color: "var(--fg-muted)" }}>{state.text}</p>
+      ) : (
+        state.sessions.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => pick(s)}
+            className="w-full text-left px-3 py-2 active:opacity-70"
+            style={{ borderTop: "1px solid var(--border)" }}
+          >
+            <span className="block text-[13px] font-semibold">
+              {s.name} <span className="font-normal" style={{ color: "var(--fg-dim)" }}>· {day(s.startTime)} {clock(s.startTime)}–{clock(s.endTime)}</span>
+            </span>
+            <span className="block text-[11px] nums mt-0.5" style={{ color: "var(--fg-muted)", fontFamily: "var(--font-geist-mono)" }}>
+              {[
+                minutesInput(s.durationSec) + " min",
+                s.distanceKm ? `${s.distanceKm} km` : null,
+                s.calories ? `${Math.round(s.calories)} cal` : null,
+                s.avgHr ? `${Math.round(s.avgHr)} bpm` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </button>
+        ))
+      )}
     </div>
   );
 }

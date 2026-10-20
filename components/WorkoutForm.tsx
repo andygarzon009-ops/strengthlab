@@ -240,8 +240,12 @@ export default function WorkoutForm({
   // "Begin workout", so the header clock, Finish and the HR window all follow.
   useEffect(() => {
     if (mode !== "create" || startedAt) return;
+    // Only a bout that's running (started, no time yet). A row filled from
+    // the watch carries a start time too, but it's finished work being
+    // logged after the fact — it mustn't start a live clock from hours ago.
     const starts = exercises
       .flatMap((e) => e.sets)
+      .filter((st) => !(st.cardio?.time ?? "").trim())
       .map((st) => (st.cardio?.startedAt ? Date.parse(st.cardio.startedAt) : NaN))
       .filter((t) => Number.isFinite(t));
     if (starts.length === 0) return;
