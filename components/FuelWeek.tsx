@@ -207,7 +207,7 @@ export default function FuelWeek({
               sugarLimit={SUGAR_LIMIT_G}
               sodiumLimit={SODIUM_LIMIT_MG}
             />
-            <MicroCaveat foods={i.foods} dayKcal={i.kcal} />            <MicroCaveat foods={i.foods} dayKcal={i.kcal} />
+            <MicroCaveat foods={i.foods} dayKcal={i.kcal} />
           </div>
         </>
       )}

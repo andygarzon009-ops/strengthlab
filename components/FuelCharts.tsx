@@ -9,6 +9,7 @@
 // amber, fiber teal. Every chart also labels its values in text, so identity
 // never rests on colour alone.
 
+import { useState } from "react";
 import ChartScrubTrack from "@/components/ChartScrubTrack";
 import type { FoodRow, FuelDayView } from "@/components/FuelWeek";
 
@@ -434,6 +435,15 @@ function Grams({ p, c, f }: { p: number; c: number; f: number }) {
 export function FoodDiary({ foods, intake }: { foods: FoodRow[]; intake: FuelDayView["intake"] }) {
   const meals = [...new Set(foods.map((f) => f.meal))].sort((a, b) => mealMeta(a).order - mealMeta(b).order);
   const biggest = Math.max(1, ...foods.map((f) => f.kcal));
+  // Each meal folds to its header line; tap to see the foods.
+  const [openMeals, setOpenMeals] = useState<Set<string>>(new Set());
+  const toggle = (m: string) =>
+    setOpenMeals((s) => {
+      const next = new Set(s);
+      if (next.has(m)) next.delete(m);
+      else next.add(m);
+      return next;
+    });
 
   return (
     <div>
@@ -444,21 +454,45 @@ export function FoodDiary({ foods, intake }: { foods: FoodRow[]; intake: FuelDay
           (a, f) => ({ kcal: a.kcal + f.kcal, p: a.p + f.proteinG, c: a.c + f.carbsG, f: a.f + f.fatG }),
           { kcal: 0, p: 0, c: 0, f: 0 },
         );
+        const isOpen = openMeals.has(meal);
         return (
-          <div key={meal} className={mi > 0 ? "mt-4 pt-4" : ""} style={mi > 0 ? { borderTop: "1px solid var(--border)" } : undefined}>
-            <div className="flex items-baseline justify-between">
-              <p className="text-[14px] font-bold tracking-tight">
+          <div key={meal} className={mi > 0 ? "mt-3 pt-3" : ""} style={mi > 0 ? { borderTop: "1px solid var(--border)" } : undefined}>
+            <button
+              type="button"
+              onClick={() => toggle(meal)}
+              aria-expanded={isOpen}
+              className="w-full flex items-center gap-2 min-h-[36px] text-left active:opacity-70"
+            >
+              <span className="flex-1 min-w-0 text-[14px] font-bold tracking-tight truncate">
                 <span aria-hidden>{m.icon}</span> {m.label}
-              </p>
-              <p className="text-[14px] font-bold tabular-nums">
+                <span className="ml-1.5 text-[11px] font-medium" style={{ color: "var(--fg-dim)" }}>
+                  {list.length} item{list.length === 1 ? "" : "s"}
+                </span>
+              </span>
+              <span className="text-[14px] font-bold tabular-nums">
                 {Math.round(sum.kcal).toLocaleString()}
                 <span className="text-[11px] font-medium ml-1" style={{ color: "var(--fg-muted)" }}>kcal</span>
-              </p>
-            </div>
+              </span>
+              <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--fg-dim)"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                  className="shrink-0"
+                  style={{ transform: isOpen ? "rotate(180deg)" : undefined, transition: "transform 160ms" }}
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+            </button>
             <div className="mt-2">
               <MacroStrip p={sum.p} c={sum.c} f={sum.f} />
             </div>
-            <div className="mt-2.5 space-y-2.5">
+            {isOpen && <div className="mt-2.5 space-y-2.5">
               {list.map((f, fi) => (
                 <div key={`${f.name}-${fi}`}>
                   <div className="flex items-baseline justify-between gap-3">
@@ -475,7 +509,7 @@ export function FoodDiary({ foods, intake }: { foods: FoodRow[]; intake: FuelDay
                   </div>
                 </div>
               ))}
-            </div>
+            </div>}
           </div>
         );
       })}

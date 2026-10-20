@@ -65,6 +65,15 @@ export default function FoodLogToday({ rows }: { rows: Row[] }) {
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<Row | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  // Meals start folded to one line each so the list doesn't push Fuel down.
+  const [openMeals, setOpenMeals] = useState<Set<string>>(new Set());
+  const toggle = (m: string) =>
+    setOpenMeals((s) => {
+      const next = new Set(s);
+      if (next.has(m)) next.delete(m);
+      else next.add(m);
+      return next;
+    });
   const [pending, startTransition] = useTransition();
   const [vh, setVh] = useState<number | null>(null);
   const [vTop, setVTop] = useState(0);
@@ -157,22 +166,46 @@ export default function FoodLogToday({ rows }: { rows: Row[] }) {
     >
       <div className="flex items-baseline justify-between">
         <h2 className="text-[15px] font-bold tracking-tight">Logged today</h2>
-        <span className="text-[11px]" style={{ color: "var(--fg-muted)" }}>Tap to edit</span>
+        <span className="text-[11px]" style={{ color: "var(--fg-muted)" }}>Tap a meal to open</span>
       </div>
       {ORDER.filter((m) => live.some((r) => r.meal === m)).map((m) => {
         const list = live.filter((r) => r.meal === m);
         const kcal = list.reduce((s, r) => s + r.kcal, 0);
+        const isOpen = openMeals.has(m);
         return (
-          <div key={m} className="mt-3">
-            <div className="flex items-baseline justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--fg-dim)" }}>
+          <div key={m} className="mt-2" style={{ borderBottom: isOpen ? undefined : "1px solid var(--border)" }}>
+            <button
+              type="button"
+              onClick={() => toggle(m)}
+              aria-expanded={isOpen}
+              className="w-full flex items-center gap-2 min-h-[44px] text-left active:opacity-70"
+            >
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--fg-dim)" }}>
                 {LABEL[m]}
-              </p>
-              <p className="text-[12px] tabular-nums" style={{ color: "var(--fg-muted)" }}>
+              </span>
+              <span className="flex-1 min-w-0 text-[11px] truncate" style={{ color: "var(--fg-dim)" }}>
+                {list.length} item{list.length === 1 ? "" : "s"}
+              </span>
+              <span className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--fg-muted)" }}>
                 {Math.round(kcal).toLocaleString()} kcal
-              </p>
-            </div>
-            {list.map((r) => (
+              </span>
+              <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--fg-dim)"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                  className="shrink-0"
+                  style={{ transform: isOpen ? "rotate(180deg)" : undefined, transition: "transform 160ms" }}
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+            </button>
+            {isOpen && list.map((r) => (
               <button
                 key={r.id}
                 type="button"
