@@ -1601,87 +1601,88 @@ export default function ExerciseLogger({
           </div>
           </div>
         </>
-      ) : (
-        <div className="space-y-2">
-          <div className="flex gap-2">
+      ) : exercises.length === 0 ? (
+        // An empty log is one big invitation: this button is how every
+        // session starts, so it's the loudest thing on the screen.
+        <div
+          className="rounded-3xl p-5 relative overflow-hidden"
+          style={{
+            background:
+              "radial-gradient(120% 120% at 0% 0%, rgba(34,197,94,0.22) 0%, transparent 60%), var(--bg-card)",
+            border: "1px solid rgba(34,197,94,0.35)",
+          }}
+        >
+          <p className="text-[20px] font-extrabold tracking-tight leading-tight">
+            What are you training?
+          </p>
+          <p className="text-[13px] mt-1" style={{ color: "var(--fg-muted)" }}>
+            Lifts, a run, a hike, a class — add it and the session builds itself.
+          </p>
+          <div className="flex gap-2 mt-4">
             <button
               onClick={() => setShowSearch(true)}
-              className="flex-1 py-4 rounded-2xl text-[13px] font-medium transition-all"
-              style={{
-                border: "1px dashed var(--border-strong)",
-                color: "var(--fg-muted)",
-                background: "transparent",
-              }}
+              className="btn-accent flex-1 min-h-[56px] rounded-2xl text-[16px] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+              style={{ boxShadow: "0 10px 28px -10px rgba(34,197,94,0.6)" }}
             >
-              + Add Exercise
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" aria-hidden>
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Add your first exercise
             </button>
             <button
               onClick={() => setShowVoice(true)}
               aria-label="Voice add exercises"
-              className="w-14 rounded-2xl flex items-center justify-center transition-all active:scale-95"
+              className="w-14 min-h-[56px] rounded-2xl flex items-center justify-center transition-all active:scale-95"
               style={{
                 background: "var(--accent-dim)",
                 color: "var(--accent)",
                 border: "1px solid rgba(34,197,94,0.35)",
               }}
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect x="9" y="2" width="6" height="12" rx="3" />
-                <path d="M5 10a7 7 0 0 0 14 0" />
-                <path d="M12 17v5" />
-              </svg>
+              <MicIcon />
             </button>
           </div>
-          <Link
-            href="/exercises"
-            className="card px-4 py-3 flex items-center justify-between transition-all active:scale-[0.98]"
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                style={{ background: "var(--bg-elevated)" }}
+          <div className="flex flex-wrap gap-1.5 mt-3.5">
+            {ACTIVITY_CATEGORIES.map((c) => (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => {
+                  setOpenCat(c.key);
+                  setShowSearch(true);
+                }}
+                className="h-8 px-2.5 rounded-full text-[12px] font-semibold flex items-center gap-1.5 active:scale-95 transition-transform"
+                style={{ background: `rgba(${c.tint},0.12)`, border: `1px solid rgba(${c.tint},0.3)`, color: "var(--fg)" }}
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--accent)"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M6 4h2v16H6zM16 4h2v16h-2zM3 8h3v8H3zM18 8h3v8h-3zM8 11h8v2H8z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-[13px] font-semibold">
-                  Manage exercise library
-                </p>
-                <p
-                  className="text-[11px] mt-0.5"
-                  style={{ color: "var(--fg-dim)" }}
-                >
-                  Add or edit custom exercises and split tags
-                </p>
-              </div>
-            </div>
-            <span
-              className="text-[16px]"
-              style={{ color: "var(--fg-dim)" }}
-            >
-              →
-            </span>
-          </Link>
+                <span aria-hidden>{c.emoji}</span>
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowSearch(true)}
+            className="btn-accent flex-1 min-h-[52px] rounded-2xl text-[15px] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" aria-hidden>
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Add exercise
+          </button>
+          <button
+            onClick={() => setShowVoice(true)}
+            aria-label="Voice add exercises"
+            className="w-14 min-h-[52px] rounded-2xl flex items-center justify-center transition-all active:scale-95"
+            style={{
+              background: "var(--accent-dim)",
+              color: "var(--accent)",
+              border: "1px solid rgba(34,197,94,0.35)",
+            }}
+          >
+            <MicIcon />
+          </button>
         </div>
       )}
 
@@ -2522,6 +2523,16 @@ function SetRow({
       </p>
     )}
     </div>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M5 10a7 7 0 0 0 14 0" />
+      <path d="M12 17v5" />
+    </svg>
   );
 }
 

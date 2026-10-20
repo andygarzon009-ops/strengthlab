@@ -11,7 +11,6 @@ import {
   clearWorkoutDraft,
 } from "@/lib/actions/workoutDrafts";
 import {
-  WORKOUT_TYPES,
   STRENGTH_SPLITS,
   FEELING_OPTIONS,
   shapeForType,
@@ -197,9 +196,9 @@ export default function WorkoutForm({
   // away and the type is read off what gets logged (see the auto-type effect).
   // Weight training until something says otherwise.
   const [workoutType, setWorkoutType] = useState(initial?.type || "WEIGHT_TRAINING");
-  // Set once the athlete picks a type by hand; from then on the exercises
-  // don't get to change it. Editing a saved workout starts locked.
-  const [typeLocked, setTypeLocked] = useState(mode === "edit");
+  // The type is never picked by hand — it's read off the exercises. Editing a
+  // saved workout leaves whatever it was saved as alone.
+  const typeLocked = mode === "edit";
   const [split, setSplit] = useState(initial?.split ?? "");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
@@ -293,7 +292,6 @@ export default function WorkoutForm({
     if (typeof d.workoutType === "string" && d.workoutType) {
       setWorkoutType(d.workoutType);
     }
-    if (d.typeLocked === true) setTypeLocked(true);
     // The URL wins. Arriving at /log?session=<id> is the athlete saying which
     // session they're in right now; the draft is a memory of the last one. Let
     // the draft overwrite it and leaving one session to join another silently
@@ -398,8 +396,7 @@ export default function WorkoutForm({
     setWarmup(null);
     setWarmupProgress(null);
     setWorkoutType("WEIGHT_TRAINING");
-    setTypeLocked(false);
-    setTitle(titleFor("WEIGHT_TRAINING"));
+    setTitle("");
     baselineRef.current = null;
   };
 
@@ -413,7 +410,6 @@ export default function WorkoutForm({
     if (mode !== "create" || !hydratedRef.current) return;
     const draft = {
       workoutType,
-      typeLocked,
       sessionId: jointSessionId,
       split,
       title,
@@ -490,7 +486,6 @@ export default function WorkoutForm({
   }, [
     mode,
     workoutType,
-    typeLocked,
     // The session id has to re-save the draft on its own: an athlete who
     // invites someone and then logs nothing else would otherwise have a draft
     // that doesn't know about the session, and a reload would drop them out.
@@ -691,7 +686,20 @@ export default function WorkoutForm({
   // Hiking). A one-activity session is titled after the activity ("Tennis"),
   // unless the athlete has typed a title of their own.
   useEffect(() => {
-    if (typeLocked || exercises.length === 0) return;
+    if (typeLocked) return;
+    // Nothing logged yet: no title. Clearing the last exercise clears an
+    // auto title too, so an empty session reads as empty.
+    if (exercises.length === 0) {
+      const auto =
+        title === titleFor(workoutType, split) ||
+        title === titleFor(workoutType) ||
+        title === titleFor(workoutType, "");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (title && auto) setTitle("");
+      if (workoutType !== "WEIGHT_TRAINING") setWorkoutType("WEIGHT_TRAINING");
+      if (split) setSplit("");
+      return;
+    }
     const lifting = exercises.some(
       (e) => activityCategory(e.exerciseName, e.muscleGroup) === "lifting",
     );
@@ -705,7 +713,6 @@ export default function WorkoutForm({
       title === titleFor(workoutType, split) ||
       title === titleFor(workoutType) ||
       exercises.some((e) => e.exerciseName === title);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (next !== workoutType) setWorkoutType(next);
     if (titleIsAuto && title !== autoTitle) setTitle(autoTitle);
   }, [exercises, typeLocked, workoutType, split, title]);
@@ -1072,6 +1079,12 @@ export default function WorkoutForm({
           </button>
         )}
         <div className="flex-1 min-w-0">
+          {exercises.length === 0 && !title ? (
+            // Nothing logged yet, so nothing to name: the title appears (and
+            // fills itself in) with the first exercise.
+            <p className="label" style={{ color: "var(--fg-dim)" }}>New session</p>
+          ) : (
+          <>
           <p className="label">{labelForType(workoutType)}</p>
           <input
             type="text"
@@ -1082,6 +1095,8 @@ export default function WorkoutForm({
             className="text-[18px] font-bold tracking-tight leading-none mt-0.5 w-full bg-transparent border-0 outline-none p-0 truncate"
             style={{ color: "var(--fg)" }}
           />
+          </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {mode === "create" && autosaveStatus !== "idle" && (
@@ -1317,23 +1332,6 @@ export default function WorkoutForm({
           </div>
         )}
 
-        <div>
-          <p className="label mb-1.5">Type</p>
-          <Select
-            value={workoutType}
-            onChange={(v) => {
-              setWorkoutType(v);
-              setTypeLocked(true);
-              if (title.trim() === "" || title === labelForType(workoutType))
-                setTitle(titleFor(v, split));
-            }}
-            options={WORKOUT_TYPES.map((t) => ({
-              value: t.value,
-              label: t.label,
-            }))}
-          />
-        </div>
-
         {/* Shape-specific metrics */}
         {shape === "DISTANCE" && (
           <DistanceMetrics
@@ -1443,47 +1441,24 @@ export default function WorkoutForm({
         />
       )}
 
-      {/* An empty new log offers voice first: say the whole session and it's
-          structured into cards. (This used to sit on the session-type screen.) */}
-      {mode === "create" && shape === "STRENGTH" && exercises.length === 0 && (
-        <Link
-          href="/log/voice"
-          className="card p-4 flex items-center justify-between mb-3 transition-all active:scale-[0.98]"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(34,197,94,0.1) 0%, var(--bg-card) 80%)",
-            border: "1px solid rgba(34,197,94,0.3)",
-          }}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: "var(--accent-dim)", color: "var(--accent)" }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <rect x="9" y="2" width="6" height="12" rx="3" />
-                <path d="M5 10a7 7 0 0 0 14 0" />
-                <path d="M12 17v5" />
-              </svg>
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-[15px] tracking-tight truncate" style={{ color: "var(--accent)" }}>
-                Voice log
-              </p>
-              <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
-                Speak the whole session, we&apos;ll structure it
-              </p>
-            </div>
-          </div>
-          <span style={{ color: "var(--accent)" }}>›</span>
-        </Link>
-      )}
-
       {shape === "STRENGTH" && (
         <ExerciseLogger
           exercises={exercises}
           setExercises={setExercises}
         />
+      )}
+
+      {/* Whole-session voice logging, offered quietly under the empty log —
+          Add exercise is the main way in. */}
+      {mode === "create" && shape === "STRENGTH" && exercises.length === 0 && (
+        <Link
+          href="/log/voice"
+          className="mt-3 flex items-center justify-center gap-1.5 min-h-[44px] text-[13px] font-semibold"
+          style={{ color: "var(--fg-muted)" }}
+        >
+          Or speak the whole session
+          <span style={{ color: "var(--accent)" }}>›</span>
+        </Link>
       )}
 
       <div className="mt-6 space-y-2.5">
@@ -1878,39 +1853,6 @@ function DurationInput({
         </span>
       </div>
     </div>
-  );
-}
-
-function Select({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-xl px-4 py-3 text-[14px] focus:outline-none appearance-none"
-      style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--border)",
-        color: "var(--fg)",
-        backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2352525b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-        backgroundRepeat: "no-repeat",
-        backgroundPosition: "right 0.75rem center",
-        paddingRight: "2rem",
-      }}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
   );
 }
 
