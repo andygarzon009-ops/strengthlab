@@ -10,7 +10,10 @@ import { takePendingMeal } from "@/lib/pendingMeal";
 import type { RecentMeal } from "@/lib/foodLog";
 import type { DetectedFood } from "@/app/api/food/analyze/route";
 
-type Item = DetectedFood & { scale: number };
+/// `base` is the leading count in the estimate's portion ("2 large eggs" → 2),
+/// so a miscount is fixed with a stepper instead of a ratio. `scale` is
+/// count / base, or a chip value when the portion isn't a count.
+type Item = DetectedFood & { scale: number; base: number | null; editing?: boolean };
 type Stage =
   | { kind: "closed" }
   | { kind: "describe" }
@@ -32,6 +35,29 @@ const MEAL_LABEL: Record<Meal, string> = {
   SNACK: "Snack",
 };
 const SCALES = [0.5, 1, 1.5, 2];
+
+// A weight or volume ("30 g almonds", "250 ml milk") isn't a count; those keep the chips.
+const leadingCount = (portion: string): number | null => {
+  const m = portion.match(/^(\d+(?:\.\d+)?)\s+(?!(?:g|kg|mg|ml|l|oz|lb|fl)\b)/i);
+  const n = m ? parseFloat(m[1]) : NaN;
+  return Number.isFinite(n) && n > 0 && n <= 50 ? n : null;
+};
+
+const toItem = (it: DetectedFood): Item => ({ ...it, scale: 1, base: leadingCount(it.portion) });
+
+const countOf = (it: Item) => (it.base == null ? null : Math.round(it.base * it.scale * 10) / 10);
+
+/// The portion as it'll be saved: a recounted item gets its number (and any
+/// gram weight) rewritten; a chip-scaled one gets an "N×" prefix.
+const portionOf = (it: Item) => {
+  if (it.scale === 1) return it.portion;
+  const n = countOf(it);
+  if (n == null) return `${it.scale}× ${it.portion}`;
+  const rest = it.portion
+    .replace(/^\d+(?:\.\d+)?/, "")
+    .replace(/(\d+(?:\.\d+)?)\s*g\b/g, (_, g) => `${Math.round(parseFloat(g) * it.scale)} g`);
+  return `${n}${rest}`;
+};
 
 const scaled = (it: Item) => ({
   kcal: Math.round(it.kcal * it.scale),
@@ -92,7 +118,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
       }
       setStage({
         kind: "review",
-        items: (body.items as DetectedFood[]).map((it) => ({ ...it, scale: 1 })),
+        items: (body.items as DetectedFood[]).map(toItem),
         photoUrl: body.photoUrl ?? null,
         preview,
         note: body.note ?? null,
@@ -148,7 +174,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
     setMeal(mealForHour(new Date().getHours()));
     setStage({
       kind: "review",
-      items: r.items.map((it) => ({ ...it, scale: 1 })),
+      items: r.items.map(toItem),
       photoUrl: r.photoUrl,
       preview: r.photoUrl,
       note: null,
@@ -157,8 +183,10 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
   };
 
   const close = () => {
-    if (stage.kind === "analyzing" || pending) return;
+    if (stage.kind === "analyzing" || pending || addBusy) return;
     setStage({ kind: "closed" });
+    setAdding(null);
+    setAddError(null);
   };
 
   const update = (i: number, patch: Partial<Item>) =>
@@ -167,16 +195,67 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
         ? { ...s, items: s.items.map((it, j) => (j === i ? { ...it, ...patch } : it)) }
         : s,
     );
+  // Opening the editor bakes any count/scale into the numbers so the fields
+  // show exactly what will be saved.
+  const startEdit = (i: number) =>
+    setStage((s) =>
+      s.kind === "review"
+        ? {
+            ...s,
+            items: s.items.map((it, j) =>
+              j === i
+                ? {
+                    ...it,
+                    ...scaled(it),
+                    fiberG: it.fiberG == null ? null : Math.round(it.fiberG * it.scale),
+                    portion: portionOf(it),
+                    scale: 1,
+                    base: countOf(it),
+                    editing: true,
+                  }
+                : it,
+            ),
+          }
+        : s,
+    );
   const remove = (i: number) =>
     setStage((s) =>
       s.kind === "review" ? { ...s, items: s.items.filter((_, j) => j !== i) } : s,
     );
 
+  // A food the estimate missed: describe it, estimate it on its own, append.
+  const [adding, setAdding] = useState<string | null>(null);
+  const [addBusy, setAddBusy] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const addItem = async () => {
+    const t = adding?.trim();
+    if (!t || addBusy) return;
+    setAddBusy(true);
+    setAddError(null);
+    try {
+      const fd = new FormData();
+      fd.append("text", t);
+      const res = await fetch("/api/food/analyze", { method: "POST", body: fd });
+      const body = await res.json().catch(() => ({}));
+      const found = (body.items ?? []) as DetectedFood[];
+      if (!res.ok || found.length === 0) {
+        setAddError(body.error ?? body.note ?? "Couldn't estimate that — try wording it differently");
+        return;
+      }
+      setStage((s) => (s.kind === "review" ? { ...s, items: [...s.items, ...found.map(toItem)] } : s));
+      setAdding(null);
+    } catch {
+      setAddError("No connection — try again");
+    } finally {
+      setAddBusy(false);
+    }
+  };
+
   const save = () => {
     if (stage.kind !== "review" || stage.items.length === 0) return;
     const items = stage.items.map((it) => ({
       name: it.name,
-      portion: it.scale === 1 ? it.portion : `${it.scale}× ${it.portion}`,
+      portion: portionOf(it),
       fiberG: it.fiberG == null ? null : Math.round(it.fiberG * it.scale),
       ...scaled(it),
     }));
@@ -191,6 +270,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
       if (res.ok) {
         setStage({ kind: "closed" });
         setText("");
+        setAdding(null);
         setSaved(`${MEAL_LABEL[meal]} saved · ${total.toLocaleString()} kcal`);
         setTimeout(() => setSaved(null), 3500);
         router.refresh();
@@ -514,21 +594,94 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
                   <div className="flex-1 min-h-0 overflow-y-auto px-5 mt-3" style={{ overscrollBehavior: "contain" }}>
                     {stage.items.map((it, i) => {
                       const s = scaled(it);
+                      const n = countOf(it);
+                      if (it.editing) {
+                        const field = (
+                          key: "kcal" | "proteinG" | "carbsG" | "fatG",
+                          label: string,
+                        ) => (
+                          <label className="flex-1 min-w-0">
+                            <span className="block text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--fg-dim)" }}>
+                              {label}
+                            </span>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              value={it[key] || ""}
+                              onChange={(e) => update(i, { [key]: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
+                              className="mt-1 w-full h-10 px-2.5 rounded-lg tabular-nums outline-none"
+                              style={{ fontSize: 16, background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+                            />
+                          </label>
+                        );
+                        return (
+                          <div key={i} className="py-3" style={{ borderTop: "1px solid var(--border)" }}>
+                            <input
+                              value={it.name}
+                              onChange={(e) => update(i, { name: e.target.value })}
+                              aria-label="Food name"
+                              placeholder="Food"
+                              className="w-full h-10 px-3 rounded-lg font-semibold outline-none"
+                              style={{ fontSize: 16, background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+                            />
+                            <input
+                              value={it.portion}
+                              onChange={(e) => update(i, { portion: e.target.value })}
+                              aria-label="Portion"
+                              placeholder="Portion, e.g. 3 large eggs"
+                              className="mt-2 w-full h-10 px-3 rounded-lg outline-none"
+                              style={{ fontSize: 16, background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+                            />
+                            <div className="flex gap-2 mt-2">
+                              {field("kcal", "kcal")}
+                              {field("proteinG", "P g")}
+                              {field("carbsG", "C g")}
+                              {field("fatG", "F g")}
+                            </div>
+                            <div className="flex gap-2 mt-2.5">
+                              <button
+                                type="button"
+                                onClick={() => remove(i)}
+                                className="h-9 px-3.5 rounded-lg text-[13px] font-semibold"
+                                style={{ background: "var(--bg-elevated)", color: "#fca5a5" }}
+                              >
+                                Remove
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  update(i, { editing: false, base: leadingCount(it.portion), scale: 1 })
+                                }
+                                disabled={!it.name.trim() || it.kcal <= 0}
+                                className="flex-1 h-9 rounded-lg text-[13px] font-bold disabled:opacity-50"
+                                style={{ background: "var(--fg)", color: "var(--bg)" }}
+                              >
+                                Done
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
                       return (
                         <div key={i} className="py-3" style={{ borderTop: "1px solid var(--border)" }}>
                           <div className="flex items-start gap-2">
-                            <div className="min-w-0 flex-1">
-                              <input
-                                value={it.name}
-                                onChange={(e) => update(i, { name: e.target.value })}
-                                aria-label="Food name"
-                                className="w-full bg-transparent text-[15px] font-semibold outline-none"
-                                style={{ fontSize: 16 }}
-                              />
-                              <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
-                                {it.portion}
-                              </p>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => startEdit(i)}
+                              aria-label={`Edit ${it.name}`}
+                              className="min-w-0 flex-1 text-left"
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <span className="text-[15px] font-semibold truncate">{it.name}</span>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--fg-dim)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
+                                  <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+                                </svg>
+                              </span>
+                              <span className="block text-[11px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
+                                {portionOf(it)}
+                              </span>
+                            </button>
                             <p className="text-[15px] font-bold tabular-nums shrink-0">{s.kcal}</p>
                             <button
                               type="button"
@@ -544,36 +697,106 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
                             <p className="text-[11px] tabular-nums" style={{ color: "var(--fg-muted)", fontFamily: "var(--font-geist-mono)" }}>
                               P {s.proteinG} · C {s.carbsG} · F {s.fatG}
                             </p>
-                            <div className="flex gap-1" role="radiogroup" aria-label="Portion">
-                              {SCALES.map((x) => (
+                            {n != null && it.base != null ? (
+                              // A counted food: fix the count directly (2 eggs → 3).
+                              <div className="flex items-center gap-1" aria-label="Count">
                                 <button
-                                  key={x}
                                   type="button"
-                                  role="radio"
-                                  aria-checked={it.scale === x}
-                                  onClick={() => update(i, { scale: x })}
-                                  className="h-7 min-w-[38px] px-2 rounded-lg text-[11px] font-bold tabular-nums"
-                                  style={
-                                    it.scale === x
-                                      ? { background: "var(--fg)", color: "var(--bg)" }
-                                      : { background: "var(--bg-elevated)", color: "var(--fg-muted)" }
-                                  }
+                                  onClick={() => update(i, { scale: Math.max(1, n - 1) / it.base! })}
+                                  disabled={n <= 1}
+                                  aria-label="One fewer"
+                                  className="w-8 h-8 rounded-lg text-[16px] font-bold disabled:opacity-40"
+                                  style={{ background: "var(--bg-elevated)" }}
                                 >
-                                  {x === 0.5 ? "½×" : `${x}×`}
+                                  −
                                 </button>
-                              ))}
-                            </div>
+                                <span className="min-w-[28px] text-center text-[14px] font-bold tabular-nums">{n}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => update(i, { scale: (Math.floor(n) + 1) / it.base! })}
+                                  aria-label="One more"
+                                  className="w-8 h-8 rounded-lg text-[16px] font-bold"
+                                  style={{ background: "var(--bg-elevated)" }}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex gap-1" role="radiogroup" aria-label="Portion">
+                                {SCALES.map((x) => (
+                                  <button
+                                    key={x}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={it.scale === x}
+                                    onClick={() => update(i, { scale: x })}
+                                    className="h-7 min-w-[38px] px-2 rounded-lg text-[11px] font-bold tabular-nums"
+                                    style={
+                                      it.scale === x
+                                        ? { background: "var(--fg)", color: "var(--bg)" }
+                                        : { background: "var(--bg-elevated)", color: "var(--fg-muted)" }
+                                    }
+                                  >
+                                    {x === 0.5 ? "½×" : `${x}×`}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
                     })}
+
+                    <div className="py-3" style={{ borderTop: "1px solid var(--border)" }}>
+                      {adding == null ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdding("");
+                            setAddError(null);
+                          }}
+                          className="w-full h-10 rounded-xl text-[13px] font-semibold"
+                          style={{ border: "1px dashed var(--border-strong)", color: "var(--fg-muted)" }}
+                        >
+                          + Add something it missed
+                        </button>
+                      ) : (
+                        <>
+                          <div className="flex gap-2">
+                            <input
+                              value={adding}
+                              onChange={(e) => setAdding(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && addItem()}
+                              autoFocus
+                              placeholder="e.g. 1 slice sourdough with butter"
+                              className="flex-1 min-w-0 h-10 px-3 rounded-lg outline-none"
+                              style={{ fontSize: 16, background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+                            />
+                            <button
+                              type="button"
+                              onClick={addItem}
+                              disabled={!adding.trim() || addBusy}
+                              className="h-10 px-3.5 rounded-lg text-[13px] font-bold disabled:opacity-50"
+                              style={{ background: "var(--fg)", color: "var(--bg)" }}
+                            >
+                              {addBusy ? "…" : "Add"}
+                            </button>
+                          </div>
+                          {addError && (
+                            <p className="text-[12px] mt-1.5" style={{ color: "#fca5a5" }}>
+                              {addError}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   <div className="px-5 pt-3 pb-4" style={{ borderTop: "1px solid var(--border)" }}>
                     <button
                       type="button"
                       onClick={save}
-                      disabled={pending || stage.items.length === 0}
+                      disabled={pending || addBusy || stage.items.length === 0}
                       className="btn-accent w-full min-h-[50px] rounded-2xl text-[15px] font-bold disabled:opacity-50"
                     >
                       {pending ? "Saving…" : `Save ${MEAL_LABEL[meal].toLowerCase()} · ${totals.kcal.toLocaleString()} kcal`}
