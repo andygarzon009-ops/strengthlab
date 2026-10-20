@@ -1608,8 +1608,8 @@ export default function ExerciseLogger({
           className="rounded-3xl p-5 relative overflow-hidden"
           style={{
             background:
-              "radial-gradient(120% 120% at 0% 0%, rgba(34,197,94,0.22) 0%, transparent 60%), var(--bg-card)",
-            border: "1px solid rgba(34,197,94,0.35)",
+              "radial-gradient(120% 120% at 0% 0%, rgba(34,197,94,0.14) 0%, transparent 55%), var(--bg-card)",
+            border: "1px solid rgba(34,197,94,0.28)",
           }}
         >
           <p className="text-[20px] font-extrabold tracking-tight leading-tight">
@@ -1621,8 +1621,7 @@ export default function ExerciseLogger({
           <div className="flex gap-2 mt-4">
             <button
               onClick={() => setShowSearch(true)}
-              className="btn-accent flex-1 min-h-[56px] rounded-2xl text-[16px] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-              style={{ boxShadow: "0 10px 28px -10px rgba(34,197,94,0.6)" }}
+              className="btn-accent cta-breathe flex-1 min-h-[56px] rounded-2xl text-[16px] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" aria-hidden>
                 <path d="M12 5v14M5 12h14" />
