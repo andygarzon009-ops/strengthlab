@@ -298,6 +298,8 @@ export default function AITrainer() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const pendingAskRef = useRef<string | null>(null);
+  const sendRef = useRef<((text: string) => void) | null>(null);
   const [streaming, setStreaming] = useState("");
   const [clearedAt, setClearedAt] = useState<number>(0);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -424,12 +426,18 @@ export default function AITrainer() {
   // Open the coach when launched via ?coach=1 (e.g. the Crew "Ask your coach"
   // tile, since there's no standalone /coach route). Strip the param afterward
   // so a refresh or back doesn't reopen it.
+  // An `ask` param rides along to send a message on open — the feed's Today
+  // card uses it so "Start" gets the coach's full prescription, warm-up and
+  // all, instead of a copy of the last session.
   useEffect(() => {
     if (search.get("coach") !== "1") return;
+    const ask = search.get("ask");
+    if (ask) pendingAskRef.current = ask.slice(0, 500);
     setOpen(true);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.delete("coach");
+      url.searchParams.delete("ask");
       window.history.replaceState(null, "", url.toString());
     }
   }, [search]);
@@ -585,9 +593,19 @@ export default function AITrainer() {
   );
 
   useEffect(() => {
-    // hydrateHistory only sets state after an awaited fetch, not synchronously.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (open && messages.length === 0) hydrateHistory(true);
+    if (open) {
+      // Send a queued `ask` once the transcript is in, so the hydrate can't
+      // replace the optimistic message.
+      const flush = () => {
+        const ask = pendingAskRef.current;
+        pendingAskRef.current = null;
+        if (ask) sendRef.current?.(ask);
+      };
+      // hydrateHistory only sets state after an awaited fetch, not synchronously.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (messages.length === 0) hydrateHistory(true).then(flush);
+      else flush();
+    }
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -889,6 +907,9 @@ export default function AITrainer() {
       }
     }
   };
+  useEffect(() => {
+    sendRef.current = send;
+  });
 
   const isEmpty = visibleMessages.length === 0 && !streaming;
 

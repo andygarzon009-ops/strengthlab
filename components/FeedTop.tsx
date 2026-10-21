@@ -68,11 +68,15 @@ function TodayCard({
       ? [`${next.lifts} lifts`, next.minutes ? `~${next.minutes} min` : null]
       : [];
   const metaLine = meta.filter(Boolean).join(" · ");
+  // Start opens the coach with the ask already sent, so the session the
+  // athlete does is the coach's prescription — warm-up, loads, rest — and not
+  // a copy of the last session of that split.
+  const ask = next
+    ? `Plan today's ${next.label} workout for me${deload ? " — it's a deload week" : ""}. Include the warm-up.`
+    : "Plan a workout for me today. Include the warm-up.";
   const href = done
     ? `/workout/${done.id}`
-    : next
-      ? `/log?next=${next.templateId}`
-      : "/log";
+    : `/?coach=1&ask=${encodeURIComponent(ask)}`;
   const cta = done ? "View log" : next ? `Start ${next.label} day` : "Start a session";
   // A deload overrides the readiness advice: however good the numbers look,
   // this is not the week to push.
