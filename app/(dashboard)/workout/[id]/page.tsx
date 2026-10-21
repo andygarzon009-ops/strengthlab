@@ -477,7 +477,28 @@ export default async function WorkoutDetailPage({
         </div>
       )}
 
-      {isOwn && <SyncHRButton workoutId={workout.id} />}
+      {isOwn && (
+        <SyncHRButton
+          workoutId={workout.id}
+          // Where the trace should reach: the timer's stop, or the last set
+          // if that came later. The page re-syncs until it gets there.
+          targetEnd={(() => {
+            const ends = [
+              workout.endedAt?.getTime() ?? 0,
+              ...workout.exercises.flatMap((e) =>
+                e.sets.map((s) => s.loggedAt?.getTime() ?? 0),
+              ),
+            ];
+            const t = Math.max(...ends);
+            return t > 0 ? new Date(t).toISOString() : null;
+          })()}
+          lastSampleAt={
+            hrSamples.length
+              ? hrSamples[hrSamples.length - 1].timestamp.toISOString()
+              : null
+          }
+        />
+      )}
 
       {/* Secondary metrics: HR, elevation, calories, steps, active zone min */}
       {(() => {

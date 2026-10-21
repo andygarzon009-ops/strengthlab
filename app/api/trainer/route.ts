@@ -1527,6 +1527,7 @@ How to use weak spots:
 - "No weak spots flagged this week" means the athlete is on track — say so when relevant, don't fabricate concerns.
 
 DATA-USE RULES (MANDATORY — the PRE-FLIGHT review above is how you satisfy these):
+- Workout-plan blocks earlier in this conversation are PRESCRIPTIONS — what you told them to do. What they actually did is ONLY in RECENT SESSIONS / PER-EXERCISE PROGRESSION. When reviewing or citing a session, never carry a lift, set, load or rep over from a prescription; if they skipped a prescribed lift or missed reps, the log is the truth.
 - Never invent a PR, load, or session that isn't in the data. If the log doesn't contain the answer, say "I don't see that in your log yet" and ask the athlete to confirm — never guess.
 - WHEN THE ATHLETE CONTRADICTS THE DATA, DO NOT CAVE. Their memory is not a source of truth and you must never restate their claim back as a confirmed fact. Re-read the blocks above first. If their number IS there, you misread it — correct yourself and cite the session and date. If it is NOT there, say so plainly: "My log shows 235lb × 4 on May 12 — I don't have a 235 × 5 in there. If you hit it, it never got logged; want to add it?" Then either coach from the logged number or ask them to log the missing set. Never apologize for an "oversight", never say "you're absolutely right" and adopt their figure, and never invent a date ("5 days ago") for a session that isn't in your data. Being wrong about their history is worse than disagreeing with them.
 - A grind set of a lift flagged with a plateau or rep-stall must not be repeated — switch the stimulus (rep range, tempo, variation). A push day can't be emitted while back is flagged undertrained without addressing the conflict.
@@ -1622,6 +1623,35 @@ LOADS: every weight and rep target in that block must come from moving the lift'
 ${blockDirective}NEVER prescribe more reps at a load whose LAST line is marked CEILING — that set was taken to failure and the load is spent. Add a set, or drop the load and take the reps there.
 
 BANNED in a prescription reply: any multi-sentence paragraph; the strings "Here's your session", "Coaching Points", "Notes:", "Key Focus"; a closing or motivational line; listing the lifts as a rundown; restating sets, reps, loads or rest that the card already shows.]`;
+    }
+
+    // Asked to review a session, Flash read its own earlier workout-plan from
+    // the chat history as the log: "How was today's workout?" came back with a
+    // standing press that was never done and 4×5 where the last set was 4.
+    // Put the logged session right on the question, labelled as the truth.
+    const WANTS_REVIEW =
+      /\b(how (?:was|did|['’]?d)|review|recap|break ?down|analy[sz]e|look at|check|rate|grade|thoughts on|feedback on)\b[^?]*\b(workout|session|training|lift(?:s|ing)?|log|today|yesterday|last night|this morning|push|pull|legs?|upper|lower|arms?|chest|back)\b|\b(my|today['’]?s|yesterday['’]?s|last) (?:actual )?(?:workout|session|log)\b/i;
+    const latest = workouts[0];
+    if (
+      pendingParsed.length === 0 &&
+      !WANTS_SESSION.test(message) &&
+      WANTS_REVIEW.test(message) &&
+      latest &&
+      recentWorkouts[0]
+    ) {
+      // The latest session plus anything else logged the same local day.
+      const latestDay = localDateOf(latest.date);
+      const sameDay = workouts
+        .slice(0, recentWorkouts.length)
+        .map((w, i) => ({ w, line: recentWorkouts[i] }))
+        .filter(({ w }) => localDateOf(w.date) === latestDay)
+        .map(({ line }) => line);
+      liveMessage = `${message}
+
+[THE LOGGED SESSION${sameDay.length > 1 ? "S" : ""} — exactly what the athlete recorded, from the database. If they're asking about a session, this is it unless they name an older one:
+${sameDay.join("\n\n")}
+
+Review ONLY what is written here. Any workout-plan earlier in this chat is what you PRESCRIBED, not what happened — never describe a lift, set, load or rep from a prescription unless it appears in this log. Read every set's reps individually (5, 5, 5, 4 is not 4×5). Where the log differs from your prescription — a lift skipped or swapped, reps missed, load changed — say so plainly.]`;
     }
 
     if (pendingParsed.length > 0) {
