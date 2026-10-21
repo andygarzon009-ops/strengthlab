@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { shrinkImage } from "@/lib/shrinkImage";
 import { saveFoodItems } from "@/lib/actions/food";
 import { mealForHour, MEALS, type Meal } from "@/lib/meals";
-import { takePendingMeal } from "@/lib/pendingMeal";
+import { onPendingMeal, takePendingMeal } from "@/lib/pendingMeal";
 import type { RecentMeal } from "@/lib/foodLog";
 import type { DetectedFood } from "@/app/api/food/analyze/route";
 
@@ -131,6 +131,9 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
 
   const startPhoto = async (picked: File) => {
     setMeal(mealForHour(new Date().getHours()));
+    // Show the sheet before the shrink: decoding a full camera photo can take
+    // a few seconds on a phone, and the page shouldn't sit there looking idle.
+    setStage({ kind: "analyzing", preview: null });
     const file = await shrinkImage(picked, 1280);
     const preview = URL.createObjectURL(file);
     const fd = new FormData();
@@ -145,18 +148,22 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
   };
 
   // Arrived from the New chooser with a photo already taken (or asking to
-  // describe): go straight into the flow.
+  // describe): go straight into the flow. Also listens while mounted — opening
+  // the chooser from /fuel itself doesn't remount this, so the photo would
+  // otherwise be dropped and the page left as it was.
   useEffect(() => {
-    const p = takePendingMeal();
-    if (!p) return;
-    // Deferred a tick so it isn't a synchronous in-effect setState.
-    queueMicrotask(() => {
+    const pickUp = () => {
+      const p = takePendingMeal();
+      if (!p) return;
       if ("file" in p) startPhoto(p.file);
       else {
         setMeal(mealForHour(new Date().getHours()));
         setStage({ kind: "describe" });
       }
-    });
+    };
+    // Deferred a tick so it isn't a synchronous in-effect setState.
+    queueMicrotask(pickUp);
+    return onPendingMeal(pickUp);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
