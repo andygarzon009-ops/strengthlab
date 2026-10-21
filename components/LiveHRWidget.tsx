@@ -12,7 +12,11 @@ type Snapshot = {
   pctMax?: number | null;
 };
 
-const POLL_MS = 7000;
+// The watch uploads in batches every few minutes, so polling every few
+// seconds mostly re-fetched the same sample — ~600 server calls (each a
+// Google Health read) per workout, a big share of the Vercel CPU budget.
+// 30s still catches each batch soon after it lands.
+const POLL_MS = 30_000;
 
 export default function LiveHRWidget() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
@@ -67,10 +71,19 @@ export default function LiveHRWidget() {
     }
 
     pull();
-    const id = setInterval(pull, POLL_MS);
+    // Skip polls while the screen is off or the app is in the background,
+    // and catch up the moment it's visible again.
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") pull();
+    }, POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") pull();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
       clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 

@@ -186,6 +186,11 @@ export default function SessionPartners({
     let stopped = false;
     let timer: number | undefined;
     const tick = async () => {
+      // Hidden app: skip this poll; the focus listener catches the return.
+      if (document.visibilityState !== "visible") {
+        if (!stopped) timer = window.setTimeout(tick, 60_000);
+        return;
+      }
       try {
         const res = await fetch("/api/sessions/pending", { cache: "no-store" });
         if (res.ok) {
@@ -204,7 +209,9 @@ export default function SessionPartners({
       } catch {
         // offline; try again
       }
-      if (!stopped) timer = window.setTimeout(tick, 15_000);
+      // Invites are rare and the focus listener below catches the return to
+      // the app, so a minute is plenty.
+      if (!stopped) timer = window.setTimeout(tick, 60_000);
     };
     timer = window.setTimeout(tick, 0);
     const onFocus = () => {
@@ -226,7 +233,7 @@ export default function SessionPartners({
     let stopped = false;
     let timer: number | undefined;
     const tick = async () => {
-      await load();
+      if (document.visibilityState === "visible") await load();
       if (!stopped) timer = window.setTimeout(tick, POLL_MS);
     };
     timer = window.setTimeout(tick, 0);

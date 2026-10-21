@@ -113,7 +113,9 @@ export default function DailyHRChart({
     };
     // Spinner only when there's truly nothing to show yet.
     load(!hasData);
-    const id = setInterval(() => load(false), 60_000);
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") load(false);
+    }, 60_000);
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -141,7 +143,9 @@ export default function DailyHRChart({
     pull().finally(() => {
       if (!cancelled) setLoading(false);
     });
-    const id = setInterval(pull, 20_000);
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") pull();
+    }, 30_000);
     return () => {
       cancelled = true;
       clearInterval(id);
