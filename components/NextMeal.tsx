@@ -31,11 +31,13 @@ function bestFits(recent: RecentMeal[], room: RoomLeft, meal: Meal): RecentMeal[
     const over = Math.max(0, r.kcal - room.kcal) / Math.max(room.kcal, 200);
     const under = Math.max(0, room.kcal - r.kcal) / Math.max(room.kcal, 200);
     const protein = Math.abs(p - room.proteinG) / Math.max(room.proteinG, 20);
-    return protein * 0.6 + over * 1.5 + under * 0.3 + (r.meal === meal ? 0 : 0.35);
+    // Closing the gap after dinner, any small high-protein meal will do —
+    // a whey shake logged at lunch is as good a snack as one logged at night.
+    return protein * 0.6 + over * 1.5 + under * 0.3 + (r.meal === meal ? 0 : snack ? 0.1 : 0.35);
   };
   return recent
     .filter((r) => r.kcal <= room.kcal * (snack ? 1.3 : 1.15))
-    .filter((r) => snack || (r.kcal >= room.kcal * 0.5 && r.meal !== "SNACK"))
+    .filter((r) => (snack ? r.kcal >= Math.min(100, room.kcal * 0.25) : r.kcal >= room.kcal * 0.5 && r.meal !== "SNACK"))
     .sort((a, b) => score(a) - score(b))
     .slice(0, 3);
 }
@@ -147,7 +149,10 @@ export default function NextMeal({
 
   const mealWord = meal ? MEAL_WORD[meal] : "your next meal";
   const fits = bestFits(recent, room, plan.meal);
-  const askNext = `I have ${dayRoom.kcal.toLocaleString()} kcal and ${dayRoom.proteinG} g protein left today and ${MEAL_WORD[plan.meal]}'s next. What should I eat for it — around ${room.kcal.toLocaleString()} kcal and ${room.proteinG} g protein?`;
+  const closing = plan.snacksToClose != null;
+  const askNext = closing
+    ? `My main meals are done and I'm still ${dayRoom.kcal.toLocaleString()} kcal and ${dayRoom.proteinG} g protein short of today's target. What snacks should I have to close the gap?`
+    : `I have ${dayRoom.kcal.toLocaleString()} kcal and ${dayRoom.proteinG} g protein left today and ${MEAL_WORD[plan.meal]}'s next. What should I eat for it — around ${room.kcal.toLocaleString()} kcal and ${room.proteinG} g protein?`;
   const open = openIdx != null && recipes ? recipes[openIdx] : null;
 
   const logRecipe = (r: Recipe) => {
@@ -175,10 +180,21 @@ export default function NextMeal({
       className="rounded-2xl p-4 mb-5"
       style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
     >
-      <h2 className="text-[15px] font-bold tracking-tight">Next meal</h2>
+      <h2 className="text-[15px] font-bold tracking-tight">{closing ? "Close the gap" : "Next meal"}</h2>
       <p className="text-[12px] mt-0.5 tabular-nums" style={{ color: "var(--fg-muted)" }}>
-        {mealWord.charAt(0).toUpperCase()}
-        {mealWord.slice(1)} · aim for ~{room.kcal.toLocaleString()} kcal and {room.proteinG} g protein
+        {closing ? (
+          <>
+            {dayRoom.kcal.toLocaleString()} kcal and {dayRoom.proteinG} g protein short of today&apos;s target ·{" "}
+            {plan.snacksToClose === 1
+              ? "one snack like these closes it"
+              : `about ${plan.snacksToClose} snacks like these (~${room.kcal.toLocaleString()} kcal each)`}
+          </>
+        ) : (
+          <>
+            {mealWord.charAt(0).toUpperCase()}
+            {mealWord.slice(1)} · aim for ~{room.kcal.toLocaleString()} kcal and {room.proteinG} g protein
+          </>
+        )}
       </p>
 
       <div role="tablist" className="flex rounded-xl p-[3px] mt-3 mb-1" style={{ background: "var(--bg-elevated)" }}>
@@ -364,7 +380,7 @@ export default function NextMeal({
                   className="inline-block text-[10px] font-bold uppercase tracking-[0.08em] px-2 py-[3px] rounded-full"
                   style={{ background: "rgba(249,115,22,0.16)", color: "#fdba74" }}
                 >
-                  Recipe for {meal === "DINNER" ? "tonight" : mealWord}
+                  {closing ? "Snack to close the gap" : `Recipe for ${meal === "DINNER" ? "tonight" : mealWord}`}
                 </span>
                 <h3 className="text-[19px] font-bold tracking-tight mt-2 leading-snug">{open.title}</h3>
                 <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[12px]" style={{ color: "var(--fg-muted)" }}>
