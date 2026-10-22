@@ -11,6 +11,9 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import TickGauge, { scaleColor } from "@/components/TickGauge";
+import NextMeal from "@/components/NextMeal";
+import { roomLeft } from "@/lib/roomLeft";
+import type { RecentMeal } from "@/lib/foodLog";
 import { CARBS, FAT, FIBER, FoodDiary, MicroGrid, PROTEIN, WeekChart } from "@/components/FuelCharts";
 
 
@@ -110,11 +113,14 @@ export default function FuelWeek({
   days,
   today,
   calibration,
+  recent = [],
   children,
 }: {
   days: FuelDayView[];
   today: string;
   calibration: Calibration | null;
+  /// Past meals, for the Next meal card's "Your meals" tab.
+  recent?: RecentMeal[];
   /// Rendered under the hero — the meal logger and today's entries.
   children?: ReactNode;
 }) {
@@ -134,6 +140,14 @@ export default function FuelWeek({
         isToday={isToday}
         scoreColor={scoreColor}
       />
+
+      {isToday && (
+        <NextMeal
+          room={roomLeft(day.intake, day.targets)}
+          phase={day.targets.phaseLabel}
+          recent={recent}
+        />
+      )}
 
       {children}
 
@@ -493,17 +507,7 @@ function RoomLeft({
   intake: FuelDayView["intake"];
   targets: FuelDayView["targets"];
 }) {
-  const left = (have: number, target: number) => Math.max(0, target - have);
-  const kcal = left(intake.kcal, targets.calorieTargetKcal);
-  const protein = Math.min(
-    left(intake.proteinG, targets.proteinTargetG),
-    Math.floor(kcal / 4),
-  );
-  const fat = Math.min(
-    left(intake.fatG, targets.fatTargetG),
-    Math.floor(Math.max(0, kcal - protein * 4) / 9),
-  );
-  const carbs = Math.floor(Math.max(0, kcal - protein * 4 - fat * 9) / 4);
+  const { kcal, proteinG: protein, carbsG: carbs, fatG: fat } = roomLeft(intake, targets);
   const over = [
     intake.fatG > targets.fatTargetG ? "fat" : null,
     intake.carbsG > targets.carbTargetG ? "carbs" : null,

@@ -166,7 +166,17 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
       const p = takePendingMeal();
       if (!p) return;
       if ("file" in p) startPhoto(p.file);
-      else {
+      else if ("review" in p) {
+        setMeal(mealForHour(new Date().getHours()));
+        setStage({
+          kind: "review",
+          items: p.review.items.map(toItem),
+          photoUrl: p.review.photoUrl,
+          preview: p.review.photoUrl,
+          note: null,
+          source: p.review.photoUrl ? "photo" : "text",
+        });
+      } else {
         setMeal(mealForHour(new Date().getHours()));
         setStage({ kind: "describe" });
       }

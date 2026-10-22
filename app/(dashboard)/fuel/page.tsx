@@ -42,6 +42,7 @@ export default async function FuelPage() {
           days={week.days}
           today={week.today}
           calibration={week.calibration}
+          recent={recent}
         >
           <FoodLogger recent={recent} />
           <FoodLogToday rows={todayRows.filter((r) => r.localDate === today)} />

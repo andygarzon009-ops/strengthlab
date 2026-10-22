@@ -4,7 +4,22 @@
 // picks the photo up on mount and goes straight to the estimate. When the
 // athlete is already on /fuel nothing remounts, so a mounted logger also
 // listens for new hand-offs.
-export type PendingMeal = { file: File } | { describe: true };
+export type PendingMeal =
+  | { file: File }
+  | { describe: true }
+  /// Straight to review with known foods — a past meal or a recipe from the
+  /// Next meal card.
+  | { review: { items: PendingFood[]; photoUrl: string | null } };
+
+export type PendingFood = {
+  name: string;
+  portion: string;
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  fiberG: number | null;
+};
 
 let pending: PendingMeal | null = null;
 const listeners = new Set<() => void>();

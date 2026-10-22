@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { put } from "@vercel/blob";
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/session";
+import { GEMINI_CHAIN } from "@/lib/foodAi";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -11,17 +12,6 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
 const anthropic = process.env.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   : null;
-
-// Gemini 503s ("high demand") hit one model at a time — on 2026-10-21 both
-// 3.5-flash and flash-latest were down while 3.6-flash and 3.5-flash-lite
-// answered — so walk a chain of models verified against this key, each with
-// its own timeout so one hung call can't eat the whole function.
-const GEMINI_CHAIN: { model: string; timeoutMs: number }[] = [
-  { model: "gemini-3.5-flash", timeoutMs: 25_000 },
-  { model: "gemini-3.6-flash", timeoutMs: 20_000 },
-  { model: "gemini-3.5-flash-lite", timeoutMs: 15_000 },
-  { model: "gemini-flash-lite-latest", timeoutMs: 12_000 },
-];
 
 export type DetectedFood = {
   name: string;
