@@ -18,9 +18,10 @@ const anthropic = process.env.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   : null;
 
-/// Claude models for text JSON, newest first. A model this key can't use
-/// fails fast (404) and the next one answers.
-const CLAUDE_CHAIN = ["claude-haiku-5-5", "claude-haiku-4-5"];
+/// Claude models for text JSON. Haiku 5.5 was tried first on 2026-10-22 and
+/// never produced text in production (no error either), so only the model
+/// verified against this key is used.
+const CLAUDE_CHAIN = ["claude-haiku-4-5"];
 
 async function claudeText(prompt: string, label: string): Promise<string> {
   if (!anthropic) {
@@ -39,6 +40,7 @@ async function claudeText(prompt: string, label: string): Promise<string> {
         console.info(`${label} answered by ${model}`);
         return text;
       }
+      console.warn(`${label} ${model} returned no text (stop: ${r.stop_reason})`);
     } catch (err) {
       console.error(`${label} ${model} failed:`, err);
     }
