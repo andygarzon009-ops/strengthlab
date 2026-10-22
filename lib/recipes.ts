@@ -114,7 +114,11 @@ Return ONLY JSON:
   "steps": [ string ]
 } ] }
 - "qty" is a number for one serving (decimals fine, e.g. 0.5); null only for things like "salt and pepper".
-- "unit" is one of "g", "ml", "cup", "tbsp", "tsp", or a count word ("" for plain counts like eggs, "clove", "slice", "tortilla"). Grams for meat, fish, rice, pasta, potatoes and cheese (say cooked or raw in the name, e.g. "jasmine rice, cooked"); tbsp or tsp for oils, butter, sauces, dressings and spices; cups for milk, broth, greens and chopped veg; counts for eggs, tortillas, buns and cloves.
+- "unit" is one of "g", "ml", "cup", "tbsp", "tsp", or a count word ("" for plain counts like eggs, "clove", "slice", "tortilla"). Assume they have measuring cups and spoons but NO kitchen scale:
+  - cups for rice, pasta, quinoa, oats, beans, potatoes (diced), chopped veg, greens, shredded cheese, yogurt, cottage cheese, fruit, milk and broth (say cooked or dry in the name, e.g. "jasmine rice, cooked");
+  - tbsp or tsp for oils, butter, sauces, dressings, nut butters and spices;
+  - counts for things bought whole: eggs, tortillas, buns, cloves, chicken breasts or thighs, fish fillets, steaks, sausages, potatoes, avocados, bananas (put the size in the name, e.g. "chicken breast, large");
+  - grams only where nothing else works, e.g. ground meat or diced meat bought by the pack (the label gives the weight).
 - "name" is the ingredient alone, lowercase, with any prep after a comma: "chicken thigh, boneless", "red onion, diced".
 - "usesYourFoods": a short phrase like "Uses rice + pico you eat" (two foods at most), or null.
 - "usual": true when that ingredient is one of the foods they often eat.
