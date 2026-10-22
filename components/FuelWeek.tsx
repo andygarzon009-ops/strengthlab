@@ -1,8 +1,9 @@
 "use client";
 
-// The Fuel page body: a readiness-style hero for the selected day, then the
-// week as stacked macro bars under each day's target, the macro split, the
-// day's diary by meal, and fiber & the limits — charts in FuelCharts.tsx.
+// The Fuel page body: a readiness-style hero for the selected day (with the
+// room left while it's open), then the week as fill-up capsules toward each
+// day's target, the day's diary by meal, and fiber & the limits — charts in
+// FuelCharts.tsx.
 // Data is a live read (getFuelWeek): StrengthLab's own food log plus whatever
 // Google Health has for the last seven local days.
 
@@ -10,7 +11,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import TickGauge, { scaleColor } from "@/components/TickGauge";
-import { CARBS, FAT, FIBER, FoodDiary, MacroPanel, MicroGrid, PROTEIN, WeekChart } from "@/components/FuelCharts";
+import { CARBS, FAT, FIBER, FoodDiary, MicroGrid, PROTEIN, WeekChart } from "@/components/FuelCharts";
 
 
 export type FoodRow = {
@@ -120,13 +121,7 @@ export default function FuelWeek({
   const [selected, setSelected] = useState(today);
   const day = days.find((d) => d.date === selected) ?? days[days.length - 1];
   const isToday = day.date === today;
-  // While the day is open we report progress toward the targets; only once it's
-  // closed is there a result to grade.
-  const inProgress = day.partial;
-
   const i = day.intake;
-  const t = day.targets;
-
 
   const scoreColor = RATING_COLOR[day.score.rating] ?? "var(--fg-dim)";
 
@@ -161,18 +156,6 @@ export default function FuelWeek({
 
       {day.logged && (
         <>
-          {/* ── macros ── */}
-          <p className="label mb-2" style={{ color: "var(--fg-muted)" }}>Macros</p>
-          <div
-            className="rounded-2xl p-4 mb-4"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
-          >
-            <MacroPanel day={day} />
-
-            <MacroReconcile intake={i} />
-            {inProgress && <RoomLeft intake={i} targets={t} />}
-          </div>
-
           {/* ── the diary — past days only. Today's foods are already listed,
               editable, under "Logged today" at the top. ── */}
           {!isToday && (
@@ -409,6 +392,8 @@ function FuelHero({
           </div>
         ))}
       </div>
+
+      {day.logged && inProgress && <RoomLeft intake={i} targets={t} />}
     </section>
   );
 }
@@ -496,9 +481,9 @@ function GoalCard({
 
 
 
-/// What's actually left to eat, as one budget rather than three. Each macro bar
-/// above shows its own distance to target, and those distances don't reconcile
-/// once a macro has gone over — the overage isn't deducted from the others, so
+/// What's actually left to eat, as one budget rather than three, under the
+/// hero's rings. Per-macro distances to target don't reconcile once a macro
+/// has gone over — the overage isn't deducted from the others, so
 /// reading them as a shopping list overshoots the calorie target. This states
 /// the reconciled version: protein first, then fat, then carbs take the rest.
 function RoomLeft({
@@ -527,95 +512,46 @@ function RoomLeft({
 
   if (kcal <= 0) {
     return (
-      <p className="text-[11px] mt-3 pt-2.5" style={{ borderTop: "1px solid var(--border)", color: "var(--fg-muted)" }}>
+      <p className="text-[12px] text-center mt-4 pt-3" style={{ borderTop: "1px solid var(--border)", color: "var(--fg-muted)" }}>
         You&apos;ve reached today&apos;s calorie target.
       </p>
     );
   }
 
   return (
-    <div className="mt-3 pt-2.5" style={{ borderTop: "1px solid var(--border)" }}>
+    <div className="mt-4 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
       <div className="flex items-baseline justify-between">
-        <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+        <span className="text-[12px] font-semibold" style={{ color: "var(--fg-muted)" }}>
           Room left today
         </span>
-        <span className="text-[12px] tabular-nums">
+        <span className="text-[13px] tabular-nums">
           <b>{kcal.toLocaleString()}</b>
-          <span style={{ color: "var(--fg-dim)" }}> kcal</span>
-          {" · "}
-          <b style={{ color: PROTEIN }}>{protein}P</b>{" "}
-          <b style={{ color: CARBS }}>{carbs}C</b>{" "}
-          <b style={{ color: FAT }}>{fat}F</b>
+          <span style={{ color: "var(--fg-muted)" }}> kcal</span>
         </span>
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[12px] tabular-nums" style={{ color: "var(--fg-muted)" }}>
+        {(
+          [
+            ["protein", protein, PROTEIN],
+            ["carbs", carbs, CARBS],
+            ["fat", fat, FAT],
+          ] as const
+        ).map(([l, v, c]) => (
+          <span key={l} className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-[2px]" style={{ background: c }} />
+            {v} g {l}
+          </span>
+        ))}
       </div>
       {over.length > 0 && (
         <p className="text-[10px] mt-1 leading-snug" style={{ color: "var(--fg-dim)" }}>
-          Already over on {over.join(" and ")}, so the split above spends what&apos;s
+          Already over on {over.join(" and ")}, so this split spends what&apos;s
           left rather than chasing every macro target.
         </p>
       )}
     </div>
   );
 }
-
-/// Macros can't be coverage-checked the way micronutrients are: an omitted macro
-/// is usually a genuine zero (butter has no protein, a peach has no fat), so
-/// counting foods that "didn't report carbs" would cry wolf constantly. Energy
-/// is the real check — 4·P + 4·C + 9·F has to add back up to the calories the
-/// same entries claim. It only gets flagged when the mismatch is big enough to
-/// mean something: Atwater factors are rounded, fiber and alcohol don't fit the
-/// 4/4/9 model, so a few percent of drift is normal and expected.
-const MACRO_GAP_PCT = 0.1;
-const MACRO_GAP_KCAL = 150;
-
-function MacroReconcile({ intake }: { intake: FuelDayView["intake"] }) {
-  const gap = intake.kcal - intake.macroEnergyKcal;
-  const pct = intake.kcal > 0 ? Math.abs(gap) / intake.kcal : 0;
-  const accounted =
-    intake.kcal > 0 ? Math.round((intake.macroEnergyKcal / intake.kcal) * 100) : 0;
-
-  if (pct <= MACRO_GAP_PCT || Math.abs(gap) < MACRO_GAP_KCAL) {
-    return (
-      <p className="text-[10px] mt-2.5 tabular-nums" style={{ color: "var(--fg-dim)" }}>
-        Protein, carbs and fat account for {accounted}% of today&apos;s calories — the
-        macros are complete.
-      </p>
-    );
-  }
-
-  // A real gap. Attribute it to whichever macro the most calories went
-  // unreported for, which is only meaningful now that we know one is missing.
-  const u = intake.macroUnreportedKcal;
-  const worst = (
-    [
-      ["carbs", u.carbs],
-      ["fat", u.fat],
-      ["protein", u.protein],
-    ] as const
-  ).reduce((a, b) => (b[1] > a[1] ? b : a));
-
-  return (
-    <p
-      className="text-[10px] mt-2.5 leading-snug"
-      style={{ color: gap > 0 ? "#f59e0b" : "var(--fg-dim)" }}
-    >
-      {gap > 0 ? (
-        <>
-          {gap.toLocaleString()} kcal of today&apos;s food isn&apos;t explained by the
-          macros logged ({accounted}% accounted for)
-          {worst[1] > 0 && <> — most likely missing {worst[0]}</>}. The macro totals
-          are lower than what you actually ate.
-        </>
-      ) : (
-        <>
-          The macros add up to {Math.abs(gap).toLocaleString()} kcal more than the
-          calories logged ({accounted}% of them), so one of the two is overstated.
-        </>
-      )}
-    </p>
-  );
-}
-
 
 /// Names the reason the numbers above are floors. Without this the card reads
 /// as "you ate 4g of fiber today" when the truth is "the one item that was
