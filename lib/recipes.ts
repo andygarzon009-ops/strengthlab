@@ -43,6 +43,34 @@ export const TWEAKS: Record<string, string> = {
 /// main meal's ingredient just because they show up in the log.
 const SNACKY = /\b(date|dates|bar|bars|candy|chocolate|cookie|chips|gummy|gummies|cereal|granola|popcorn|jerky|shake|smoothie|pre-?workout|gatorade|soda|juice)\b/i;
 
+/// Things bought whole, with a typical weight each: a recipe that gives them
+/// in grams is rewritten as a count, since most people cook without a scale.
+const WHOLE: { match: RegExp; each: number; name: (m: RegExpMatchArray) => string }[] = [
+  { match: /chicken breast/i, each: 225, name: () => "chicken breast, large" },
+  { match: /chicken thigh/i, each: 115, name: () => "chicken thigh, boneless" },
+  { match: /\b(salmon|cod|tilapia|trout|halibut|mahi[- ]mahi)\b/i, each: 170, name: (m) => `${m[1].toLowerCase()} fillet` },
+  { match: /pork chop/i, each: 200, name: () => "pork chop" },
+];
+
+export function byCount(i: RecipeIngredient): RecipeIngredient {
+  if (i.unit !== "g" || i.qty == null) return i;
+  for (const w of WHOLE) {
+    const m = i.name.match(w.match);
+    if (!m) continue;
+    // Keep the prep the model gave ("diced", "sliced thin").
+    const prep = i.name.includes(",")
+      ? i.name.slice(i.name.indexOf(",") + 1).trim()
+      : (i.name.match(/\b(diced|cubed|sliced|shredded)\b/i)?.[1] ?? "");
+    return {
+      ...i,
+      name: [...new Set([...w.name(m).split(", "), ...prep.split(/,\s*/)])].filter(Boolean).join(", "),
+      qty: Math.max(0.5, Math.round((i.qty / w.each) * 2) / 2),
+      unit: "",
+    };
+  }
+  return i;
+}
+
 export const num = (n: unknown) => {
   const v = typeof n === "number" ? n : parseFloat(String(n));
   return Number.isFinite(v) && v > 0 ? Math.round(v) : 0;
@@ -118,7 +146,8 @@ Return ONLY JSON:
   - cups for rice, pasta, quinoa, oats, beans, potatoes (diced), chopped veg, greens, shredded cheese, yogurt, cottage cheese, fruit, milk and broth (say cooked or dry in the name, e.g. "jasmine rice, cooked");
   - tbsp or tsp for oils, butter, sauces, dressings, nut butters and spices;
   - counts for things bought whole: eggs, tortillas, buns, cloves, chicken breasts or thighs, fish fillets, steaks, sausages, potatoes, avocados, bananas (put the size in the name, e.g. "chicken breast, large");
-  - grams only where nothing else works, e.g. ground meat or diced meat bought by the pack (the label gives the weight).
+    Count these even when the recipe cuts them up: "chicken breast, large, diced" with qty 1, not 200 g.
+  - grams only where nothing else works: ground meat, stew meat or shaved/sliced steak bought by the pack (the label gives the weight).
 - "name" is the ingredient alone, lowercase, with any prep after a comma: "chicken thigh, boneless", "red onion, diced".
 - "usesYourFoods": a short phrase like "Uses rice + pico you eat" (two foods at most), or null.
 - "usual": true when that ingredient is one of the foods they often eat.
@@ -144,13 +173,13 @@ Return ONLY JSON:
         ingredients: ing.slice(0, 14).map((i) => {
           const x = (i ?? {}) as Record<string, unknown>;
           const q = typeof x.qty === "number" ? x.qty : parseFloat(String(x.qty));
-          const unit = String(x.unit ?? "").trim().toLowerCase().replace(/([^s])s$/, "$1").slice(0, 16);
-          return {
+          const unit = String(x.unit ?? "").trim().toLowerCase().replace(/([^s])s$/, "$1").replace(/^(count|piece|whole|each|unit|item|x)$/, "").slice(0, 16);
+          return byCount({
             name: String(x.name ?? "").trim().slice(0, 60),
             qty: Number.isFinite(q) && q > 0 ? q : null,
             unit: unit === "gram" ? "g" : unit === "tablespoon" ? "tbsp" : unit === "teaspoon" ? "tsp" : unit,
             usual: x.usual === true,
-          };
+          });
         }).filter((i) => i.name),
         steps: steps.slice(0, 6).map((s) => String(s).trim().slice(0, 160)).filter(Boolean),
       };
