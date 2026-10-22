@@ -497,6 +497,11 @@ export default function NextMeal({
                     </div>
                   ))}
                 </div>
+                {serv !== 1 && (
+                  <p className="text-[11.5px] mt-1.5 tabular-nums" style={{ color: "var(--fg-muted)" }}>
+                    For all {+serv.toFixed(2)} servings · one serving is {open.kcal.toLocaleString()} kcal, {open.proteinG} g protein
+                  </p>
+                )}
               </div>
 
               <div className="px-4 py-3" style={{ borderTop: "1px solid var(--border)" }}>
