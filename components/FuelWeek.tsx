@@ -10,7 +10,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
-import TickGauge from "@/components/TickGauge";
+import TickGauge, { scaleColor } from "@/components/TickGauge";
 import NextMeal from "@/components/NextMeal";
 import { roomLeft } from "@/lib/roomLeft";
 import type { RecentMeal } from "@/lib/foodLog";
@@ -101,6 +101,14 @@ function longDate(dateKey: string): string {
   });
 }
 
+/// The day's colour: Fuel blue while it's in progress, the score's own colour
+/// once it's done, a faint neutral when nothing was logged.
+function fuelTint(day: FuelDayView): (alpha: number) => string {
+  if (!day.logged) return (a) => `rgba(255, 255, 255, ${a / 4})`;
+  if (day.partial) return (a) => `rgba(56, 189, 248, ${a})`;
+  return (a) => scaleColor(day.score.score, a);
+}
+
 export type Calibration = {
   maintenanceKcal: number;
   avgIntakeKcal: number;
@@ -135,6 +143,20 @@ export default function FuelWeek({
 
   return (
     <>
+      {/* The page glow, replacing the app's recovery-coloured one here:
+          blue while the day is in progress, the score's colour once it's done. */}
+      <div
+        aria-hidden
+        className="session-glow pointer-events-none fixed inset-0 -z-10"
+        style={{
+          background: [
+            `radial-gradient(85% 55% at 50% 38%, ${fuelTint(day)(0.15)} 0%, ${fuelTint(day)(0.05)} 50%, transparent 78%)`,
+            `radial-gradient(70% 35% at 50% 100%, ${fuelTint(day)(0.07)} 0%, transparent 70%)`,
+          ].join(", "),
+          transform: "translateZ(0)",
+        }}
+      />
+
       <FuelHero
         day={day}
         isToday={isToday}
@@ -284,9 +306,7 @@ function FuelHero({
   const inProgress = day.partial;
   const value = !day.logged ? null : inProgress ? day.progress.pct : day.score.score;
   const tint = !day.logged ? "var(--fg-dim)" : inProgress ? PROGRESS : scoreColor;
-  // Fuel's own hue: the glow stays blue whatever the score, so a good day
-  // doesn't turn the page green — the gauge and pill carry the grade.
-  const glow = value == null ? "rgba(255,255,255,0.03)" : "rgba(56,189,248,0.14)";
+  const glow = fuelTint(day)(0.12);
   const pill = !day.logged
     ? "Nothing logged"
     : inProgress
