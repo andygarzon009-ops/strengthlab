@@ -99,8 +99,11 @@ export function mergeFoodLog(
 const SNACK_SIZED_KCAL = 350;
 
 export type RecentMeal = {
+  /// The meal's food signature: sorted lowercase food names joined by "|".
   key: string;
   title: string;
+  /// The title is one the athlete gave it (see MealName).
+  named?: boolean;
   /// The meal it's usually logged as, so the re-log list can group by meal.
   meal: string;
   items: {
@@ -196,7 +199,20 @@ export async function listRecentMeals(userId: string, limit = 8): Promise<Recent
         : [...tally.entries()].reduce((a, b) => (b[1] > a[1] ? b : a))[0];
   }
 
-  return [...byFoods.values()]
+  const top = [...byFoods.values()]
     .sort((a, b) => b.times - a.times || b.lastDate.localeCompare(a.lastDate))
     .slice(0, limit);
+  const names = await prisma.mealName.findMany({
+    where: { userId, sig: { in: top.map((m) => m.key) } },
+    select: { sig: true, title: true },
+  });
+  const nameOf = new Map(names.map((n) => [n.sig, n.title]));
+  for (const m of top) {
+    const t = nameOf.get(m.key);
+    if (t) {
+      m.title = t;
+      m.named = true;
+    }
+  }
+  return top;
 }

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { shrinkImage } from "@/lib/shrinkImage";
-import { saveFoodItems } from "@/lib/actions/food";
+import { renameRecentMeal, saveFoodItems } from "@/lib/actions/food";
 import { mealForHour, MEALS, type Meal } from "@/lib/meals";
 import { onPendingMeal, takePendingMeal } from "@/lib/pendingMeal";
 import type { RecentMeal } from "@/lib/foodLog";
@@ -77,6 +77,13 @@ const scaled = (it: Item) => ({
 /// Log a meal from a photo or a sentence. Gemini estimates each food; the
 /// athlete trims, rescales or removes items, picks the meal, and saves it to
 /// Fuel. Nothing is stored until Save.
+/// The automatic name for a past meal: its biggest food, "+N" for the rest.
+function autoTitle(r: RecentMeal): string {
+  const lead = [...r.items].sort((a, b) => b.kcal - a.kcal)[0];
+  if (!lead) return r.title;
+  return r.items.length > 1 ? `${lead.name} +${r.items.length - 1}` : lead.name;
+}
+
 export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -87,6 +94,22 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
   const [showRecent, setShowRecent] = useState(false);
   // Which meal's past meals are expanded; starts on the meal it is right now.
   const [recentMeal, setRecentMeal] = useState<Meal | null>(() => mealForHour(new Date().getHours()));
+  // Renaming a past meal: the row being edited, and names saved this visit
+  // (shown at once, before the page refreshes with them).
+  const [renaming, setRenaming] = useState<{ key: string; value: string } | null>(null);
+  const [renamed, setRenamed] = useState<Record<string, string | null>>({});
+  const titleOf = (r: RecentMeal) => {
+    const local = renamed[r.key];
+    return local === undefined ? r.title : local ?? autoTitle(r);
+  };
+  const isNamed = (r: RecentMeal) => (renamed[r.key] === undefined ? !!r.named : renamed[r.key] != null);
+  const saveRename = (r: RecentMeal, value: string) => {
+    const name = value.trim();
+    setRenaming(null);
+    if (name === titleOf(r)) return;
+    setRenamed((m) => ({ ...m, [r.key]: name || null }));
+    renameRecentMeal(r.key, name).then(() => router.refresh());
+  };
   const [pending, startTransition] = useTransition();
   const [vh, setVh] = useState<number | null>(null);
   const [vTop, setVTop] = useState(0);
@@ -472,13 +495,52 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
                       </span>
                     </button>
                     {isOpen &&
-                      list.map((r) => (
+                      list.map((r) =>
+                        renaming?.key === r.key ? (
+                          <form
+                            key={r.key}
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              saveRename(r, renaming.value);
+                            }}
+                            className="flex items-center gap-2 px-3.5 py-2"
+                            style={{ borderTop: "1px solid var(--border)" }}
+                          >
+                            <input
+                              autoFocus
+                              value={renaming.value}
+                              maxLength={60}
+                              onChange={(e) => setRenaming({ key: r.key, value: e.target.value })}
+                              onKeyDown={(e) => e.key === "Escape" && setRenaming(null)}
+                              placeholder={autoTitle(r)}
+                              aria-label="Meal name"
+                              className="min-w-0 flex-1 rounded-lg px-3 py-2 text-[14px] focus:outline-none"
+                              style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)", color: "var(--fg)" }}
+                            />
+                            {isNamed(r) && (
+                              <button
+                                type="button"
+                                onClick={() => saveRename(r, "")}
+                                className="text-[12px] font-semibold px-2 py-2"
+                                style={{ color: "var(--fg-muted)" }}
+                              >
+                                Reset
+                              </button>
+                            )}
+                            <button
+                              type="submit"
+                              className="text-[12.5px] font-semibold px-3 py-2 rounded-lg"
+                              style={{ background: "var(--accent)", color: "#0a0a0a" }}
+                            >
+                              Save
+                            </button>
+                          </form>
+                        ) : (
+                        <div key={r.key} className="flex items-center" style={{ borderTop: "1px solid var(--border)" }}>
                         <button
-                          key={r.key}
                           type="button"
                           onClick={() => relog(r)}
-                          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left active:opacity-70"
-                          style={{ borderTop: "1px solid var(--border)" }}
+                          className="min-w-0 flex-1 flex items-center gap-3 pl-3.5 py-2.5 text-left active:opacity-70"
                         >
                           {r.photoUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -489,21 +551,41 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
                             </span>
                           )}
                           <span className="min-w-0 flex-1">
-                            <span className="block text-[14px] font-medium truncate">{r.title}</span>
+                            <span className="block text-[14px] font-medium truncate">{titleOf(r)}</span>
                             <span className="block text-[11px] tabular-nums" style={{ color: "var(--fg-muted)" }}>
                               {r.kcal.toLocaleString()} kcal
                               {r.times > 1 ? ` · logged ${r.times}×` : ""}
                             </span>
                           </span>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Rename ${titleOf(r)}`}
+                          onClick={() => setRenaming({ key: r.key, value: isNamed(r) ? titleOf(r) : "" })}
+                          className="w-9 h-9 flex items-center justify-center shrink-0"
+                          style={{ color: "var(--fg-dim)" }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Log ${titleOf(r)}`}
+                          onClick={() => relog(r)}
+                          className="pr-3.5 pl-1 py-2.5 shrink-0"
+                        >
                           <span
-                            className="w-7 h-7 rounded-full flex items-center justify-center text-[16px] font-bold shrink-0"
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-[16px] font-bold"
                             style={{ background: "rgba(74,222,128,0.16)", color: "#86efac" }}
                             aria-hidden
                           >
                             +
                           </span>
                         </button>
-                      ))}
+                        </div>
+                        ),
+                      )}
                   </div>
                 );
               })}

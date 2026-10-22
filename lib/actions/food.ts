@@ -106,3 +106,23 @@ export async function updateFoodLog(
   revalidatePath("/");
   return { ok: true as const };
 }
+
+/// Name a past meal (by its food signature). An empty name goes back to the
+/// automatic one.
+export async function renameRecentMeal(sig: string, title: string) {
+  const userId = await requireAuth();
+  const key = String(sig ?? "").slice(0, 2000);
+  const name = String(title ?? "").trim().slice(0, 60);
+  if (!key) return { ok: false as const };
+  if (!name) {
+    await prisma.mealName.deleteMany({ where: { userId, sig: key } });
+  } else {
+    await prisma.mealName.upsert({
+      where: { userId_sig: { userId, sig: key } },
+      create: { userId, sig: key, title: name },
+      update: { title: name },
+    });
+  }
+  revalidatePath("/fuel");
+  return { ok: true as const };
+}
