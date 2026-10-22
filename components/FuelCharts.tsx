@@ -10,23 +10,14 @@
 // never rests on colour alone.
 
 import { useState } from "react";
-import ChartScrubTrack from "@/components/ChartScrubTrack";
 import type { FoodRow, FuelDayView } from "@/components/FuelWeek";
 
 export const PROTEIN = "#ec4899";
 export const CARBS = "#3b82f6";
 export const FAT = "#c2820a";
 export const FIBER = "#0d9488";
-const GOAL = "#a3e635";
 const OVER = "#f59e0b";
 const GAP = 2; // surface gap between stacked fills
-
-const RATING_COLOR: Record<string, string> = {
-  "on track": "#22c55e",
-  good: "#84cc16",
-  "off target": "#f59e0b",
-  "needs work": "#ef4444",
-};
 
 function dow(dateKey: string) {
   const [y, m, d] = dateKey.split("-").map(Number);
@@ -41,41 +32,13 @@ function longDate(dateKey: string) {
     timeZone: "UTC",
   });
 }
-const k = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : `${n}`);
-
-function Swatch({ color, label }: { color: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1 text-[10px]" style={{ color: "var(--fg-muted)" }}>
-      <span className="inline-block w-2 h-2 rounded-[2px]" style={{ background: color }} />
-      {label}
-    </span>
-  );
-}
-
-function StatTile({ label, value, note }: { label: string; value: string; note: string }) {
-  return (
-    <div className="rounded-xl py-2.5 px-2 text-center" style={{ background: "var(--bg-elevated)" }}>
-      <p className="text-[11px] font-semibold" style={{ color: "var(--fg-muted)" }}>{label}</p>
-      <p className="text-[16px] font-bold tabular-nums leading-tight mt-0.5">{value}</p>
-      <p className="text-[10px] mt-0.5" style={{ color: "var(--fg-muted)" }}>{note}</p>
-    </div>
-  );
-}
 
 // ── This week ───────────────────────────────────────────────────────────────
 
-const W = 340;
-const H = 184;
-const PAD_L = 4;
-const PAD_R = 30;
-const PAD_T = 10;
-const PAD_B = 36;
-const PLOT_W = W - PAD_L - PAD_R;
-const PLOT_H = H - PAD_T - PAD_B;
-
-/// Seven days as stacked macro bars (calories from protein, carbs, fat) under
-/// each day's own calorie target, drawn as a dashed lime step. Hold and drag
-/// to read a day; tap to open it below.
+/// Seven days as capsules that fill toward each day's calorie target, with the
+/// % above. One colour throughout — the day's grade lives in the hero, so the
+/// bars only say how full the day got. Tap a day to open it below; the strip
+/// under the capsules spells out that day's calories and macros.
 export function WeekChart({
   days,
   selected,
@@ -86,200 +49,135 @@ export function WeekChart({
   onSelect: (date: string) => void;
 }) {
   const n = days.length;
-  const peak = Math.max(
-    1,
-    ...days.map((d) => Math.max(d.intake.kcal, d.targets.calorieTargetKcal)),
-  );
-  // At most ~4 gridlines, like the sleep chart's hour axis.
-  const step = peak > 2000 ? 1000 : 500;
-  const yMax = Math.ceil((peak * 1.08) / step) * step;
-  const y = (v: number) => PAD_T + PLOT_H - (v / yMax) * PLOT_H;
-  const base = PAD_T + PLOT_H;
-  const slot = PLOT_W / n;
-  const bw = Math.min(26, slot * 0.56);
-  const cx = (i: number) => PAD_L + slot * (i + 0.5);
-  const ticks: number[] = [];
-  for (let v = step; v <= yMax; v += step) ticks.push(v);
-  const lastTarget = days[n - 1].targets.calorieTargetKcal;
-
   const logged = days.filter((d) => d.logged);
   const closed = logged.filter((d) => !d.partial);
   const avg = (f: (d: FuelDayView) => number) =>
     logged.length ? Math.round(logged.reduce((s, d) => s + f(d), 0) / logged.length) : 0;
   const onTarget = closed.filter((d) => d.score.rating === "on track" || d.score.rating === "good").length;
+  const target = days[n - 1].targets.calorieTargetKcal;
+  const sel = days.find((d) => d.date === selected) ?? days[n - 1];
 
   return (
     <div>
-      <ChartScrubTrack
-        xFracs={days.map((_, i) => (i + 0.5) / n)}
-        padLeft={PAD_L / W}
-        padRight={PAD_R / W}
-        hint={
-          <span className="text-[11px]" style={{ color: "var(--fg-muted)" }}>
-            Hold and drag to read a day · tap to open it
+      <div className="flex items-baseline justify-between px-1 pb-3">
+        <p className="text-[22px] font-extrabold tracking-tight tabular-nums leading-none">
+          {logged.length ? avg((d) => d.intake.kcal).toLocaleString() : "—"}
+          <span className="text-[12px] font-medium ml-1.5" style={{ color: "var(--fg-muted)" }}>
+            avg kcal / day
           </span>
-        }
-        onTap={(i) => onSelect(days[i].date)}
-        readout={(i) => {
-          const d = days[i];
-          return (
-            <div className="flex items-center gap-3 tabular-nums min-w-0">
-              <div className="shrink-0">
-                <p className="text-[16px] font-bold leading-none">
-                  {d.logged ? d.intake.kcal.toLocaleString() : "—"}
-                  <span className="text-[11px] font-medium ml-1" style={{ color: "var(--fg-muted)" }}>
-                    / {d.targets.calorieTargetKcal.toLocaleString()}
-                  </span>
-                </p>
-                <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-muted)" }}>{longDate(d.date)}</p>
-              </div>
-              {d.logged && (
-                <div className="flex gap-2.5 text-[11px] flex-wrap">
-                  {[
-                    ["Protein", d.intake.proteinG, PROTEIN],
-                    ["Carbs", d.intake.carbsG, CARBS],
-                    ["Fat", d.intake.fatG, FAT],
-                  ].map(([l, v, c]) => (
-                    <span key={l as string} className="flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-[2px]" style={{ background: c as string }} />
-                      <span style={{ color: "var(--fg-muted)" }}>{l}</span>
-                      <b>{Math.round(v as number)}g</b>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        }}
-      >
-        {(idx) => (
-          <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", overflow: "visible" }} aria-label="Calories by day, stacked by macro">
-            {ticks.map((v) => (
-              <g key={v}>
-                <line x1={PAD_L} x2={W - PAD_R} y1={y(v)} y2={y(v)} stroke="var(--border)" strokeWidth={0.6} />
-                {/* The target label wins the right edge when they'd collide. */}
-                {Math.abs(y(v) - y(lastTarget)) > 11 && (
-                  <text x={W - PAD_R + 5} y={y(v) + 3} fontSize="9" fill="var(--fg-muted)">{k(v)}</text>
-                )}
-              </g>
-            ))}
-            <line x1={PAD_L} x2={W - PAD_R} y1={base} y2={base} stroke="var(--border-strong)" strokeWidth={0.8} />
-
-            {days.map((d, i) => {
-              const on = d.date === selected;
-              const dim = idx != null ? idx !== i : !on;
-              const x = cx(i) - bw / 2;
-              if (!d.logged) {
-                return (
-                  <rect
-                    key={d.date}
-                    x={x}
-                    y={base - 6}
-                    width={bw}
-                    height={6}
-                    rx={2}
-                    fill="none"
-                    stroke="var(--border-strong)"
-                    strokeDasharray="2 2"
-                  />
-                );
-              }
-              const p = d.intake.proteinG * 4;
-              const c = d.intake.carbsG * 4;
-              const f = d.intake.fatG * 9;
-              const sum = p + c + f || 1;
-              const top = y(d.intake.kcal);
-              const h = base - top;
-              // Segments share the bar's height in proportion to their calories.
-              const segs = [
-                { v: p, col: PROTEIN },
-                { v: c, col: CARBS },
-                { v: f, col: FAT },
-              ].filter((s) => s.v > 0);
-              let acc = base;
-              return (
-                <g key={d.date} opacity={dim ? 0.42 : 1}>
-                  <clipPath id={`fw-${i}`}>
-                    <rect x={x} y={top} width={bw} height={h + 6} rx={4} />
-                  </clipPath>
-                  <g clipPath={`url(#fw-${i})`}>
-                    {segs.map((s, si) => {
-                      const sh = (s.v / sum) * h;
-                      acc -= sh;
-                      const last = si === segs.length - 1;
-                      return (
-                        <rect
-                          key={si}
-                          x={x}
-                          y={acc + (last ? 0 : GAP / 2)}
-                          width={bw}
-                          height={Math.max(0, sh - (last ? GAP / 2 : GAP))}
-                          fill={s.col}
-                        />
-                      );
-                    })}
-                  </g>
-                </g>
-              );
-            })}
-
-            {/* Each day's own calorie target, as a dashed step. */}
-            {days.map((d, i) => (
-              <line
-                key={`t-${d.date}`}
-                x1={PAD_L + slot * i + 3}
-                x2={PAD_L + slot * (i + 1) - 3}
-                y1={y(d.targets.calorieTargetKcal)}
-                y2={y(d.targets.calorieTargetKcal)}
-                stroke={GOAL}
-                strokeWidth={1.4}
-                strokeDasharray="4 3"
-                opacity={0.9}
-              />
-            ))}
-            <text x={W - PAD_R + 5} y={y(lastTarget) + 3} fontSize="9" fontWeight={700} fill={GOAL}>
-              {k(Math.round(lastTarget / 10) * 10)}
-            </text>
-
-            {days.map((d, i) => {
-              const on = d.date === selected;
-              const scoreTxt = !d.logged ? "—" : d.partial ? `${d.progress.pct}%` : `${d.score.score}`;
-              const scoreCol = !d.logged
-                ? "var(--fg-dim)"
-                : d.partial
-                  ? "#38bdf8"
-                  : (RATING_COLOR[d.score.rating] ?? "var(--fg-muted)");
-              return (
-                <g key={`l-${d.date}`}>
-                  <text x={cx(i)} y={base + 14} fontSize="10" textAnchor="middle" fontWeight={on ? 700 : 400} fill={on ? "var(--fg)" : "var(--fg-muted)"}>
-                    {dow(d.date)}
-                  </text>
-                  <text x={cx(i)} y={base + 28} fontSize="10" textAnchor="middle" fontWeight={700} fill={scoreCol}>
-                    {scoreTxt}
-                  </text>
-                  {on && <circle cx={cx(i)} cy={base + 33} r={1.6} fill="var(--fg)" />}
-                </g>
-              );
-            })}
-          </svg>
-        )}
-      </ChartScrubTrack>
-
-      <div className="flex items-center gap-3 mt-1.5 px-1 flex-wrap">
-        <Swatch color={PROTEIN} label="Protein" />
-        <Swatch color={CARBS} label="Carbs" />
-        <Swatch color={FAT} label="Fat" />
-        <span className="flex items-center gap-1 text-[10px]" style={{ color: "var(--fg-muted)" }}>
-          <svg width="14" height="4" aria-hidden><line x1="0" x2="14" y1="2" y2="2" stroke={GOAL} strokeWidth="1.5" strokeDasharray="4 3" /></svg>
-          Target
+        </p>
+        <span className="text-[11px] tabular-nums" style={{ color: "var(--fg-muted)" }}>
+          target {target.toLocaleString()}
         </span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mt-3">
-        <StatTile label="Avg intake" value={logged.length ? avg((d) => d.intake.kcal).toLocaleString() : "—"} note="kcal / logged day" />
-        <StatTile label="Avg protein" value={logged.length ? `${avg((d) => d.intake.proteinG)} g` : "—"} note={`target ${days[n - 1].targets.proteinTargetG} g`} />
-        <StatTile label="On target" value={`${onTarget}/${closed.length || 0}`} note="finished days" />
+      <div className="flex gap-1.5 px-0.5">
+        {days.map((d) => {
+          const on = d.date === selected;
+          const pct = d.logged ? Math.round((d.intake.kcal / Math.max(1, d.targets.calorieTargetKcal)) * 100) : 0;
+          return (
+            <button
+              key={d.date}
+              type="button"
+              onClick={() => onSelect(d.date)}
+              aria-pressed={on}
+              aria-label={`${longDate(d.date)}: ${d.logged ? `${pct}% of target` : "nothing logged"}`}
+              className="flex-1 min-w-0 flex flex-col items-center gap-1.5"
+            >
+              <span
+                className="text-[10.5px] font-bold tabular-nums"
+                style={{ color: !d.logged ? "var(--fg-dim)" : on ? "var(--fg)" : "var(--fg-muted)" }}
+              >
+                {d.logged ? `${pct}%` : "—"}
+              </span>
+              <span
+                className="relative w-full max-w-[34px] h-[118px] rounded-xl overflow-hidden"
+                style={{
+                  background: "var(--bg-elevated)",
+                  boxShadow: on ? "0 0 0 1.5px var(--fg)" : undefined,
+                }}
+              >
+                {d.logged && (
+                  <span
+                    className="absolute left-0 right-0 bottom-0"
+                    style={{
+                      height: `${Math.min(100, pct)}%`,
+                      background: "var(--accent)",
+                      opacity: on ? 1 : 0.6,
+                    }}
+                  />
+                )}
+                {!d.logged && (
+                  <span
+                    className="absolute inset-0 flex items-center justify-center text-[9px]"
+                    style={{ color: "var(--fg-dim)", writingMode: "vertical-rl" }}
+                  >
+                    no log
+                  </span>
+                )}
+              </span>
+              <span
+                className="text-[11px]"
+                style={{ color: on ? "var(--fg)" : "var(--fg-muted)", fontWeight: on ? 700 : 500 }}
+              >
+                {dow(d.date)}
+              </span>
+            </button>
+          );
+        })}
       </div>
+
+      <div
+        className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-3 py-2.5 mt-3 text-[12px] tabular-nums"
+        style={{ background: "var(--bg-elevated)", color: "var(--fg-muted)" }}
+      >
+        <b className="text-[13px]" style={{ color: "var(--fg)" }}>{longDate(sel.date)}</b>
+        {sel.logged ? (
+          <>
+            <span>
+              {sel.intake.kcal.toLocaleString()} / {sel.targets.calorieTargetKcal.toLocaleString()} kcal
+            </span>
+            {(
+              [
+                ["protein", sel.intake.proteinG, PROTEIN],
+                ["carbs", sel.intake.carbsG, CARBS],
+                ["fat", sel.intake.fatG, FAT],
+              ] as const
+            ).map(([l, v, c]) => (
+              <span key={l} className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-[2px]" style={{ background: c }} />
+                {Math.round(v)} g {l}
+              </span>
+            ))}
+          </>
+        ) : (
+          <span>Nothing logged</span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 mt-3.5 pt-3 px-1" style={{ borderTop: "1px solid var(--border)" }}>
+        <WeekStat label="Avg / day" value={logged.length ? avg((d) => d.intake.kcal).toLocaleString() : "—"} unit="kcal" />
+        <WeekStat
+          label="Protein"
+          value={logged.length ? `${avg((d) => d.intake.proteinG)}` : "—"}
+          unit={`/ ${days[n - 1].targets.proteinTargetG} g`}
+        />
+        <WeekStat label="On target" value={`${onTarget}`} unit={`of ${closed.length} day${closed.length === 1 ? "" : "s"}`} />
+      </div>
+    </div>
+  );
+}
+
+function WeekStat({ label, value, unit }: { label: string; value: string; unit: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--fg-dim)" }}>
+        {label}
+      </p>
+      <p className="text-[17px] font-bold tabular-nums mt-0.5">
+        {value}
+        <span className="text-[11px] font-medium ml-1" style={{ color: "var(--fg-muted)" }}>{unit}</span>
+      </p>
     </div>
   );
 }

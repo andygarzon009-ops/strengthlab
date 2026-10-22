@@ -149,7 +149,7 @@ export default function FuelWeek({
           className="float-right normal-case tracking-normal font-medium"
           style={{ color: "var(--fg-dim)" }}
         >
-          tap a day · stacked by macro
+          % of target · tap a day
         </span>
       </p>
       <div
