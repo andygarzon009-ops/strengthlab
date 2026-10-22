@@ -146,7 +146,7 @@ export default function ReadinessView(p: ReadinessViewProps) {
       ) : (
         p.lastNight &&
         sleepQuality != null && (
-          <SleepDetail sleep={p.lastNight} qualityScore={sleepQuality} />
+          <SleepDetail sleep={p.lastNight} qualityScore={sleepQuality} nightDate={p.lastNightKey ?? undefined} />
         )
       )}
 

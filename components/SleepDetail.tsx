@@ -3,8 +3,10 @@
 // ranges, and a strip of quality stats. Nights synced before per-segment
 // stages were captured swap the hypnogram for a single composition bar.
 
+import Link from "next/link";
 import SleepHypnogram from "@/components/SleepHypnogram";
 import { STAGE_STYLE, type StageSeg } from "@/lib/sleepStages";
+import { AWAKE_OK_MIN, STAGE_TARGET as TARGET } from "@/lib/sleepStageInfo";
 
 export type SleepSummary = {
   asleepMin: number;
@@ -29,13 +31,6 @@ const MIN_KEY: Record<Stage, "deepMin" | "remMin" | "lightMin" | "awakeMin"> = {
   rem: "remMin",
   light: "lightMin",
   awake: "awakeMin",
-};
-
-// Typical share of time asleep for an adult (awake is minutes, not a share).
-const TARGET: Record<Exclude<Stage, "awake">, [number, number]> = {
-  deep: [13, 23],
-  rem: [20, 25],
-  light: [45, 60],
 };
 
 const GOOD = "#22c55e";
@@ -114,17 +109,20 @@ function SunIcon() {
 }
 
 /// Stage tile: duration, share of the night, and a slim track with the
-/// typical range shaded and a tick where this night landed.
+/// typical range shaded and a tick where this night landed. Opens the stage's
+/// own page, on this night.
 function StageTile({
   stage,
   min,
   totalSleep,
   awakeCount,
+  nightDate,
 }: {
   stage: Stage;
   min: number;
   totalSleep: number;
   awakeCount: number;
+  nightDate?: string;
 }) {
   const st = STAGE_STYLE[stage];
   const pct = totalSleep > 0 ? (min / totalSleep) * 100 : 0;
@@ -139,12 +137,13 @@ function StageTile({
           : { text: "In range", color: GOOD };
   } else {
     status =
-      min <= 30 ? { text: "Normal", color: GOOD } : { text: "Restless", color: WARN };
+      min <= AWAKE_OK_MIN ? { text: "Normal", color: GOOD } : { text: "Restless", color: WARN };
   }
   const scale = stage === "light" ? 80 : 40; // % axis for the track
   return (
-    <div
-      className="rounded-xl p-3"
+    <Link
+      href={`/recovery/${stage}${nightDate ? `?night=${nightDate}` : ""}`}
+      className="block rounded-xl p-3 active:opacity-70"
       style={{ background: "var(--bg-elevated)" }}
     >
       <div className="flex items-center justify-between">
@@ -152,8 +151,11 @@ function StageTile({
           <span className="inline-block w-2 h-2 rounded-full" style={{ background: st.top }} />
           {st.label}
         </span>
-        <span className="text-[11px] font-semibold" style={{ color: status.color }}>
+        <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: status.color }}>
           {status.text}
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--fg-dim)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M9 6l6 6-6 6" />
+          </svg>
         </span>
       </div>
       <p className="text-[19px] font-bold tabular-nums leading-none mt-2">
@@ -191,7 +193,7 @@ function StageTile({
           />
         </div>
       )}
-    </div>
+    </Link>
   );
 }
 
@@ -223,10 +225,13 @@ export default function SleepDetail({
   sleep,
   qualityScore,
   title = "Last night",
+  nightDate,
 }: {
   sleep: SleepSummary;
   qualityScore: number;
   title?: string;
+  /// Wake date of this night, so a stage tile opens its page on it.
+  nightDate?: string;
 }) {
   const totalSleep =
     sleep.deepMin + sleep.remMin + sleep.lightMin || sleep.asleepMin || 1;
@@ -329,6 +334,7 @@ export default function SleepDetail({
                 min={sleep[MIN_KEY[k]]}
                 totalSleep={totalSleep}
                 awakeCount={awakeCount}
+                nightDate={nightDate}
               />
             ))}
           </div>

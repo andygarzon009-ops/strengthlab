@@ -33,11 +33,14 @@ export default function SleepHypnogram({
   startUtc,
   endUtc,
   offsetSec,
+  focus,
 }: {
   stages: StageSeg[];
   startUtc: string;
   endUtc: string;
   offsetSec: number;
+  /// Spotlight one stage (its detail page): the others fade back.
+  focus?: Exclude<SleepStageType, "restless">;
 }) {
   const { trackRef, frac, handlers } = useScrub<HTMLDivElement>();
 
@@ -174,7 +177,7 @@ export default function SleepHypnogram({
             {/* stage blocks */}
             {main.map((s, i) => {
               const st = STAGE_STYLE[s.type];
-              const dim = active != null && active !== s;
+              const dim = active != null ? active !== s : focus != null && s.type !== focus;
               return (
                 <div
                   key={i}
@@ -187,7 +190,7 @@ export default function SleepHypnogram({
                     height: BLOCK_H,
                     borderRadius: 4,
                     background: `linear-gradient(180deg, ${st.top} 0%, ${st.color} 100%)`,
-                    opacity: dim ? 0.45 : 1,
+                    opacity: dim ? (active != null ? 0.45 : 0.2) : 1,
                     transition: "opacity 120ms",
                   }}
                 />

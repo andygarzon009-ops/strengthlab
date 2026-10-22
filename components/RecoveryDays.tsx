@@ -92,6 +92,7 @@ export default function RecoveryDays({
             sleep.remMin,
           )}
           title={title}
+          nightDate={selected ?? undefined}
         />
       ) : (
         <div className="mb-5">
