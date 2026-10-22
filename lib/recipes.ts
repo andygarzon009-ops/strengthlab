@@ -6,6 +6,7 @@ import { listRecentMeals } from "@/lib/foodLog";
 import { textToJson } from "@/lib/foodAi";
 import { prisma } from "@/lib/db";
 import { dietRules } from "@/lib/diet";
+import { cleanMealPrefs, mealPrefRules } from "@/lib/mealPrefs";
 
 export type RecipeIngredient = {
   name: string;
@@ -93,9 +94,10 @@ export async function generateRecipes(userId: string, req: RecipeRequest): Promi
   const snack = meal === "snack";
   const [recent, user] = await Promise.all([
     listRecentMeals(userId, 40),
-    prisma.user.findUnique({ where: { id: userId }, select: { dietRestrictions: true, dietNotes: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { dietRestrictions: true, dietNotes: true, mealPrefs: true } }),
   ]);
   const diet = dietRules(user?.dietRestrictions ?? [], user?.dietNotes);
+  const prefs = mealPrefRules(cleanMealPrefs(user?.mealPrefs), snack);
   // Taste hints from the same kind of eating: main meals only for a main
   // meal (a logged snack of dates isn't a dinner ingredient), snacks for a snack.
   const tally = new Map<string, number>();
@@ -111,7 +113,7 @@ export async function generateRecipes(userId: string, req: RecipeRequest): Promi
   const prompt = `You are a chef who cooks for athletes, writing ${count} recipe${count === 1 ? "" : "s"} for a strength athlete's ${snack ? "snack, eaten after their main meals to close the gap to today's target" : meal}.
 Target for this ${meal}: about ${kcal} kcal, ${proteinG} g protein, ${carbsG} g carbs, ${fatG} g fat (its share of what's left today, not the whole day).${phase ? ` Phase: ${phase}.` : ""}
 Land within about 10% of those calories (never more than 15% over) and as close to that protein as is realistic; protein matters most.
-${diet ? `${diet}\n` : ""}
+${diet ? `${diet}\n` : ""}${prefs ? `How they cook (follow it):\n${prefs}\n` : ""}
 What makes a good recipe here:
 - A dish people actually crave and would order: a burrito bowl, a stir-fry, a smash burger, a sheet-pan dinner, a loaded omelette. Real, well-known flavour combinations. Nothing odd or invented.
 - It suits the meal: ${snack ? "a snack" : meal === "breakfast" ? "breakfast food" : `a proper ${meal}, not a breakfast dish`}.

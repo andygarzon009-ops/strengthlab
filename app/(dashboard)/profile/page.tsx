@@ -85,8 +85,6 @@ export default async function ProfilePage() {
           moveGoalKcal: user.moveGoalKcal,
           exerciseGoalMin: user.exerciseGoalMin,
           injuries: user.injuries,
-          dietRestrictions: user.dietRestrictions,
-          dietNotes: user.dietNotes,
           coachPrompt: user.coachPrompt,
           periodization: (user.periodization as PeriodizationConfig | null) ?? null,
           height: user.height,
@@ -134,7 +132,7 @@ export default async function ProfilePage() {
         </Link>
 
         <Link
-          href="/profile/warmups"
+          href="/profile/fuel"
           className="card flex items-center justify-between px-4 py-4 transition-colors"
         >
           <div className="flex items-center gap-3">
@@ -152,15 +150,10 @@ export default async function ProfilePage() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <circle cx="12" cy="4" r="2" />
-                <path d="M12 6v8" />
-                <path d="M12 8 L6 4" />
-                <path d="M12 8 L18 4" />
-                <path d="M12 14 L8 21" />
-                <path d="M12 14 L16 21" />
+                <path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5M17 21V3c-2 1.5-3 4-3 7s1 4 3 4" />
               </svg>
             </div>
-            <span className="font-medium text-[14px]">Preferred warm-ups</span>
+            <span className="font-medium text-[14px]">Fuel settings</span>
           </div>
           <span style={{ color: "var(--fg-dim)" }}>→</span>
         </Link>

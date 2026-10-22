@@ -122,6 +122,7 @@ export default function FuelWeek({
   today,
   calibration,
   recent = [],
+  batchServings = null,
   children,
 }: {
   days: FuelDayView[];
@@ -129,6 +130,8 @@ export default function FuelWeek({
   calibration: Calibration | null;
   /// Past meals, for the Next meal card's "Your meals" tab.
   recent?: RecentMeal[];
+  /// Meal-prep batch size from Fuel settings; recipes open at it.
+  batchServings?: number | null;
   /// Rendered under the hero — the meal logger and today's entries.
   children?: ReactNode;
 }) {
@@ -172,6 +175,7 @@ export default function FuelWeek({
           logged={[...new Set(day.intake.foods.map((f) => f.meal))]}
           phase={day.targets.phaseLabel}
           recent={recent}
+          batchServings={batchServings}
         />
       )}
 

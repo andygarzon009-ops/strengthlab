@@ -54,6 +54,7 @@ export default function NextMeal({
   logged,
   phase,
   recent,
+  batchServings = null,
 }: {
   /// What's left of the whole day.
   room: RoomLeft;
@@ -62,6 +63,9 @@ export default function NextMeal({
   logged: string[];
   phase: string;
   recent: RecentMeal[];
+  /// Meal-prep batch size (Fuel settings): recipes open at it and log one
+  /// serving. Null when they don't meal prep.
+  batchServings?: number | null;
 }) {
   const hour = useHourNow();
   const plan = hour == null ? null : planNextMeal(dayRoom, hour, new Set(logged), dayTargetKcal);
@@ -76,8 +80,12 @@ export default function NextMeal({
   const [swapping, setSwapping] = useState<string | null>(null);
   // Servings in the open recipe; the ingredients and macros follow it.
   const [serv, setServ] = useState(1);
+  // Whether "Ate it" logs every serving on screen or just one (a batch).
+  const [logAll, setLogAll] = useState(true);
   const openRecipe = (i: number) => {
-    setServ(1);
+    const batch = plan?.snacksToClose == null ? batchServings : null;
+    setServ(batch ?? 1);
+    setLogAll(batch == null);
     setOpenIdx(i);
   };
 
@@ -315,6 +323,15 @@ export default function NextMeal({
               </button>
             </div>
           )}
+          {recipes && (
+            <Link
+              href="/profile/fuel"
+              className="flex items-center justify-end gap-1 text-[11.5px] font-semibold pb-1"
+              style={{ color: "var(--fg-muted)" }}
+            >
+              Diet &amp; cooking settings ›
+            </Link>
+          )}
           {recipes?.map((r, i) => (
             <button
               key={`${r.title}-${i}`}
@@ -438,6 +455,33 @@ export default function NextMeal({
                     </button>
                   </div>
                 </div>
+                {serv > 1 && (
+                  <div className="flex items-center justify-between mt-2 text-[12px]">
+                    <span style={{ color: "var(--fg-muted)" }}>When you log it</span>
+                    <div className="flex rounded-lg p-[2px]" style={{ background: "rgba(255,255,255,0.04)" }}>
+                      {(
+                        [
+                          [false, "1 serving"],
+                          [true, `All ${+serv.toFixed(2)}`],
+                        ] as const
+                      ).map(([all, label]) => (
+                        <button
+                          key={label}
+                          type="button"
+                          aria-pressed={logAll === all}
+                          onClick={() => setLogAll(all)}
+                          className="px-2.5 py-1 rounded-md font-semibold"
+                          style={{
+                            background: logAll === all ? "var(--bg-elevated)" : "transparent",
+                            color: logAll === all ? "var(--fg)" : "var(--fg-muted)",
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-4 gap-1.5 mt-3">
                   {(
                     [
@@ -537,11 +581,11 @@ export default function NextMeal({
                 </Link>
                 <button
                   type="button"
-                  onClick={() => logRecipe(open, serv)}
+                  onClick={() => logRecipe(open, logAll ? serv : 1)}
                   className="flex-1 min-h-[44px] rounded-xl text-[13.5px] font-semibold"
                   style={{ background: "var(--accent)", color: "#0a0a0a" }}
                 >
-                  {serv === 1 ? "Ate it · log" : `Ate ${+serv.toFixed(2)} · log`}
+                  {serv === 1 || !logAll ? "Ate a serving · log" : `Ate ${+serv.toFixed(2)} · log`}
                 </button>
               </div>
             </div>

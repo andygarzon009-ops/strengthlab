@@ -7,6 +7,7 @@ import HealthReconnectBanner from "@/components/HealthReconnectBanner";
 import FoodLogger from "@/components/FoodLogger";
 import FoodLogToday from "@/components/FoodLogToday";
 import { listFoodLog, listRecentMeals } from "@/lib/foodLog";
+import { cleanMealPrefs } from "@/lib/mealPrefs";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,8 @@ export const dynamic = "force-dynamic";
 /// intake from StrengthLab's own food log, with every food and its macros.
 export default async function FuelPage() {
   const userId = await requireAuth();
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { timezone: true } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { timezone: true, mealPrefs: true } });
+  const prefs = cleanMealPrefs(user?.mealPrefs);
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: user?.timezone || "UTC",
     year: "numeric",
@@ -43,6 +45,7 @@ export default async function FuelPage() {
           today={week.today}
           calibration={week.calibration}
           recent={recent}
+          batchServings={prefs.mealPrep ? prefs.batchServings : null}
         >
           <FoodLogger recent={recent} />
           <FoodLogToday rows={todayRows.filter((r) => r.localDate === today)} />

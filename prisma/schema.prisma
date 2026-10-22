@@ -52,6 +52,9 @@ model User {
   /// on foods avoided or disliked. Read by recipe suggestions and the coach.
   dietRestrictions     String[]  @default([])
   dietNotes            String?
+  /// Fuel settings for recipes: cooking time, skill, equipment, meal prep,
+  /// cuisines, proteins, spice, budget. Shape is MealPrefs in lib/mealPrefs.ts.
+  mealPrefs            Json?
   coachPrompt          String?
   // Block periodization the coach programs against: { blocks:[{name,weeks}],
   // startDate:"YYYY-MM-DD", deloadEveryWeeks, deloadReductionPct }.
