@@ -48,6 +48,10 @@ model User {
   trainingPhase        String?
   trainingDays         Int?
   injuries             String?
+  /// Preset dietary restrictions (keys from lib/diet.ts) and free-text notes
+  /// on foods avoided or disliked. Read by recipe suggestions and the coach.
+  dietRestrictions     String[]  @default([])
+  dietNotes            String?
   coachPrompt          String?
   // Block periodization the coach programs against: { blocks:[{name,weeks}],
   // startDate:"YYYY-MM-DD", deloadEveryWeeks, deloadReductionPct }.

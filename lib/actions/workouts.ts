@@ -1,6 +1,7 @@
 "use server";
 
 import type { CardioMetrics } from "@/lib/cardio";
+import { cleanDiet } from "@/lib/diet";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/app/generated/prisma";
 import { isValidConfig, type PeriodizationConfig } from "@/lib/periodization";
@@ -595,6 +596,8 @@ export async function updateProfile(data: {
   moveGoalKcal?: number | null;
   exerciseGoalMin?: number | null;
   injuries?: string;
+  dietRestrictions?: string[];
+  dietNotes?: string;
   coachPrompt?: string;
   periodization?: PeriodizationConfig | null;
   height?: number | null;
@@ -611,7 +614,7 @@ export async function updateProfile(data: {
   calf?: number | null;
 }): Promise<{ measurements: MeasurementReport | null }> {
   const userId = await requireAuth();
-  const { birthDate, periodization, ...rest } = data;
+  const { birthDate, periodization, dietRestrictions, dietNotes, ...rest } = data;
 
   // The measurements as they stand before this save. Needed for the comparison
   // below, and as the baseline for an athlete who has no history rows yet.
@@ -630,6 +633,8 @@ export async function updateProfile(data: {
     where: { id: userId },
     data: {
       ...rest,
+      ...(dietRestrictions !== undefined ? { dietRestrictions: cleanDiet(dietRestrictions) } : {}),
+      ...(dietNotes !== undefined ? { dietNotes: dietNotes.trim().slice(0, 300) || null } : {}),
       // Validated here as well as in the editor: the coach states these week
       // numbers as fact, so a malformed cycle must never reach the database.
       periodization:

@@ -8,6 +8,7 @@ import PeriodizationEditor from "@/components/PeriodizationEditor";
 import { isValidConfig, type PeriodizationConfig } from "@/lib/periodization";
 import { formatDelta } from "@/lib/bodyMeasurements";
 import type { MeasurementReport } from "@/lib/actions/workouts";
+import { DIET_OPTIONS } from "@/lib/diet";
 
 type UserProfile = {
   name: string;
@@ -27,6 +28,8 @@ type UserProfile = {
   moveGoalKcal: number | null;
   exerciseGoalMin: number | null;
   injuries: string | null;
+  dietRestrictions: string[];
+  dietNotes: string | null;
   coachPrompt: string | null;
   periodization: PeriodizationConfig | null;
   height: number | null;
@@ -140,6 +143,7 @@ export default function ProfileForm({
     trainingPhase: user.trainingPhase ?? "",
     preferredSplit: user.preferredSplit ?? "",
     injuries: user.injuries ?? "",
+    dietNotes: user.dietNotes ?? "",
     bio: user.bio ?? "",
     coachPrompt: user.coachPrompt ?? "",
     height: user.height?.toString() ?? "",
@@ -157,6 +161,9 @@ export default function ProfileForm({
 
   const set = (key: keyof typeof form) => (v: string) =>
     setForm((s) => ({ ...s, [key]: v }));
+  const [diet, setDiet] = useState<string[]>(user.dietRestrictions);
+  const toggleDiet = (k: string) =>
+    setDiet((d) => (d.includes(k) ? d.filter((x) => x !== k) : [...d, k]));
 
   // Flipping the unit rewrites what's on screen; the numbers the athlete
   // already typed keep their meaning instead of being reinterpreted.
@@ -270,6 +277,8 @@ export default function ProfileForm({
         trainingPhase: form.trainingPhase,
         preferredSplit: form.preferredSplit,
         injuries: form.injuries,
+        dietRestrictions: diet,
+        dietNotes: form.dietNotes,
         bio: form.bio,
         coachPrompt: form.coachPrompt,
         periodization,
@@ -286,6 +295,12 @@ export default function ProfileForm({
         calf: lengthInches(form.calf),
       });
       setReport(res?.measurements ?? null);
+      // Recipes on Fuel are cached for the session; drop them so the next
+      // batch follows the new restrictions.
+      try {
+        for (const k of Object.keys(sessionStorage))
+          if (k.startsWith("nextmeal:")) sessionStorage.removeItem(k);
+      } catch {}
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     });
@@ -723,6 +738,48 @@ export default function ProfileForm({
               placeholder="30"
               suffix="min"
             />
+          </div>
+
+          <div>
+            <label className="label block mb-1.5">Dietary restrictions</label>
+            <div className="flex flex-wrap gap-1.5">
+              {DIET_OPTIONS.map((o) => {
+                const on = diet.includes(o.key);
+                return (
+                  <button
+                    key={o.key}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggleDiet(o.key)}
+                    className="text-[12px] font-semibold px-3 py-1.5 rounded-full"
+                    style={{
+                      background: on ? "var(--accent-dim)" : "var(--bg-elevated)",
+                      border: `1px solid ${on ? "rgba(34,197,94,0.45)" : "var(--border)"}`,
+                      color: on ? "var(--accent)" : "var(--fg-muted)",
+                    }}
+                  >
+                    {on ? "✓ " : ""}
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+            <textarea
+              value={form.dietNotes}
+              onChange={(e) => set("dietNotes")(e.target.value)}
+              placeholder="Anything else you avoid or don't like, e.g. no mushrooms, not a fan of salmon"
+              rows={2}
+              maxLength={300}
+              className="w-full rounded-xl px-4 py-3 mt-2 text-[13px] focus:outline-none resize-none leading-relaxed"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
+              }}
+            />
+            <p className="text-[11px] mt-1.5" style={{ color: "var(--fg-dim)" }}>
+              Recipe suggestions on Fuel and your coach follow these.
+            </p>
           </div>
 
           <div>

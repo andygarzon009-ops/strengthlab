@@ -85,6 +85,8 @@ export default async function ProfilePage() {
           moveGoalKcal: user.moveGoalKcal,
           exerciseGoalMin: user.exerciseGoalMin,
           injuries: user.injuries,
+          dietRestrictions: user.dietRestrictions,
+          dietNotes: user.dietNotes,
           coachPrompt: user.coachPrompt,
           periodization: (user.periodization as PeriodizationConfig | null) ?? null,
           height: user.height,

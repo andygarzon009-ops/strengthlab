@@ -9,8 +9,9 @@ import { planNextMeal } from "@/lib/nextMeal";
 import { setPendingMeal } from "@/lib/pendingMeal";
 import type { RecentMeal } from "@/lib/foodLog";
 import type { RoomLeft } from "@/lib/roomLeft";
-import type { Recipe } from "@/app/api/food/recipes/route";
+import type { Recipe } from "@/lib/recipes";
 import { CARBS, FAT, PROTEIN } from "@/components/FuelCharts";
+import { scaledAmount, servingsLabel } from "@/lib/recipeScale";
 
 const MEAL_WORD: Record<Meal, string> = { BREAKFAST: "breakfast", LUNCH: "lunch", DINNER: "dinner", SNACK: "a snack" };
 
@@ -73,10 +74,16 @@ export default function NextMeal({
   const [error, setError] = useState<string | null>(null);
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const [swapping, setSwapping] = useState<string | null>(null);
+  // Servings in the open recipe; the ingredients and macros follow it.
+  const [serv, setServ] = useState(1);
+  const openRecipe = (i: number) => {
+    setServ(1);
+    setOpenIdx(i);
+  };
 
   // Recipes are kept for the session per meal and calorie budget, so leaving
   // and coming back to Fuel doesn't pay for a new batch.
-  const cacheKey = meal ? `nextmeal:${new Date().toDateString()}:${meal}:${Math.round(room.kcal / 100)}` : null;
+  const cacheKey = meal ? `nextmeal:v2:${new Date().toDateString()}:${meal}:${Math.round(room.kcal / 100)}` : null;
 
   const fetchRecipes = async (extra: Record<string, unknown> = {}) => {
     const res = await fetch("/api/food/recipes", {
@@ -154,20 +161,23 @@ export default function NextMeal({
     ? `My main meals are done and I'm still ${dayRoom.kcal.toLocaleString()} kcal and ${dayRoom.proteinG} g protein short of today's target. What snacks should I have to close the gap?`
     : `I have ${dayRoom.kcal.toLocaleString()} kcal and ${dayRoom.proteinG} g protein left today and ${MEAL_WORD[plan.meal]}'s next. What should I eat for it — around ${room.kcal.toLocaleString()} kcal and ${room.proteinG} g protein?`;
   const open = openIdx != null && recipes ? recipes[openIdx] : null;
+  const k = open ? serv / (open.servings || 1) : 1;
+  const sc = (n: number) => Math.round(n * k);
 
-  const logRecipe = (r: Recipe) => {
+  const logRecipe = (r: Recipe, servings: number) => {
+    const k = servings / (r.servings || 1);
     setOpenIdx(null);
     setPendingMeal({
       review: {
         items: [
           {
             name: r.title,
-            portion: `${r.servings} serving${r.servings === 1 ? "" : "s"} (recipe)`,
-            kcal: r.kcal,
-            proteinG: r.proteinG,
-            carbsG: r.carbsG,
-            fatG: r.fatG,
-            fiberG: r.fiberG,
+            portion: `${servingsLabel(servings)} (recipe)`,
+            kcal: Math.round(r.kcal * k),
+            proteinG: Math.round(r.proteinG * k),
+            carbsG: Math.round(r.carbsG * k),
+            fatG: Math.round(r.fatG * k),
+            fiberG: r.fiberG == null ? null : Math.round(r.fiberG * k),
           },
         ],
         photoUrl: null,
@@ -309,7 +319,7 @@ export default function NextMeal({
             <button
               key={`${r.title}-${i}`}
               type="button"
-              onClick={() => setOpenIdx(i)}
+              onClick={() => openRecipe(i)}
               className="w-full flex items-center gap-3 py-2.5 text-left active:opacity-70"
               style={{ borderTop: i ? "1px solid var(--border)" : undefined }}
             >
@@ -326,7 +336,12 @@ export default function NextMeal({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[14px] font-semibold truncate">{r.title}</span>
-                <span className="block text-[11.5px] tabular-nums mt-0.5" style={{ color: "var(--fg-muted)" }}>
+                {r.blurb && (
+                  <span className="block text-[11.5px] truncate mt-0.5" style={{ color: "var(--fg-muted)" }}>
+                    {r.blurb}
+                  </span>
+                )}
+                <span className="block text-[11.5px] tabular-nums mt-0.5" style={{ color: "var(--fg-dim)" }}>
                   {r.minutes ? `${r.minutes} min · ` : ""}
                   {r.kcal.toLocaleString()} kcal · {r.proteinG} g protein
                 </span>
@@ -383,18 +398,53 @@ export default function NextMeal({
                   {closing ? "Snack to close the gap" : `Recipe for ${meal === "DINNER" ? "tonight" : mealWord}`}
                 </span>
                 <h3 className="text-[19px] font-bold tracking-tight mt-2 leading-snug">{open.title}</h3>
+                {open.blurb && (
+                  <p className="text-[13px] mt-1 leading-snug" style={{ color: "var(--fg-muted)" }}>
+                    {open.blurb}
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[12px]" style={{ color: "var(--fg-muted)" }}>
                   {open.minutes > 0 && <span>⏱ {open.minutes} min</span>}
-                  <span>🍽 {open.servings} serving{open.servings === 1 ? "" : "s"}</span>
                   {open.usesYourFoods && <span>{open.usesYourFoods}</span>}
+                </div>
+                <div
+                  className="flex items-center justify-between mt-3 rounded-xl pl-3 pr-1 py-1"
+                  style={{ background: "rgba(255,255,255,0.04)" }}
+                >
+                  <span className="text-[12.5px] font-semibold">Servings</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label="Fewer servings"
+                      disabled={serv <= 0.5}
+                      onClick={() => setServ((s) => Math.max(0.5, s - 0.25))}
+                      className="w-9 h-9 rounded-lg text-[18px] font-semibold disabled:opacity-30"
+                      style={{ background: "var(--bg-elevated)" }}
+                    >
+                      −
+                    </button>
+                    <span className="w-12 text-center text-[16px] font-bold tabular-nums" aria-live="polite">
+                      {+serv.toFixed(2)}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="More servings"
+                      disabled={serv >= 8}
+                      onClick={() => setServ((s) => Math.min(8, s + 0.25))}
+                      className="w-9 h-9 rounded-lg text-[18px] font-semibold disabled:opacity-30"
+                      style={{ background: "var(--bg-elevated)" }}
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-4 gap-1.5 mt-3">
                   {(
                     [
-                      [open.kcal.toLocaleString(), "kcal", "var(--fg)"],
-                      [`${open.proteinG} g`, "protein", PROTEIN],
-                      [`${open.carbsG} g`, "carbs", CARBS],
-                      [`${open.fatG} g`, "fat", FAT],
+                      [sc(open.kcal).toLocaleString(), "kcal", "var(--fg)"],
+                      [`${sc(open.proteinG)} g`, "protein", PROTEIN],
+                      [`${sc(open.carbsG)} g`, "carbs", CARBS],
+                      [`${sc(open.fatG)} g`, "fat", FAT],
                     ] as const
                   ).map(([v, l, c]) => (
                     <div key={l} className="rounded-[10px] py-2 px-1 text-center" style={{ background: "rgba(255,255,255,0.04)" }}>
@@ -409,7 +459,7 @@ export default function NextMeal({
                 <p className="flex justify-between text-[11px] font-semibold uppercase tracking-[0.14em] mb-2" style={{ color: "var(--fg-muted)" }}>
                   Ingredients
                   <span className="normal-case tracking-normal font-medium" style={{ color: "var(--fg-dim)" }}>
-                    for {open.servings}
+                    for {servingsLabel(serv)}
                   </span>
                 </p>
                 <div className="flex flex-col gap-1.5 text-[13px]">
@@ -424,7 +474,7 @@ export default function NextMeal({
                         )}
                       </span>
                       <span className="tabular-nums whitespace-nowrap" style={{ color: "var(--fg-muted)" }}>
-                        {g.amount}
+                        {scaledAmount(g, k)}
                       </span>
                     </div>
                   ))}
@@ -438,9 +488,17 @@ export default function NextMeal({
                     {open.steps.length}
                   </span>
                 </p>
-                <ol className="list-decimal pl-[18px] flex flex-col gap-1.5 text-[13px] leading-snug marker:text-[color:var(--fg-dim)]">
+                <ol className="flex flex-col gap-2.5 text-[13.5px] leading-snug">
                   {open.steps.map((s, i) => (
-                    <li key={i}>{s}</li>
+                    <li key={i} className="flex gap-2.5">
+                      <span
+                        className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold tabular-nums mt-px"
+                        style={{ background: "rgba(249,115,22,0.16)", color: "#fdba74" }}
+                      >
+                        {i + 1}
+                      </span>
+                      <span>{s}</span>
+                    </li>
                   ))}
                 </ol>
               </div>
@@ -469,7 +527,7 @@ export default function NextMeal({
               <div className="flex gap-2 px-4 pt-3 pb-4" style={{ borderTop: "1px solid var(--border)" }}>
                 <Link
                   href={`/fuel?coach=1&ask=${encodeURIComponent(
-                    `I'm thinking of making ${open.title} for ${mealWord} (${open.kcal} kcal, ${open.proteinG} g protein). Does it fit my day, and how would you tweak it?`,
+                    `I'm thinking of making ${open.title} for ${mealWord} (${servingsLabel(serv)}: ${sc(open.kcal)} kcal, ${sc(open.proteinG)} g protein). Does it fit my day, and how would you tweak it?`,
                   )}`}
                   onClick={() => setOpenIdx(null)}
                   className="flex-1 min-h-[44px] rounded-xl flex items-center justify-center text-[13.5px] font-semibold"
@@ -479,11 +537,11 @@ export default function NextMeal({
                 </Link>
                 <button
                   type="button"
-                  onClick={() => logRecipe(open)}
+                  onClick={() => logRecipe(open, serv)}
                   className="flex-1 min-h-[44px] rounded-xl text-[13.5px] font-semibold"
                   style={{ background: "var(--accent)", color: "#0a0a0a" }}
                 >
-                  Ate it · log
+                  {serv === 1 ? "Ate it · log" : `Ate ${+serv.toFixed(2)} · log`}
                 </button>
               </div>
             </div>

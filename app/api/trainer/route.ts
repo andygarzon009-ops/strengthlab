@@ -29,6 +29,7 @@ import {
 } from "@/lib/mobilityLibrary";
 import { getFuelWeek, todayOf } from "@/lib/nutritionToday";
 import { asksAboutFood, foodHistoryContext, requestedFoodDays } from "@/lib/foodHistory";
+import { dietSummary } from "@/lib/diet";
 import { asksAboutSleep, requestedNights, sleepHistoryContext } from "@/lib/sleepDigest";
 import { ageFromBirthDate, estimateMaxHr } from "@/lib/hrZones";
 import {
@@ -1438,6 +1439,7 @@ PROFILE:
 - Bodyweight: ${user?.bodyweight ? `${user.bodyweight}lbs` : "not set"}
 - Preferred split: ${user?.preferredSplit ?? "not specified"}
 - Injury / pain history: ${user?.injuries?.trim() ? user.injuries.trim() : "none reported"}
+- Dietary restrictions (any food you suggest must comply): ${dietSummary(user?.dietRestrictions ?? [], user?.dietNotes)}
 - Total sessions logged: ${workouts.length}
 - This week: ${thisWeek} sessions | This month: ${thisMonth} sessions
 - Last trained: ${daysSinceLast === null ? "no sessions yet" : daysSinceLast === 0 ? "today" : `${daysSinceLast} days ago`}
