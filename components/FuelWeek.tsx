@@ -10,7 +10,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
-import TickGauge, { scaleColor } from "@/components/TickGauge";
+import TickGauge from "@/components/TickGauge";
 import NextMeal from "@/components/NextMeal";
 import { roomLeft } from "@/lib/roomLeft";
 import type { RecentMeal } from "@/lib/foodLog";
@@ -284,8 +284,9 @@ function FuelHero({
   const inProgress = day.partial;
   const value = !day.logged ? null : inProgress ? day.progress.pct : day.score.score;
   const tint = !day.logged ? "var(--fg-dim)" : inProgress ? PROGRESS : scoreColor;
-  const glow =
-    value == null ? "rgba(255,255,255,0.03)" : inProgress ? "rgba(56,189,248,0.1)" : scaleColor(value, 0.1);
+  // Fuel's own hue: the glow stays blue whatever the score, so a good day
+  // doesn't turn the page green — the gauge and pill carry the grade.
+  const glow = value == null ? "rgba(255,255,255,0.03)" : "rgba(56,189,248,0.14)";
   const pill = !day.logged
     ? "Nothing logged"
     : inProgress
