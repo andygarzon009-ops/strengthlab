@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/session";
+import { measureHrRecovery } from "@/lib/hrRecovery";
 import { prisma } from "@/lib/db";
 import { listHeartRateBetween, healthErrorMessage } from "@/lib/googleHealth";
 import {
@@ -289,11 +290,19 @@ export async function POST(
         if (est != null && est > 0) metricUpdates.calories = est;
       }
     }
+    // Between-set recovery only means something for lifting, where the trace
+    // is sets and rests.
+    const recovery =
+      workout.type === "WEIGHT_TRAINING"
+        ? measureHrRecovery(samples.map((s) => ({ t: s.timestamp.getTime(), bpm: s.bpm })))
+        : null;
     await tx.workout.update({
       where: { id },
       data: {
         avgHeartRate: avg,
         maxHeartRate: max,
+        hrRecoveryBpm: recovery?.dropBpm ?? null,
+        hrRecoveryRests: recovery?.rests ?? null,
         ...metricUpdates,
         // Persist the derived window. Always overwrite when we used a
         // matched Google Health session (truth source); otherwise only

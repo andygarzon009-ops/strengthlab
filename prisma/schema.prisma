@@ -453,6 +453,10 @@ model Workout {
   pace           String?
   avgHeartRate   Int?
   maxHeartRate   Int?
+  /// Between-set HR recovery (lib/hrRecovery.ts): median bpm drop 60 s into
+  /// rest after a hard set, from `hrRecoveryRests` clean rests. Set on HR sync.
+  hrRecoveryBpm   Int?
+  hrRecoveryRests Int?
   rounds         Int?
   elevation      Int?
   incline        Float? // treadmill incline %

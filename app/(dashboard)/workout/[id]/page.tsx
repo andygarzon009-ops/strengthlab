@@ -25,6 +25,9 @@ import CommentSection from "@/components/CommentSection";
 import DeleteWorkoutButton from "@/components/DeleteWorkoutButton";
 import WorkoutHRChart from "@/components/WorkoutHRChart";
 import SyncHRButton from "@/components/SyncHRButton";
+import HrRecoveryLine from "@/components/HrRecoveryLine";
+import { recoveryHistory } from "@/lib/hrRecoveryHistory";
+import { compareRecovery } from "@/lib/hrRecovery";
 import { WarmupSummary } from "@/components/GuidedWarmup";
 import { workoutVolume, compareVolume, formatVolume } from "@/lib/volume";
 import { ageFromBirthDate, estimateMaxHr } from "@/lib/hrZones";
@@ -152,6 +155,27 @@ export default async function WorkoutDetailPage({
             },
           },
         })
+      : null;
+
+  // Between-set HR recovery against the last sessions of this same workout.
+  const recovery =
+    workout.hrRecoveryBpm != null && workout.hrRecoveryRests != null
+      ? await (async () => {
+          const history = await recoveryHistory({
+            id: workout.id,
+            userId: workout.userId,
+            date: workout.date,
+            title: workout.title,
+            isDeload: workout.isDeload,
+            exerciseIds: workout.exercises.map((e) => e.exerciseId),
+          });
+          return {
+            dropBpm: workout.hrRecoveryBpm!,
+            rests: workout.hrRecoveryRests!,
+            history,
+            ...compareRecovery(workout.hrRecoveryBpm!, history.map((h) => h.dropBpm)),
+          };
+        })()
       : null;
 
   const previousVolume = previousSession
@@ -474,6 +498,7 @@ export default async function WorkoutDetailPage({
                 }),
             ])}
           />
+          {recovery && <HrRecoveryLine {...recovery} />}
         </div>
       )}
 

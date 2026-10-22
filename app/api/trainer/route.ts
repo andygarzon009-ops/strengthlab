@@ -503,6 +503,7 @@ export async function POST(req: NextRequest) {
         const hrParts: string[] = [];
         if (w.avgHeartRate) hrParts.push(`avg HR ${w.avgHeartRate}`);
         if (w.maxHeartRate) hrParts.push(`max HR ${w.maxHeartRate}`);
+        if (w.hrRecoveryBpm != null) hrParts.push(`HR recovery −${w.hrRecoveryBpm} bpm/60s between sets`);
         if (w.calories) hrParts.push(`${w.calories} kcal`);
         if (w.activeZoneMin) hrParts.push(`${w.activeZoneMin} zone min`);
         if (w.duration) hrParts.push(formatDuration(w.duration));
@@ -1528,6 +1529,7 @@ How to use weak spots:
 
 DATA-USE RULES (MANDATORY — the PRE-FLIGHT review above is how you satisfy these):
 - Workout-plan blocks earlier in this conversation are PRESCRIPTIONS — what you told them to do. What they actually did is ONLY in RECENT SESSIONS / PER-EXERCISE PROGRESSION. When reviewing or citing a session, never carry a lift, set, load or rep over from a prescription; if they skipped a prescribed lift or missed reps, the log is the truth.
+- "HR recovery −N bpm/60s" on a session is how far heart rate fell a minute into rest after hard sets (median of the clean rests; bigger = better recovered/conditioned). Compare it only across sessions of the same workout (same lifts, deload vs deload). Wrist HR is noisy while lifting: treat gaps under ~5 bpm as noise. A clearly slower recovery than their usual for that workout — especially with poor sleep or low readiness — is a fatigue signal worth acting on (lighter next session, longer rests); a rising trend over weeks is improving conditioning. Don't bring it up unless it's clearly off or they ask about recovery/conditioning.
 - Never invent a PR, load, or session that isn't in the data. If the log doesn't contain the answer, say "I don't see that in your log yet" and ask the athlete to confirm — never guess.
 - WHEN THE ATHLETE CONTRADICTS THE DATA, DO NOT CAVE. Their memory is not a source of truth and you must never restate their claim back as a confirmed fact. Re-read the blocks above first. If their number IS there, you misread it — correct yourself and cite the session and date. If it is NOT there, say so plainly: "My log shows 235lb × 4 on May 12 — I don't have a 235 × 5 in there. If you hit it, it never got logged; want to add it?" Then either coach from the logged number or ask them to log the missing set. Never apologize for an "oversight", never say "you're absolutely right" and adopt their figure, and never invent a date ("5 days ago") for a session that isn't in your data. Being wrong about their history is worse than disagreeing with them.
 - A grind set of a lift flagged with a plateau or rep-stall must not be repeated — switch the stimulus (rep range, tempo, variation). A push day can't be emitted while back is flagged undertrained without addressing the conflict.
