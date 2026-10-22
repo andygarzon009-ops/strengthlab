@@ -99,6 +99,8 @@ export function mergeFoodLog(
 export type RecentMeal = {
   key: string;
   title: string;
+  /// The meal it's usually logged as, so the re-log list can group by meal.
+  meal: string;
   items: {
     name: string;
     portion: string;
@@ -146,11 +148,15 @@ export async function listRecentMeals(userId: string, limit = 8): Promise<Recent
   }
 
   const byFoods = new Map<string, RecentMeal>();
+  // How often each set of foods was logged as each meal; the commonest wins.
+  const mealTally = new Map<string, Map<string, number>>();
   for (const list of saves.values()) {
     const sig = list
       .map((r) => r.name.trim().toLowerCase())
       .sort()
       .join("|");
+    const tally = mealTally.get(sig) ?? mealTally.set(sig, new Map()).get(sig)!;
+    tally.set(list[0].meal, (tally.get(list[0].meal) ?? 0) + 1);
     const seen = byFoods.get(sig);
     if (seen) {
       seen.times += 1;
@@ -161,6 +167,7 @@ export async function listRecentMeals(userId: string, limit = 8): Promise<Recent
     byFoods.set(sig, {
       key: sig,
       title: list.length > 1 ? `${lead.name} +${list.length - 1}` : lead.name,
+      meal: list[0].meal,
       items: list.map((r) => ({
         name: r.name,
         portion: r.portion ?? "",
@@ -175,6 +182,11 @@ export async function listRecentMeals(userId: string, limit = 8): Promise<Recent
       times: 1,
       lastDate: list[0].localDate,
     });
+  }
+
+  for (const [sig, m] of byFoods) {
+    const tally = mealTally.get(sig)!;
+    m.meal = [...tally.entries()].reduce((a, b) => (b[1] > a[1] ? b : a))[0];
   }
 
   return [...byFoods.values()]

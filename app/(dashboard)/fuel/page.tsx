@@ -25,7 +25,7 @@ export default async function FuelPage() {
   const [week, todayRows, recent] = await Promise.all([
     getFuelWeek(userId),
     listFoodLog(userId, today),
-    listRecentMeals(userId, 12),
+    listRecentMeals(userId, 40),
   ]);
 
   return (

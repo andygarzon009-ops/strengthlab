@@ -36,6 +36,14 @@ const MEAL_LABEL: Record<Meal, string> = {
 };
 const SCALES = [0.5, 1, 1.5, 2];
 
+const RECENT_HEADING: Record<Meal, string> = {
+  BREAKFAST: "Breakfasts",
+  LUNCH: "Lunches",
+  DINNER: "Dinners",
+  SNACK: "Snacks",
+};
+const MEAL_ICON: Record<Meal, string> = { BREAKFAST: "🍳", LUNCH: "🥗", DINNER: "🍽️", SNACK: "🍎" };
+
 // A weight or volume ("30 g almonds", "250 ml milk") isn't a count; those keep the chips.
 const leadingCount = (portion: string): number | null => {
   const m = portion.match(/^(\d+(?:\.\d+)?)\s+(?!(?:g|kg|mg|ml|l|oz|lb|fl)\b)/i);
@@ -77,6 +85,8 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
   const [meal, setMeal] = useState<Meal>(() => mealForHour(new Date().getHours()));
   const [saved, setSaved] = useState<string | null>(null);
   const [showRecent, setShowRecent] = useState(false);
+  // Which meal's past meals are expanded; starts on the meal it is right now.
+  const [recentMeal, setRecentMeal] = useState<Meal | null>(() => mealForHour(new Date().getHours()));
   const [pending, startTransition] = useTransition();
   const [vh, setVh] = useState<number | null>(null);
   const [vTop, setVTop] = useState(0);
@@ -412,56 +422,81 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
           </button>
 
           {showRecent && (
-            <div className="mt-2 rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-              {(
-                [
-                  ["Most logged", recent.filter((r) => r.times > 1)],
-                  ["Logged once", recent.filter((r) => r.times === 1)],
-                ] as const
-              )
-                .filter(([, list]) => list.length > 0)
-                .map(([heading, list]) => (
-                  <div key={heading}>
-                    <p
-                      className="px-3.5 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
-                      style={{ color: "var(--fg-dim)", background: "rgba(255,255,255,0.02)" }}
+            <div className="mt-2 flex flex-col gap-1.5">
+              {MEALS.map((m) => {
+                const list = recent.filter((r) => r.meal === m);
+                if (list.length === 0) return null;
+                const isOpen = recentMeal === m;
+                return (
+                  <div
+                    key={m}
+                    className="rounded-xl overflow-hidden"
+                    style={{ border: "1px solid var(--border)", background: "rgba(255,255,255,0.015)" }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setRecentMeal(isOpen ? null : m)}
+                      aria-expanded={isOpen}
+                      className="w-full flex items-center justify-between min-h-[44px] px-3.5 text-[13px] font-semibold"
                     >
-                      {heading}
-                    </p>
-                    {list.map((r) => (
-                      <button
-                        key={r.key}
-                        type="button"
-                        onClick={() => relog(r)}
-                        className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left active:opacity-70"
-                        style={{ borderTop: "1px solid var(--border)" }}
-                      >
-                        {r.photoUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={r.photoUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
-                        ) : (
-                          <span className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-[15px]" style={{ background: "var(--bg-elevated)" }} aria-hidden>
-                            🍽️
-                          </span>
-                        )}
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-[14px] font-medium truncate">{r.title}</span>
-                          <span className="block text-[11px] tabular-nums" style={{ color: "var(--fg-muted)" }}>
-                            {r.kcal.toLocaleString()} kcal
-                            {r.times > 1 ? ` · logged ${r.times}×` : ""}
-                          </span>
-                        </span>
-                        <span
-                          className="w-7 h-7 rounded-full flex items-center justify-center text-[16px] font-bold shrink-0"
-                          style={{ background: "rgba(74,222,128,0.16)", color: "#86efac" }}
+                      <span className="flex items-center gap-2.5">
+                        <span aria-hidden className="text-[15px]">{MEAL_ICON[m]}</span>
+                        {RECENT_HEADING[m]}
+                      </span>
+                      <span className="flex items-center gap-2 text-[12px] font-medium" style={{ color: "var(--fg-muted)" }}>
+                        {list.length}
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
                           aria-hidden
+                          style={{ transform: isOpen ? "rotate(180deg)" : undefined, transition: "transform 160ms" }}
                         >
-                          +
-                        </span>
-                      </button>
-                    ))}
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </span>
+                    </button>
+                    {isOpen &&
+                      list.map((r) => (
+                        <button
+                          key={r.key}
+                          type="button"
+                          onClick={() => relog(r)}
+                          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left active:opacity-70"
+                          style={{ borderTop: "1px solid var(--border)" }}
+                        >
+                          {r.photoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={r.photoUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
+                          ) : (
+                            <span className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-[15px]" style={{ background: "var(--bg-elevated)" }} aria-hidden>
+                              🍽️
+                            </span>
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[14px] font-medium truncate">{r.title}</span>
+                            <span className="block text-[11px] tabular-nums" style={{ color: "var(--fg-muted)" }}>
+                              {r.kcal.toLocaleString()} kcal
+                              {r.times > 1 ? ` · logged ${r.times}×` : ""}
+                            </span>
+                          </span>
+                          <span
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-[16px] font-bold shrink-0"
+                            style={{ background: "rgba(74,222,128,0.16)", color: "#86efac" }}
+                            aria-hidden
+                          >
+                            +
+                          </span>
+                        </button>
+                      ))}
                   </div>
-                ))}
+                );
+              })}
             </div>
           )}
         </div>
