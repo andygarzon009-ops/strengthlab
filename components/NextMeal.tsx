@@ -83,7 +83,7 @@ export default function NextMeal({
 
   // Recipes are kept for the session per meal and calorie budget, so leaving
   // and coming back to Fuel doesn't pay for a new batch.
-  const cacheKey = meal ? `nextmeal:v2:${new Date().toDateString()}:${meal}:${Math.round(room.kcal / 100)}` : null;
+  const cacheKey = meal ? `nextmeal:v3:${new Date().toDateString()}:${meal}:${Math.round(room.kcal / 100)}` : null;
 
   const fetchRecipes = async (extra: Record<string, unknown> = {}) => {
     const res = await fetch("/api/food/recipes", {
