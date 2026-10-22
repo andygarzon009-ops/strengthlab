@@ -120,7 +120,7 @@ Return ONLY JSON:
 - "usual": true when that ingredient is one of the foods they often eat.
 - Nutrition numbers are totals for the serving, whole numbers, and must add up: kcal ≈ 4·protein + 4·carbs + 9·fat.`;
 
-  const parsed = await textToJson<{ recipes?: unknown[] }>(prompt, "recipes");
+  const parsed = await textToJson<{ recipes?: unknown[] }>(prompt, "recipes", { claudeFirst: true });
   const recipes: Recipe[] = (Array.isArray(parsed?.recipes) ? parsed.recipes : [])
     .map((r) => {
       const o = (r ?? {}) as Record<string, unknown>;

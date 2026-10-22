@@ -18,36 +18,66 @@ const anthropic = process.env.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   : null;
 
-/// A text-only prompt → parsed JSON, through the Gemini chain and then
-/// Claude. Null when every model failed or the reply wasn't JSON.
-export async function textToJson<T>(prompt: string, label: string): Promise<T | null> {
-  let raw = "";
+/// Claude models for text JSON, newest first. A model this key can't use
+/// fails fast (404) and the next one answers.
+const CLAUDE_CHAIN = ["claude-haiku-5-5", "claude-haiku-4-5"];
+
+async function claudeText(prompt: string, label: string): Promise<string> {
+  if (!anthropic) {
+    console.warn(`${label}: ANTHROPIC_API_KEY not set, skipping Claude`);
+    return "";
+  }
+  for (const model of CLAUDE_CHAIN) {
+    try {
+      const r = await anthropic.messages.create(
+        { model, max_tokens: 4000, messages: [{ role: "user", content: prompt }] },
+        { timeout: 40_000 },
+      );
+      const block = r.content.find((b) => b.type === "text");
+      const text = block && block.type === "text" ? block.text.trim() : "";
+      if (text) {
+        console.info(`${label} answered by ${model}`);
+        return text;
+      }
+    } catch (err) {
+      console.error(`${label} ${model} failed:`, err);
+    }
+  }
+  return "";
+}
+
+async function geminiText(prompt: string, label: string): Promise<string> {
   for (const { model, timeoutMs } of GEMINI_CHAIN) {
     try {
-      raw = await genAI
+      const raw = await genAI
         .getGenerativeModel(
           { model, generationConfig: { responseMimeType: "application/json" } },
           { timeout: timeoutMs },
         )
         .generateContent(prompt)
         .then((r) => r.response.text().trim());
-      if (raw) break;
+      if (raw) {
+        console.info(`${label} answered by ${model}`);
+        return raw;
+      }
     } catch (err) {
       console.error(`${label} ${model} failed:`, err);
     }
   }
-  if (!raw && anthropic) {
-    try {
-      const r = await anthropic.messages.create(
-        { model: "claude-haiku-4-5", max_tokens: 3000, messages: [{ role: "user", content: prompt }] },
-        { timeout: 25_000 },
-      );
-      const block = r.content.find((b) => b.type === "text");
-      raw = block && block.type === "text" ? block.text.trim() : "";
-    } catch (err) {
-      console.error(`${label} claude fallback failed:`, err);
-    }
-  }
+  return "";
+}
+
+/// A text-only prompt → parsed JSON. Gemini first and Claude as the backstop
+/// by default; `claudeFirst` flips that (recipes, where quality matters more
+/// than the few cents). Null when every model failed or the reply wasn't JSON.
+export async function textToJson<T>(
+  prompt: string,
+  label: string,
+  { claudeFirst = false }: { claudeFirst?: boolean } = {},
+): Promise<T | null> {
+  const raw = claudeFirst
+    ? (await claudeText(prompt, label)) || (await geminiText(prompt, label))
+    : (await geminiText(prompt, label)) || (await claudeText(prompt, label));
   if (!raw) return null;
   try {
     const body = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
