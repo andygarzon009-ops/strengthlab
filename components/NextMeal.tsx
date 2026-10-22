@@ -4,7 +4,8 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
-import { mealForHour, type Meal } from "@/lib/meals";
+import type { Meal } from "@/lib/meals";
+import { planNextMeal } from "@/lib/nextMeal";
 import { setPendingMeal } from "@/lib/pendingMeal";
 import type { RecentMeal } from "@/lib/foodLog";
 import type { RoomLeft } from "@/lib/roomLeft";
@@ -16,22 +17,25 @@ const MEAL_WORD: Record<Meal, string> = { BREAKFAST: "breakfast", LUNCH: "lunch"
 // The meal coming up depends on the phone's clock, which the server can't
 // know; null during SSR so the first client render matches it.
 const noop = () => () => {};
-const useMealNow = () =>
-  useSyncExternalStore(noop, () => mealForHour(new Date().getHours()), () => null);
+const useHourNow = () => useSyncExternalStore(noop, () => new Date().getHours(), () => null);
 
-/// Past meals that best fit what's left: protein closest to what's left
-/// matters most, going over the calories counts against it, and a meal
-/// usually eaten at this time of day gets a nudge.
-function bestFits(recent: RecentMeal[], room: RoomLeft, meal: Meal | null): RecentMeal[] {
+/// Past meals that best fit this meal's share of what's left: protein
+/// closest to the target matters most, going over the calories counts against
+/// it, and a meal usually eaten at this time of day gets a nudge. Anything
+/// well under half the budget (a handful of dates) isn't a meal, and only
+/// counts when the suggestion is a snack.
+function bestFits(recent: RecentMeal[], room: RoomLeft, meal: Meal): RecentMeal[] {
+  const snack = meal === "SNACK";
   const score = (r: RecentMeal) => {
     const p = r.items.reduce((s, it) => s + it.proteinG, 0);
     const over = Math.max(0, r.kcal - room.kcal) / Math.max(room.kcal, 200);
     const under = Math.max(0, room.kcal - r.kcal) / Math.max(room.kcal, 200);
     const protein = Math.abs(p - room.proteinG) / Math.max(room.proteinG, 20);
-    return protein * 0.6 + over * 1.5 + under * 0.3 + (meal && r.meal === meal ? 0 : 0.35);
+    return protein * 0.6 + over * 1.5 + under * 0.3 + (r.meal === meal ? 0 : 0.35);
   };
   return recent
-    .filter((r) => r.kcal <= room.kcal * 1.15)
+    .filter((r) => r.kcal <= room.kcal * (snack ? 1.3 : 1.15))
+    .filter((r) => snack || (r.kcal >= room.kcal * 0.5 && r.meal !== "SNACK"))
     .sort((a, b) => score(a) - score(b))
     .slice(0, 3);
 }
@@ -42,15 +46,25 @@ const proteinOf = (r: RecentMeal) => Math.round(r.items.reduce((s, it) => s + it
 /// past meals that fit what's left, a Recipes tab (AI, fetched only when
 /// opened), and a hand-off to the coach.
 export default function NextMeal({
-  room,
+  room: dayRoom,
+  dayTargetKcal,
+  logged,
   phase,
   recent,
 }: {
+  /// What's left of the whole day.
   room: RoomLeft;
+  dayTargetKcal: number;
+  /// Meal types already logged today.
+  logged: string[];
   phase: string;
   recent: RecentMeal[];
 }) {
-  const meal = useMealNow();
+  const hour = useHourNow();
+  const plan = hour == null ? null : planNextMeal(dayRoom, hour, new Set(logged), dayTargetKcal);
+  const meal = plan?.meal ?? null;
+  // This meal's share of the day — what suggestions and recipes aim for.
+  const room = plan?.budget ?? dayRoom;
   const [tab, setTab] = useState<"mine" | "rec">("mine");
   const [recipes, setRecipes] = useState<Recipe[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -129,11 +143,11 @@ export default function NextMeal({
     };
   }, [openIdx]);
 
-  if (room.kcal < 150) return null;
+  if (!plan || dayRoom.kcal < 150) return null;
 
   const mealWord = meal ? MEAL_WORD[meal] : "your next meal";
-  const fits = bestFits(recent, room, meal);
-  const askNext = `I have ${room.kcal.toLocaleString()} kcal and ${room.proteinG} g protein left today and ${meal ? `${MEAL_WORD[meal]}'s` : "my next meal is"} next. What should I eat?`;
+  const fits = bestFits(recent, room, plan.meal);
+  const askNext = `I have ${dayRoom.kcal.toLocaleString()} kcal and ${dayRoom.proteinG} g protein left today and ${MEAL_WORD[plan.meal]}'s next. What should I eat for it — around ${room.kcal.toLocaleString()} kcal and ${room.proteinG} g protein?`;
   const open = openIdx != null && recipes ? recipes[openIdx] : null;
 
   const logRecipe = (r: Recipe) => {
@@ -163,8 +177,8 @@ export default function NextMeal({
     >
       <h2 className="text-[15px] font-bold tracking-tight">Next meal</h2>
       <p className="text-[12px] mt-0.5 tabular-nums" style={{ color: "var(--fg-muted)" }}>
-        {meal ? `${mealWord.charAt(0).toUpperCase()}${mealWord.slice(1)} · ` : ""}
-        {room.kcal.toLocaleString()} kcal and {room.proteinG} g protein left
+        {mealWord.charAt(0).toUpperCase()}
+        {mealWord.slice(1)} · aim for ~{room.kcal.toLocaleString()} kcal and {room.proteinG} g protein
       </p>
 
       <div role="tablist" className="flex rounded-xl p-[3px] mt-3 mb-1" style={{ background: "var(--bg-elevated)" }}>

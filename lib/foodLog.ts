@@ -96,6 +96,8 @@ export function mergeFoodLog(
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
+const SNACK_SIZED_KCAL = 350;
+
 export type RecentMeal = {
   key: string;
   title: string;
@@ -186,7 +188,12 @@ export async function listRecentMeals(userId: string, limit = 8): Promise<Recent
 
   for (const [sig, m] of byFoods) {
     const tally = mealTally.get(sig)!;
-    m.meal = [...tally.entries()].reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+    // The logger labels by the clock, so a handful of dates eaten at noon
+    // comes in as "lunch". Anything that small is a snack whatever the label.
+    m.meal =
+      m.kcal < SNACK_SIZED_KCAL
+        ? "SNACK"
+        : [...tally.entries()].reduce((a, b) => (b[1] > a[1] ? b : a))[0];
   }
 
   return [...byFoods.values()]

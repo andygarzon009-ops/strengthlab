@@ -141,15 +141,17 @@ export default function FuelWeek({
         scoreColor={scoreColor}
       />
 
+      {children}
+
       {isToday && (
         <NextMeal
           room={roomLeft(day.intake, day.targets)}
+          dayTargetKcal={day.targets.calorieTargetKcal}
+          logged={[...new Set(day.intake.foods.map((f) => f.meal))]}
           phase={day.targets.phaseLabel}
           recent={recent}
         />
       )}
-
-      {children}
 
       {/* ── 7-day strip, stacked by macro ── */}
       <p className="label mb-2" style={{ color: "var(--fg-muted)" }}>

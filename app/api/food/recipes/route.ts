@@ -57,8 +57,8 @@ export async function POST(req: NextRequest) {
   const usual = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30).map(([n]) => n);
 
   const prompt = `You are a sports nutritionist writing ${count} recipe${count === 1 ? "" : "s"} for a strength athlete's ${meal}.
-What's left of today's targets: ${kcal} kcal, ${proteinG} g protein, ${carbsG} g carbs, ${fatG} g fat.${phase ? ` Phase: ${phase}.` : ""}
-Each recipe should land within about 10% of the calories left and get as close to the protein left as is realistic; protein matters most.
+This ${meal} should come to about ${kcal} kcal, ${proteinG} g protein, ${carbsG} g carbs, ${fatG} g fat — its share of what's left today, not the whole day.${phase ? ` Phase: ${phase}.` : ""}
+Each recipe should land within about 10% of those calories (never more than 15% over) and get as close to that protein as is realistic; protein matters most.
 Foods they already eat: ${usual.length ? usual.join(", ") : "unknown"}.
 These are real recipes — proper dishes someone would cook — not their logged foods recombined. ${count === 1 ? "It may borrow an ingredient or two they already eat if it fits naturally." : "At most one recipe may build on their usual foods; the rest should be new dishes in a style they'd plausibly like, borrowing an ingredient they already eat only where it fits naturally."}
 ${exclude.length ? `Already shown, don't repeat: ${exclude.join("; ")}.` : ""}
