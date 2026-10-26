@@ -6,8 +6,8 @@ import { type NutritionResponse, RATING_COLOR } from "@/components/FuelDetail";
 import TickGauge from "@/components/TickGauge";
 
 const ICON_PROPS = {
-  width: 15,
-  height: 15,
+  width: 14,
+  height: 14,
   viewBox: "0 0 24 24",
   fill: "none",
   stroke: "currentColor",
@@ -45,131 +45,117 @@ export type ActivityGlance = {
   rows: { label: string; value: number; goal: number; unit: string; color: string; done: boolean }[];
 };
 
-type Section = "activity";
-
-// Each stat keeps one colour whatever the numbers say, so the bar names the
+// Each stat keeps one colour whatever the numbers say, so the tile names the
 // stat and never judges it — readiness is the card's only red→green verdict.
 // Both come from the brand: Fuel the wordmark's lime, Activity the button green.
 const FUEL_COLOR = "#a3e635";
 const ACTIVITY_COLOR = "#22c55e";
 
-/// Fuel / Activity under the plan, set straight on the card like the gauge:
-/// a glowing icon, the label and a quiet sub, the reading in the stat's
-/// colour, and a rail ending in the readiness gauge's glowing knob. The whole
-/// row is the tap target.
-function GlowRow({
+const CHEVRON = (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="var(--fg-muted)"
+    strokeWidth="2.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+    className="ml-auto shrink-0"
+  >
+    <path d="M9 6l6 6-6 6" />
+  </svg>
+);
+
+/// One of the two tiles under the plan: a glowing icon and a › so it reads as
+/// a button, the big reading in the stat's colour, then its parts as mini-bars
+/// in the same colour. The whole tile links to the stat's page.
+function SplitTile({
+  href,
   label,
   icon,
-  pct,
   color,
   big,
   sub,
   subColor,
-  active = false,
-  onClick,
-  href,
+  parts,
+  children,
 }: {
+  href: string;
   label: string;
   icon: ReactNode;
-  pct: number;
   color: string;
-  big: string;
-  sub: string;
+  big?: string;
+  sub?: string;
   /// The closed-day grade wears its own colour.
   subColor?: string;
-  active?: boolean;
-  onClick?: () => void;
-  /// Navigate instead of expanding.
-  href?: string;
+  parts?: { label: string; pct: number }[];
+  /// Replaces the reading — the empty state's call to action.
+  children?: ReactNode;
 }) {
-  const fill = Math.max(0, Math.min(100, pct));
-  const cls = "w-full flex flex-col gap-2.5 py-1 text-left active:opacity-70 transition-opacity";
-  const content = (
-    <>
-      <span className="flex items-center gap-2">
+  return (
+    <Link
+      href={href}
+      className="relative min-w-0 rounded-2xl px-3 pt-3 pb-3.5 flex flex-col gap-[11px] active:scale-[0.98] transition-transform"
+      style={{
+        background: `radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, ${color} 13%, transparent), transparent 60%), rgba(255,255,255,0.02)`,
+        border: "1px solid var(--border-strong)",
+      }}
+    >
+      <span className="flex items-center gap-1.5 text-[13px] font-semibold">
         <span className="inline-flex" style={{ color, filter: "drop-shadow(0 0 6px currentColor)" }}>
           {icon}
         </span>
-        <span className="text-[14px] font-semibold" style={{ letterSpacing: "-0.01em" }}>
-          {label}
-        </span>
-        <span className="min-w-0 truncate text-[12px] font-medium" style={{ color: subColor ?? "var(--fg-dim)" }}>
-          {sub}
-        </span>
-        <span
-          className="ml-auto text-[18px] font-semibold leading-none tabular-nums"
-          style={{ fontFamily: "var(--font-geist-mono)", letterSpacing: "-0.04em", color }}
-        >
-          {big}
-        </span>
+        {label}
+        {CHEVRON}
       </span>
-      <span className="relative block h-2 rounded-full" style={{ background: "#232328" }}>
-        <span
-          className="absolute inset-y-0 left-0 rounded-full"
-          style={{
-            width: `${fill}%`,
-            background: `linear-gradient(90deg, color-mix(in srgb, ${color} 55%, #0a0a0a), ${color})`,
-            boxShadow: `0 0 14px color-mix(in srgb, ${color} 50%, transparent)`,
-          }}
-        />
-        <span
-          className="absolute top-1/2 w-3.5 h-3.5 -mt-[7px] -ml-[7px] rounded-full bg-white"
-          style={{
-            left: `${Math.min(fill, 98)}%`,
-            border: `3px solid ${color}`,
-            boxShadow: `0 0 10px ${color}`,
-          }}
-        />
-      </span>
-    </>
-  );
-  if (href) {
-    return (
-      <Link href={href} className={cls}>
-        {content}
-      </Link>
-    );
-  }
-  return (
-    <button type="button" onClick={onClick} aria-expanded={active} className={cls}>
-      {content}
-    </button>
+      {children ?? (
+        <>
+          <span className="flex items-baseline gap-1.5 min-w-0">
+            <b
+              className="text-[30px] font-semibold leading-none tabular-nums"
+              style={{ fontFamily: "var(--font-geist-mono)", letterSpacing: "-0.05em", color }}
+            >
+              {big}
+            </b>
+            <span
+              className="min-w-0 truncate text-[12px] font-medium"
+              style={{ color: subColor ?? "var(--fg-dim)" }}
+            >
+              {sub}
+            </span>
+          </span>
+          <span className="flex flex-col gap-[7px]">
+            {parts?.map((p) => (
+              <span
+                key={p.label}
+                className="grid items-center gap-1.5 text-[10px] font-semibold uppercase"
+                style={{ gridTemplateColumns: "54px 1fr", letterSpacing: "0.06em", color: "var(--fg-dim)" }}
+              >
+                {p.label}
+                <span className="relative block h-[5px] rounded-full" style={{ background: "#232328" }}>
+                  <span
+                    className="absolute inset-y-0 left-0 rounded-full"
+                    style={{
+                      width: `${Math.max(0, Math.min(100, p.pct))}%`,
+                      background: `linear-gradient(90deg, color-mix(in srgb, ${color} 55%, #0a0a0a), ${color})`,
+                      boxShadow: `0 0 8px color-mix(in srgb, ${color} 40%, transparent)`,
+                    }}
+                  />
+                </span>
+              </span>
+            ))}
+          </span>
+        </>
+      )}
+    </Link>
   );
 }
 
-function ActivityBar({
-  label,
-  value,
-  goal,
-  unit,
-  color,
-  done,
-}: ActivityGlance["rows"][number]) {
-  const pct = Math.min(1, goal > 0 ? value / goal : 0);
-  return (
-    <div>
-      <div className="flex items-baseline justify-between mb-1">
-        <span className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: "var(--fg-dim)" }}>
-          {label}
-        </span>
-        <span className="text-[12px] font-bold tabular-nums">
-          <span style={{ color }}>{value}</span>
-          <span style={{ color: "var(--fg-dim)" }}> / {goal}{unit ? ` ${unit}` : ""}</span>
-          {done && <span style={{ color }}> ✓</span>}
-        </span>
-      </div>
-      <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--bg-elevated)" }}>
-        <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: color }} />
-      </div>
-    </div>
-  );
-}
-
-/// Direction-A "Daily Glance": the day's three scores — Recovery, Fuel,
-/// Activity — as a compact ring row at the top of the feed, each expanding its
-/// full detail inline on tap (one open at a time). Replaces the three separate
-/// stacked cards. Recovery + activity come server-side as props; fuel is fetched
-/// client-side from the shared endpoint.
+/// The Today card's top: the readiness gauge beside the plan, then Fuel and
+/// Activity as two tiles, each opening its own page. Recovery + activity come
+/// server-side as props; fuel is fetched client-side from the shared endpoint.
 export default function DailyGlance({
   recovery,
   activity,
@@ -184,7 +170,6 @@ export default function DailyGlance({
   children: ReactNode;
 }) {
   const [fuel, setFuel] = useState<NutritionResponse | null>(null);
-  const [open, setOpen] = useState<Section | null>(null);
 
   // Stale-while-revalidate: paint the last cached Fuel value instantly (the
   // live Google Health call is slow, so re-fetching on every page open made
@@ -227,8 +212,6 @@ export default function DailyGlance({
     };
   }, []);
 
-  const toggle = (s: Section) => setOpen((cur) => (cur === s ? null : s));
-
   // Fuel only shows once something's been logged today — before that it was
   // a row of dashes ("not logged", "not connected") taking up the card.
   const fuelLogged =
@@ -240,16 +223,27 @@ export default function DailyGlance({
     fuel.loggedToday;
   // Mid-day there's no grade to give — show how much of the targets are in.
   // The score only appears once the eating day has closed.
-  const fuelRow = !fuelLogged
+  const fuelTile = !fuelLogged
     ? null
     : fuel.partial && fuel.progress
-      ? { pct: fuel.progress.pct, big: `${fuel.progress.pct}%`, sub: "so far", subColor: undefined }
+      ? {
+          big: `${fuel.progress.pct}%`,
+          sub: "so far",
+          subColor: undefined,
+          parts: [
+            { label: "Protein", pct: fuel.progress.proteinPct },
+            { label: "Cals", pct: fuel.progress.caloriePct },
+          ],
+        }
       : fuel.score
         ? {
-            pct: fuel.score.score,
             big: String(fuel.score.score),
-            sub: fuel.score.rating,
+            sub: fuel.score.rating.charAt(0).toUpperCase() + fuel.score.rating.slice(1),
             subColor: RATING_COLOR[fuel.score.rating],
+            parts: [
+              { label: "Protein", pct: fuel.score.proteinPct },
+              { label: "Cals", pct: fuel.score.caloriePct },
+            ],
           }
         : null;
 
@@ -286,71 +280,47 @@ export default function DailyGlance({
         <div className="min-w-0 flex-1">{head}</div>
       </div>
 
-      <div className="mt-4 flex flex-col gap-3">
-          {fuelRow ? (
-            <GlowRow
-              label="Fuel"
-              icon={<FlameIcon />}
-              pct={fuelRow.pct}
-              color={FUEL_COLOR}
-              big={fuelRow.big}
-              sub={fuelRow.sub}
-              subColor={fuelRow.subColor}
-              href="/fuel"
-            />
-          ) : (
-            // Nothing eaten logged yet: no empty Fuel bar, just the way in.
-            <Link
-              href="/fuel#log"
-              className="w-full flex flex-col gap-2.5 py-1 active:opacity-70 transition-opacity"
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        {fuelTile ? (
+          <SplitTile
+            href="/fuel"
+            label="Fuel"
+            icon={<FlameIcon />}
+            color={FUEL_COLOR}
+            big={fuelTile.big}
+            sub={fuelTile.sub}
+            subColor={fuelTile.subColor}
+            parts={fuelTile.parts}
+          />
+        ) : (
+          // Nothing eaten logged yet: no empty bars, just the way in.
+          <SplitTile href="/fuel#log" label="Fuel" icon={<FlameIcon />} color={FUEL_COLOR}>
+            <span className="text-[12px] leading-snug" style={{ color: "var(--fg-muted)" }}>
+              Nothing logged yet
+            </span>
+            <span
+              className="mt-auto self-start text-[12px] font-bold px-2.5 py-1 rounded-full"
+              style={{ background: "var(--accent)", color: "#04130a" }}
             >
-              <span className="flex items-center gap-2">
-                <span className="inline-flex" style={{ color: FUEL_COLOR, filter: "drop-shadow(0 0 6px currentColor)" }}>
-                  <FlameIcon />
-                </span>
-                <span className="text-[14px] font-semibold" style={{ letterSpacing: "-0.01em" }}>
-                  Fuel
-                </span>
-                <span className="min-w-0 truncate text-[12px] font-medium" style={{ color: "var(--fg-dim)" }}>
-                  nothing logged yet
-                </span>
-                <span
-                  className="ml-auto text-[12px] font-bold px-2.5 py-1 rounded-full"
-                  style={{ background: "var(--accent)", color: "#04130a" }}
-                >
-                  Log a meal
-                </span>
-              </span>
-              <span className="block h-2 rounded-full" style={{ background: "#232328" }} />
-            </Link>
-          )}
-          {activity && (
-            <GlowRow
-              label="Activity"
-              icon={<ZapIcon />}
-              pct={activity.pct}
-              color={ACTIVITY_COLOR}
-              big={`${activity.pct}%`}
-              sub={`${activity.moveCal.toLocaleString()} cal`}
-              active={open === "activity"}
-              onClick={() => toggle("activity")}
-            />
-          )}
-        </div>
-
-      {open && (
-        <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
-          {open === "activity" && activity && (
-            <div>
-              <div className="space-y-3">
-                {activity.rows.map((r) => (
-                  <ActivityBar key={r.label} {...r} />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+              Log a meal
+            </span>
+          </SplitTile>
+        )}
+        {activity && (
+          <SplitTile
+            href="/activity"
+            label="Activity"
+            icon={<ZapIcon />}
+            color={ACTIVITY_COLOR}
+            big={`${activity.pct}%`}
+            sub={`${activity.moveCal.toLocaleString()} cal`}
+            parts={activity.rows.map((row) => ({
+              label: row.label === "Sessions" ? "Lift" : row.label,
+              pct: row.goal > 0 ? (row.value / row.goal) * 100 : 0,
+            }))}
+          />
+        )}
+      </div>
 
       {/* What to do today — the coach's line lives here. */}
       {children}
