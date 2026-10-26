@@ -155,7 +155,13 @@ function PRCard({ prs }: { prs: RecentPR[] }) {
         const prev = pr.previous;
         const reps = pr.reps ?? 1;
         const gain = prev ? Math.round((pr.value - prev.value) * 10) / 10 : null;
-        const shareText = `New PR: ${pr.exercise} ${load.big}${load.unit ? " " + load.unit : ""} × ${reps}${gain && gain > 0 ? ` (+${gain} lb)` : ""}`;
+        // Same weight, more reps: a reps PR. "360 → 360" read as nothing
+        // changed, so it shows the reps instead.
+        const repGain =
+          prev && gain === 0 && prev.reps != null && reps > prev.reps ? reps - prev.reps : null;
+        const improvement =
+          gain && gain > 0 ? `+${gain} lb` : repGain ? `+${repGain} rep${repGain === 1 ? "" : "s"}` : null;
+        const shareText = `New PR: ${pr.exercise} ${load.big}${load.unit ? " " + load.unit : ""} × ${reps}${improvement ? ` (${improvement})` : ""}`;
         return (
           <div
             key={pr.id}
@@ -188,10 +194,15 @@ function PRCard({ prs }: { prs: RecentPR[] }) {
                     {load.unit ? `${load.unit} ` : ""}× {reps}
                   </span>
                 </p>
-                {prev && (
+                {prev && gain != null && gain > 0 && (
                   <p className="text-[12px] mt-2 nums" style={{ fontFamily: "var(--font-geist-mono)", color: "var(--fg-dim)" }}>
-                    <span className="line-through">{prLoad(pr, prev.value).big}</span> → {load.big}
-                    {gain && gain > 0 ? ` · +${gain} lb` : ""}
+                    <span className="line-through">{prLoad(pr, prev.value).big}</span> → {load.big} · {improvement}
+                  </p>
+                )}
+                {prev && repGain != null && (
+                  <p className="text-[12px] mt-2 nums" style={{ fontFamily: "var(--font-geist-mono)", color: "var(--fg-dim)" }}>
+                    {load.big}
+                    {load.unit ? ` ${load.unit}` : ""} × <span className="line-through">{prev.reps}</span> → {reps} · {improvement}
                   </p>
                 )}
               </div>
