@@ -34,7 +34,6 @@ export default async function FeedTop({ userId }: { userId: string }) {
         compact={prs.length > 0}
         recovery={glance?.recovery ?? null}
         activity={glance?.activity ?? null}
-        fuelUsual={glance?.fuelUsual ?? null}
       />
     </>
   );
@@ -47,7 +46,6 @@ function TodayCard({
   compact,
   recovery,
   activity,
-  fuelUsual,
 }: {
   plan: TodayPlan;
   deload: boolean;
@@ -55,7 +53,6 @@ function TodayCard({
   compact: boolean;
   recovery: RecoveryGlance | null;
   activity: ActivityGlance | null;
-  fuelUsual: number | null;
 }) {
   const done = plan.doneToday;
   const next = plan.next;
@@ -123,7 +120,7 @@ function TodayCard({
   );
 
   return (
-    <DailyGlance recovery={recovery} activity={activity} fuelUsual={fuelUsual} head={head}>
+    <DailyGlance recovery={recovery} activity={activity} head={head}>
       <p className="text-[14px] leading-snug mt-3.5" style={{ color: "var(--fg)", opacity: 0.85 }}>
         {line}
       </p>
