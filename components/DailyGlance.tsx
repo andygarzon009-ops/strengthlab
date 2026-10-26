@@ -49,13 +49,14 @@ type Section = "activity";
 
 // Each stat keeps one colour whatever the numbers say, so the bar names the
 // stat and never judges it — readiness is the card's only red→green verdict.
-// Fuel takes the flame's ember, Activity the deload steel blue.
-const FUEL_COLOR = "#fb923c";
-const ACTIVITY_COLOR = "#60a5fa";
+// Both come from the brand: Fuel the wordmark's lime, Activity the button green.
+const FUEL_COLOR = "#a3e635";
+const ACTIVITY_COLOR = "#22c55e";
 
-/// Fuel / Activity under the plan, one row each: a tinted icon, the label and
-/// a quiet sub, the reading in the stat's colour, and a rail that fades in and
-/// ends in the readiness gauge's glowing knob. The whole row is the tap target.
+/// Fuel / Activity under the plan, set straight on the card like the gauge:
+/// a glowing icon, the label and a quiet sub, the reading in the stat's
+/// colour, and a rail ending in the readiness gauge's glowing knob. The whole
+/// row is the tap target.
 function GlowRow({
   label,
   icon,
@@ -82,82 +83,55 @@ function GlowRow({
   href?: string;
 }) {
   const fill = Math.max(0, Math.min(100, pct));
-  const cls =
-    "w-full grid items-center gap-3 rounded-[14px] px-3 py-2.5 text-left transition-colors active:scale-[0.99]";
-  const style = {
-    gridTemplateColumns: "30px minmax(0,1fr) 14px",
-    background: active
-      ? "var(--bg-elevated)"
-      : "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.01))",
-    border: `1px solid ${active ? "var(--border-strong)" : "var(--border)"}`,
-  };
+  const cls = "w-full flex flex-col gap-2.5 py-1 text-left active:opacity-70 transition-opacity";
   const content = (
     <>
-      <span
-        className="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center"
-        style={{ background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}
-      >
-        {icon}
-      </span>
-      <span className="min-w-0 flex flex-col gap-2">
-        <span className="flex items-baseline justify-between gap-2">
-          <span className="min-w-0 truncate text-[13px] font-semibold">
-            {label}
-            <span className="text-[12px] font-medium ml-1.5" style={{ color: subColor ?? "var(--fg-dim)" }}>
-              {sub}
-            </span>
-          </span>
-          <span
-            className="text-[17px] font-semibold leading-none tabular-nums"
-            style={{ fontFamily: "var(--font-geist-mono)", letterSpacing: "-0.03em", color }}
-          >
-            {big}
-          </span>
+      <span className="flex items-center gap-2">
+        <span className="inline-flex" style={{ color, filter: "drop-shadow(0 0 6px currentColor)" }}>
+          {icon}
         </span>
-        <span className="relative block h-1.5 rounded-full" style={{ background: "#1c1c20" }}>
-          <span
-            className="absolute inset-y-0 left-0 rounded-full"
-            style={{
-              width: `${fill}%`,
-              background: `linear-gradient(90deg, color-mix(in srgb, ${color} 15%, transparent), ${color})`,
-              boxShadow: `0 0 12px color-mix(in srgb, ${color} 45%, transparent)`,
-            }}
-          />
-          <span
-            className="absolute top-1/2 w-3 h-3 -mt-1.5 -ml-1.5 rounded-full bg-white"
-            style={{
-              left: `${Math.min(fill, 98)}%`,
-              border: `2.5px solid ${color}`,
-              boxShadow: `0 0 8px ${color}`,
-            }}
-          />
+        <span className="text-[14px] font-semibold" style={{ letterSpacing: "-0.01em" }}>
+          {label}
+        </span>
+        <span className="min-w-0 truncate text-[12px] font-medium" style={{ color: subColor ?? "var(--fg-dim)" }}>
+          {sub}
+        </span>
+        <span
+          className="ml-auto text-[18px] font-semibold leading-none tabular-nums"
+          style={{ fontFamily: "var(--font-geist-mono)", letterSpacing: "-0.04em", color }}
+        >
+          {big}
         </span>
       </span>
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="var(--fg-muted)"
-        strokeWidth="2.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-        style={{ transform: active ? "rotate(90deg)" : undefined, transition: "transform 160ms" }}
-      >
-        <path d="M9 6l6 6-6 6" />
-      </svg>
+      <span className="relative block h-2 rounded-full" style={{ background: "#232328" }}>
+        <span
+          className="absolute inset-y-0 left-0 rounded-full"
+          style={{
+            width: `${fill}%`,
+            background: `linear-gradient(90deg, color-mix(in srgb, ${color} 55%, #0a0a0a), ${color})`,
+            boxShadow: `0 0 14px color-mix(in srgb, ${color} 50%, transparent)`,
+          }}
+        />
+        <span
+          className="absolute top-1/2 w-3.5 h-3.5 -mt-[7px] -ml-[7px] rounded-full bg-white"
+          style={{
+            left: `${Math.min(fill, 98)}%`,
+            border: `3px solid ${color}`,
+            boxShadow: `0 0 10px ${color}`,
+          }}
+        />
+      </span>
     </>
   );
   if (href) {
     return (
-      <Link href={href} className={cls} style={style}>
+      <Link href={href} className={cls}>
         {content}
       </Link>
     );
   }
   return (
-    <button type="button" onClick={onClick} aria-expanded={active} className={cls} style={style}>
+    <button type="button" onClick={onClick} aria-expanded={active} className={cls}>
       {content}
     </button>
   );
@@ -312,7 +286,7 @@ export default function DailyGlance({
         <div className="min-w-0 flex-1">{head}</div>
       </div>
 
-      <div className="mt-3 space-y-1.5">
+      <div className="mt-4 flex flex-col gap-3">
           {fuelRow ? (
             <GlowRow
               label="Fuel"
@@ -328,28 +302,26 @@ export default function DailyGlance({
             // Nothing eaten logged yet: no empty Fuel bar, just the way in.
             <Link
               href="/fuel#log"
-              className="grid items-center gap-3 rounded-[13px] px-3 min-h-[54px] active:scale-[0.99]"
-              style={{
-                gridTemplateColumns: "30px minmax(0,1fr) auto",
-                background: "rgba(255,255,255,0.025)",
-                border: "1px dashed var(--border-strong)",
-              }}
+              className="w-full flex flex-col gap-2.5 py-1 active:opacity-70 transition-opacity"
             >
-              <span
-                className="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center"
-                style={{ background: `color-mix(in srgb, ${FUEL_COLOR} 14%, transparent)`, color: FUEL_COLOR }}
-              >
-                <FlameIcon />
+              <span className="flex items-center gap-2">
+                <span className="inline-flex" style={{ color: FUEL_COLOR, filter: "drop-shadow(0 0 6px currentColor)" }}>
+                  <FlameIcon />
+                </span>
+                <span className="text-[14px] font-semibold" style={{ letterSpacing: "-0.01em" }}>
+                  Fuel
+                </span>
+                <span className="min-w-0 truncate text-[12px] font-medium" style={{ color: "var(--fg-dim)" }}>
+                  nothing logged yet
+                </span>
+                <span
+                  className="ml-auto text-[12px] font-bold px-2.5 py-1 rounded-full"
+                  style={{ background: "var(--accent)", color: "#04130a" }}
+                >
+                  Log a meal
+                </span>
               </span>
-              <span className="text-[13px]" style={{ color: "var(--fg-muted)" }}>
-                <b className="font-semibold" style={{ color: "var(--fg)" }}>Fuel</b> · nothing logged yet
-              </span>
-              <span
-                className="text-[12px] font-bold px-2.5 py-1 rounded-full"
-                style={{ background: "var(--accent)", color: "#04130a" }}
-              >
-                Log a meal
-              </span>
+              <span className="block h-2 rounded-full" style={{ background: "#232328" }} />
             </Link>
           )}
           {activity && (

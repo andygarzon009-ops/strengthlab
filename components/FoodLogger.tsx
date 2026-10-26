@@ -375,13 +375,13 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
           className="flex flex-col gap-3 rounded-2xl p-4 text-left active:scale-[0.99] transition-transform"
           style={{
             background:
-              "radial-gradient(120% 140% at 0% 0%, rgba(251,146,60,0.18) 0%, transparent 60%), var(--bg-elevated)",
-            border: "1px solid rgba(251,146,60,0.3)",
+              "radial-gradient(120% 140% at 0% 0%, rgba(163,230,53,0.18) 0%, transparent 60%), var(--bg-elevated)",
+            border: "1px solid rgba(163,230,53,0.3)",
           }}
         >
           <span
             className="w-11 h-11 rounded-2xl flex items-center justify-center"
-            style={{ background: "#fb923c" }}
+            style={{ background: "#a3e635" }}
             aria-hidden
           >
             <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

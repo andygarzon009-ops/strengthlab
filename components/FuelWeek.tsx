@@ -67,10 +67,10 @@ export type FuelDayView = {
   partial: boolean;
 };
 
-// Fuel's own colour — the ember of the Today card's Fuel bar. Progress isn't a
+// Fuel's own colour — the wordmark lime of the Today card's Fuel bar. Progress isn't a
 // verdict, so it wears this rather than the red→green rating scale; the gauge
 // takes the grade's colours once the day closes.
-const PROGRESS = "#fb923c";
+const PROGRESS = "#a3e635";
 
 const RATING_COLOR: Record<string, string> = {
   "on track": "#22c55e",
@@ -102,11 +102,11 @@ function longDate(dateKey: string): string {
   });
 }
 
-/// The page glow: Fuel's ember whenever there's food logged, matching the
+/// The page glow: Fuel's lime whenever there's food logged, matching the
 /// Today card; a faint neutral when nothing was.
 function fuelTint(day: FuelDayView): (alpha: number) => string {
   if (!day.logged) return (a) => `rgba(255, 255, 255, ${a / 4})`;
-  return (a) => `rgba(251, 146, 60, ${a})`;
+  return (a) => `rgba(163, 230, 53, ${a})`;
 }
 
 export type Calibration = {
@@ -147,7 +147,7 @@ export default function FuelWeek({
   return (
     <>
       {/* The page glow, replacing the app's recovery-coloured one here:
-          Fuel's ember. */}
+          Fuel's lime. */}
       <div
         aria-hidden
         className="session-glow pointer-events-none fixed inset-0 -z-10"
