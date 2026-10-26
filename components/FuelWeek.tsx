@@ -10,7 +10,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
-import TickGauge, { scaleColor } from "@/components/TickGauge";
+import TickGauge from "@/components/TickGauge";
 import NextMeal from "@/components/NextMeal";
 import { roomLeft } from "@/lib/roomLeft";
 import type { RecentMeal } from "@/lib/foodLog";
@@ -67,9 +67,10 @@ export type FuelDayView = {
   partial: boolean;
 };
 
-// Progress isn't a verdict, so it gets its own neutral hue rather than borrowing
-// the red→green rating scale. The grade takes over once the day closes.
-const PROGRESS = "#38bdf8";
+// Fuel's own colour — the ember of the Today card's Fuel bar. Progress isn't a
+// verdict, so it wears this rather than the red→green rating scale; the gauge
+// takes the grade's colours once the day closes.
+const PROGRESS = "#fb923c";
 
 const RATING_COLOR: Record<string, string> = {
   "on track": "#22c55e",
@@ -101,12 +102,11 @@ function longDate(dateKey: string): string {
   });
 }
 
-/// The day's colour: Fuel blue while it's in progress, the score's own colour
-/// once it's done, a faint neutral when nothing was logged.
+/// The page glow: Fuel's ember whenever there's food logged, matching the
+/// Today card; a faint neutral when nothing was.
 function fuelTint(day: FuelDayView): (alpha: number) => string {
   if (!day.logged) return (a) => `rgba(255, 255, 255, ${a / 4})`;
-  if (day.partial) return (a) => `rgba(56, 189, 248, ${a})`;
-  return (a) => scaleColor(day.score.score, a);
+  return (a) => `rgba(251, 146, 60, ${a})`;
 }
 
 export type Calibration = {
@@ -147,7 +147,7 @@ export default function FuelWeek({
   return (
     <>
       {/* The page glow, replacing the app's recovery-coloured one here:
-          blue while the day is in progress, the score's colour once it's done. */}
+          Fuel's ember. */}
       <div
         aria-hidden
         className="session-glow pointer-events-none fixed inset-0 -z-10"
