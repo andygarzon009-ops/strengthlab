@@ -9,6 +9,7 @@ import { mealForHour, MEALS, type Meal } from "@/lib/meals";
 import { onPendingMeal, takePendingMeal } from "@/lib/pendingMeal";
 import type { RecentMeal } from "@/lib/foodLog";
 import type { DetectedFood } from "@/app/api/food/analyze/route";
+import { useSheetBack, SheetClose, backdropTap } from "@/components/useSheetBack";
 
 /// `base` is the leading count in the estimate's portion ("2 large eggs" → 2),
 /// so a miscount is fixed with a stepper instead of a ratio. `scale` is
@@ -234,9 +235,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
 
   const close = () => {
     if (stage.kind === "analyzing" || pending || addBusy) return;
-    setStage({ kind: "closed" });
-    setAdding(null);
-    setAddError(null);
+    dismiss();
   };
 
   const update = (i: number, patch: Partial<Item>) =>
@@ -277,6 +276,12 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
   const [adding, setAdding] = useState<string | null>(null);
   const [addBusy, setAddBusy] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  // Back swipe closes the sheet and stays on Fuel.
+  const { dismiss, grab } = useSheetBack(open, () => {
+    setStage({ kind: "closed" });
+    setAdding(null);
+    setAddError(null);
+  });
   const addItem = async () => {
     const t = adding?.trim();
     if (!t || addBusy) return;
@@ -318,7 +323,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
         source: stage.source,
       });
       if (res.ok) {
-        setStage({ kind: "closed" });
+        dismiss();
         setText("");
         setAdding(null);
         setSaved(`${MEAL_LABEL[meal]} saved · ${total.toLocaleString()} kcal`);
@@ -602,13 +607,13 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
           <div
             className="fixed inset-x-0 z-[70] flex items-end justify-center"
             style={{ top: vTop, height: vh ?? "100dvh", background: "rgba(0,0,0,0.6)", overscrollBehavior: "contain" }}
-            onClick={close}
+            onClick={() => backdropTap(close)}
           >
             <div
               role="dialog"
               aria-modal="true"
               aria-label="Log a meal"
-              className="w-full max-w-lg rounded-t-3xl flex flex-col"
+              className="relative w-full max-w-lg rounded-t-3xl flex flex-col"
               style={{
                 background: "var(--bg-card)",
                 borderTop: "1px solid var(--border-strong)",
@@ -617,7 +622,8 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex justify-center pt-2.5">
+              {stage.kind !== "analyzing" && <SheetClose onClick={close} />}
+              <div className="flex justify-center pt-2.5 pb-1 touch-none" {...(stage.kind === "analyzing" ? {} : grab)}>
                 <span className="w-10 h-1 rounded-full" style={{ background: "var(--border-strong)" }} />
               </div>
 
@@ -664,7 +670,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
                   <div className="grid grid-cols-2 gap-2 mt-4">
                     <button
                       type="button"
-                      onClick={() => setStage({ kind: "closed" })}
+                      onClick={() => dismiss()}
                       className="min-h-[44px] rounded-xl text-[14px] font-semibold"
                       style={{ background: "var(--bg-elevated)" }}
                     >

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { deleteFoodLog, updateFoodLog } from "@/lib/actions/food";
 import { MEALS, type Meal } from "@/lib/meals";
+import { useSheetBack, SheetClose, backdropTap } from "@/components/useSheetBack";
 
 type Row = {
   id: string;
@@ -77,6 +78,11 @@ export default function FoodLogToday({ rows }: { rows: Row[] }) {
   const [pending, startTransition] = useTransition();
   const [vh, setVh] = useState<number | null>(null);
   const [vTop, setVTop] = useState(0);
+  // Back swipe closes the editor and stays on Fuel.
+  const { dismiss, grab } = useSheetBack(!!editing, () => {
+    setEditing(null);
+    setDraft(null);
+  });
 
   useEffect(() => {
     if (!editing) return;
@@ -106,8 +112,7 @@ export default function FoodLogToday({ rows }: { rows: Row[] }) {
   };
   const close = () => {
     if (pending) return;
-    setEditing(null);
-    setDraft(null);
+    dismiss();
   };
 
   // A portion change rescales every number from what was saved.
@@ -138,8 +143,7 @@ export default function FoodLogToday({ rows }: { rows: Row[] }) {
         fatG: n(draft.fatG),
       });
       if (res.ok) {
-        setEditing(null);
-        setDraft(null);
+        dismiss();
         router.refresh();
       }
     });
@@ -149,8 +153,7 @@ export default function FoodLogToday({ rows }: { rows: Row[] }) {
     if (!editing) return;
     const id = editing.id;
     setGone((g) => new Set(g).add(id));
-    setEditing(null);
-    setDraft(null);
+    dismiss();
     startTransition(async () => {
       await deleteFoodLog(id);
       router.refresh();
@@ -243,13 +246,13 @@ export default function FoodLogToday({ rows }: { rows: Row[] }) {
           <div
             className="fixed inset-x-0 z-[70] flex items-end justify-center"
             style={{ top: vTop, height: vh ?? "100dvh", background: "rgba(0,0,0,0.6)", overscrollBehavior: "contain" }}
-            onClick={close}
+            onClick={() => backdropTap(close)}
           >
             <div
               role="dialog"
               aria-modal="true"
               aria-label={`Edit ${editing.name}`}
-              className="w-full max-w-lg rounded-t-3xl flex flex-col"
+              className="relative w-full max-w-lg rounded-t-3xl flex flex-col"
               style={{
                 background: "var(--bg-card)",
                 borderTop: "1px solid var(--border-strong)",
@@ -258,11 +261,12 @@ export default function FoodLogToday({ rows }: { rows: Row[] }) {
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex justify-center pt-2.5">
+              <SheetClose onClick={close} label="Close editor" />
+              <div className="flex justify-center pt-2.5 pb-3 touch-none" {...grab}>
                 <span className="w-10 h-1 rounded-full" style={{ background: "var(--border-strong)" }} />
               </div>
-              <div className="overflow-y-auto px-5 pt-3 pb-4" style={{ overscrollBehavior: "contain" }}>
-                <div className="flex items-center gap-3">
+              <div className="overflow-y-auto px-5 pb-4" style={{ overscrollBehavior: "contain" }}>
+                <div className="flex items-center gap-3 pr-10">
                   {editing.photoUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={editing.photoUrl} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0" />

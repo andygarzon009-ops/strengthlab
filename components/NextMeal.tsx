@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import type { Meal } from "@/lib/meals";
 import { planNextMeal } from "@/lib/nextMeal";
@@ -10,6 +11,7 @@ import { setPendingMeal } from "@/lib/pendingMeal";
 import type { RecentMeal } from "@/lib/foodLog";
 import type { RoomLeft } from "@/lib/roomLeft";
 import type { Recipe } from "@/lib/recipes";
+import { useSheetBack, SheetClose } from "@/components/useSheetBack";
 import { CARBS, FAT, PROTEIN } from "@/components/FuelCharts";
 import { scaledAmount, servingsLabel } from "@/lib/recipeScale";
 
@@ -77,6 +79,9 @@ export default function NextMeal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const router = useRouter();
+  // Back swipe closes the recipe and stays on Fuel.
+  const { dismiss, grab } = useSheetBack(openIdx != null, () => setOpenIdx(null));
   const [swapping, setSwapping] = useState<string | null>(null);
   // Servings in the open recipe; the ingredients and macros follow it.
   const [serv, setServ] = useState(1);
@@ -152,13 +157,13 @@ export default function NextMeal({
     if (openIdx == null) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpenIdx(null);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && dismiss();
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [openIdx]);
+  }, [openIdx, dismiss]);
 
   if (!plan || dayRoom.kcal < 150) return null;
 
@@ -174,8 +179,9 @@ export default function NextMeal({
 
   const logRecipe = (r: Recipe, servings: number) => {
     const k = servings / (r.servings || 1);
-    setOpenIdx(null);
-    setPendingMeal({
+    // Hand off to the meal logger only once the recipe's back step is gone,
+    // so the logger's own sheet gets a clean one.
+    dismiss(() => setPendingMeal({
       review: {
         items: [
           {
@@ -190,7 +196,7 @@ export default function NextMeal({
         ],
         photoUrl: null,
       },
-    });
+    }));
   };
 
   return (
@@ -385,13 +391,13 @@ export default function NextMeal({
           <div
             className="fixed inset-0 z-[70] flex items-end justify-center"
             style={{ background: "rgba(0,0,0,0.6)" }}
-            onClick={() => setOpenIdx(null)}
+            onClick={() => dismiss()}
           >
             <div
               role="dialog"
               aria-modal="true"
               aria-label={open.title}
-              className="w-full max-w-lg rounded-t-3xl overflow-y-auto"
+              className="relative w-full max-w-lg rounded-t-3xl overflow-y-auto"
               style={{
                 maxHeight: "92dvh",
                 background: "var(--bg-card)",
@@ -401,7 +407,10 @@ export default function NextMeal({
               }}
               onClick={(e) => e.stopPropagation()}
             >
+              <SheetClose onClick={() => dismiss()} label="Close recipe" />
+              {/* Drag the header down to close. */}
               <div
+                {...grab}
                 className="px-4 pt-2.5 pb-4"
                 style={{ background: "radial-gradient(130% 120% at 0% 0%, rgba(249,115,22,0.2), transparent 55%)" }}
               >
@@ -578,7 +587,13 @@ export default function NextMeal({
                   href={`/fuel?coach=1&ask=${encodeURIComponent(
                     `I'm thinking of making ${open.title} for ${mealWord} (${servingsLabel(serv)}: ${sc(open.kcal)} kcal, ${sc(open.proteinG)} g protein). Does it fit my day, and how would you tweak it?`,
                   )}`}
-                  onClick={() => setOpenIdx(null)}
+                  onClick={(e) => {
+                    // Close first, then open the coach, so back from the
+                    // coach lands on Fuel rather than on a closed sheet.
+                    e.preventDefault();
+                    const href = e.currentTarget.getAttribute("href")!;
+                    dismiss(() => router.push(href));
+                  }}
                   className="flex-1 min-h-[44px] rounded-xl flex items-center justify-center text-[13.5px] font-semibold"
                   style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
                 >
