@@ -68,9 +68,10 @@ const CHEVRON = (
   </svg>
 );
 
-/// One of the two tiles under the plan: a glowing icon and a › so it reads as
-/// a button, the big reading in the stat's colour, then its parts as mini-bars
-/// in the same colour. The whole tile links to the stat's page.
+/// One of the two tiles under the plan: a glowing icon, the big reading in the
+/// stat's colour, then its parts as mini-bars in the same colour. With an
+/// `href` the whole tile is a link and carries a ›; without one it's just a
+/// readout — Activity's parts are already all there is to see.
 function SplitTile({
   href,
   label,
@@ -82,7 +83,7 @@ function SplitTile({
   parts,
   children,
 }: {
-  href: string;
+  href?: string;
   label: string;
   icon: ReactNode;
   color: string;
@@ -94,21 +95,19 @@ function SplitTile({
   /// Replaces the reading — the empty state's call to action.
   children?: ReactNode;
 }) {
-  return (
-    <Link
-      href={href}
-      className="relative min-w-0 rounded-2xl px-3 pt-3 pb-3.5 flex flex-col gap-[11px] active:scale-[0.98] transition-transform"
-      style={{
-        background: `radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, ${color} 13%, transparent), transparent 60%), rgba(255,255,255,0.02)`,
-        border: "1px solid var(--border-strong)",
-      }}
-    >
+  const cls = "relative min-w-0 rounded-2xl px-3 pt-3 pb-3.5 flex flex-col gap-[11px]";
+  const style = {
+    background: `radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, ${color} 13%, transparent), transparent 60%), rgba(255,255,255,0.02)`,
+    border: "1px solid var(--border-strong)",
+  };
+  const content = (
+    <>
       <span className="flex items-center gap-1.5 text-[13px] font-semibold">
         <span className="inline-flex" style={{ color, filter: "drop-shadow(0 0 6px currentColor)" }}>
           {icon}
         </span>
         {label}
-        {CHEVRON}
+        {href && CHEVRON}
       </span>
       {children ?? (
         <>
@@ -149,12 +148,24 @@ function SplitTile({
           </span>
         </>
       )}
+    </>
+  );
+  if (!href) {
+    return (
+      <div className={cls} style={style}>
+        {content}
+      </div>
+    );
+  }
+  return (
+    <Link href={href} className={`${cls} active:scale-[0.98] transition-transform`} style={style}>
+      {content}
     </Link>
   );
 }
 
 /// The Today card's top: the readiness gauge beside the plan, then Fuel and
-/// Activity as two tiles, each opening its own page. Recovery + activity come
+/// Activity as two tiles; Fuel opens its page. Recovery + activity come
 /// server-side as props; fuel is fetched client-side from the shared endpoint.
 export default function DailyGlance({
   recovery,
@@ -308,7 +319,6 @@ export default function DailyGlance({
         )}
         {activity && (
           <SplitTile
-            href="/activity"
             label="Activity"
             icon={<ZapIcon />}
             color={ACTIVITY_COLOR}
