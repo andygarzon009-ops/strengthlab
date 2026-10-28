@@ -20,7 +20,7 @@ import SwipeRow from "@/components/SwipeRow";
 import type { RecentMeal } from "@/lib/foodLog";
 import type { DetectedFood } from "@/app/api/food/analyze/route";
 import { useSheetBack, SheetClose, backdropTap } from "@/components/useSheetBack";
-import { MACRO_FROM, MACRO_RGB, MACRO_TO } from "@/lib/macroColor";
+import { PAGE_FROM, PAGE_RGB, PAGE_TO } from "@/lib/macroColor";
 
 /// `base` is the leading count in the estimate's portion ("2 large eggs" → 2),
 /// so a miscount is fixed with a stepper instead of a ratio. `scale` is
@@ -421,13 +421,13 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
           className="flex flex-col gap-3 rounded-2xl p-4 text-left active:scale-[0.99] transition-transform"
           style={{
             background:
-              `radial-gradient(120% 140% at 0% 0%, rgba(${MACRO_RGB},0.18) 0%, transparent 60%), var(--bg-elevated)`,
-            border: `1px solid rgba(${MACRO_RGB},0.3)`,
+              `radial-gradient(120% 140% at 0% 0%, rgba(${PAGE_RGB},0.18) 0%, transparent 60%), var(--bg-elevated)`,
+            border: `1px solid rgba(${PAGE_RGB},0.3)`,
           }}
         >
           <span
             className="w-11 h-11 rounded-2xl flex items-center justify-center"
-            style={{ background: `linear-gradient(135deg, ${MACRO_TO}, ${MACRO_FROM})` }}
+            style={{ background: `linear-gradient(135deg, ${PAGE_TO}, ${PAGE_FROM})` }}
             aria-hidden
           >
             <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

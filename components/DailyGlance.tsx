@@ -278,40 +278,44 @@ export default function DailyGlance({
   const r = recovery;
   return (
     <section aria-label="Today" className="card mb-3 overflow-hidden px-[18px] pt-4 pb-[18px]">
-      <div className="flex items-center gap-3.5">
-        {/* Readiness: the gauge, number and band. Tapping it opens the
-            readiness page — the full breakdown lives there. */}
-        <Link
-          href="/recovery"
-          aria-label={r ? `Readiness ${r.score}, ${r.label}. Open readiness` : "Open readiness"}
-          className="relative shrink-0 rounded-2xl active:opacity-80"
-        >
-          <TickGauge score={r?.score ?? null} size={96} id="feed-gauge" ticks={40} />
-          <span className="absolute inset-0 flex flex-col items-center justify-center pb-1.5">
-            <span
-              className="text-[8px] font-semibold uppercase leading-none mb-[3px]"
-              style={{ color: "var(--fg-muted)", letterSpacing: "0.12em" }}
-            >
-              Readiness
-            </span>
-            <span
-              className="text-[26px] font-bold leading-none tabular-nums"
-              style={{ letterSpacing: "-0.04em" }}
-            >
-              {r?.score ?? "—"}
-            </span>
-          </span>
-          <span
-            className="absolute left-0 right-0 flex items-center justify-center gap-0.5 text-[10px] font-bold"
-            style={{ bottom: 1, color: r?.color ?? "var(--fg-muted)" }}
+      <div className="flex items-stretch gap-3.5">
+        {/* Readiness: the gauge, number and band, under an eyebrow that lines
+            up with the plan's. Tapping it opens the readiness page — the full
+            breakdown lives there. */}
+        <div className="shrink-0 flex flex-col items-center">
+          <p className="label text-[11px]" style={{ color: "var(--fg-dim)" }}>
+            Readiness
+          </p>
+          <Link
+            href="/recovery"
+            aria-label={r ? `Readiness ${r.score}, ${r.label}. Open readiness` : "Open readiness"}
+            className="relative shrink-0 rounded-2xl mt-1 active:opacity-80"
           >
-            {r?.label ?? "Readiness"}
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-          </span>
-        </Link>
-        <div className="min-w-0 flex-1">{head}</div>
+            <TickGauge score={r?.score ?? null} size={96} id="feed-gauge" ticks={40} />
+            <span className="absolute inset-0 flex items-center justify-center pb-1.5">
+              <span
+                className="text-[26px] font-bold leading-none tabular-nums"
+                style={{ letterSpacing: "-0.04em" }}
+              >
+                {r?.score ?? "—"}
+              </span>
+            </span>
+            <span
+              className="absolute left-0 right-0 flex items-center justify-center gap-0.5 text-[10px] font-bold"
+              style={{ bottom: 1, color: r?.color ?? "var(--fg-muted)" }}
+            >
+              {r?.label ?? "Readiness"}
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </span>
+          </Link>
+        </div>
+        {/* Eyebrow on top, level with Readiness; title and meta centred
+            beside the gauge below it. */}
+        <div className="min-w-0 flex-1 flex flex-col [&>*:nth-child(2)]:mt-auto [&>*:last-child]:mb-auto">
+          {head}
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2">

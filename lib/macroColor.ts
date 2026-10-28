@@ -9,3 +9,13 @@ export const MACRO_RGB = "239, 68, 68";
 /// Text on a MACRO-tinted chip.
 export const MACRO_INK = "#fecaca";
 export const MACRO_GRADIENT = `linear-gradient(90deg, ${MACRO_FROM}, ${MACRO_FROM} 35%, ${MACRO_TO})`;
+
+// Inside the Macros page the colour is the brand green instead: Fire marks
+// the Today tile, green runs the page itself (gauge, pill, glows, Next meal,
+// the photo button).
+export const PAGE_FROM = "#16a34a";
+export const PAGE_TO = "#4ade80";
+export const PAGE = "#22c55e";
+export const PAGE_RGB = "34, 197, 94";
+export const PAGE_INK = "#bbf7d0";
+export const PAGE_GRADIENT = `linear-gradient(90deg, ${PAGE_FROM}, ${PAGE_TO})`;
