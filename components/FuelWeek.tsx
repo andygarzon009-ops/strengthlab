@@ -14,7 +14,7 @@ import TickGauge from "@/components/TickGauge";
 import NextMeal from "@/components/NextMeal";
 import { roomLeft } from "@/lib/roomLeft";
 import type { RecentMeal } from "@/lib/foodLog";
-import { CARBS, FAT, FIBER, FoodDiary, MicroGrid, PROTEIN, WeekChart } from "@/components/FuelCharts";
+import { CARBS, FAT, FoodDiary, MicroGrid, PROTEIN, WeekChart } from "@/components/FuelCharts";
 
 
 export type FoodRow = {
@@ -305,7 +305,7 @@ function MiniRing({ pct, color, label }: { pct: number; color: string; label: st
 
 /// The readiness-style hero for the selected day: a big gauge with the Fuel
 /// score (or, while the day is open, how much of the targets is in), the
-/// verdict pill, one plain sentence, and three ring tiles.
+/// verdict pill, one plain sentence, and four macro ring tiles.
 function FuelHero({
   day,
   isToday,
@@ -350,11 +350,18 @@ function FuelHero({
       note: `of ${t.proteinTargetG} g`,
     },
     {
-      key: "Fiber",
-      pct: (i.fiberG / FIBER_TARGET_G) * 100,
-      color: FIBER,
-      value: `${Math.round(i.fiberG)} g`,
-      note: `of ${FIBER_TARGET_G} g`,
+      key: "Carbs",
+      pct: (i.carbsG / Math.max(1, t.carbTargetG)) * 100,
+      color: CARBS,
+      value: `${Math.round(i.carbsG)} g`,
+      note: `of ${t.carbTargetG} g`,
+    },
+    {
+      key: "Fat",
+      pct: (i.fatG / Math.max(1, t.fatTargetG)) * 100,
+      color: FAT,
+      value: `${Math.round(i.fatG)} g`,
+      note: `of ${t.fatTargetG} g`,
     },
   ];
 
@@ -423,11 +430,11 @@ function FuelHero({
         </p>
       )}
 
-      <div className="grid grid-cols-3 gap-2 mt-5">
+      <div className="grid grid-cols-4 gap-1.5 mt-5">
         {tiles.map((tl) => (
           <div
             key={tl.key}
-            className="rounded-2xl py-3 px-2 flex flex-col items-center text-center"
+            className="rounded-2xl py-3 px-1 flex flex-col items-center text-center min-w-0"
             style={{ background: "var(--bg-elevated)" }}
           >
             <MiniRing
