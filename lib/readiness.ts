@@ -179,8 +179,13 @@ export function computeReadiness(i: ReadinessInputs): Readiness | null {
       key: "load",
       penalty: p,
       status: p > 0 ? "drag" : ratio < 0.5 ? "good" : "ok",
+      // "40% more than usual" reads; "1.4×" needed explaining.
       value:
-        i.load.acute === 0 ? "Rest" : `${ratio.toFixed(1)}×`,
+        i.load.acute === 0
+          ? "Rest"
+          : Math.abs(ratio - 1) < 0.05
+            ? "same as usual"
+            : `${Math.round(Math.abs(ratio - 1) * 100)}% ${ratio > 1 ? "more" : "less"} than usual`,
       note:
         i.load.acute === 0
           ? "nothing logged in 2 days"
