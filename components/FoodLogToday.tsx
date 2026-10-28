@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { deleteFoodLog, renameRecentMeal, updateFoodLog } from "@/lib/actions/food";
 import { MEALS, mealSig, type Meal } from "@/lib/meals";
+import { renameMealOptimistic, useMealNameOverrides } from "@/lib/mealNames";
 import { useSheetBack, SheetClose, backdropTap } from "@/components/useSheetBack";
 
 type Row = {
@@ -89,16 +90,16 @@ export default function FoodLogToday({
   mealNames?: Record<string, string>;
 }) {
   const router = useRouter();
-  // Names changed this visit, shown at once (null = back to automatic).
-  const [renamed, setRenamed] = useState<Record<string, string | null>>({});
+  // Names come from the shared store first (lib/mealNames), so a rename here
+  // or anywhere else on Fuel shows at once.
+  const overrides = useMealNameOverrides();
   const [renaming, setRenaming] = useState<{ sig: string; value: string } | null>(null);
-  const nameOf = (sig: string) => (renamed[sig] === undefined ? mealNames[sig] ?? null : renamed[sig]);
+  const nameOf = (sig: string) => (overrides[sig] === undefined ? mealNames[sig] ?? null : overrides[sig]);
   const saveName = (sig: string, value: string) => {
     const name = value.trim();
     setRenaming(null);
     if (name === (nameOf(sig) ?? "")) return;
-    setRenamed((m) => ({ ...m, [sig]: name || null }));
-    renameRecentMeal(sig, name).then(() => router.refresh());
+    renameMealOptimistic(sig, name, renameRecentMeal);
   };
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<Row | null>(null);

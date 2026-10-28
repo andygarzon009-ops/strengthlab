@@ -5,8 +5,9 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { shrinkImage } from "@/lib/shrinkImage";
 import { renameRecentMeal, saveFoodItems } from "@/lib/actions/food";
-import { mealForHour, MEALS, type Meal } from "@/lib/meals";
+import { mealForHour, mealSig, MEALS, type Meal } from "@/lib/meals";
 import { onPendingMeal, takePendingMeal } from "@/lib/pendingMeal";
+import { autoMealTitle, renameMealOptimistic, resolveMealName, setMealNameLocal, useMealNameOverrides } from "@/lib/mealNames";
 import type { RecentMeal } from "@/lib/foodLog";
 import type { DetectedFood } from "@/app/api/food/analyze/route";
 import { useSheetBack, SheetClose, backdropTap } from "@/components/useSheetBack";
@@ -28,6 +29,9 @@ type Stage =
       source: "photo" | "text";
       /// The meal's name, saved with it when it's two or more foods.
       name: string;
+      /// It came in with a name, so an emptied field means "remove it". A
+      /// new meal with the field left empty leaves any existing name alone.
+      hadName: boolean;
     }
   | { kind: "error"; message: string };
 
@@ -81,11 +85,7 @@ const scaled = (it: Item) => ({
 /// athlete trims, rescales or removes items, picks the meal, and saves it to
 /// Fuel. Nothing is stored until Save.
 /// The automatic name for a past meal: its biggest food, "+N" for the rest.
-function autoTitle(r: RecentMeal): string {
-  const lead = [...r.items].sort((a, b) => b.kcal - a.kcal)[0];
-  if (!lead) return r.title;
-  return r.items.length > 1 ? `${lead.name} +${r.items.length - 1}` : lead.name;
-}
+const autoTitle = (r: RecentMeal) => autoMealTitle(r.items) || r.title;
 
 export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -97,21 +97,19 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
   const [showRecent, setShowRecent] = useState(false);
   // Which meal's past meals are expanded; starts on the meal it is right now.
   const [recentMeal, setRecentMeal] = useState<Meal | null>(() => mealForHour(new Date().getHours()));
-  // Renaming a past meal: the row being edited, and names saved this visit
-  // (shown at once, before the page refreshes with them).
+  // Renaming a past meal: the row being edited. Names live in the shared
+  // store (lib/mealNames) so every list on Fuel shows a rename at once.
   const [renaming, setRenaming] = useState<{ key: string; value: string } | null>(null);
-  const [renamed, setRenamed] = useState<Record<string, string | null>>({});
-  const titleOf = (r: RecentMeal) => {
-    const local = renamed[r.key];
-    return local === undefined ? r.title : local ?? autoTitle(r);
-  };
-  const isNamed = (r: RecentMeal) => (renamed[r.key] === undefined ? !!r.named : renamed[r.key] != null);
+  const nameOverrides = useMealNameOverrides();
+  const nameOfRecent = (r: RecentMeal) =>
+    resolveMealName(nameOverrides, r.key, r.named ? r.title : null, r.items);
+  const titleOf = (r: RecentMeal) => nameOfRecent(r).title || r.title;
+  const isNamed = (r: RecentMeal) => nameOfRecent(r).named;
   const saveRename = (r: RecentMeal, value: string) => {
     const name = value.trim();
     setRenaming(null);
-    if (name === titleOf(r)) return;
-    setRenamed((m) => ({ ...m, [r.key]: name || null }));
-    renameRecentMeal(r.key, name).then(() => router.refresh());
+    if (isNamed(r) ? name === titleOf(r) : !name) return;
+    renameMealOptimistic(r.key, name, renameRecentMeal);
   };
   const [pending, startTransition] = useTransition();
   const [vh, setVh] = useState<number | null>(null);
@@ -160,6 +158,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
         note: body.note ?? null,
         source,
         name: "",
+        hadName: false,
       });
     } catch {
       setStage({ kind: "error", message: "No connection — try again" });
@@ -203,6 +202,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
           note: null,
           source: p.review.photoUrl ? "photo" : "text",
           name: p.review.name ?? "",
+          hadName: !!p.review.name,
         });
       } else {
         setMeal(mealForHour(new Date().getHours()));
@@ -235,6 +235,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
       note: null,
       source: r.photoUrl ? "photo" : "text",
       name: isNamed(r) ? titleOf(r) : "",
+      hadName: isNamed(r),
     });
   };
 
@@ -320,13 +321,16 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
       ...scaled(it),
     }));
     const total = items.reduce((s, it) => s + it.kcal, 0);
+    // The meal's name shows everywhere straight away; the save stores it.
+    const nameIt = items.length > 1 && (stage.name.trim() !== "" || stage.hadName);
+    if (nameIt) setMealNameLocal(mealSig(items.map((it) => it.name)), stage.name.trim() || null);
     startTransition(async () => {
       const res = await saveFoodItems({
         meal,
         items,
         photoUrl: stage.photoUrl,
         source: stage.source,
-        mealName: items.length > 1 ? stage.name : undefined,
+        mealName: nameIt ? stage.name : undefined,
       });
       if (res.ok) {
         dismiss();

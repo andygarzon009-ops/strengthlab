@@ -12,6 +12,7 @@ import type { RecentMeal } from "@/lib/foodLog";
 import type { RoomLeft } from "@/lib/roomLeft";
 import type { Recipe } from "@/lib/recipes";
 import { useSheetBack, SheetClose } from "@/components/useSheetBack";
+import { resolveMealName, useMealNameOverrides } from "@/lib/mealNames";
 import { CARBS, FAT, PROTEIN } from "@/components/FuelCharts";
 import { scaledAmount, servingsLabel } from "@/lib/recipeScale";
 
@@ -107,6 +108,9 @@ export default function NextMeal({
   // The recipe in the sheet: which meal's list and where in it.
   const [sheet, setSheet] = useState<{ meal: Meal; idx: number } | null>(null);
   const router = useRouter();
+  // A meal renamed anywhere on Fuel shows here at once.
+  const nameOverrides = useMealNameOverrides();
+  const nameOf = (r: RecentMeal) => resolveMealName(nameOverrides, r.key, r.named ? r.title : null, r.items);
   // Back swipe closes the recipe and stays on Fuel.
   const { dismiss, grab } = useSheetBack(sheet != null, () => setSheet(null));
   const [swapping, setSwapping] = useState<string | null>(null);
@@ -502,7 +506,9 @@ export default function NextMeal({
                     key={r.key}
                     type="button"
                     onClick={() =>
-                      setPendingMeal({ review: { items: r.items, photoUrl: r.photoUrl, name: r.named ? r.title : undefined } })
+                      setPendingMeal({
+                        review: { items: r.items, photoUrl: r.photoUrl, name: nameOf(r).named ? nameOf(r).title : undefined },
+                      })
                     }
                     className="shrink-0 flex items-center gap-[7px] h-9 pl-1.5 pr-3 rounded-full text-[12.5px] font-semibold active:scale-95"
                     style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
@@ -519,7 +525,7 @@ export default function NextMeal({
                         {MEAL_ICON[selSlot.meal]}
                       </span>
                     )}
-                    <span className="max-w-[150px] truncate">{r.title}</span>
+                    <span className="max-w-[150px] truncate">{nameOf(r).title || r.title}</span>
                     <span className="text-[11px] tabular-nums" style={{ fontFamily: "var(--font-geist-mono)", color: "var(--fg-dim)" }}>
                       {r.kcal.toLocaleString()}
                     </span>
