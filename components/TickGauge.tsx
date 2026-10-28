@@ -20,12 +20,20 @@ function polar(c: number, r: number, deg: number) {
   return { x: r2(c + r * Math.cos(a)), y: r2(c + r * Math.sin(a)) };
 }
 
+/// "#rrggbb" a → b at t (0–1).
+function lerpHex(a: string, b: string, t: number): string {
+  const n = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
+  const ch = (i: number) => Math.round(n(a, i) + (n(b, i) - n(a, i)) * t).toString(16).padStart(2, "0");
+  return `#${ch(0)}${ch(1)}${ch(2)}`;
+}
+
 export default function TickGauge({
   score,
   size,
   id,
   ticks = 54,
   tint,
+  tintEnd,
 }: {
   score: number | null;
   size: number;
@@ -34,13 +42,19 @@ export default function TickGauge({
   /// One colour for the whole fill instead of the red→green scale — for a
   /// value that's progress rather than a verdict.
   tint?: string;
+  /// With `tint` (both "#rrggbb"): the fill runs tint → tintEnd from the
+  /// first tick to the last.
+  tintEnd?: string;
 }) {
   const k = size / 240; // geometry is drawn for 240 and scaled
   const c = size / 2;
   const s = score == null ? 0 : Math.max(0, Math.min(100, score));
   const filled = score == null ? 0 : Math.round((s / 100) * ticks);
   const knob = polar(c, 101 * k, START + (s / 100) * SWEEP);
-  const color = score == null ? "#3f3f46" : (tint ?? scaleColor(s));
+  const tickTint = (i: number) =>
+    tint && tintEnd ? lerpHex(tint, tintEnd, i / (ticks - 1)) : tint;
+  const color =
+    score == null ? "#3f3f46" : tint && tintEnd ? lerpHex(tint, tintEnd, s / 100) : (tint ?? scaleColor(s));
   const majorEvery = Math.round(ticks / 6);
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block" aria-hidden>
@@ -63,7 +77,7 @@ export default function TickGauge({
             y1={a.y}
             x2={b.x}
             y2={b.y}
-            stroke={i < filled ? (tint ?? scaleColor((i / (ticks - 1)) * 100)) : "#26262b"}
+            stroke={i < filled ? (tickTint(i) ?? scaleColor((i / (ticks - 1)) * 100)) : "#26262b"}
             strokeWidth={Math.round(Math.max(1.6, (major ? 3.2 : 2.6) * Math.max(k, 0.62)) * 100) / 100}
             strokeLinecap="round"
           />

@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { type NutritionResponse, RATING_COLOR } from "@/components/FuelDetail";
 import TickGauge from "@/components/TickGauge";
+import { MACRO, MACRO_FROM, MACRO_TO } from "@/lib/macroColor";
 
 const ICON_PROPS = {
   width: 14,
@@ -47,8 +48,8 @@ export type ActivityGlance = {
 
 // Each stat keeps one colour whatever the numbers say, so the tile names the
 // stat and never judges it — readiness is the card's only red→green verdict.
-// Both come from the brand: Fuel the wordmark's lime, Activity the button green.
-const FUEL_COLOR = "#a3e635";
+// Macros wears Fire (lib/macroColor), Activity the brand's button green.
+const FUEL_COLOR = MACRO;
 const ACTIVITY_COLOR = "#22c55e";
 
 const CHEVRON = (
@@ -81,9 +82,12 @@ function SplitTile({
   sub,
   subColor,
   parts,
+  gradient,
   children,
 }: {
   href?: string;
+  /// [from, to]: the big number and the bars run this instead of `color`.
+  gradient?: [string, string];
   label: string;
   icon: ReactNode;
   color: string;
@@ -114,7 +118,18 @@ function SplitTile({
           <span className="flex items-baseline gap-1.5 min-w-0">
             <b
               className="text-[30px] font-semibold leading-none tabular-nums"
-              style={{ fontFamily: "var(--font-geist-mono)", letterSpacing: "-0.05em", color }}
+              style={{
+                fontFamily: "var(--font-geist-mono)",
+                letterSpacing: "-0.05em",
+                ...(gradient
+                  ? {
+                      background: `linear-gradient(90deg, ${gradient[1]}, ${gradient[0]})`,
+                      WebkitBackgroundClip: "text",
+                      backgroundClip: "text",
+                      color: "transparent",
+                    }
+                  : { color }),
+              }}
             >
               {big}
             </b>
@@ -138,7 +153,9 @@ function SplitTile({
                     className="absolute inset-y-0 left-0 rounded-full"
                     style={{
                       width: `${Math.max(0, Math.min(100, p.pct))}%`,
-                      background: `linear-gradient(90deg, color-mix(in srgb, ${color} 55%, #0a0a0a), ${color})`,
+                      background: gradient
+                        ? `linear-gradient(90deg, ${gradient[0]}, ${gradient[1]})`
+                        : `linear-gradient(90deg, color-mix(in srgb, ${color} 55%, #0a0a0a), ${color})`,
                       boxShadow: `0 0 8px color-mix(in srgb, ${color} 40%, transparent)`,
                     }}
                   />
@@ -298,6 +315,7 @@ export default function DailyGlance({
             label="Macros"
             icon={<FlameIcon />}
             color={FUEL_COLOR}
+            gradient={[MACRO_FROM, MACRO_TO]}
             big={fuelTile.big}
             sub={fuelTile.sub}
             subColor={fuelTile.subColor}

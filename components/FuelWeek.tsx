@@ -13,6 +13,7 @@ import { Sparkles } from "lucide-react";
 import TickGauge from "@/components/TickGauge";
 import NextMeal from "@/components/NextMeal";
 import { roomLeft } from "@/lib/roomLeft";
+import { MACRO, MACRO_FROM, MACRO_GRADIENT, MACRO_RGB, MACRO_TO } from "@/lib/macroColor";
 import type { RecentMeal } from "@/lib/foodLog";
 import { CARBS, FAT, FoodDiary, MicroGrid, PROTEIN, WeekChart } from "@/components/FuelCharts";
 
@@ -67,10 +68,10 @@ export type FuelDayView = {
   partial: boolean;
 };
 
-// Fuel's own colour — the wordmark lime of the Today card's Fuel bar. Progress isn't a
-// verdict, so it wears this rather than the red→green rating scale; the gauge
-// takes the grade's colours once the day closes.
-const PROGRESS = "#a3e635";
+// Macros' own colour (Fire, lib/macroColor). Progress isn't a verdict, so it
+// wears this rather than the red→green rating scale; the gauge takes the
+// grade's colours once the day closes.
+const PROGRESS = MACRO;
 
 const RATING_COLOR: Record<string, string> = {
   "on track": "#22c55e",
@@ -102,11 +103,11 @@ function longDate(dateKey: string): string {
   });
 }
 
-/// The hero card's glow: Fuel's lime whenever there's food logged, matching
+/// The hero card's glow: Macros' Fire whenever there's food logged, matching
 /// the Today card; a faint neutral when nothing was.
 function fuelTint(day: FuelDayView): (alpha: number) => string {
   if (!day.logged) return (a) => `rgba(255, 255, 255, ${a / 4})`;
-  return (a) => `rgba(163, 230, 53, ${a})`;
+  return (a) => `rgba(${MACRO_RGB}, ${a})`;
 }
 
 /// What each meal came to today, and a name for its row: the first food,
@@ -384,7 +385,7 @@ function FuelHero({
 
       <div className="relative -mt-1">
         <div className="flex justify-center">
-          <TickGauge score={value} size={240} id="fuel-glow" tint={inProgress ? PROGRESS : undefined} />
+          <TickGauge score={value} size={240} id="fuel-glow" tint={inProgress ? MACRO_FROM : undefined} tintEnd={inProgress ? MACRO_TO : undefined} />
         </div>
         <div className="absolute inset-0 flex flex-col items-center justify-center pb-2">
           <span
@@ -412,7 +413,20 @@ function FuelHero({
               border: "1px solid var(--border-strong)",
             }}
           >
-            {pill}
+            {day.logged && inProgress ? (
+              <span
+                style={{
+                  background: MACRO_GRADIENT,
+                  WebkitBackgroundClip: "text",
+                  backgroundClip: "text",
+                  color: "transparent",
+                }}
+              >
+                {pill}
+              </span>
+            ) : (
+              pill
+            )}
           </span>
         </div>
       </div>

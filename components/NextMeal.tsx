@@ -15,6 +15,7 @@ import { useSheetBack, SheetClose } from "@/components/useSheetBack";
 import { resolveMealName, useHiddenMeals, useMealNameOverrides } from "@/lib/mealNames";
 import { CARBS, FAT, PROTEIN } from "@/components/FuelCharts";
 import { scaledAmount, servingsLabel } from "@/lib/recipeScale";
+import { MACRO, MACRO_INK, MACRO_RGB } from "@/lib/macroColor";
 
 const MEAL_WORD: Record<Meal, string> = { BREAKFAST: "breakfast", LUNCH: "lunch", DINNER: "dinner", SNACK: "a snack" };
 
@@ -48,7 +49,6 @@ function bestFits(recent: RecentMeal[], room: RoomLeft, meal: Meal): RecentMeal[
 
 const MEAL_LABEL: Record<Meal, string> = { BREAKFAST: "Breakfast", LUNCH: "Lunch", DINNER: "Dinner", SNACK: "Snack" };
 const MEAL_ICON: Record<Meal, string> = { BREAKFAST: "☀️", LUNCH: "🍽️", DINNER: "🌙", SNACK: "🍎" };
-const FUEL_LIME = "#a3e635";
 
 /// Run `fn` once the browser is idle, so recipe calls never compete with the
 /// Fuel page itself painting and hydrating.
@@ -327,7 +327,7 @@ export default function NextMeal({
               {MEAL_LABEL[sl.meal]}
               <span
                 className="text-[9.5px] font-semibold uppercase tabular-nums"
-                style={{ letterSpacing: "0.04em", color: sl.status === "next" ? FUEL_LIME : "var(--fg-dim)" }}
+                style={{ letterSpacing: "0.04em", color: sl.status === "next" ? MACRO : "var(--fg-dim)" }}
               >
                 {chipTag(sl)}
               </span>
@@ -347,13 +347,13 @@ export default function NextMeal({
           <div
             className="flex items-center gap-2.5 mt-3 px-3 py-2.5 rounded-xl"
             style={{
-              background: "radial-gradient(120% 140% at 0% 0%, rgba(163,230,53,0.12), transparent 60%), rgba(255,255,255,0.02)",
+              background: `radial-gradient(120% 140% at 0% 0%, rgba(${MACRO_RGB},0.12), transparent 60%), rgba(255,255,255,0.02)`,
               border: "1px solid var(--border)",
             }}
           >
             <span
               className="text-[20px] font-semibold tabular-nums leading-none"
-              style={{ fontFamily: "var(--font-geist-mono)", letterSpacing: "-0.04em", color: FUEL_LIME }}
+              style={{ fontFamily: "var(--font-geist-mono)", letterSpacing: "-0.04em", color: MACRO }}
             >
               ~{selSlot.budget.kcal.toLocaleString()}
               <span className="text-[11px] font-semibold ml-1" style={{ fontFamily: "var(--font-geist-sans)", letterSpacing: 0, color: "var(--fg-dim)" }}>
@@ -401,7 +401,7 @@ export default function NextMeal({
                     key={`${r.title}-${i}`}
                     className="snap-start shrink-0 basis-[80%] rounded-2xl p-[13px] pb-3 flex flex-col gap-2.5"
                     style={{
-                      background: "radial-gradient(130% 90% at 0% 0%, rgba(163,230,53,0.16), transparent 55%), var(--bg-elevated)",
+                      background: `radial-gradient(130% 90% at 0% 0%, rgba(${MACRO_RGB},0.16), transparent 55%), var(--bg-elevated)`,
                       border: "1px solid var(--border-strong)",
                     }}
                   >
@@ -410,7 +410,7 @@ export default function NextMeal({
                       {i === bestIdx && (
                         <span
                           className="ml-auto text-[10px] font-bold px-[7px] py-[3px] rounded-full"
-                          style={{ background: "rgba(163,230,53,0.14)", color: FUEL_LIME }}
+                          style={{ background: `rgba(${MACRO_RGB},0.14)`, color: MACRO }}
                         >
                           Best fit
                         </span>
@@ -476,7 +476,7 @@ export default function NextMeal({
                     <span
                       key={i}
                       className="h-[5px] rounded-full transition-all"
-                      style={{ width: i === cardIdx ? 14 : 5, background: i === cardIdx ? FUEL_LIME : "var(--border-strong)" }}
+                      style={{ width: i === cardIdx ? 14 : 5, background: i === cardIdx ? MACRO : "var(--border-strong)" }}
                     />
                   ))}
                 </div>
@@ -583,7 +583,7 @@ export default function NextMeal({
               style={{
                 maxHeight: "92dvh",
                 background: "var(--bg-card)",
-                border: `1px solid rgba(163,230,53,0.3)`,
+                border: `1px solid rgba(${MACRO_RGB},0.3)`,
                 borderBottom: 0,
                 paddingBottom: "env(safe-area-inset-bottom, 0px)",
               }}
@@ -594,14 +594,14 @@ export default function NextMeal({
               <div
                 {...grab}
                 className="px-4 pt-2.5 pb-4"
-                style={{ background: "radial-gradient(130% 120% at 0% 0%, rgba(163,230,53,0.16), transparent 55%)" }}
+                style={{ background: `radial-gradient(130% 120% at 0% 0%, rgba(${MACRO_RGB},0.16), transparent 55%)` }}
               >
                 <div className="flex justify-center mb-3">
                   <span className="w-10 h-1 rounded-full" style={{ background: "var(--border-strong)" }} />
                 </div>
                 <span
                   className="inline-block text-[10px] font-bold uppercase tracking-[0.08em] px-2 py-[3px] rounded-full"
-                  style={{ background: "rgba(163,230,53,0.16)", color: "#d9f99d" }}
+                  style={{ background: `rgba(${MACRO_RGB},0.16)`, color: MACRO_INK }}
                 >
                   {closing ? "Snack to close the gap" : `Recipe for ${meal === "DINNER" ? "tonight" : mealWord}`}
                 </span>
@@ -733,7 +733,7 @@ export default function NextMeal({
                     <li key={i} className="flex gap-2.5">
                       <span
                         className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold tabular-nums mt-px"
-                        style={{ background: "rgba(163,230,53,0.16)", color: "#d9f99d" }}
+                        style={{ background: `rgba(${MACRO_RGB},0.16)`, color: MACRO_INK }}
                       >
                         {i + 1}
                       </span>
