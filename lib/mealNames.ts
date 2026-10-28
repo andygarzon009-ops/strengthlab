@@ -66,3 +66,27 @@ export function resolveMealName(
   if (local !== undefined) return local ? { title: local, named: true } : { title: autoMealTitle(items), named: false };
   return server ? { title: server, named: true } : { title: autoMealTitle(items), named: false };
 }
+
+// Meals swiped away this visit, so both past-meal lists drop them at once.
+let hidden: ReadonlySet<string> = new Set();
+const NONE: ReadonlySet<string> = new Set();
+const hiddenListeners = new Set<() => void>();
+
+export function setMealHiddenLocal(sig: string, isHidden: boolean) {
+  const next = new Set(hidden);
+  if (isHidden) next.add(sig);
+  else next.delete(sig);
+  hidden = next;
+  for (const l of hiddenListeners) l();
+}
+
+function subscribeHidden(l: () => void) {
+  hiddenListeners.add(l);
+  return () => {
+    hiddenListeners.delete(l);
+  };
+}
+
+export function useHiddenMeals(): ReadonlySet<string> {
+  return useSyncExternalStore(subscribeHidden, () => hidden, () => NONE);
+}

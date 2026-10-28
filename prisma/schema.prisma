@@ -727,7 +727,10 @@ model MealName {
   id        String   @id @default(cuid())
   userId    String
   sig       String
+  /// Empty when the row only hides the meal.
   title     String
+  /// Swiped away from past meals at this time; shows again once eaten after it.
+  hiddenAt  DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

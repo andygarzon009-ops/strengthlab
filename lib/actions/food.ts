@@ -127,7 +127,9 @@ async function setMealName(userId: string, sig: string, title: string) {
   const key = sig.slice(0, 2000);
   const name = String(title ?? "").trim().slice(0, 60);
   if (!name) {
-    await prisma.mealName.deleteMany({ where: { userId, sig: key } });
+    // Back to the automatic name — but a row that's also hiding the meal stays.
+    await prisma.mealName.deleteMany({ where: { userId, sig: key, hiddenAt: null } });
+    await prisma.mealName.updateMany({ where: { userId, sig: key }, data: { title: "" } });
   } else {
     await prisma.mealName.upsert({
       where: { userId_sig: { userId, sig: key } },
@@ -135,4 +137,22 @@ async function setMealName(userId: string, sig: string, title: string) {
       update: { title: name },
     });
   }
+}
+
+/// Swipe a past meal away (or bring it back with `hidden: false`). Only the
+/// suggestion lists change; the food log is untouched, and the meal shows
+/// again once it's eaten after this.
+export async function hideRecentMeal(sig: string, hidden = true) {
+  const userId = await requireAuth();
+  const key = String(sig ?? "").slice(0, 2000);
+  if (!key) return { ok: false as const };
+  const hiddenAt = hidden ? new Date() : null;
+  await prisma.mealName.upsert({
+    where: { userId_sig: { userId, sig: key } },
+    create: { userId, sig: key, title: "", hiddenAt },
+    update: { hiddenAt },
+  });
+  // A row that only existed to hide the meal has nothing left to hold.
+  if (!hidden) await prisma.mealName.deleteMany({ where: { userId, sig: key, title: "" } });
+  return { ok: true as const };
 }

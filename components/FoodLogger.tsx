@@ -4,10 +4,19 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { shrinkImage } from "@/lib/shrinkImage";
-import { renameRecentMeal, saveFoodItems } from "@/lib/actions/food";
+import { hideRecentMeal, renameRecentMeal, saveFoodItems } from "@/lib/actions/food";
 import { mealForHour, mealSig, MEALS, type Meal } from "@/lib/meals";
 import { onPendingMeal, takePendingMeal } from "@/lib/pendingMeal";
-import { autoMealTitle, renameMealOptimistic, resolveMealName, setMealNameLocal, useMealNameOverrides } from "@/lib/mealNames";
+import {
+  autoMealTitle,
+  renameMealOptimistic,
+  resolveMealName,
+  setMealHiddenLocal,
+  setMealNameLocal,
+  useHiddenMeals,
+  useMealNameOverrides,
+} from "@/lib/mealNames";
+import SwipeRow from "@/components/SwipeRow";
 import type { RecentMeal } from "@/lib/foodLog";
 import type { DetectedFood } from "@/app/api/food/analyze/route";
 import { useSheetBack, SheetClose, backdropTap } from "@/components/useSheetBack";
@@ -106,6 +115,28 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
     resolveMealName(nameOverrides, r.key, r.named ? r.title : null, r.items);
   const titleOf = (r: RecentMeal) => nameOfRecent(r).title || r.title;
   const isNamed = (r: RecentMeal) => nameOfRecent(r).named;
+  // Swiped-away meals: gone from the list at once, with a few seconds to undo.
+  const hiddenMeals = useHiddenMeals();
+  const shownRecent = recent.filter((r) => !hiddenMeals.has(r.key));
+  const [undo, setUndo] = useState<RecentMeal | null>(null);
+  const undoTimer = useRef<number | null>(null);
+  const removeRecent = (r: RecentMeal) => {
+    setMealHiddenLocal(r.key, true);
+    hideRecentMeal(r.key)
+      .then((res) => {
+        if (!res.ok) setMealHiddenLocal(r.key, false);
+      })
+      .catch(() => setMealHiddenLocal(r.key, false));
+    setUndo(r);
+    if (undoTimer.current) window.clearTimeout(undoTimer.current);
+    undoTimer.current = window.setTimeout(() => setUndo(null), 5000);
+  };
+  const undoRemove = () => {
+    if (!undo) return;
+    setMealHiddenLocal(undo.key, false);
+    hideRecentMeal(undo.key, false);
+    setUndo(null);
+  };
   const saveRename = (r: RecentMeal, value: string) => {
     const name = value.trim();
     setRenaming(null);
@@ -325,6 +356,8 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
     // The meal's name shows everywhere straight away; the save stores it.
     // Only a new meal is named here; a known one keeps whatever name it has.
     const nameIt = !stage.relog && items.length > 1 && stage.name.trim() !== "";
+    // Eating a swiped-away meal again brings it back to the list.
+    setMealHiddenLocal(mealSig(items.map((it) => it.name)), false);
     if (nameIt) setMealNameLocal(mealSig(items.map((it) => it.name)), stage.name.trim() || null);
     startTransition(async () => {
       const res = await saveFoodItems({
@@ -453,7 +486,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
               Log a past meal
             </span>
             <span className="flex items-center gap-2 text-[12px]" style={{ color: "var(--fg-muted)" }}>
-              {recent.length}
+              {shownRecent.length}
               <svg
                 width="14"
                 height="14"
@@ -471,10 +504,24 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
             </span>
           </button>
 
+          {undo && (
+            <div
+              role="status"
+              className="mt-2 flex items-center gap-2 min-h-[40px] pl-3.5 pr-1.5 rounded-xl text-[12.5px]"
+              style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
+            >
+              <span className="min-w-0 flex-1 truncate" style={{ color: "var(--fg-muted)" }}>
+                Removed <b className="font-semibold" style={{ color: "var(--fg)" }}>{titleOf(undo)}</b> from past meals
+              </span>
+              <button type="button" onClick={undoRemove} className="px-3 py-1.5 rounded-lg font-bold" style={{ color: "var(--accent)" }}>
+                Undo
+              </button>
+            </div>
+          )}
           {showRecent && (
             <div className="mt-2 flex flex-col gap-1.5">
               {MEALS.map((m) => {
-                const list = recent.filter((r) => r.meal === m);
+                const list = shownRecent.filter((r) => r.meal === m);
                 if (list.length === 0) return null;
                 const isOpen = recentMeal === m;
                 return (
@@ -553,7 +600,12 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
                             </button>
                           </form>
                         ) : (
-                        <div key={r.key} className="flex items-center" style={{ borderTop: "1px solid var(--border)" }}>
+                        <SwipeRow
+                          key={r.key}
+                          onDelete={() => removeRecent(r)}
+                          bg="linear-gradient(rgba(255,255,255,0.015), rgba(255,255,255,0.015)), var(--bg-card)"
+                        >
+                        <div className="flex items-center" style={{ borderTop: "1px solid var(--border)" }}>
                         <button
                           type="button"
                           onClick={() => relog(r)}
@@ -601,6 +653,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
                           </span>
                         </button>
                         </div>
+                        </SwipeRow>
                         ),
                       )}
                   </div>

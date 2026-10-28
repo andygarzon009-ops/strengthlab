@@ -12,7 +12,7 @@ import type { RecentMeal } from "@/lib/foodLog";
 import type { RoomLeft } from "@/lib/roomLeft";
 import type { Recipe } from "@/lib/recipes";
 import { useSheetBack, SheetClose } from "@/components/useSheetBack";
-import { resolveMealName, useMealNameOverrides } from "@/lib/mealNames";
+import { resolveMealName, useHiddenMeals, useMealNameOverrides } from "@/lib/mealNames";
 import { CARBS, FAT, PROTEIN } from "@/components/FuelCharts";
 import { scaledAmount, servingsLabel } from "@/lib/recipeScale";
 
@@ -113,6 +113,7 @@ export default function NextMeal({
   const router = useRouter();
   // A meal renamed anywhere on Fuel shows here at once.
   const nameOverrides = useMealNameOverrides();
+  const hiddenMeals = useHiddenMeals();
   const nameOf = (r: RecentMeal) => resolveMealName(nameOverrides, r.key, r.named ? r.title : null, r.items);
   // Back swipe closes the recipe and stays on Fuel.
   const { dismiss, grab } = useSheetBack(sheet != null, () => setSheet(null));
@@ -279,7 +280,9 @@ export default function NextMeal({
           0,
         )
       : -1;
-  const fits = selSlot ? bestFits(recent, selSlot.budget, selSlot.meal) : [];
+  const fits = selSlot
+    ? bestFits(recent.filter((r) => !hiddenMeals.has(r.key)), selSlot.budget, selSlot.meal)
+    : [];
   const loggedHere = (() => {
     if (selSlot?.status !== "logged") return null;
     const base = loggedByMeal[selSlot.meal];

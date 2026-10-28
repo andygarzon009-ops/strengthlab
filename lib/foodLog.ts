@@ -73,7 +73,7 @@ export async function mealNamesFor(userId: string, rows: FoodLogRow[]): Promise<
   const sigs = [...saves.values()].filter((names) => names.length > 1).map(mealSig);
   if (sigs.length === 0) return {};
   const names = await prisma.mealName.findMany({
-    where: { userId, sig: { in: sigs } },
+    where: { userId, sig: { in: sigs }, NOT: { title: "" } },
     select: { sig: true, title: true },
   });
   return Object.fromEntries(names.map((n) => [n.sig, n.title]));
@@ -162,6 +162,8 @@ export type RecentMeal = {
   photoUrl: string | null;
   times: number;
   lastDate: string;
+  /// When it was last saved — a meal swiped away before this is back.
+  lastAt?: Date;
 };
 
 /// Meals logged lately, for one-tap re-logging. A "meal" is one save — the
@@ -226,6 +228,7 @@ export async function listRecentMeals(userId: string, limit = 8): Promise<Recent
       photoUrl: list.find((r) => r.photoUrl)?.photoUrl ?? null,
       times: 1,
       lastDate: list[0].localDate,
+      lastAt: list[0].createdAt,
     });
   }
 
@@ -239,11 +242,21 @@ export async function listRecentMeals(userId: string, limit = 8): Promise<Recent
         : [...tally.entries()].reduce((a, b) => (b[1] > a[1] ? b : a))[0];
   }
 
+  // Meals swiped away and not eaten since don't come back.
+  const hidden = await prisma.mealName.findMany({
+    where: { userId, hiddenAt: { not: null } },
+    select: { sig: true, hiddenAt: true },
+  });
+  const hiddenAt = new Map(hidden.map((h) => [h.sig, h.hiddenAt!]));
   const top = [...byFoods.values()]
+    .filter((m) => {
+      const at = hiddenAt.get(m.key);
+      return !at || (m.lastAt != null && m.lastAt > at);
+    })
     .sort((a, b) => b.times - a.times || b.lastDate.localeCompare(a.lastDate))
     .slice(0, limit);
   const names = await prisma.mealName.findMany({
-    where: { userId, sig: { in: top.map((m) => m.key) } },
+    where: { userId, sig: { in: top.map((m) => m.key) }, NOT: { title: "" } },
     select: { sig: true, title: true },
   });
   const nameOf = new Map(names.map((n) => [n.sig, n.title]));
@@ -253,6 +266,7 @@ export async function listRecentMeals(userId: string, limit = 8): Promise<Recent
       m.title = t;
       m.named = true;
     }
+    delete m.lastAt;
   }
   return top;
 }
