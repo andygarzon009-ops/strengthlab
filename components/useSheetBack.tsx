@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, type TouchEvent } from "react";
 
 let nextId = 0;
 
+/// The sheet whose history step is on top right now, if any.
+type Entry = { id: number; href: string; popped: boolean };
+
 /// A bottom sheet as a step in history. Opening it pushes an entry, so the
 /// iOS back swipe or Android back button closes the sheet and leaves you on
 /// the page underneath — without it, back skipped the whole page.
@@ -11,11 +14,17 @@ let nextId = 0;
 /// next sheet, navigate). Ordering it after the popstate matters — a
 /// `history.back()` racing a fresh `pushState` would pop the wrong entry.
 ///
+/// Whether our step is still on top is tracked here, not read off
+/// `history.state`: Next rewrites that state on every router commit (a save's
+/// revalidation, router.refresh), which wiped a marker kept there — the sheet
+/// then closed without stepping back and left a dead entry, so the page's back
+/// button (or swipe) landed on the same page.
+///
 /// `grab` goes on the sheet's handle strip: drag it down to close.
 export function useSheetBack(open: boolean, onClose: () => void) {
   const closeRef = useRef(onClose);
   const afterRef = useRef<(() => void) | null>(null);
-  const idRef = useRef<number | null>(null);
+  const entryRef = useRef<Entry | null>(null);
   const startY = useRef<number | null>(null);
 
   useEffect(() => {
@@ -24,30 +33,37 @@ export function useSheetBack(open: boolean, onClose: () => void) {
 
   useEffect(() => {
     if (!open) return;
-    const id = ++nextId;
-    idRef.current = id;
+    const entry: Entry = { id: ++nextId, href: window.location.href, popped: false };
+    entryRef.current = entry;
     // Keep Next's own history state, or its router reloads the page on pop.
-    window.history.pushState({ ...window.history.state, __sheet: id }, "");
-    let popped = false;
+    window.history.pushState({ ...window.history.state, __sheet: entry.id }, "");
     const onPop = () => {
-      popped = true;
+      if (entry.popped) return;
+      entry.popped = true;
       closeRef.current();
       const then = afterRef.current;
       afterRef.current = null;
-      then?.();
+      // After Next has handled the same popstate, so a navigation in `then`
+      // isn't undone by its traverse.
+      if (then) window.setTimeout(then, 0);
     };
     window.addEventListener("popstate", onPop);
     return () => {
       window.removeEventListener("popstate", onPop);
-      idRef.current = null;
-      // Closed some other way (unmount, a missed path): don't leave a dead
-      // back step behind.
-      if (!popped && window.history.state?.__sheet === id) window.history.back();
+      if (entryRef.current === entry) entryRef.current = null;
+      // Closed some other way (a missed path, unmount): don't leave a dead
+      // back step behind — unless we've already navigated somewhere else,
+      // where stepping back would undo that navigation.
+      if (!entry.popped && window.location.href === entry.href) {
+        entry.popped = true;
+        window.history.back();
+      }
     };
   }, [open]);
 
   const dismiss = useCallback((then?: () => void) => {
-    if (idRef.current != null && window.history.state?.__sheet === idRef.current) {
+    const entry = entryRef.current;
+    if (entry && !entry.popped && window.location.href === entry.href) {
       afterRef.current = then ?? null;
       window.history.back();
     } else {

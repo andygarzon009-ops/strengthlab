@@ -555,7 +555,11 @@ export default function NextMeal({
         </>
       )}
 
+      {/* replace, not push: the coach strips ?coach=1 from the URL once it
+          opens, so a pushed entry would be left as a second copy of Fuel and
+          the page's back button would land on Fuel again. */}
       <Link
+        replace
         href={`/fuel?coach=1&ask=${encodeURIComponent(askNext)}`}
         className="flex items-center justify-center gap-2 w-full min-h-[46px] rounded-[14px] mt-3 text-[14px] font-semibold"
         style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
@@ -766,11 +770,12 @@ export default function NextMeal({
                     `I'm thinking of making ${open.title} for ${mealWord} (${servingsLabel(serv)}: ${sc(open.kcal)} kcal, ${sc(open.proteinG)} g protein). Does it fit my day, and how would you tweak it?`,
                   )}`}
                   onClick={(e) => {
-                    // Close first, then open the coach, so back from the
-                    // coach lands on Fuel rather than on a closed sheet.
+                    // Close first, then open the coach in place (replace — see
+                    // the Ask coach link below the card), so back still
+                    // leaves Fuel in one step.
                     e.preventDefault();
                     const href = e.currentTarget.getAttribute("href")!;
-                    dismiss(() => router.push(href));
+                    dismiss(() => router.replace(href));
                   }}
                   className="flex-1 min-h-[44px] rounded-xl flex items-center justify-center text-[13.5px] font-semibold"
                   style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
