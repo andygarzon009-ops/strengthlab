@@ -9,7 +9,7 @@ import PendingInvites from "@/components/PendingInvites";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
 import Wordmark from "@/components/Wordmark";
-import FeedTop from "@/components/FeedTop";
+import FeedTop, { FeedPRs } from "@/components/FeedTop";
 import CycleCard from "@/components/PhaseCard";
 import CrewPulse from "@/components/CrewPulse";
 import NewButton from "@/components/NewButton";
@@ -51,13 +51,16 @@ export default async function FeedPage() {
       <Suspense fallback={null}>
         <PendingInvites userId={userId} />
       </Suspense>
-      {/* A fresh PR leads for 48 h; then the Today card, which opens with the
-          readiness gauge and Fuel / Activity bars. */}
-      <Suspense fallback={<CardSkeleton height={290} />}>
-        <FeedTop userId={userId} />
+      {/* A fresh PR leads for 48 h as a slim strip, then the training
+          block, then Today (readiness gauge + Macros / Activity tiles). */}
+      <Suspense fallback={null}>
+        <FeedPRs userId={userId} />
       </Suspense>
       <Suspense fallback={<CardSkeleton height={130} />}>
         <CycleCard userId={userId} />
+      </Suspense>
+      <Suspense fallback={<CardSkeleton height={290} />}>
+        <FeedTop userId={userId} />
       </Suspense>
       {/* Heart rate reads stored values, not Google Health, so it can't
           hold up the rest. */}

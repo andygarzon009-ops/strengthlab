@@ -10,14 +10,12 @@ import { loadGlance } from "@/lib/glance";
 
 export const PR_LIME = "#a3e635";
 
-// The top of the feed. Normally the Today card; for 48 h after a PR the PR
-// card leads and Today steps down to one row — it never disappears, because
-// what to do today still matters. The Today card opens with the day's glance
-// (readiness gauge + Fuel / Activity bars), so readiness shows exactly once.
+// The Today card. It opens with the day's glance (readiness gauge + Macros /
+// Activity tiles), so readiness shows exactly once. A fresh PR sits above the
+// cycle card as a slim strip (FeedPRs) rather than here.
 export default async function FeedTop({ userId }: { userId: string }) {
-  const [plan, prs, phase, glance] = await Promise.all([
+  const [plan, phase, glance] = await Promise.all([
     loadTodayPlan(userId),
-    loadRecentPRs(userId).catch(() => []),
     loadPhase(userId).catch(() => null),
     loadGlance(userId).catch(() => null),
   ]);
@@ -25,18 +23,23 @@ export default async function FeedTop({ userId }: { userId: string }) {
   const deloadPct = phase?.config.deloadReductionPct ?? 40;
 
   return (
-    <>
-      {prs.length > 0 && <PRCard prs={prs} />}
-      <TodayCard
-        plan={plan}
-        deload={deload}
-        deloadPct={deloadPct}
-        compact={prs.length > 0}
-        recovery={glance?.recovery ?? null}
-        activity={glance?.activity ?? null}
-      />
-    </>
+    <TodayCard
+      plan={plan}
+      deload={deload}
+      deloadPct={deloadPct}
+      compact={false}
+      recovery={glance?.recovery ?? null}
+      activity={glance?.activity ?? null}
+    />
   );
+}
+
+/// The feed's first row for 48 h after a PR: one slim strip per PR (they
+/// swipe when there are several), small enough that the cycle and Today
+/// still fit on the first screen.
+export async function FeedPRs({ userId }: { userId: string }) {
+  const prs = await loadRecentPRs(userId).catch(() => []);
+  return prs.length > 0 ? <PRCard prs={prs} /> : null;
 }
 
 function TodayCard({
@@ -162,72 +165,65 @@ function PRCard({ prs }: { prs: RecentPR[] }) {
         const improvement =
           gain && gain > 0 ? `+${gain} lb` : repGain ? `+${repGain} rep${repGain === 1 ? "" : "s"}` : null;
         const shareText = `New PR: ${pr.exercise} ${load.big}${load.unit ? " " + load.unit : ""} × ${reps}${improvement ? ` (${improvement})` : ""}`;
+        const body = (
+          <>
+            <span
+              className="w-9 h-9 shrink-0 rounded-[11px] flex items-center justify-center"
+              style={{ background: "rgba(163,230,53,0.14)" }}
+              aria-hidden
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={PR_LIME} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z" />
+                <path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3" />
+              </svg>
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="label block text-[10px] font-bold truncate" style={{ color: PR_LIME }}>
+                New PR · {pr.when}
+                {prs.length > 1 ? ` · ${i + 1} of ${prs.length}` : ""}
+              </span>
+              <span className="block mt-0.5 text-[13.5px] font-semibold truncate">{pr.exercise}</span>
+              <span
+                className="block mt-0.5 text-[13px] nums truncate"
+                style={{ fontFamily: "var(--font-geist-mono)", color: PR_LIME }}
+              >
+                {load.big}
+                {load.unit ? ` ${load.unit}` : ""} × {reps}
+                {improvement && <span style={{ color: "var(--fg-muted)" }}> · {improvement}</span>}
+              </span>
+            </span>
+            <Sparkline
+              values={pr.trend}
+              width={54}
+              height={26}
+              color={PR_LIME}
+              strokeWidth={2}
+              dot
+              label={`${pr.exercise} top set, last 8 weeks`}
+            />
+          </>
+        );
         return (
           <div
             key={pr.id}
-            className="card snap-center shrink-0 w-full p-[18px] flex flex-col gap-3"
-            style={{ borderColor: "rgba(163,230,53,0.4)" }}
+            className="card snap-center shrink-0 w-full flex items-center gap-2.5 py-2.5 pl-3 pr-2.5"
+            style={{
+              borderColor: "rgba(163,230,53,0.4)",
+              background: "radial-gradient(120% 140% at 0% 0%, rgba(163,230,53,0.12), transparent 60%), var(--bg-card)",
+            }}
           >
-            <div className="flex items-baseline justify-between">
-              <p className="label text-[11px] font-bold" style={{ color: PR_LIME }}>
-                New PR · {pr.when}
-              </p>
-              {prs.length > 1 && (
-                <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
-                  {i + 1} of {prs.length}
-                </span>
-              )}
-            </div>
-            <div className="flex items-end justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[15px] font-semibold truncate" style={{ color: "var(--fg-muted)" }}>
-                  {pr.exercise}
-                </p>
-                <p className="mt-1.5 leading-none flex items-baseline gap-2.5">
-                  <span
-                    className="font-semibold tracking-tight nums"
-                    style={{ fontFamily: "var(--font-geist-mono)", fontSize: 44, color: PR_LIME }}
-                  >
-                    {load.big}
-                  </span>
-                  <span className="text-[16px] nums" style={{ fontFamily: "var(--font-geist-mono)", color: "var(--fg-muted)" }}>
-                    {load.unit ? `${load.unit} ` : ""}× {reps}
-                  </span>
-                </p>
-                {prev && gain != null && gain > 0 && (
-                  <p className="text-[12px] mt-2 nums" style={{ fontFamily: "var(--font-geist-mono)", color: "var(--fg-dim)" }}>
-                    <span className="line-through">{prLoad(pr, prev.value).big}</span> → {load.big} · {improvement}
-                  </p>
-                )}
-                {prev && repGain != null && (
-                  <p className="text-[12px] mt-2 nums" style={{ fontFamily: "var(--font-geist-mono)", color: "var(--fg-dim)" }}>
-                    {load.big}
-                    {load.unit ? ` ${load.unit}` : ""} × <span className="line-through">{prev.reps}</span> → {reps} · {improvement}
-                  </p>
-                )}
-              </div>
-              <Sparkline
-                values={pr.trend}
-                width={120}
-                height={52}
-                color={PR_LIME}
-                strokeWidth={2.5}
-                dot
-                label={`${pr.exercise} top set, last 8 weeks`}
-              />
-            </div>
-            <div className="flex gap-2">
-              <SharePRButton text={shareText} />
-              {pr.workoutId && (
-                <Link
-                  href={`/workout/${pr.workoutId}`}
-                  className="flex-1 min-h-[44px] rounded-xl text-[14px] font-semibold flex items-center justify-center"
-                  style={{ background: "var(--bg-elevated)", color: "var(--fg)" }}
-                >
-                  See the session
-                </Link>
-              )}
-            </div>
+            {pr.workoutId ? (
+              <Link
+                href={`/workout/${pr.workoutId}`}
+                aria-label={`${shareText}. See the session`}
+                className="min-w-0 flex-1 flex items-center gap-2.5 active:opacity-80"
+              >
+                {body}
+              </Link>
+            ) : (
+              <div className="min-w-0 flex-1 flex items-center gap-2.5">{body}</div>
+            )}
+            <SharePRButton text={shareText} icon />
           </div>
         );
       })}
