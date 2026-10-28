@@ -287,7 +287,13 @@ export default function DailyGlance({
           className="relative shrink-0 rounded-2xl active:opacity-80"
         >
           <TickGauge score={r?.score ?? null} size={96} id="feed-gauge" ticks={40} />
-          <span className="absolute inset-0 flex items-center justify-center pb-1.5">
+          <span className="absolute inset-0 flex flex-col items-center justify-center pb-1.5">
+            <span
+              className="text-[8px] font-semibold uppercase leading-none mb-[3px]"
+              style={{ color: "var(--fg-muted)", letterSpacing: "0.12em" }}
+            >
+              Readiness
+            </span>
             <span
               className="text-[26px] font-bold leading-none tabular-nums"
               style={{ letterSpacing: "-0.04em" }}
