@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -45,8 +45,6 @@ function bestFits(recent: RecentMeal[], room: RoomLeft, meal: Meal): RecentMeal[
     .slice(0, 3);
 }
 
-const proteinOf = (r: RecentMeal) => Math.round(r.items.reduce((s, it) => s + it.proteinG, 0));
-
 const MEAL_LABEL: Record<Meal, string> = { BREAKFAST: "Breakfast", LUNCH: "Lunch", DINNER: "Dinner", SNACK: "Snack" };
 const MEAL_ICON: Record<Meal, string> = { BREAKFAST: "☀️", LUNCH: "🍽️", DINNER: "🌙", SNACK: "🍎" };
 const FUEL_LIME = "#a3e635";
@@ -62,26 +60,11 @@ function whenIdle(fn: () => void): () => void {
   return () => window.clearTimeout(id);
 }
 
-/// Protein / carbs / fat as a thin strip, by their share of the calories.
-function MacroStrip({ r }: { r: Recipe }) {
-  const p = r.proteinG * 4;
-  const c = r.carbsG * 4;
-  const f = r.fatG * 9;
-  if (p + c + f <= 0) return null;
-  return (
-    <span className="flex h-1 gap-[2px] rounded-full overflow-hidden mt-1.5 max-w-[160px]" aria-hidden>
-      <span className="rounded-full" style={{ flex: p, background: PROTEIN }} />
-      <span className="rounded-full" style={{ flex: c, background: CARBS }} />
-      <span className="rounded-full" style={{ flex: f, background: FAT }} />
-    </span>
-  );
-}
-
-/// "Today's meals" on Fuel, under the hero while today is open: breakfast,
-/// lunch, dinner and snack as a day plan. Logged ones are checked off, the
-/// next one is open, and any of them opens to recipes (AI, fetched only for
-/// the open meal and only once the page is idle) or your own past meals that
-/// fit its target.
+/// "Next meal" on Fuel, under the hero while today is open: pick breakfast,
+/// lunch, dinner or snack (the next one is picked for you), see its target,
+/// swipe recipe cards for it (AI, fetched only for the meal on screen and,
+/// for the one picked for you, only once the page is idle) and log one of
+/// your usual meals in a tap.
 export default function NextMeal({
   room: dayRoom,
   dayTargetKcal,
@@ -112,10 +95,12 @@ export default function NextMeal({
       ? null
       : planDay(dayRoom, hour, new Set(logged), { kcal: dayTargetKcal, proteinG: dayTargetProteinG });
   const nextMeal = slots?.find((sl) => sl.status === "next")?.meal ?? null;
-  // The open meal: the next one until the athlete picks another (or closes it).
-  const [picked, setPicked] = useState<Meal | null | undefined>(undefined);
-  const sel = picked === undefined ? nextMeal : picked;
-  const [src, setSrc] = useState<"rec" | "mine">("rec");
+  // The meal on screen: the next one until the athlete picks another.
+  const [picked, setPicked] = useState<Meal | null>(null);
+  const sel = picked ?? nextMeal;
+  // Which recipe card is in view, for the dots under the carousel.
+  const [cardIdx, setCardIdx] = useState(0);
+  const railRef = useRef<HTMLDivElement>(null);
   const [recipes, setRecipes] = useState<Partial<Record<Meal, Recipe[]>>>({});
   const [loading, setLoading] = useState<Partial<Record<Meal, boolean>>>({});
   const [errors, setErrors] = useState<Partial<Record<Meal, string>>>({});
@@ -185,7 +170,7 @@ export default function NextMeal({
 
   // The open meal's recipes load on their own — but only once the page is
   // idle, so the rest of Fuel is on screen and usable first.
-  const wantRecipes = sel != null && src === "rec" && !recipes[sel] && !loading[sel] && !errors[sel];
+  const wantRecipes = sel != null && !recipes[sel] && !loading[sel] && !errors[sel];
   useEffect(() => {
     if (!wantRecipes || sel == null) return;
     return whenIdle(() => loadRecipes(sel));
@@ -225,7 +210,7 @@ export default function NextMeal({
   if (!slots || dayRoom.kcal < 150) return null;
 
   const selSlot = sel ? slotOf(sel) : null;
-  const askMeal = selSlot ?? slots.find((sl) => sl.status === "next") ?? null;
+  const askMeal = selSlot;
   const askNext = !askMeal
     ? `I have ${dayRoom.kcal.toLocaleString()} kcal and ${dayRoom.proteinG} g protein left today. What should I eat?`
     : askMeal.snacksToClose != null
@@ -263,232 +248,289 @@ export default function NextMeal({
     }));
   };
 
-  const statusLine = (sl: MealSlot) => {
-    if (sl.status === "logged") return loggedByMeal[sl.meal]?.name ?? "Logged";
-    if (sl.snacksToClose != null)
-      return sl.snacksToClose === 1 ? "One snack closes the gap" : `About ${sl.snacksToClose} snacks close the gap`;
-    if (sl.status === "next") return "Up next";
-    if (sl.status === "passed") return "Not logged";
-    return `aim ~${sl.budget.kcal.toLocaleString()} kcal · ${sl.budget.proteinG} g`;
+  const chipTag = (sl: MealSlot) =>
+    sl.status === "logged" ? "logged" : sl.status === "next" ? "next" : `~${sl.budget.kcal.toLocaleString()}`;
+  const pick = (m: Meal) => {
+    setPicked(m);
+    setCardIdx(0);
+    railRef.current?.scrollTo({ left: 0 });
+    // A meal the athlete picked loads now; only the one shown for them waits
+    // for the page to go idle.
+    loadRecipes(m);
   };
+
+  const list = sel ? recipes[sel] : undefined;
+  // The card closest to this meal's protein without running over its calories.
+  const bestIdx =
+    list && selSlot
+      ? list.reduce(
+          (best, r, i, all) => {
+            const cost = (x: Recipe) =>
+              Math.abs(x.proteinG - selSlot.budget.proteinG) + Math.max(0, x.kcal - selSlot.budget.kcal) / 10;
+            return cost(r) < cost(all[best]) ? i : best;
+          },
+          0,
+        )
+      : -1;
+  const fits = selSlot ? bestFits(recent, selSlot.budget, selSlot.meal) : [];
+  const loggedHere = selSlot?.status === "logged" ? loggedByMeal[selSlot.meal] : null;
 
   return (
     <section
       className="rounded-2xl p-4 mb-5"
       style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
     >
-      <h2 className="text-[15px] font-bold tracking-tight">Today&apos;s meals</h2>
-      <p className="text-[12px] mt-0.5 tabular-nums" style={{ color: "var(--fg-muted)" }}>
-        <b className="font-semibold" style={{ color: "var(--fg)" }}>{dayRoom.kcal.toLocaleString()} kcal</b> and{" "}
-        <b className="font-semibold" style={{ color: "var(--fg)" }}>{dayRoom.proteinG} g</b> protein left · tap a meal for ideas
-      </p>
+      <h2 className="text-[15px] font-bold tracking-tight">Next meal</h2>
 
-      <div className="flex flex-col gap-1.5 mt-3">
+      {/* Pick the meal. The next one is chosen for you. */}
+      <div
+        role="tablist"
+        aria-label="Meal"
+        className="grid grid-cols-4 gap-1 p-[3px] rounded-xl mt-3"
+        style={{ background: "var(--bg-elevated)" }}
+      >
         {slots.map((sl) => {
-          const isOpen = sel === sl.meal;
-          const done = sl.status === "logged";
-          const list = recipes[sl.meal];
-          const fits = isOpen && src === "mine" ? bestFits(recent, sl.budget, sl.meal) : [];
+          const on = sel === sl.meal;
           return (
-            <div
+            <button
               key={sl.meal}
-              className="rounded-[14px] overflow-hidden"
-              style={{
-                border: `1px solid ${isOpen ? "rgba(163,230,53,0.35)" : "var(--border)"}`,
-                background: isOpen
-                  ? "radial-gradient(120% 80% at 0% 0%, rgba(163,230,53,0.09), transparent 55%), rgba(255,255,255,0.02)"
-                  : "rgba(255,255,255,0.02)",
-              }}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => pick(sl.meal)}
+              className="flex flex-col items-center gap-px pt-[7px] pb-1.5 rounded-[9px] text-[12.5px] font-semibold"
+              style={
+                on
+                  ? { background: "var(--bg-card)", color: "var(--fg)", boxShadow: "0 0 0 1px var(--border-strong)" }
+                  : { color: "var(--fg-muted)" }
+              }
             >
-              <button
-                type="button"
-                aria-expanded={isOpen}
-                onClick={() => {
-                  setPicked(isOpen ? null : sl.meal);
-                  // A meal the athlete picked loads now; only the one opened
-                  // for them waits for the page to go idle.
-                  if (!isOpen && src === "rec") loadRecipes(sl.meal);
-                }}
-                className="w-full grid items-center gap-2.5 px-3 py-[11px] text-left"
-                style={{ gridTemplateColumns: "30px minmax(0,1fr) auto 14px" }}
+              {MEAL_LABEL[sl.meal]}
+              <span
+                className="text-[9.5px] font-semibold uppercase tabular-nums"
+                style={{ letterSpacing: "0.04em", color: sl.status === "next" ? FUEL_LIME : "var(--fg-dim)" }}
               >
-                <span
-                  className="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center text-[14px] font-extrabold"
-                  style={done ? { background: "rgba(34,197,94,0.14)", color: "var(--accent)" } : { background: "var(--bg-elevated)" }}
-                  aria-hidden
-                >
-                  {done ? "✓" : MEAL_ICON[sl.meal]}
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-[14px] font-semibold">{MEAL_LABEL[sl.meal]}</span>
-                  <span
-                    className="block text-[11.5px] font-medium truncate mt-px tabular-nums"
-                    style={{ color: sl.status === "next" ? FUEL_LIME : "var(--fg-muted)" }}
-                  >
-                    {statusLine(sl)}
-                  </span>
-                </span>
-                <span
-                  className="text-[13px] font-semibold tabular-nums"
-                  style={{ fontFamily: "var(--font-geist-mono)", color: done ? "var(--fg-dim)" : "var(--fg-muted)" }}
-                >
-                  {done ? (loggedByMeal[sl.meal]?.kcal ?? 0).toLocaleString() : `~${sl.budget.kcal.toLocaleString()}`}
-                </span>
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--fg-muted)"
-                  strokeWidth="2.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                  style={{ transform: isOpen ? "rotate(90deg)" : undefined, transition: "transform 160ms" }}
-                >
-                  <path d="M9 6l6 6-6 6" />
-                </svg>
-              </button>
-
-              {isOpen && (
-                <div className="px-3 pb-2.5">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <div role="tablist" className="inline-flex gap-0.5 p-0.5 rounded-[9px]" style={{ background: "var(--bg-elevated)" }}>
-                      {(
-                        [
-                          ["rec", "Recipes"],
-                          ["mine", "Your usual"],
-                        ] as const
-                      ).map(([key, label]) => (
-                        <button
-                          key={key}
-                          type="button"
-                          role="tab"
-                          aria-selected={src === key}
-                          onClick={() => {
-                            setSrc(key);
-                            if (key === "rec") loadRecipes(sl.meal);
-                          }}
-                          className="px-2.5 py-1 rounded-[7px] text-[11.5px] font-semibold"
-                          style={
-                            src === key
-                              ? { background: "var(--bg-card)", color: "var(--fg)", boxShadow: "0 0 0 1px var(--border-strong)" }
-                              : { color: "var(--fg-muted)" }
-                          }
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                    {src === "rec" && (
-                      <Link href="/profile/fuel" className="text-[11px] font-semibold" style={{ color: "var(--fg-muted)" }}>
-                        Diet settings ›
-                      </Link>
-                    )}
-                  </div>
-                  {done && (
-                    <p className="text-[11px] mb-0.5" style={{ color: "var(--fg-dim)" }}>
-                      Ideas for next time, around ~{sl.budget.kcal.toLocaleString()} kcal.
-                    </p>
-                  )}
-
-                  {src === "rec" &&
-                    (list ? (
-                      list.map((r, i) => (
-                        <div
-                          key={`${r.title}-${i}`}
-                          className="flex items-center gap-2.5 py-2"
-                          style={{ borderTop: i ? "1px solid var(--border)" : undefined }}
-                        >
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-[14px] font-semibold truncate">{r.title}</span>
-                            <span className="block text-[11.5px] tabular-nums mt-0.5" style={{ color: "var(--fg-muted)" }}>
-                              {r.minutes ? `${r.minutes} min · ` : ""}
-                              {r.kcal.toLocaleString()} kcal · {r.proteinG} g protein
-                            </span>
-                            <MacroStrip r={r} />
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => openRecipe(sl.meal, i)}
-                            className="shrink-0 h-[30px] px-3 rounded-full text-[12px] font-bold"
-                            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
-                          >
-                            View
-                          </button>
-                        </div>
-                      ))
-                    ) : errors[sl.meal] ? (
-                      <div className="py-2">
-                        <p className="text-[12.5px]" style={{ color: "#fca5a5" }}>{errors[sl.meal]}</p>
-                        <button
-                          type="button"
-                          onClick={() => loadRecipes(sl.meal)}
-                          className="text-[12.5px] font-semibold mt-1"
-                          style={{ color: "#86efac" }}
-                        >
-                          Try again
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-2 py-1.5" aria-live="polite">
-                        {[0, 1, 2].map((i) => (
-                          <div key={i} className="h-10 rounded-xl animate-pulse" style={{ background: "var(--bg-elevated)" }} />
-                        ))}
-                        <p className="text-[11.5px]" style={{ color: "var(--fg-muted)" }}>
-                          Writing {MEAL_WORD[sl.meal]} recipes that fit…
-                        </p>
-                      </div>
-                    ))}
-
-                  {src === "mine" &&
-                    (fits.length ? (
-                      fits.map((r, i) => (
-                        <div
-                          key={r.key}
-                          className="flex items-center gap-2.5 py-2"
-                          style={{ borderTop: i ? "1px solid var(--border)" : undefined }}
-                        >
-                          {r.photoUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={r.photoUrl} alt="" className="w-9 h-9 rounded-[10px] object-cover shrink-0" />
-                          ) : (
-                            <span
-                              className="w-9 h-9 rounded-[10px] shrink-0 flex items-center justify-center text-[15px]"
-                              style={{ background: "var(--bg-elevated)" }}
-                              aria-hidden
-                            >
-                              {MEAL_ICON[sl.meal]}
-                            </span>
-                          )}
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-[14px] font-semibold truncate">{r.title}</span>
-                            <span className="block text-[11.5px] tabular-nums mt-0.5" style={{ color: "var(--fg-muted)" }}>
-                              {r.kcal.toLocaleString()} kcal · {proteinOf(r)} g protein
-                              {r.times > 1 ? ` · ${r.times}×` : ""}
-                            </span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setPendingMeal({ review: { items: r.items, photoUrl: r.photoUrl } })}
-                            className="shrink-0 h-[30px] px-3 rounded-full text-[12px] font-bold"
-                            style={{ background: "var(--accent)", color: "#04130a" }}
-                          >
-                            + Log
-                          </button>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-[12.5px] py-2" style={{ color: "var(--fg-muted)" }}>
-                        Nothing you&apos;ve logged fits this one. Try Recipes or ask your coach.
-                      </p>
-                    ))}
-                </div>
-              )}
-            </div>
+                {chipTag(sl)}
+              </span>
+            </button>
           );
         })}
       </div>
+
+      {selSlot && (
+        <>
+          {loggedHere && (
+            <p className="text-[12px] mt-3 tabular-nums" style={{ color: "var(--fg-muted)" }}>
+              Logged: {loggedHere.name} · {loggedHere.kcal.toLocaleString()} kcal. Ideas for next time:
+            </p>
+          )}
+          {/* This meal's target. */}
+          <div
+            className="flex items-center gap-2.5 mt-3 px-3 py-2.5 rounded-xl"
+            style={{
+              background: "radial-gradient(120% 140% at 0% 0%, rgba(163,230,53,0.12), transparent 60%), rgba(255,255,255,0.02)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <span
+              className="text-[20px] font-semibold tabular-nums leading-none"
+              style={{ fontFamily: "var(--font-geist-mono)", letterSpacing: "-0.04em", color: FUEL_LIME }}
+            >
+              ~{selSlot.budget.kcal.toLocaleString()}
+              <span className="text-[11px] font-semibold ml-1" style={{ fontFamily: "var(--font-geist-sans)", letterSpacing: 0, color: "var(--fg-dim)" }}>
+                kcal
+              </span>
+            </span>
+            <span className="text-[12px] tabular-nums" style={{ color: "var(--fg-muted)" }}>
+              <b className="font-semibold" style={{ color: "var(--fg)" }}>{selSlot.budget.proteinG} g</b> protein
+            </span>
+            <span className="ml-auto text-[11px] text-right" style={{ color: "var(--fg-dim)" }}>
+              {selSlot.snacksToClose != null
+                ? selSlot.snacksToClose === 1
+                  ? "one snack closes the gap"
+                  : `about ${selSlot.snacksToClose} snacks close the gap`
+                : selSlot.status === "logged" || selSlot.status === "passed"
+                  ? "your usual"
+                  : "share of what's left"}
+            </span>
+          </div>
+
+          <p
+            className="flex items-baseline justify-between text-[10.5px] font-bold uppercase mt-3.5 mb-1.5"
+            style={{ letterSpacing: "0.1em", color: "var(--fg-dim)" }}
+          >
+            Recipes for {MEAL_WORD[selSlot.meal].replace(/^a /, "")}
+            <Link href="/profile/fuel" className="normal-case text-[11.5px] font-semibold" style={{ letterSpacing: 0, color: "var(--fg-muted)" }}>
+              Diet settings ›
+            </Link>
+          </p>
+
+          {list ? (
+            <>
+              <div
+                ref={railRef}
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  const w = el.firstElementChild?.clientWidth ?? el.clientWidth;
+                  setCardIdx(Math.round(el.scrollLeft / (w + 10)));
+                }}
+                className="flex gap-2.5 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1.5"
+                style={{ scrollbarWidth: "none" }}
+              >
+                {list.map((r, i) => (
+                  <article
+                    key={`${r.title}-${i}`}
+                    className="snap-start shrink-0 basis-[80%] rounded-2xl p-[13px] pb-3 flex flex-col gap-2.5"
+                    style={{
+                      background: "radial-gradient(130% 90% at 0% 0%, rgba(163,230,53,0.16), transparent 55%), var(--bg-elevated)",
+                      border: "1px solid var(--border-strong)",
+                    }}
+                  >
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "var(--fg-muted)" }}>
+                      {r.minutes > 0 && <>⏱ {r.minutes} min</>}
+                      {i === bestIdx && (
+                        <span
+                          className="ml-auto text-[10px] font-bold px-[7px] py-[3px] rounded-full"
+                          style={{ background: "rgba(163,230,53,0.14)", color: FUEL_LIME }}
+                        >
+                          Best fit
+                        </span>
+                      )}
+                    </span>
+                    <h3 className="text-[16px] font-bold tracking-tight leading-snug" style={{ textWrap: "balance" }}>
+                      {r.title}
+                    </h3>
+                    {r.blurb && (
+                      <p className="text-[12px] leading-snug -mt-1 line-clamp-2" style={{ color: "var(--fg-muted)" }}>
+                        {r.blurb}
+                      </p>
+                    )}
+                    <div className="grid grid-cols-3 gap-1.5 mt-auto">
+                      {(
+                        [
+                          [r.kcal.toLocaleString(), "kcal", "var(--fg)"],
+                          [`${r.proteinG}g`, "protein", PROTEIN],
+                          [`${r.carbsG}g`, "carbs", CARBS],
+                        ] as const
+                      ).map(([v, l, c]) => (
+                        <span
+                          key={l}
+                          className="rounded-[10px] px-2 py-[7px]"
+                          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)" }}
+                        >
+                          <b
+                            className="block text-[15px] font-semibold tabular-nums"
+                            style={{ fontFamily: "var(--font-geist-mono)", letterSpacing: "-0.03em", color: c }}
+                          >
+                            {v}
+                          </b>
+                          <span className="text-[10px] font-semibold uppercase" style={{ letterSpacing: "0.06em", color: "var(--fg-dim)" }}>
+                            {l}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => openRecipe(selSlot.meal, i)}
+                        className="h-9 rounded-[11px] text-[12.5px] font-bold"
+                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-strong)" }}
+                      >
+                        See recipe
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => logRecipe(r, 1)}
+                        className="h-9 rounded-[11px] text-[12.5px] font-bold"
+                        style={{ background: "var(--accent)", color: "#04130a" }}
+                      >
+                        Ate it · log
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              {list.length > 1 && (
+                <div className="flex justify-center gap-[5px] mt-0.5" aria-hidden>
+                  {list.map((_, i) => (
+                    <span
+                      key={i}
+                      className="h-[5px] rounded-full transition-all"
+                      style={{ width: i === cardIdx ? 14 : 5, background: i === cardIdx ? FUEL_LIME : "var(--border-strong)" }}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          ) : errors[selSlot.meal] ? (
+            <div className="py-2">
+              <p className="text-[12.5px]" style={{ color: "#fca5a5" }}>{errors[selSlot.meal]}</p>
+              <button
+                type="button"
+                onClick={() => loadRecipes(selSlot.meal)}
+                className="text-[12.5px] font-semibold mt-1"
+                style={{ color: "#86efac" }}
+              >
+                Try again
+              </button>
+            </div>
+          ) : (
+            <div aria-live="polite">
+              <div className="flex gap-2.5 -mx-4 px-4 overflow-hidden">
+                {[0, 1].map((i) => (
+                  <div key={i} className="shrink-0 basis-[80%] h-[204px] rounded-2xl animate-pulse" style={{ background: "var(--bg-elevated)" }} />
+                ))}
+              </div>
+              <p className="text-[11.5px] mt-2" style={{ color: "var(--fg-muted)" }}>
+                Writing {MEAL_WORD[selSlot.meal]} recipes that fit…
+              </p>
+            </div>
+          )}
+
+          {fits.length > 0 && (
+            <>
+              <p
+                className="text-[10.5px] font-bold uppercase mt-3.5 mb-1.5"
+                style={{ letterSpacing: "0.1em", color: "var(--fg-dim)" }}
+              >
+                Your usual · tap to log
+              </p>
+              <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4" style={{ scrollbarWidth: "none" }}>
+                {fits.map((r) => (
+                  <button
+                    key={r.key}
+                    type="button"
+                    onClick={() => setPendingMeal({ review: { items: r.items, photoUrl: r.photoUrl } })}
+                    className="shrink-0 flex items-center gap-[7px] h-9 pl-1.5 pr-3 rounded-full text-[12.5px] font-semibold active:scale-95"
+                    style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+                  >
+                    {r.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={r.photoUrl} alt="" className="w-[26px] h-[26px] rounded-full object-cover" />
+                    ) : (
+                      <span
+                        className="w-[26px] h-[26px] rounded-full flex items-center justify-center text-[13px]"
+                        style={{ background: "var(--bg-card)" }}
+                        aria-hidden
+                      >
+                        {MEAL_ICON[selSlot.meal]}
+                      </span>
+                    )}
+                    <span className="max-w-[150px] truncate">{r.title}</span>
+                    <span className="text-[11px] tabular-nums" style={{ fontFamily: "var(--font-geist-mono)", color: "var(--fg-dim)" }}>
+                      {r.kcal.toLocaleString()}
+                    </span>
+                    <span className="font-extrabold" style={{ color: "var(--accent)" }} aria-hidden>
+                      +
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
 
       <Link
         href={`/fuel?coach=1&ask=${encodeURIComponent(askNext)}`}
