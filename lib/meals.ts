@@ -11,3 +11,13 @@ export function mealForHour(h: number): Meal {
   if (h >= 17 && h < 22) return "DINNER";
   return "SNACK";
 }
+
+/// A meal's identity for naming it: its foods' names, lowercased and sorted.
+/// The same foods eaten again share one signature, so a name given once
+/// follows the meal everywhere (MealName is keyed by it).
+export function mealSig(names: string[]): string {
+  return names
+    .map((n) => n.trim().toLowerCase())
+    .sort()
+    .join("|");
+}

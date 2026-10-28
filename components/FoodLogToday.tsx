@@ -3,8 +3,8 @@
 import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { deleteFoodLog, updateFoodLog } from "@/lib/actions/food";
-import { MEALS, type Meal } from "@/lib/meals";
+import { deleteFoodLog, renameRecentMeal, updateFoodLog } from "@/lib/actions/food";
+import { MEALS, mealSig, type Meal } from "@/lib/meals";
 import { useSheetBack, SheetClose, backdropTap } from "@/components/useSheetBack";
 
 type Row = {
@@ -17,6 +17,8 @@ type Row = {
   carbsG: number;
   fatG: number;
   photoUrl: string | null;
+  /// Foods saved together share it — one meal.
+  createdAt: Date | string;
 };
 
 const ORDER = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"];
@@ -58,11 +60,46 @@ const n = (s: string) => {
   return Number.isFinite(v) && v >= 0 ? v : 0;
 };
 
+/// Foods saved together, in order — each one meal.
+function groupSaves(list: Row[]): Row[][] {
+  const by = new Map<number, Row[]>();
+  for (const r of list) {
+    const k = new Date(r.createdAt).getTime();
+    (by.get(k) ?? by.set(k, []).get(k)!).push(r);
+  }
+  return [...by.values()];
+}
+
+/// The automatic name: the biggest food, plus how many more.
+function autoName(group: Row[]): string {
+  const lead = [...group].sort((a, b) => b.kcal - a.kcal)[0];
+  return group.length > 1 ? `${lead.name} +${group.length - 1}` : lead.name;
+}
+
 /// What you've logged in StrengthLab today, by meal. Tap a food to edit its
-/// name, meal, portion or numbers, or to delete it. Google Health foods aren't
+/// name, meal, portion or numbers, or to delete it; a meal of several foods
+/// carries a name you can change with its pencil. Google Health foods aren't
 /// listed here — they're edited where they were logged.
-export default function FoodLogToday({ rows }: { rows: Row[] }) {
+export default function FoodLogToday({
+  rows,
+  mealNames = {},
+}: {
+  rows: Row[];
+  /// Names given to today's meals, by meal signature.
+  mealNames?: Record<string, string>;
+}) {
   const router = useRouter();
+  // Names changed this visit, shown at once (null = back to automatic).
+  const [renamed, setRenamed] = useState<Record<string, string | null>>({});
+  const [renaming, setRenaming] = useState<{ sig: string; value: string } | null>(null);
+  const nameOf = (sig: string) => (renamed[sig] === undefined ? mealNames[sig] ?? null : renamed[sig]);
+  const saveName = (sig: string, value: string) => {
+    const name = value.trim();
+    setRenaming(null);
+    if (name === (nameOf(sig) ?? "")) return;
+    setRenamed((m) => ({ ...m, [sig]: name || null }));
+    renameRecentMeal(sig, name).then(() => router.refresh());
+  };
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<Row | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -187,7 +224,11 @@ export default function FoodLogToday({ rows }: { rows: Row[] }) {
                 {LABEL[m]}
               </span>
               <span className="flex-1 min-w-0 text-[11px] truncate" style={{ color: "var(--fg-dim)" }}>
-                {list.length} item{list.length === 1 ? "" : "s"}
+                {(() => {
+                  const groups = groupSaves(list);
+                  const only = groups.length === 1 && groups[0].length > 1 ? nameOf(mealSig(groups[0].map((r) => r.name))) : null;
+                  return only ?? `${list.length} item${list.length === 1 ? "" : "s"}`;
+                })()}
               </span>
               <span className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--fg-muted)" }}>
                 {Math.round(kcal).toLocaleString()} kcal
@@ -208,34 +249,85 @@ export default function FoodLogToday({ rows }: { rows: Row[] }) {
                   <path d="M6 9l6 6 6-6" />
                 </svg>
             </button>
-            {isOpen && list.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                onClick={() => open(r)}
-                className="w-full flex items-center gap-3 py-2 text-left active:opacity-70"
-                style={{ borderBottom: "1px solid var(--border)" }}
-              >
-                {r.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={r.photoUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
-                ) : (
-                  <span className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-[15px]" style={{ background: "var(--bg-elevated)" }} aria-hidden>
-                    🍽️
-                  </span>
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[14px] font-medium truncate">{r.name}</span>
-                  <span className="block text-[11px] truncate" style={{ color: "var(--fg-dim)" }}>
-                    {[r.portion, `${Math.round(r.proteinG)}g protein`].filter(Boolean).join(" · ")}
-                  </span>
-                </span>
-                <span className="text-[14px] font-semibold tabular-nums shrink-0">{Math.round(r.kcal)}</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--fg-dim)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0">
-                  <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
-                </svg>
-              </button>
-            ))}
+            {isOpen &&
+              groupSaves(list).map((group) => {
+                const sig = mealSig(group.map((r) => r.name));
+                const named = group.length > 1 ? nameOf(sig) : null;
+                return (
+                  <div key={sig + new Date(group[0].createdAt).getTime()}>
+                    {group.length > 1 &&
+                      (renaming?.sig === sig ? (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            saveName(sig, renaming.value);
+                          }}
+                          className="flex items-center gap-1.5 pt-2 pb-1"
+                        >
+                          <input
+                            autoFocus
+                            value={renaming.value}
+                            maxLength={60}
+                            placeholder={autoName(group)}
+                            aria-label="Meal name"
+                            onChange={(e) => setRenaming({ sig, value: e.target.value })}
+                            onKeyDown={(e) => e.key === "Escape" && setRenaming(null)}
+                            className="flex-1 min-w-0 h-9 px-3 rounded-lg font-semibold outline-none"
+                            style={{ fontSize: 16, background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
+                          />
+                          <button type="submit" className="h-9 px-3 rounded-lg text-[12.5px] font-bold" style={{ background: "var(--accent)", color: "#04130a" }}>
+                            Save
+                          </button>
+                        </form>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setRenaming({ sig, value: named ?? "" })}
+                          aria-label={`Rename ${named ?? autoName(group)}`}
+                          className="w-full flex items-center gap-1.5 pt-2.5 pb-1 text-left active:opacity-70"
+                        >
+                          <span className="min-w-0 truncate text-[13px] font-bold" style={{ color: named ? "var(--fg)" : "var(--fg-muted)" }}>
+                            {named ?? autoName(group)}
+                          </span>
+                          <span className="text-[11px] shrink-0 tabular-nums" style={{ color: "var(--fg-dim)" }}>
+                            {group.length} foods · {Math.round(group.reduce((s, r) => s + r.kcal, 0)).toLocaleString()} kcal
+                          </span>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--fg-dim)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="ml-auto shrink-0">
+                            <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+                          </svg>
+                        </button>
+                      ))}
+                    {group.map((r) => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => open(r)}
+                          className="w-full flex items-center gap-3 py-2 text-left active:opacity-70"
+                          style={{ borderBottom: "1px solid var(--border)" }}
+                        >
+                          {r.photoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={r.photoUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
+                          ) : (
+                            <span className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-[15px]" style={{ background: "var(--bg-elevated)" }} aria-hidden>
+                              🍽️
+                            </span>
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[14px] font-medium truncate">{r.name}</span>
+                            <span className="block text-[11px] truncate" style={{ color: "var(--fg-dim)" }}>
+                              {[r.portion, `${Math.round(r.proteinG)}g protein`].filter(Boolean).join(" · ")}
+                            </span>
+                          </span>
+                          <span className="text-[14px] font-semibold tabular-nums shrink-0">{Math.round(r.kcal)}</span>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--fg-dim)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0">
+                            <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+                          </svg>
+                        </button>
+                    ))}
+                  </div>
+                );
+              })}
           </div>
         );
       })}

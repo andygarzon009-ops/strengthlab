@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { DailyNutrition, FoodEntry } from "@/lib/googleHealth";
+import { mealSig } from "@/lib/meals";
 export { MEALS, mealForHour, type Meal } from "@/lib/meals";
 
 export type FoodLogRow = {
@@ -14,6 +15,8 @@ export type FoodLogRow = {
   fatG: number;
   fiberG: number | null;
   photoUrl: string | null;
+  /// Foods saved together share it — that's what makes them one meal.
+  createdAt: Date;
 };
 
 export async function listFoodLog(userId: string, sinceDate: string): Promise<FoodLogRow[]> {
@@ -31,9 +34,27 @@ export async function listFoodLog(userId: string, sinceDate: string): Promise<Fo
       fatG: true,
       fiberG: true,
       photoUrl: true,
+      createdAt: true,
     },
     orderBy: { loggedAt: "asc" },
   });
+}
+
+/// Names the athlete gave the meals in `rows` (multi-food saves only), by
+/// meal signature.
+export async function mealNamesFor(userId: string, rows: FoodLogRow[]): Promise<Record<string, string>> {
+  const saves = new Map<number, string[]>();
+  for (const r of rows) {
+    const k = r.createdAt.getTime();
+    (saves.get(k) ?? saves.set(k, []).get(k)!).push(r.name);
+  }
+  const sigs = [...saves.values()].filter((names) => names.length > 1).map(mealSig);
+  if (sigs.length === 0) return {};
+  const names = await prisma.mealName.findMany({
+    where: { userId, sig: { in: sigs } },
+    select: { sig: true, title: true },
+  });
+  return Object.fromEntries(names.map((n) => [n.sig, n.title]));
 }
 
 /// Fold StrengthLab-logged foods into Google Health's per-day nutrition so
@@ -156,10 +177,7 @@ export async function listRecentMeals(userId: string, limit = 8): Promise<Recent
   // How often each set of foods was logged as each meal; the commonest wins.
   const mealTally = new Map<string, Map<string, number>>();
   for (const list of saves.values()) {
-    const sig = list
-      .map((r) => r.name.trim().toLowerCase())
-      .sort()
-      .join("|");
+    const sig = mealSig(list.map((r) => r.name));
     const tally = mealTally.get(sig) ?? mealTally.set(sig, new Map()).get(sig)!;
     tally.set(list[0].meal, (tally.get(list[0].meal) ?? 0) + 1);
     const seen = byFoods.get(sig);

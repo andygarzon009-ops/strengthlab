@@ -9,7 +9,7 @@ export type PendingMeal =
   | { describe: true }
   /// Straight to review with known foods — a past meal or a recipe from the
   /// Next meal card.
-  | { review: { items: PendingFood[]; photoUrl: string | null } };
+  | { review: { items: PendingFood[]; photoUrl: string | null; name?: string } };
 
 export type PendingFood = {
   name: string;

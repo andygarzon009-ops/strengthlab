@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/session";
-import { MEALS, type Meal } from "@/lib/meals";
+import { MEALS, mealSig, type Meal } from "@/lib/meals";
 
 type SaveItem = {
   name: string;
@@ -27,6 +27,9 @@ export async function saveFoodItems(input: {
   items: SaveItem[];
   photoUrl?: string | null;
   source: "photo" | "text";
+  /// A name for this meal (two or more foods). Empty clears a name it had;
+  /// left out, any existing name is untouched.
+  mealName?: string;
 }) {
   const userId = await requireAuth();
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { timezone: true } });
@@ -61,6 +64,9 @@ export async function saveFoodItems(input: {
       source: input.source === "text" ? "text" : "photo",
     })),
   });
+  if (input.mealName !== undefined && items.length > 1) {
+    await setMealName(userId, mealSig(items.map((it) => it.name)), input.mealName);
+  }
   revalidatePath("/fuel");
   revalidatePath("/");
   return { ok: true as const, count: items.length };
@@ -111,9 +117,15 @@ export async function updateFoodLog(
 /// automatic one.
 export async function renameRecentMeal(sig: string, title: string) {
   const userId = await requireAuth();
-  const key = String(sig ?? "").slice(0, 2000);
+  if (!String(sig ?? "")) return { ok: false as const };
+  await setMealName(userId, String(sig), title);
+  revalidatePath("/fuel");
+  return { ok: true as const };
+}
+
+async function setMealName(userId: string, sig: string, title: string) {
+  const key = sig.slice(0, 2000);
   const name = String(title ?? "").trim().slice(0, 60);
-  if (!key) return { ok: false as const };
   if (!name) {
     await prisma.mealName.deleteMany({ where: { userId, sig: key } });
   } else {
@@ -123,6 +135,4 @@ export async function renameRecentMeal(sig: string, title: string) {
       update: { title: name },
     });
   }
-  revalidatePath("/fuel");
-  return { ok: true as const };
 }

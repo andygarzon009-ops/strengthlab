@@ -26,6 +26,8 @@ type Stage =
       preview: string | null;
       note: string | null;
       source: "photo" | "text";
+      /// The meal's name, saved with it when it's two or more foods.
+      name: string;
     }
   | { kind: "error"; message: string };
 
@@ -157,6 +159,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
         preview,
         note: body.note ?? null,
         source,
+        name: "",
       });
     } catch {
       setStage({ kind: "error", message: "No connection — try again" });
@@ -199,6 +202,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
           preview: p.review.photoUrl,
           note: null,
           source: p.review.photoUrl ? "photo" : "text",
+          name: p.review.name ?? "",
         });
       } else {
         setMeal(mealForHour(new Date().getHours()));
@@ -230,6 +234,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
       preview: r.photoUrl,
       note: null,
       source: r.photoUrl ? "photo" : "text",
+      name: isNamed(r) ? titleOf(r) : "",
     });
   };
 
@@ -321,6 +326,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
         items,
         photoUrl: stage.photoUrl,
         source: stage.source,
+        mealName: items.length > 1 ? stage.name : undefined,
       });
       if (res.ok) {
         dismiss();
@@ -709,6 +715,25 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
                       <p className="text-[12px] mt-2.5" style={{ color: "var(--fg-muted)" }}>
                         {stage.note}
                       </p>
+                    )}
+                    {stage.items.length > 1 && (
+                      <label className="flex items-center gap-2 mt-3 h-10 px-3 rounded-xl" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
+                        <span className="text-[11px] font-semibold uppercase shrink-0" style={{ letterSpacing: "0.1em", color: "var(--fg-dim)" }}>
+                          Name
+                        </span>
+                        <input
+                          value={stage.name}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setStage((st) => (st.kind === "review" ? { ...st, name: v } : st));
+                          }}
+                          maxLength={60}
+                          placeholder="Name this meal (optional)"
+                          aria-label="Meal name"
+                          className="flex-1 min-w-0 bg-transparent outline-none font-semibold"
+                          style={{ fontSize: 16 }}
+                        />
+                      </label>
                     )}
                     <div className="flex gap-1.5 mt-3.5" role="radiogroup" aria-label="Meal">
                       {MEALS.map((m) => (

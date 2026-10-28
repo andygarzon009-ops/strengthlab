@@ -6,7 +6,7 @@ import FuelWeek from "@/components/FuelWeek";
 import HealthReconnectBanner from "@/components/HealthReconnectBanner";
 import FoodLogger from "@/components/FoodLogger";
 import FoodLogToday from "@/components/FoodLogToday";
-import { listFoodLog, listRecentMeals } from "@/lib/foodLog";
+import { listFoodLog, listRecentMeals, mealNamesFor } from "@/lib/foodLog";
 import { cleanMealPrefs } from "@/lib/mealPrefs";
 import { prisma } from "@/lib/db";
 
@@ -30,6 +30,9 @@ export default async function FuelPage() {
     listRecentMeals(userId, 40),
   ]);
 
+  const todayOnly = todayRows.filter((r) => r.localDate === today);
+  const mealNames = await mealNamesFor(userId, todayOnly);
+
   return (
     <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-3 mb-5">
@@ -48,7 +51,7 @@ export default async function FuelPage() {
           batchServings={prefs.mealPrep ? prefs.batchServings : null}
         >
           <FoodLogger recent={recent} />
-          <FoodLogToday rows={todayRows.filter((r) => r.localDate === today)} />
+          <FoodLogToday rows={todayOnly} mealNames={mealNames} />
         </FuelWeek>
       ) : (
         <>

@@ -501,7 +501,9 @@ export default function NextMeal({
                   <button
                     key={r.key}
                     type="button"
-                    onClick={() => setPendingMeal({ review: { items: r.items, photoUrl: r.photoUrl } })}
+                    onClick={() =>
+                      setPendingMeal({ review: { items: r.items, photoUrl: r.photoUrl, name: r.named ? r.title : undefined } })
+                    }
                     className="shrink-0 flex items-center gap-[7px] h-9 pl-1.5 pr-3 rounded-full text-[12.5px] font-semibold active:scale-95"
                     style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
                   >
