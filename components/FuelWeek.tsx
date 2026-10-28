@@ -384,7 +384,7 @@ function FuelHero({
             className="text-[11px] font-semibold uppercase"
             style={{ color: "var(--fg-muted)", letterSpacing: "0.16em" }}
           >
-            {inProgress ? "Fuel so far" : "Fuel"}
+            {inProgress ? "Macros so far" : "Macros"}
           </span>
           <span
             className="text-[68px] font-bold leading-none tabular-nums mt-1"

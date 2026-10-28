@@ -295,7 +295,7 @@ export default function DailyGlance({
         {fuelTile ? (
           <SplitTile
             href="/fuel"
-            label="Fuel"
+            label="Macros"
             icon={<FlameIcon />}
             color={FUEL_COLOR}
             big={fuelTile.big}
@@ -305,7 +305,7 @@ export default function DailyGlance({
           />
         ) : (
           // Nothing eaten logged yet: no empty bars, just the way in.
-          <SplitTile href="/fuel#log" label="Fuel" icon={<FlameIcon />} color={FUEL_COLOR}>
+          <SplitTile href="/fuel#log" label="Macros" icon={<FlameIcon />} color={FUEL_COLOR}>
             <span className="text-[12px] leading-snug" style={{ color: "var(--fg-muted)" }}>
               Nothing logged yet
             </span>

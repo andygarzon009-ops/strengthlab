@@ -892,7 +892,7 @@ ${lines}${reading ? `\n  Read: ${reading}` : ""}
         const tr = trainedOn.get(d.date);
         const day = `${d.date} ${dow}${tr ? ` [trained: ${tr}]` : " [rest]"}`;
         if (!d.logged) return `  ${day}: nothing logged (unknown, not zero)`;
-        return `  ${day}: ${Math.round(d.intake.kcal)} / ${d.targets.calorieTargetKcal} kcal, ${Math.round(d.intake.proteinG)} / ${d.targets.proteinTargetG}g protein — Fuel ${d.score.score} (${d.score.rating})`;
+        return `  ${day}: ${Math.round(d.intake.kcal)} / ${d.targets.calorieTargetKcal} kcal, ${Math.round(d.intake.proteinG)} / ${d.targets.proteinTargetG}g protein — Macros score ${d.score.score} (${d.score.rating})`;
       });
       return `\nLAST 6 DAYS (StrengthLab food log, scored against each day's own targets):\n${rows.join("\n")}`;
     })();
@@ -988,7 +988,7 @@ If diet/recovery comes up, nudge the athlete to log meals so you can coach intak
 - Phase: ${f.targets.phaseLabel}. ${
           f.partial
             ? `THE DAY IS NOT OVER. What follows is progress, not a verdict. Do NOT tell the athlete they are "under-eating", "in a deficit", or "short of surplus" — the meals they haven't eaten yet are not a failure. They are ${f.progress.pct}% of the way to today's targets.`
-            : `Day complete — Fuel Score ${f.score.score}/100 (${f.score.rating}).`
+            : `Day complete — Macros score ${f.score.score}/100 (${f.score.rating}).`
         }
 - Meals logged so far: ${loggedMeals.length ? loggedMeals.join(", ") : "none"}.${
           f.partial && missingMeals.length

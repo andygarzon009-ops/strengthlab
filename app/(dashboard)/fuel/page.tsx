@@ -37,7 +37,7 @@ export default async function FuelPage() {
     <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-3 mb-5">
         <BackButton href="/" ariaLabel="Back to feed" />
-        <h1 className="text-[22px] font-bold tracking-tight">Fuel</h1>
+        <h1 className="text-[22px] font-bold tracking-tight">Macros</h1>
       </div>
 
       <HealthReconnectBanner />
@@ -73,7 +73,7 @@ function EmptyState({
     "no-account": {
       icon: "🍳",
       title: "Your week of fuel starts here",
-      body: "Log a meal above and your Fuel score fills in.",
+      body: "Log a meal above and your Macros score fills in.",
       cta: { href: "/health", label: "Connect Google Health" },
     },
     reconnect: {
@@ -93,7 +93,7 @@ function EmptyState({
     "no-profile": {
       icon: "⚖️",
       title: "Add your bodyweight",
-      body: "Fuel targets are built from your bodyweight and training phase. Add both to your profile and this page fills in.",
+      body: "Macro targets are built from your bodyweight and training phase. Add both to your profile and this page fills in.",
       cta: { href: "/profile", label: "Go to profile" },
     },
   }[state];

@@ -82,8 +82,8 @@ export default function FuelDetail({ data }: { data: NutritionResponse }) {
   if (data.needsProfile) {
     return (
       <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
-        Add your bodyweight and training phase in your profile to unlock the Fuel
-        Score — your goal-based calorie and protein targets.
+        Add your bodyweight and training phase in your profile to unlock the Macros
+        score — your goal-based calorie and protein targets.
       </p>
     );
   }

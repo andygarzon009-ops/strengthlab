@@ -153,7 +153,7 @@ export default async function ProfilePage() {
                 <path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5M17 21V3c-2 1.5-3 4-3 7s1 4 3 4" />
               </svg>
             </div>
-            <span className="font-medium text-[14px]">Fuel settings</span>
+            <span className="font-medium text-[14px]">Macros settings</span>
           </div>
           <span style={{ color: "var(--fg-dim)" }}>→</span>
         </Link>

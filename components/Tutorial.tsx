@@ -137,7 +137,7 @@ const SLIDES: Slide[] = [
     visual: <VisualHealth />,
     steps: [
       "Sleep, HRV and resting HR power your readiness.",
-      "Set your Nutrition goal so your Fuel Score is right.",
+      "Set your Nutrition goal so your Macros score is right.",
     ],
   },
 ];

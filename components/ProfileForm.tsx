@@ -706,7 +706,7 @@ export default function ProfileForm({
               ]}
             />
             <p className="text-[11px] mt-1.5" style={{ color: "var(--fg-dim)" }}>
-              Sets your Fuel Score&apos;s calorie and protein targets.
+              Sets your Macros score&apos;s calorie and protein targets.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2.5">
@@ -736,7 +736,7 @@ export default function ProfileForm({
             <span>
               <span className="font-semibold">Dietary restrictions &amp; meal prep</span>
               <span className="block text-[11px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
-                In Fuel settings
+                In Macros settings
               </span>
             </span>
             <span style={{ color: "var(--fg-dim)" }}>→</span>

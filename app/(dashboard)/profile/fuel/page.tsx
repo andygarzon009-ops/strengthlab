@@ -18,7 +18,7 @@ export default async function FuelSettingsPage() {
       <div className="flex items-center gap-3 mb-6">
         <BackButton href="/profile" alsoFrom={["/fuel"]} ariaLabel="Back" />
         <div>
-          <h1 className="text-[22px] font-bold tracking-tight leading-none">Fuel settings</h1>
+          <h1 className="text-[22px] font-bold tracking-tight leading-none">Macros settings</h1>
           <p className="text-[12px] mt-1" style={{ color: "var(--fg-dim)" }}>
             Recipe suggestions and your coach follow these.
           </p>
