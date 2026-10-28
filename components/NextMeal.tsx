@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import type { Meal } from "@/lib/meals";
-import { planNextMeal } from "@/lib/nextMeal";
+import { planDay, type MealSlot } from "@/lib/nextMeal";
 import { setPendingMeal } from "@/lib/pendingMeal";
 import type { RecentMeal } from "@/lib/foodLog";
 import type { RoomLeft } from "@/lib/roomLeft";
@@ -47,13 +47,47 @@ function bestFits(recent: RecentMeal[], room: RoomLeft, meal: Meal): RecentMeal[
 
 const proteinOf = (r: RecentMeal) => Math.round(r.items.reduce((s, it) => s + it.proteinG, 0));
 
-/// "Next meal" on Fuel, under the hero while today is open: the athlete's own
-/// past meals that fit what's left, a Recipes tab (AI, fetched only when
-/// opened), and a hand-off to the coach.
+const MEAL_LABEL: Record<Meal, string> = { BREAKFAST: "Breakfast", LUNCH: "Lunch", DINNER: "Dinner", SNACK: "Snack" };
+const MEAL_ICON: Record<Meal, string> = { BREAKFAST: "☀️", LUNCH: "🍽️", DINNER: "🌙", SNACK: "🍎" };
+const FUEL_LIME = "#a3e635";
+
+/// Run `fn` once the browser is idle, so recipe calls never compete with the
+/// Fuel page itself painting and hydrating.
+function whenIdle(fn: () => void): () => void {
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(fn, { timeout: 2500 });
+    return () => window.cancelIdleCallback(id);
+  }
+  const id = window.setTimeout(fn, 600);
+  return () => window.clearTimeout(id);
+}
+
+/// Protein / carbs / fat as a thin strip, by their share of the calories.
+function MacroStrip({ r }: { r: Recipe }) {
+  const p = r.proteinG * 4;
+  const c = r.carbsG * 4;
+  const f = r.fatG * 9;
+  if (p + c + f <= 0) return null;
+  return (
+    <span className="flex h-1 gap-[2px] rounded-full overflow-hidden mt-1.5 max-w-[160px]" aria-hidden>
+      <span className="rounded-full" style={{ flex: p, background: PROTEIN }} />
+      <span className="rounded-full" style={{ flex: c, background: CARBS }} />
+      <span className="rounded-full" style={{ flex: f, background: FAT }} />
+    </span>
+  );
+}
+
+/// "Today's meals" on Fuel, under the hero while today is open: breakfast,
+/// lunch, dinner and snack as a day plan. Logged ones are checked off, the
+/// next one is open, and any of them opens to recipes (AI, fetched only for
+/// the open meal and only once the page is idle) or your own past meals that
+/// fit its target.
 export default function NextMeal({
   room: dayRoom,
   dayTargetKcal,
+  dayTargetProteinG,
   logged,
+  loggedByMeal,
   phase,
   recent,
   batchServings = null,
@@ -61,8 +95,11 @@ export default function NextMeal({
   /// What's left of the whole day.
   room: RoomLeft;
   dayTargetKcal: number;
+  dayTargetProteinG: number;
   /// Meal types already logged today.
   logged: string[];
+  /// What each logged meal came to, for its row.
+  loggedByMeal: Record<string, { kcal: number; name: string }>;
   phase: string;
   recent: RecentMeal[];
   /// Meal-prep batch size (Fuel settings): recipes open at it and log one
@@ -70,81 +107,101 @@ export default function NextMeal({
   batchServings?: number | null;
 }) {
   const hour = useHourNow();
-  const plan = hour == null ? null : planNextMeal(dayRoom, hour, new Set(logged), dayTargetKcal);
-  const meal = plan?.meal ?? null;
-  // This meal's share of the day — what suggestions and recipes aim for.
-  const room = plan?.budget ?? dayRoom;
-  const [tab, setTab] = useState<"mine" | "rec">("mine");
-  const [recipes, setRecipes] = useState<Recipe[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const slots =
+    hour == null
+      ? null
+      : planDay(dayRoom, hour, new Set(logged), { kcal: dayTargetKcal, proteinG: dayTargetProteinG });
+  const nextMeal = slots?.find((sl) => sl.status === "next")?.meal ?? null;
+  // The open meal: the next one until the athlete picks another (or closes it).
+  const [picked, setPicked] = useState<Meal | null | undefined>(undefined);
+  const sel = picked === undefined ? nextMeal : picked;
+  const [src, setSrc] = useState<"rec" | "mine">("rec");
+  const [recipes, setRecipes] = useState<Partial<Record<Meal, Recipe[]>>>({});
+  const [loading, setLoading] = useState<Partial<Record<Meal, boolean>>>({});
+  const [errors, setErrors] = useState<Partial<Record<Meal, string>>>({});
+  // The recipe in the sheet: which meal's list and where in it.
+  const [sheet, setSheet] = useState<{ meal: Meal; idx: number } | null>(null);
   const router = useRouter();
   // Back swipe closes the recipe and stays on Fuel.
-  const { dismiss, grab } = useSheetBack(openIdx != null, () => setOpenIdx(null));
+  const { dismiss, grab } = useSheetBack(sheet != null, () => setSheet(null));
   const [swapping, setSwapping] = useState<string | null>(null);
   // Servings in the open recipe; the ingredients and macros follow it.
   const [serv, setServ] = useState(1);
   // Whether "Ate it" logs every serving on screen or just one (a batch).
   const [logAll, setLogAll] = useState(true);
-  const openRecipe = (i: number) => {
-    const batch = plan?.snacksToClose == null ? batchServings : null;
+
+  const slotOf = (m: Meal) => slots?.find((sl) => sl.meal === m) ?? null;
+  const openRecipe = (m: Meal, i: number) => {
+    const batch = m === "SNACK" ? null : batchServings;
     setServ(batch ?? 1);
     setLogAll(batch == null);
-    setOpenIdx(i);
+    setSheet({ meal: m, idx: i });
   };
 
-  // Recipes are kept for the session per meal and calorie budget, so leaving
-  // and coming back to Fuel doesn't pay for a new batch.
-  const cacheKey = meal ? `nextmeal:v3:${new Date().toDateString()}:${meal}:${Math.round(room.kcal / 100)}` : null;
+  // Recipes are kept for the day per meal and calorie budget, so leaving and
+  // coming back to Fuel (or flipping between meals) doesn't pay for a new batch.
+  const cacheKey = (m: Meal, kcal: number) =>
+    `nextmeal:v4:${new Date().toDateString()}:${m}:${Math.round(kcal / 100)}`;
 
-  const fetchRecipes = async (extra: Record<string, unknown> = {}) => {
+  const fetchRecipes = async (m: Meal, extra: Record<string, unknown> = {}) => {
+    const budget = slotOf(m)?.budget ?? dayRoom;
     const res = await fetch("/api/food/recipes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...room, meal: meal ?? "meal", phase, ...extra }),
+      body: JSON.stringify({ ...budget, meal: m, phase, ...extra }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok || !Array.isArray(body.recipes)) throw new Error(body.error ?? "Couldn't load recipes — try again");
     return body.recipes as Recipe[];
   };
 
-  const save = (list: Recipe[]) => {
+  const save = (m: Meal, list: Recipe[]) => {
     try {
-      if (cacheKey) sessionStorage.setItem(cacheKey, JSON.stringify(list));
+      sessionStorage.setItem(cacheKey(m, slotOf(m)?.budget.kcal ?? 0), JSON.stringify(list));
     } catch {}
   };
 
-  const loadRecipes = async () => {
-    if (recipes || loading) return;
+  const loadRecipes = async (m: Meal) => {
+    if (recipes[m] || loading[m]) return;
     try {
-      const cached = cacheKey ? sessionStorage.getItem(cacheKey) : null;
+      const cached = sessionStorage.getItem(cacheKey(m, slotOf(m)?.budget.kcal ?? 0));
       if (cached) {
-        setRecipes(JSON.parse(cached));
+        setRecipes((r) => ({ ...r, [m]: JSON.parse(cached) }));
         return;
       }
     } catch {}
-    setLoading(true);
-    setError(null);
+    setLoading((l) => ({ ...l, [m]: true }));
+    setErrors((e) => ({ ...e, [m]: undefined }));
     try {
-      const list = await fetchRecipes();
-      setRecipes(list);
-      save(list);
+      const list = await fetchRecipes(m);
+      setRecipes((r) => ({ ...r, [m]: list }));
+      save(m, list);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't load recipes — try again");
+      setErrors((er) => ({ ...er, [m]: e instanceof Error ? e.message : "Couldn't load recipes — try again" }));
     } finally {
-      setLoading(false);
+      setLoading((l) => ({ ...l, [m]: false }));
     }
   };
 
-  const swap = async (i: number, tweak: "other" | "quicker" | "no-cook") => {
-    if (!recipes || swapping) return;
+  // The open meal's recipes load on their own — but only once the page is
+  // idle, so the rest of Fuel is on screen and usable first.
+  const wantRecipes = sel != null && src === "rec" && !recipes[sel] && !loading[sel] && !errors[sel];
+  useEffect(() => {
+    if (!wantRecipes || sel == null) return;
+    return whenIdle(() => loadRecipes(sel));
+    // loadRecipes reads the latest state; re-running on its identity would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantRecipes, sel]);
+
+  const swap = async (m: Meal, i: number, tweak: "other" | "quicker" | "no-cook") => {
+    const list = recipes[m];
+    if (!list || swapping) return;
     setSwapping(tweak);
     try {
-      const [next] = await fetchRecipes({ count: 1, tweak, exclude: recipes.map((r) => r.title) });
-      const list = recipes.map((r, j) => (j === i ? next : r));
-      setRecipes(list);
-      save(list);
+      const [next] = await fetchRecipes(m, { count: 1, tweak, exclude: list.map((r) => r.title) });
+      const updated = list.map((r, j) => (j === i ? next : r));
+      setRecipes((rs) => ({ ...rs, [m]: updated }));
+      save(m, updated);
     } catch {
       // Keep the current recipe; the chip just stops spinning.
     } finally {
@@ -154,7 +211,7 @@ export default function NextMeal({
 
   // Freeze the page behind the recipe sheet.
   useEffect(() => {
-    if (openIdx == null) return;
+    if (sheet == null) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && dismiss();
@@ -163,17 +220,24 @@ export default function NextMeal({
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [openIdx, dismiss]);
+  }, [sheet, dismiss]);
 
-  if (!plan || dayRoom.kcal < 150) return null;
+  if (!slots || dayRoom.kcal < 150) return null;
 
-  const mealWord = meal ? MEAL_WORD[meal] : "your next meal";
-  const fits = bestFits(recent, room, plan.meal);
-  const closing = plan.snacksToClose != null;
-  const askNext = closing
-    ? `My main meals are done and I'm still ${dayRoom.kcal.toLocaleString()} kcal and ${dayRoom.proteinG} g protein short of today's target. What snacks should I have to close the gap?`
-    : `I have ${dayRoom.kcal.toLocaleString()} kcal and ${dayRoom.proteinG} g protein left today and ${MEAL_WORD[plan.meal]}'s next. What should I eat for it — around ${room.kcal.toLocaleString()} kcal and ${room.proteinG} g protein?`;
-  const open = openIdx != null && recipes ? recipes[openIdx] : null;
+  const selSlot = sel ? slotOf(sel) : null;
+  const askMeal = selSlot ?? slots.find((sl) => sl.status === "next") ?? null;
+  const askNext = !askMeal
+    ? `I have ${dayRoom.kcal.toLocaleString()} kcal and ${dayRoom.proteinG} g protein left today. What should I eat?`
+    : askMeal.snacksToClose != null
+      ? `My main meals are done and I'm still ${dayRoom.kcal.toLocaleString()} kcal and ${dayRoom.proteinG} g protein short of today's target. What snacks should I have to close the gap?`
+      : `I have ${dayRoom.kcal.toLocaleString()} kcal and ${dayRoom.proteinG} g protein left today. What should I eat for ${MEAL_WORD[askMeal.meal]} — around ${askMeal.budget.kcal.toLocaleString()} kcal and ${askMeal.budget.proteinG} g protein?`;
+
+  // The recipe sheet's meal and recipe.
+  const sheetSlot = sheet ? slotOf(sheet.meal) : null;
+  const open = sheet ? recipes[sheet.meal]?.[sheet.idx] ?? null : null;
+  const closing = sheetSlot?.snacksToClose != null;
+  const mealWord = sheet ? MEAL_WORD[sheet.meal] : "your next meal";
+  const meal = sheet?.meal ?? null;
   const k = open ? serv / (open.servings || 1) : 1;
   const sc = (n: number) => Math.round(n * k);
 
@@ -199,183 +263,232 @@ export default function NextMeal({
     }));
   };
 
+  const statusLine = (sl: MealSlot) => {
+    if (sl.status === "logged") return loggedByMeal[sl.meal]?.name ?? "Logged";
+    if (sl.snacksToClose != null)
+      return sl.snacksToClose === 1 ? "One snack closes the gap" : `About ${sl.snacksToClose} snacks close the gap`;
+    if (sl.status === "next") return "Up next";
+    if (sl.status === "passed") return "Not logged";
+    return `aim ~${sl.budget.kcal.toLocaleString()} kcal · ${sl.budget.proteinG} g`;
+  };
+
   return (
     <section
       className="rounded-2xl p-4 mb-5"
       style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
     >
-      <h2 className="text-[15px] font-bold tracking-tight">{closing ? "Close the gap" : "Next meal"}</h2>
+      <h2 className="text-[15px] font-bold tracking-tight">Today&apos;s meals</h2>
       <p className="text-[12px] mt-0.5 tabular-nums" style={{ color: "var(--fg-muted)" }}>
-        {closing ? (
-          <>
-            {dayRoom.kcal.toLocaleString()} kcal and {dayRoom.proteinG} g protein short of today&apos;s target ·{" "}
-            {plan.snacksToClose === 1
-              ? "one snack like these closes it"
-              : `about ${plan.snacksToClose} snacks like these (~${room.kcal.toLocaleString()} kcal each)`}
-          </>
-        ) : (
-          <>
-            {mealWord.charAt(0).toUpperCase()}
-            {mealWord.slice(1)} · aim for ~{room.kcal.toLocaleString()} kcal and {room.proteinG} g protein
-          </>
-        )}
+        <b className="font-semibold" style={{ color: "var(--fg)" }}>{dayRoom.kcal.toLocaleString()} kcal</b> and{" "}
+        <b className="font-semibold" style={{ color: "var(--fg)" }}>{dayRoom.proteinG} g</b> protein left · tap a meal for ideas
       </p>
 
-      <div role="tablist" className="flex rounded-xl p-[3px] mt-3 mb-1" style={{ background: "var(--bg-elevated)" }}>
-        {(
-          [
-            ["mine", "Your meals"],
-            ["rec", "Recipes"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            onClick={() => {
-              setTab(key);
-              if (key === "rec") loadRecipes();
-            }}
-            className="flex-1 py-2 rounded-[9px] text-[13px] font-semibold"
-            style={
-              tab === key
-                ? { background: "var(--bg-card)", color: "var(--fg)", boxShadow: "0 0 0 1px var(--border-strong)" }
-                : { color: "var(--fg-muted)" }
-            }
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "mine" &&
-        (fits.length ? (
-          fits.map((r, i) => (
-            <button
-              key={r.key}
-              type="button"
-              onClick={() => setPendingMeal({ review: { items: r.items, photoUrl: r.photoUrl } })}
-              className="w-full flex items-center gap-3 py-2.5 text-left active:opacity-70"
-              style={{ borderTop: i ? "1px solid var(--border)" : undefined }}
+      <div className="flex flex-col gap-1.5 mt-3">
+        {slots.map((sl) => {
+          const isOpen = sel === sl.meal;
+          const done = sl.status === "logged";
+          const list = recipes[sl.meal];
+          const fits = isOpen && src === "mine" ? bestFits(recent, sl.budget, sl.meal) : [];
+          return (
+            <div
+              key={sl.meal}
+              className="rounded-[14px] overflow-hidden"
+              style={{
+                border: `1px solid ${isOpen ? "rgba(163,230,53,0.35)" : "var(--border)"}`,
+                background: isOpen
+                  ? "radial-gradient(120% 80% at 0% 0%, rgba(163,230,53,0.09), transparent 55%), rgba(255,255,255,0.02)"
+                  : "rgba(255,255,255,0.02)",
+              }}
             >
-              {r.photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={r.photoUrl} alt="" className="w-10 h-10 rounded-[10px] object-cover shrink-0" />
-              ) : (
-                <span
-                  className="w-10 h-10 rounded-[10px] shrink-0 flex items-center justify-center text-[17px]"
-                  style={{ background: "var(--bg-elevated)" }}
-                  aria-hidden
-                >
-                  🍽️
-                </span>
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block text-[14px] font-semibold truncate">{r.title}</span>
-                <span className="block text-[11.5px] tabular-nums mt-0.5" style={{ color: "var(--fg-muted)" }}>
-                  {r.kcal.toLocaleString()} kcal · {proteinOf(r)} g protein
-                  {r.times > 1 ? ` · eaten ${r.times}×` : ""}
-                </span>
-              </span>
-              {i === 0 && (
-                <span
-                  className="text-[10px] font-bold px-2 py-[3px] rounded-full whitespace-nowrap"
-                  style={{ background: "rgba(34,197,94,0.14)", color: "#86efac" }}
-                >
-                  Best fit
-                </span>
-              )}
-              <span
-                className="w-7 h-7 rounded-full flex items-center justify-center text-[16px] font-bold shrink-0"
-                style={{ background: "rgba(74,222,128,0.16)", color: "#86efac" }}
-                aria-hidden
-              >
-                +
-              </span>
-            </button>
-          ))
-        ) : (
-          <p className="text-[12.5px] py-3" style={{ color: "var(--fg-muted)" }}>
-            Nothing you&apos;ve logged fits what&apos;s left. Try the Recipes tab or ask your coach.
-          </p>
-        ))}
-
-      {tab === "rec" && (
-        <div>
-          {loading && (
-            <div className="flex flex-col gap-2 py-2" aria-live="polite">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="h-12 rounded-xl animate-pulse" style={{ background: "var(--bg-elevated)" }} />
-              ))}
-              <p className="text-[11.5px]" style={{ color: "var(--fg-muted)" }}>
-                Writing recipes that fit what&apos;s left…
-              </p>
-            </div>
-          )}
-          {error && !loading && (
-            <div className="py-3">
-              <p className="text-[12.5px]" style={{ color: "#fca5a5" }}>{error}</p>
               <button
                 type="button"
+                aria-expanded={isOpen}
                 onClick={() => {
-                  setError(null);
-                  loadRecipes();
+                  setPicked(isOpen ? null : sl.meal);
+                  // A meal the athlete picked loads now; only the one opened
+                  // for them waits for the page to go idle.
+                  if (!isOpen && src === "rec") loadRecipes(sl.meal);
                 }}
-                className="text-[12.5px] font-semibold mt-1.5"
-                style={{ color: "#86efac" }}
+                className="w-full grid items-center gap-2.5 px-3 py-[11px] text-left"
+                style={{ gridTemplateColumns: "30px minmax(0,1fr) auto 14px" }}
               >
-                Try again
-              </button>
-            </div>
-          )}
-          {recipes && (
-            <Link
-              href="/profile/fuel"
-              className="flex items-center justify-end gap-1 text-[11.5px] font-semibold pb-1"
-              style={{ color: "var(--fg-muted)" }}
-            >
-              Diet &amp; cooking settings ›
-            </Link>
-          )}
-          {recipes?.map((r, i) => (
-            <button
-              key={`${r.title}-${i}`}
-              type="button"
-              onClick={() => openRecipe(i)}
-              className="w-full flex items-center gap-3 py-2.5 text-left active:opacity-70"
-              style={{ borderTop: i ? "1px solid var(--border)" : undefined }}
-            >
-              <span
-                className="w-10 h-10 rounded-[10px] shrink-0 flex items-center justify-center"
-                style={{
-                  background: `radial-gradient(120% 120% at 0% 0%, rgba(249,115,22,0.3), transparent 60%), var(--bg-elevated)`,
-                }}
-                aria-hidden
-              >
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fdba74" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 11h18M5 11v6a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-6M9 7c0-1.5 1-2 1-3.5M13 7c0-1.5 1-2 1-3.5" />
-                </svg>
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[14px] font-semibold truncate">{r.title}</span>
-                {r.blurb && (
-                  <span className="block text-[11.5px] truncate mt-0.5" style={{ color: "var(--fg-muted)" }}>
-                    {r.blurb}
-                  </span>
-                )}
-                <span className="block text-[11.5px] tabular-nums mt-0.5" style={{ color: "var(--fg-dim)" }}>
-                  {r.minutes ? `${r.minutes} min · ` : ""}
-                  {r.kcal.toLocaleString()} kcal · {r.proteinG} g protein
+                <span
+                  className="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center text-[14px] font-extrabold"
+                  style={done ? { background: "rgba(34,197,94,0.14)", color: "var(--accent)" } : { background: "var(--bg-elevated)" }}
+                  aria-hidden
+                >
+                  {done ? "✓" : MEAL_ICON[sl.meal]}
                 </span>
-              </span>
-              <span className="text-[18px]" style={{ color: "var(--fg-dim)" }} aria-hidden>
-                ›
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-semibold">{MEAL_LABEL[sl.meal]}</span>
+                  <span
+                    className="block text-[11.5px] font-medium truncate mt-px tabular-nums"
+                    style={{ color: sl.status === "next" ? FUEL_LIME : "var(--fg-muted)" }}
+                  >
+                    {statusLine(sl)}
+                  </span>
+                </span>
+                <span
+                  className="text-[13px] font-semibold tabular-nums"
+                  style={{ fontFamily: "var(--font-geist-mono)", color: done ? "var(--fg-dim)" : "var(--fg-muted)" }}
+                >
+                  {done ? (loggedByMeal[sl.meal]?.kcal ?? 0).toLocaleString() : `~${sl.budget.kcal.toLocaleString()}`}
+                </span>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--fg-muted)"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                  style={{ transform: isOpen ? "rotate(90deg)" : undefined, transition: "transform 160ms" }}
+                >
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </button>
+
+              {isOpen && (
+                <div className="px-3 pb-2.5">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div role="tablist" className="inline-flex gap-0.5 p-0.5 rounded-[9px]" style={{ background: "var(--bg-elevated)" }}>
+                      {(
+                        [
+                          ["rec", "Recipes"],
+                          ["mine", "Your usual"],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          role="tab"
+                          aria-selected={src === key}
+                          onClick={() => {
+                            setSrc(key);
+                            if (key === "rec") loadRecipes(sl.meal);
+                          }}
+                          className="px-2.5 py-1 rounded-[7px] text-[11.5px] font-semibold"
+                          style={
+                            src === key
+                              ? { background: "var(--bg-card)", color: "var(--fg)", boxShadow: "0 0 0 1px var(--border-strong)" }
+                              : { color: "var(--fg-muted)" }
+                          }
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {src === "rec" && (
+                      <Link href="/profile/fuel" className="text-[11px] font-semibold" style={{ color: "var(--fg-muted)" }}>
+                        Diet settings ›
+                      </Link>
+                    )}
+                  </div>
+                  {done && (
+                    <p className="text-[11px] mb-0.5" style={{ color: "var(--fg-dim)" }}>
+                      Ideas for next time, around ~{sl.budget.kcal.toLocaleString()} kcal.
+                    </p>
+                  )}
+
+                  {src === "rec" &&
+                    (list ? (
+                      list.map((r, i) => (
+                        <div
+                          key={`${r.title}-${i}`}
+                          className="flex items-center gap-2.5 py-2"
+                          style={{ borderTop: i ? "1px solid var(--border)" : undefined }}
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[14px] font-semibold truncate">{r.title}</span>
+                            <span className="block text-[11.5px] tabular-nums mt-0.5" style={{ color: "var(--fg-muted)" }}>
+                              {r.minutes ? `${r.minutes} min · ` : ""}
+                              {r.kcal.toLocaleString()} kcal · {r.proteinG} g protein
+                            </span>
+                            <MacroStrip r={r} />
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => openRecipe(sl.meal, i)}
+                            className="shrink-0 h-[30px] px-3 rounded-full text-[12px] font-bold"
+                            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
+                          >
+                            View
+                          </button>
+                        </div>
+                      ))
+                    ) : errors[sl.meal] ? (
+                      <div className="py-2">
+                        <p className="text-[12.5px]" style={{ color: "#fca5a5" }}>{errors[sl.meal]}</p>
+                        <button
+                          type="button"
+                          onClick={() => loadRecipes(sl.meal)}
+                          className="text-[12.5px] font-semibold mt-1"
+                          style={{ color: "#86efac" }}
+                        >
+                          Try again
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2 py-1.5" aria-live="polite">
+                        {[0, 1, 2].map((i) => (
+                          <div key={i} className="h-10 rounded-xl animate-pulse" style={{ background: "var(--bg-elevated)" }} />
+                        ))}
+                        <p className="text-[11.5px]" style={{ color: "var(--fg-muted)" }}>
+                          Writing {MEAL_WORD[sl.meal]} recipes that fit…
+                        </p>
+                      </div>
+                    ))}
+
+                  {src === "mine" &&
+                    (fits.length ? (
+                      fits.map((r, i) => (
+                        <div
+                          key={r.key}
+                          className="flex items-center gap-2.5 py-2"
+                          style={{ borderTop: i ? "1px solid var(--border)" : undefined }}
+                        >
+                          {r.photoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={r.photoUrl} alt="" className="w-9 h-9 rounded-[10px] object-cover shrink-0" />
+                          ) : (
+                            <span
+                              className="w-9 h-9 rounded-[10px] shrink-0 flex items-center justify-center text-[15px]"
+                              style={{ background: "var(--bg-elevated)" }}
+                              aria-hidden
+                            >
+                              {MEAL_ICON[sl.meal]}
+                            </span>
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[14px] font-semibold truncate">{r.title}</span>
+                            <span className="block text-[11.5px] tabular-nums mt-0.5" style={{ color: "var(--fg-muted)" }}>
+                              {r.kcal.toLocaleString()} kcal · {proteinOf(r)} g protein
+                              {r.times > 1 ? ` · ${r.times}×` : ""}
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setPendingMeal({ review: { items: r.items, photoUrl: r.photoUrl } })}
+                            className="shrink-0 h-[30px] px-3 rounded-full text-[12px] font-bold"
+                            style={{ background: "var(--accent)", color: "#04130a" }}
+                          >
+                            + Log
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-[12.5px] py-2" style={{ color: "var(--fg-muted)" }}>
+                        Nothing you&apos;ve logged fits this one. Try Recipes or ask your coach.
+                      </p>
+                    ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
       <Link
         href={`/fuel?coach=1&ask=${encodeURIComponent(askNext)}`}
@@ -401,7 +514,7 @@ export default function NextMeal({
               style={{
                 maxHeight: "92dvh",
                 background: "var(--bg-card)",
-                border: `1px solid rgba(249,115,22,0.3)`,
+                border: `1px solid rgba(163,230,53,0.3)`,
                 borderBottom: 0,
                 paddingBottom: "env(safe-area-inset-bottom, 0px)",
               }}
@@ -412,14 +525,14 @@ export default function NextMeal({
               <div
                 {...grab}
                 className="px-4 pt-2.5 pb-4"
-                style={{ background: "radial-gradient(130% 120% at 0% 0%, rgba(249,115,22,0.2), transparent 55%)" }}
+                style={{ background: "radial-gradient(130% 120% at 0% 0%, rgba(163,230,53,0.16), transparent 55%)" }}
               >
                 <div className="flex justify-center mb-3">
                   <span className="w-10 h-1 rounded-full" style={{ background: "var(--border-strong)" }} />
                 </div>
                 <span
                   className="inline-block text-[10px] font-bold uppercase tracking-[0.08em] px-2 py-[3px] rounded-full"
-                  style={{ background: "rgba(249,115,22,0.16)", color: "#fdba74" }}
+                  style={{ background: "rgba(163,230,53,0.16)", color: "#d9f99d" }}
                 >
                   {closing ? "Snack to close the gap" : `Recipe for ${meal === "DINNER" ? "tonight" : mealWord}`}
                 </span>
@@ -551,7 +664,7 @@ export default function NextMeal({
                     <li key={i} className="flex gap-2.5">
                       <span
                         className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold tabular-nums mt-px"
-                        style={{ background: "rgba(249,115,22,0.16)", color: "#fdba74" }}
+                        style={{ background: "rgba(163,230,53,0.16)", color: "#d9f99d" }}
                       >
                         {i + 1}
                       </span>
@@ -573,7 +686,7 @@ export default function NextMeal({
                     key={key}
                     type="button"
                     disabled={!!swapping}
-                    onClick={() => swap(openIdx!, key)}
+                    onClick={() => sheet && swap(sheet.meal, sheet.idx, key)}
                     className="text-[11.5px] font-semibold px-2.5 py-1.5 rounded-full disabled:opacity-50"
                     style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)", color: "var(--fg-muted)" }}
                   >

@@ -109,6 +109,24 @@ function fuelTint(day: FuelDayView): (alpha: number) => string {
   return (a) => `rgba(163, 230, 53, ${a})`;
 }
 
+/// What each meal came to today, and a name for its row: the first food,
+/// plus how many more.
+function loggedByMeal(foods: FoodRow[]): Record<string, { kcal: number; name: string }> {
+  const out: Record<string, { kcal: number; name: string; n: number }> = {};
+  for (const f of foods) {
+    const cur = out[f.meal] ?? { kcal: 0, name: f.name, n: 0 };
+    cur.kcal += f.kcal;
+    cur.n += 1;
+    out[f.meal] = cur;
+  }
+  return Object.fromEntries(
+    Object.entries(out).map(([m, v]) => [
+      m,
+      { kcal: Math.round(v.kcal), name: v.n > 1 ? `${v.name} +${v.n - 1} more` : v.name },
+    ]),
+  );
+}
+
 export type Calibration = {
   maintenanceKcal: number;
   avgIntakeKcal: number;
@@ -172,7 +190,9 @@ export default function FuelWeek({
         <NextMeal
           room={roomLeft(day.intake, day.targets)}
           dayTargetKcal={day.targets.calorieTargetKcal}
+          dayTargetProteinG={day.targets.proteinTargetG}
           logged={[...new Set(day.intake.foods.map((f) => f.meal))]}
+          loggedByMeal={loggedByMeal(day.intake.foods)}
           phase={day.targets.phaseLabel}
           recent={recent}
           batchServings={batchServings}

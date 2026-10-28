@@ -58,3 +58,64 @@ export function planNextMeal(
   const cap = (dayTargetKcal * WEIGHT[next] * MAX_OF_SHARE) / Math.max(1, room.kcal);
   return { meal: next, budget: scale(Math.min(share, cap)), snacksToClose: null };
 }
+
+export type MealSlot = {
+  meal: Meal;
+  /// logged: in today's log · next: the one planNextMeal picks · ahead: still
+  /// to come · passed: its time is gone and nothing was logged.
+  status: "logged" | "next" | "ahead" | "passed";
+  /// What this meal should come to. For a logged or passed meal it's the
+  /// usual share of the day, so its ideas still make sense for next time.
+  budget: RoomLeft;
+  /// The snack slot after the main meals: how many snacks close the gap.
+  snacksToClose: number | null;
+};
+
+/// The whole day as four slots for the Fuel day plan: what's logged, what's
+/// next, and a target for every meal so any of them can be browsed. The next
+/// meal's target is exactly planNextMeal's; the other meals still to come
+/// split what's left by the same weights.
+export function planDay(
+  room: RoomLeft,
+  hour: number,
+  logged: Set<string>,
+  dayTarget: { kcal: number; proteinG: number },
+): MealSlot[] {
+  const next = planNextMeal(room, hour, logged, dayTarget.kcal);
+  const now = mealForHour(hour);
+  const fromIdx = now === "SNACK" ? (hour < 17 && hour >= 15 ? 2 : 3) : MAINS.indexOf(now);
+  const ahead = MAINS.slice(fromIdx).filter((m) => !logged.has(m));
+  const total = ahead.reduce((s, m) => s + WEIGHT[m], 0);
+  const scale = (f: number): RoomLeft => ({
+    kcal: Math.round(room.kcal * f),
+    proteinG: Math.round(room.proteinG * f),
+    carbsG: Math.round(room.carbsG * f),
+    fatG: Math.round(room.fatG * f),
+  });
+  // Usual share of the whole day, for meals that aren't coming up.
+  const usual = (w: number): RoomLeft => ({
+    kcal: Math.round(dayTarget.kcal * w),
+    proteinG: Math.round(dayTarget.proteinG * w),
+    carbsG: 0,
+    fatG: 0,
+  });
+
+  const mains: MealSlot[] = MAINS.map((m) => {
+    if (m === next.meal) return { meal: m, status: "next", budget: next.budget, snacksToClose: null };
+    if (logged.has(m)) return { meal: m, status: "logged", budget: usual(WEIGHT[m]), snacksToClose: null };
+    if (!ahead.includes(m)) return { meal: m, status: "passed", budget: usual(WEIGHT[m]), snacksToClose: null };
+    const share = ahead.length === 1 ? 1 : (WEIGHT[m] / total) * (1 - SNACK_RESERVE);
+    const cap = (dayTarget.kcal * WEIGHT[m] * MAX_OF_SHARE) / Math.max(1, room.kcal);
+    return { meal: m, status: "ahead", budget: scale(Math.min(share, cap)), snacksToClose: null };
+  });
+  const snack: MealSlot =
+    next.meal === "SNACK"
+      ? { meal: "SNACK", status: "next", budget: next.budget, snacksToClose: next.snacksToClose }
+      : {
+          meal: "SNACK",
+          status: logged.has("SNACK") ? "logged" : "ahead",
+          budget: ahead.length ? scale(SNACK_RESERVE) : usual(SNACK_RESERVE),
+          snacksToClose: null,
+        };
+  return [...mains, snack];
+}
