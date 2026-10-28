@@ -75,6 +75,7 @@ export default function NextMeal({
   phase,
   recent,
   batchServings = null,
+  todayMeals = {},
 }: {
   /// What's left of the whole day.
   room: RoomLeft;
@@ -89,6 +90,8 @@ export default function NextMeal({
   /// Meal-prep batch size (Fuel settings): recipes open at it and log one
   /// serving. Null when they don't meal prep.
   batchServings?: number | null;
+  /// Logged meals that are one named meal, by meal type.
+  todayMeals?: Record<string, { sig: string; name: string | null }>;
 }) {
   const hour = useHourNow();
   const slots =
@@ -277,7 +280,16 @@ export default function NextMeal({
         )
       : -1;
   const fits = selSlot ? bestFits(recent, selSlot.budget, selSlot.meal) : [];
-  const loggedHere = selSlot?.status === "logged" ? loggedByMeal[selSlot.meal] : null;
+  const loggedHere = (() => {
+    if (selSlot?.status !== "logged") return null;
+    const base = loggedByMeal[selSlot.meal];
+    const id = todayMeals[selSlot.meal];
+    if (!base || !id) return base ?? null;
+    // Renamed this visit wins, then the saved name, then the automatic one.
+    const local = nameOverrides[id.sig];
+    const name = local !== undefined ? local : id.name;
+    return { ...base, name: name ?? base.name };
+  })();
 
   return (
     <section

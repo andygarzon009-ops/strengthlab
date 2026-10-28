@@ -29,9 +29,10 @@ type Stage =
       source: "photo" | "text";
       /// The meal's name, saved with it when it's two or more foods.
       name: string;
-      /// It came in with a name, so an emptied field means "remove it". A
-      /// new meal with the field left empty leaves any existing name alone.
-      hadName: boolean;
+      /// Logging something already known (a past meal, a Next meal pill, a
+      /// recipe): its name is shown, not edited — renaming lives on the
+      /// pencils, so a rename can never log a meal by accident.
+      relog: boolean;
     }
   | { kind: "error"; message: string };
 
@@ -158,7 +159,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
         note: body.note ?? null,
         source,
         name: "",
-        hadName: false,
+        relog: false,
       });
     } catch {
       setStage({ kind: "error", message: "No connection — try again" });
@@ -202,7 +203,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
           note: null,
           source: p.review.photoUrl ? "photo" : "text",
           name: p.review.name ?? "",
-          hadName: !!p.review.name,
+          relog: true,
         });
       } else {
         setMeal(mealForHour(new Date().getHours()));
@@ -235,7 +236,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
       note: null,
       source: r.photoUrl ? "photo" : "text",
       name: isNamed(r) ? titleOf(r) : "",
-      hadName: isNamed(r),
+      relog: true,
     });
   };
 
@@ -322,7 +323,8 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
     }));
     const total = items.reduce((s, it) => s + it.kcal, 0);
     // The meal's name shows everywhere straight away; the save stores it.
-    const nameIt = items.length > 1 && (stage.name.trim() !== "" || stage.hadName);
+    // Only a new meal is named here; a known one keeps whatever name it has.
+    const nameIt = !stage.relog && items.length > 1 && stage.name.trim() !== "";
     if (nameIt) setMealNameLocal(mealSig(items.map((it) => it.name)), stage.name.trim() || null);
     startTransition(async () => {
       const res = await saveFoodItems({
@@ -720,7 +722,10 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
                         {stage.note}
                       </p>
                     )}
-                    {stage.items.length > 1 && (
+                    {stage.relog && stage.name && (
+                      <p className="text-[15px] font-bold mt-3 truncate">{stage.name}</p>
+                    )}
+                    {!stage.relog && stage.items.length > 1 && (
                       <label className="flex items-center gap-2 mt-3 h-10 px-3 rounded-xl" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
                         <span className="text-[11px] font-semibold uppercase shrink-0" style={{ letterSpacing: "0.1em", color: "var(--fg-dim)" }}>
                           Name
@@ -732,7 +737,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
                             setStage((st) => (st.kind === "review" ? { ...st, name: v } : st));
                           }}
                           maxLength={60}
-                          placeholder="Name this meal (optional)"
+                          placeholder="Give it a name (optional)"
                           aria-label="Meal name"
                           className="flex-1 min-w-0 bg-transparent outline-none font-semibold"
                           style={{ fontSize: 16 }}
@@ -968,7 +973,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
                       disabled={pending || addBusy || stage.items.length === 0}
                       className="btn-accent w-full min-h-[50px] rounded-2xl text-[15px] font-bold disabled:opacity-50"
                     >
-                      {pending ? "Saving…" : `Save ${MEAL_LABEL[meal].toLowerCase()} · ${totals.kcal.toLocaleString()} kcal`}
+                      {pending ? "Logging…" : `Log ${MEAL_LABEL[meal].toLowerCase()} · ${totals.kcal.toLocaleString()} kcal`}
                     </button>
                   </div>
                 </>

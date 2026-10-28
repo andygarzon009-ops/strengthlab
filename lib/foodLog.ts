@@ -40,6 +40,28 @@ export async function listFoodLog(userId: string, sinceDate: string): Promise<Fo
   });
 }
 
+/// For each meal type logged today that is one meal of several foods: its
+/// signature and given name, so Next meal can call it by that name.
+export function loggedMealIds(
+  rows: FoodLogRow[],
+  names: Record<string, string>,
+): Record<string, { sig: string; name: string | null }> {
+  const byType = new Map<string, Map<number, string[]>>();
+  for (const r of rows) {
+    const saves = byType.get(r.meal) ?? byType.set(r.meal, new Map()).get(r.meal)!;
+    const k = r.createdAt.getTime();
+    (saves.get(k) ?? saves.set(k, []).get(k)!).push(r.name);
+  }
+  const out: Record<string, { sig: string; name: string | null }> = {};
+  for (const [meal, saves] of byType) {
+    const groups = [...saves.values()];
+    if (groups.length !== 1 || groups[0].length < 2) continue;
+    const sig = mealSig(groups[0]);
+    out[meal] = { sig, name: names[sig] ?? null };
+  }
+  return out;
+}
+
 /// Names the athlete gave the meals in `rows` (multi-food saves only), by
 /// meal signature.
 export async function mealNamesFor(userId: string, rows: FoodLogRow[]): Promise<Record<string, string>> {

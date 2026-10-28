@@ -141,6 +141,7 @@ export default function FuelWeek({
   calibration,
   recent = [],
   batchServings = null,
+  todayMeals = {},
   children,
 }: {
   days: FuelDayView[];
@@ -150,6 +151,8 @@ export default function FuelWeek({
   recent?: RecentMeal[];
   /// Meal-prep batch size from Fuel settings; recipes open at it.
   batchServings?: number | null;
+  /// Today's meals that have a name (see loggedMealIds), for Next meal.
+  todayMeals?: Record<string, { sig: string; name: string | null }>;
   /// Rendered under the hero — the meal logger and today's entries.
   children?: ReactNode;
 }) {
@@ -196,6 +199,7 @@ export default function FuelWeek({
           phase={day.targets.phaseLabel}
           recent={recent}
           batchServings={batchServings}
+          todayMeals={todayMeals}
         />
       )}
 

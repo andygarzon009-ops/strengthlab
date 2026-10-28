@@ -198,6 +198,20 @@ export default function FoodLogToday({
     });
   };
 
+  // Take a whole meal out of today's log — every food saved with it.
+  const removeMeal = (group: Row[]) => {
+    setRenaming(null);
+    setGone((g) => {
+      const next = new Set(g);
+      for (const r of group) next.add(r.id);
+      return next;
+    });
+    startTransition(async () => {
+      await Promise.all(group.map((r) => deleteFoodLog(r.id)));
+      router.refresh();
+    });
+  };
+
   const valid = !!draft && draft.name.trim() !== "" && n(draft.kcal) > 0;
 
   return (
@@ -278,6 +292,14 @@ export default function FoodLogToday({
                           />
                           <button type="submit" className="h-9 px-3 rounded-lg text-[12.5px] font-bold" style={{ background: "var(--accent)", color: "#04130a" }}>
                             Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeMeal(group)}
+                            className="h-9 px-2.5 rounded-lg text-[12.5px] font-semibold"
+                            style={{ color: "#f87171", background: "rgba(248,113,113,0.08)" }}
+                          >
+                            Delete meal
                           </button>
                         </form>
                       ) : (

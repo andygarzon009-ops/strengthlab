@@ -6,7 +6,7 @@ import FuelWeek from "@/components/FuelWeek";
 import HealthReconnectBanner from "@/components/HealthReconnectBanner";
 import FoodLogger from "@/components/FoodLogger";
 import FoodLogToday from "@/components/FoodLogToday";
-import { listFoodLog, listRecentMeals, mealNamesFor } from "@/lib/foodLog";
+import { listFoodLog, listRecentMeals, loggedMealIds, mealNamesFor } from "@/lib/foodLog";
 import { cleanMealPrefs } from "@/lib/mealPrefs";
 import { prisma } from "@/lib/db";
 
@@ -49,6 +49,7 @@ export default async function FuelPage() {
           calibration={week.calibration}
           recent={recent}
           batchServings={prefs.mealPrep ? prefs.batchServings : null}
+          todayMeals={loggedMealIds(todayOnly, mealNames)}
         >
           <FoodLogger recent={recent} />
           <FoodLogToday rows={todayOnly} mealNames={mealNames} />
