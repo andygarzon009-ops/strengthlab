@@ -10,8 +10,6 @@ import RestNotifications from "@/components/RestNotifications";
 import NotificationWatcher from "@/components/NotificationWatcher";
 import PushAutoSubscribe from "@/components/PushAutoSubscribe";
 import { Suspense } from "react";
-import { AppGlow } from "@/components/FeedGlow";
-import GlowGate from "@/components/GlowGate";
 import NavTracker from "@/components/NavTracker";
 
 export default function DashboardLayout({
@@ -33,13 +31,6 @@ export default function DashboardLayout({
         paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8.5rem)",
       }}
     >
-      {/* The day's colour behind the top of every page (not the workout
-          logger, whose pinned header turns it into a strip). */}
-      <GlowGate>
-        <Suspense fallback={null}>
-          <AppGlow />
-        </Suspense>
-      </GlowGate>
       <NavTracker />
       {children}
       <NotificationsBell />

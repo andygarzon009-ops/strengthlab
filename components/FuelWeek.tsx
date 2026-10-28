@@ -102,8 +102,8 @@ function longDate(dateKey: string): string {
   });
 }
 
-/// The page glow: Fuel's lime whenever there's food logged, matching the
-/// Today card; a faint neutral when nothing was.
+/// The hero card's glow: Fuel's lime whenever there's food logged, matching
+/// the Today card; a faint neutral when nothing was.
 function fuelTint(day: FuelDayView): (alpha: number) => string {
   if (!day.logged) return (a) => `rgba(255, 255, 255, ${a / 4})`;
   return (a) => `rgba(163, 230, 53, ${a})`;
@@ -167,20 +167,6 @@ export default function FuelWeek({
 
   return (
     <>
-      {/* The page glow, replacing the app's recovery-coloured one here:
-          Fuel's lime. */}
-      <div
-        aria-hidden
-        className="session-glow pointer-events-none fixed inset-0 -z-10"
-        style={{
-          background: [
-            `radial-gradient(85% 55% at 50% 38%, ${fuelTint(day)(0.15)} 0%, ${fuelTint(day)(0.05)} 50%, transparent 78%)`,
-            `radial-gradient(70% 35% at 50% 100%, ${fuelTint(day)(0.07)} 0%, transparent 70%)`,
-          ].join(", "),
-          transform: "translateZ(0)",
-        }}
-      />
-
       <FuelHero
         day={day}
         isToday={isToday}
