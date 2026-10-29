@@ -253,8 +253,8 @@ const ROW_COLOR = { over: "#ef4444", recovering: "#3b82f6", ready: "#22c55e" } a
 const LABEL_COLOR = { over: "#f87171", recovering: "#60a5fa", ready: "#4ade80" } as const;
 
 /// Recovery as bars: each major group fills as it recovers (full = ready to
-/// train hard again), anything overworked on top in red, the smaller
-/// muscles as a short list. Same numbers as the body map on Progress.
+/// train hard again), anything overworked on top in red at its own progress,
+/// the smaller muscles as a short list. Same numbers as the body map on Progress.
 function RecoveryBars({ view }: { view: RecoveryView }) {
   return (
     <div className="mt-3.5">
@@ -267,7 +267,8 @@ function RecoveryBars({ view }: { view: RecoveryView }) {
         </span>
       </div>
       <p className="text-[11.5px] leading-snug mt-1" style={{ color: "var(--fg-dim)" }}>
-        Bars fill as a muscle recovers. Full means ready to train hard again.
+        Bars fill as a muscle recovers. Full means ready to train hard again;
+        red means overworked, so give it extra time.
       </p>
       <div className="flex flex-col gap-2.5 mt-2.5">
         {view.rows.map((r) => {
@@ -299,12 +300,6 @@ function RecoveryBars({ view }: { view: RecoveryView }) {
                     boxShadow: `0 0 12px -2px ${c}`,
                   }}
                 />
-                {r.state === "over" && (
-                  <span
-                    className="absolute -right-1.5 -top-[3px] w-3.5 h-3.5 rounded-full"
-                    style={{ background: c, boxShadow: `0 0 10px ${c}`, border: "2px solid var(--bg-card)" }}
-                  />
-                )}
               </span>
               <span
                 className="text-[11.5px] font-bold text-right whitespace-nowrap min-w-[64px]"

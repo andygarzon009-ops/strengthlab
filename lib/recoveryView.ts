@@ -35,7 +35,8 @@ const SMALL: [string, string][] = [
 export type RecoveryRow = {
   name: string;
   state: "over" | "recovering" | "ready";
-  /// 0–1, how far through recovery. 1 for ready and overworked.
+  /// 0–1, how far through recovery; 1 only when ready. An overworked
+  /// muscle shows its progress too, in red — it's still recovering.
   fraction: number;
   /// Right-hand label: "Ready", "Ready in 52h", "Overworked".
   label: string;
@@ -48,6 +49,16 @@ function overNote(m: MuscleStat): string {
   return m.weekSets > m.mrv
     ? `${Math.round(m.weekSets)} sets, max ~${m.mrv}`
     : "trained again before recovering";
+}
+
+/// How far through its recovery window a muscle is, kept off the very ends
+/// so a bar never reads as empty or as ready.
+function progress(m: MuscleStat): number {
+  return Math.min(0.95, Math.max(0.05, 1 - hoursToRecovered(m) / m.recoveryHours));
+}
+
+function overRow(name: string, m: MuscleStat): RecoveryRow {
+  return { name, state: "over", fraction: progress(m), label: "Overworked", note: overNote(m) };
 }
 
 /// "this evening", "tomorrow morning", "Fri evening" — when `hours` from now
@@ -70,7 +81,7 @@ export function whenReady(hours: number, tz: string, now = new Date()): string {
 function groupRow(name: string, muscles: string[], load: Load, tz: string): RecoveryRow {
   const stats = muscles.map((m) => load[m]);
   const over = stats.find((m) => m && isOverworked(m));
-  if (over) return { name, state: "over", fraction: 1, label: "Overworked", note: overNote(over) };
+  if (over) return overRow(name, over);
   let worst: MuscleStat | undefined;
   let left = 0;
   for (const m of stats) {
@@ -81,11 +92,10 @@ function groupRow(name: string, muscles: string[], load: Load, tz: string): Reco
     }
   }
   if (worst && left > 0) {
-    const fraction = Math.min(0.95, Math.max(0.05, 1 - left / worst.recoveryHours));
     return {
       name,
       state: "recovering",
-      fraction,
+      fraction: progress(worst),
       label: `Ready in ${left}h`,
       note: whenReady(left, tz),
     };
@@ -106,7 +116,7 @@ export function recoveryView(load: Load, tz: string): RecoveryView {
   // Any other overworked muscle joins the bars, at the top with the major
   // groups that are over: that's the thing to act on.
   const otherOver: RecoveryRow[] = SMALL.filter(([m]) => !inMajors.has(m) && isOverworked(load[m])).map(
-    ([m, label]) => ({ name: label, state: "over", fraction: 1, label: "Overworked", note: overNote(load[m]!) }),
+    ([m, label]) => overRow(label, load[m]!),
   );
   const rows = [
     ...otherOver,
