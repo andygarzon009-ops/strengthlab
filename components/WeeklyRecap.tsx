@@ -274,7 +274,7 @@ function RecoveryBars({ view }: { view: RecoveryView }) {
         {view.rows.map((r) => {
           const c = ROW_COLOR[r.state];
           return (
-            <div key={r.name} className="grid items-center gap-2.5" style={{ gridTemplateColumns: "96px 1fr auto" }}>
+            <div key={r.name} className="grid items-center gap-2.5" style={{ gridTemplateColumns: "104px 1fr auto" }}>
               <span className="min-w-0">
                 <span
                   className="block text-[12.5px] font-semibold truncate"
@@ -306,11 +306,6 @@ function RecoveryBars({ view }: { view: RecoveryView }) {
                 style={{ color: LABEL_COLOR[r.state] }}
               >
                 {r.label}
-                {r.sub && (
-                  <span className="block text-[10px] font-semibold" style={{ color: "#fca5a5" }}>
-                    {r.sub}
-                  </span>
-                )}
               </span>
             </div>
           );

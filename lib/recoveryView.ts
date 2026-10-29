@@ -38,19 +38,17 @@ export type RecoveryRow = {
   /// 0–1, how far through recovery; 1 only when ready. An overworked
   /// muscle shows its progress too, in red — it's still recovering.
   fraction: number;
-  /// Right-hand label: "Ready", "Ready in 52h", "Overworked".
+  /// Right-hand label: "Ready" or "Ready in 52h" (red when overworked).
   label: string;
-  /// Under an "Overworked" label: when it's ready ("ready in 15h").
-  sub?: string;
   /// Small line under the name: when it's ready, why it's over, or that it
   /// hasn't been trained lately.
   note: string | null;
 };
 
+/// Under an overworked muscle's name, laid out like the others' "Fri
+/// morning": the state, and the week's sets when that's the reason.
 function overNote(m: MuscleStat): string {
-  return m.weekSets > m.mrv
-    ? `${Math.round(m.weekSets)} sets, max ~${m.mrv}`
-    : "trained again before recovering";
+  return m.weekSets > m.mrv ? `Overworked · ${Math.round(m.weekSets)} sets` : "Overworked";
 }
 
 /// How far through its recovery window a muscle is, kept off the very ends
@@ -64,8 +62,7 @@ function overRow(name: string, m: MuscleStat): RecoveryRow {
     name,
     state: "over",
     fraction: progress(m),
-    label: "Overworked",
-    sub: `ready in ${hoursToRecovered(m)}h`,
+    label: `Ready in ${hoursToRecovered(m)}h`,
     note: overNote(m),
   };
 }
