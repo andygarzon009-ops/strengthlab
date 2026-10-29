@@ -2,20 +2,10 @@ import { prisma } from "@/lib/db";
 import { localDateKey } from "@/lib/blockStamp";
 import { shapeForType } from "@/lib/exercises";
 import Link from "next/link";
-import { loadTodayPlan, splitTag } from "@/lib/todayPlan";
+import { loadTodayPlan, splitLabel } from "@/lib/todayPlan";
 import { loadRhythm } from "@/lib/rhythm";
-import MuscleMap, { muscleLevel } from "@/components/MuscleMap";
-import { HEAT_GRADIENT, HEAT_MAX, hoursToRecovered } from "@/lib/bodyScan";
-
-// Where each word sits on the heat scale (see lib/bodyScan).
-const SCALE_LABELS: [string, number][] = [
-  ["Cold", 0],
-  ["Stale", 0.34],
-  ["Fresh", 0.6],
-  ["Peak", 1.0],
-  ["Over", 1.3],
-];
-import { PRIORITY_MUSCLES } from "@/lib/exercises";
+import { MAJOR_GROUPS, recoveryView, type RecoveryView } from "@/lib/recoveryView";
+import HeartRateCard from "@/components/HeartRateCard";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
@@ -30,11 +20,11 @@ function weekKeys(tz: string): string[] {
   );
 }
 
-// This week and your rhythm in one card (they used to be two, each with its
-// own row of day dots): the goal streak, a day strip marked with what was
-// trained, then the body map beside the week's four numbers. Today, if not
-// trained yet, shows the split the Today card suggests. Taps through to
-// Progress.
+// The feed's This week card: the goal streak, days trained against the goal,
+// a day strip named by what was trained (today, if not trained yet, shows the
+// split the Today card suggests), PRs / sets / avg HR, muscle recovery as
+// bars, and heart rate. The body map itself lives on Progress, which the card
+// opens.
 export default async function WeeklyRecap({ userId }: { userId: string }) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -108,46 +98,32 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
     const done = on.length > 0;
     const isToday = key === todayKey;
     const tag = done
-      ? splitTag(strength?.split ?? null)
+      ? strength
+        ? dayName(strength.split)
+        : "Cardio"
       : isToday && plan.next
-        ? splitTag(plan.next.split)
+        ? dayName(plan.next.split)
         : "";
     return { label: WEEKDAYS[i], tag, done, isToday };
   });
   const daysHit = days.filter((d) => d.done).length;
   const goal = Math.max(1, user?.trainingDays ?? 4);
-  const todayDone = days.find((d) => d.isToday)?.done;
+  const toGo = Math.max(0, goal - daysHit);
 
   const streak = rhythm?.streak ?? 0;
+  const rec = rhythm ? recoveryView(rhythm.load, tz) : null;
 
-  // The scan in words: what's being loaded faster than it recovers (and
-  // why), how long until each recovering muscle is ready, and which key
-  // muscles have gone cold.
-  const entries = rhythm ? Object.entries(rhythm.load) : [];
-  const over = entries
-    .filter(([, m]) => muscleLevel(m) === "over")
-    .sort((a, b) => (b[1]?.weekSets ?? 0) - (a[1]?.weekSets ?? 0))
-    .slice(0, 3)
-    .map(([name, m]) =>
-      m && m.weekSets > m.mrv
-        ? `${name} ${Math.round(m.weekSets)} sets (max ~${m.mrv})`
-        : `${name} hit again before recovering`,
-    );
-  const recovering = entries
-    .filter(([, m]) => muscleLevel(m) === "ok" && hoursToRecovered(m) > 0)
-    .sort((a, b) => hoursToRecovered(b[1]) - hoursToRecovered(a[1]))
-    .slice(0, 3)
-    .map(([name, m]) => `${name} ${hoursToRecovered(m)}h`);
-  const cold = rhythm
-    ? PRIORITY_MUSCLES.filter((m) => muscleLevel(rhythm.load[m]) === "cold").slice(0, 4)
-    : [];
   return (
     // The card opens Progress from anywhere on it, via a link stretched
-    // across the whole card underneath; Avg HR sits above it as its own link
-    // to the heart-rate chart (links can't nest, so the card isn't one).
+    // across the whole card underneath; Avg HR and the heart-rate row sit
+    // above it as their own links (links can't nest, so the card isn't one).
     <section
-      aria-label="Progress"
-      className="card relative p-[18px] mb-3 transition-colors"
+      aria-label="This week"
+      className="card relative p-4 mb-3"
+      style={{
+        background:
+          "radial-gradient(100% 60% at 0% 0%, rgba(34,197,94,0.07), transparent 65%), var(--bg-card)",
+      }}
     >
       <Link
         href="/strength"
@@ -155,60 +131,65 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
         className="absolute inset-0 rounded-[inherit]"
       />
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[14px] font-semibold">Progress</h2>
-        <div className="flex items-center gap-2 shrink-0">
-          {streak > 0 && (
-            <span
-              className="label text-[10px] px-2 py-1 rounded-full nums"
-              style={{
-                background: "rgba(249,115,22,0.12)",
-                border: "1px solid rgba(249,115,22,0.35)",
-                color: "#fb923c",
-                fontFamily: "var(--font-geist-mono)",
-              }}
-              title={`Consecutive weeks meeting your ${goal}-day training goal`}
-            >
-              🔥 {streak}-wk streak
-            </span>
-          )}
-          <span style={{ color: "var(--fg-dim)" }}>→</span>
-        </div>
+        <h2 className="text-[15px] font-bold">This week</h2>
+        <span
+          className="flex items-center gap-1 text-[11.5px] font-semibold nums"
+          style={{ color: "#fb923c", fontFamily: "var(--font-geist-mono)" }}
+          title={`Consecutive weeks meeting your ${goal}-day training goal`}
+        >
+          {streak > 0 ? `🔥 ${streak} wk streak` : ""}
+          <Chevron />
+        </span>
       </div>
-      <p
-        className="text-[12px] nums mt-1.5 mb-3.5 truncate"
-        style={{
-          fontFamily: "var(--font-geist-mono)",
-          color: daysHit >= goal ? "var(--accent)" : "var(--fg-muted)",
-        }}
-      >
-        {daysHit} of {goal} days{daysHit >= goal ? " ✓" : ""}
-        {!todayDone && plan.next ? ` · today ${plan.next.label}` : ""}
-      </p>
 
-      <div className="grid grid-cols-7 gap-1.5">
+      <div className="flex items-baseline gap-2 mt-2.5">
+        <span
+          className="text-[34px] font-semibold leading-none nums"
+          style={{ fontFamily: "var(--font-geist-mono)", letterSpacing: "-0.05em" }}
+        >
+          {daysHit}
+          <span className="text-[18px]" style={{ color: "var(--fg-dim)", letterSpacing: "-0.02em" }}>
+            /{goal}
+          </span>
+        </span>
+        <span className="text-[13px]" style={{ color: "var(--fg-muted)" }}>
+          days trained
+        </span>
+        <span
+          className="ml-auto text-[11.5px] font-semibold nums"
+          style={{
+            color: toGo === 0 ? "var(--accent)" : "var(--fg-muted)",
+            fontFamily: "var(--font-geist-mono)",
+          }}
+        >
+          {toGo === 0 ? "Goal hit ✓" : `${toGo} to go`}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-7 gap-[5px] mt-3">
         {days.map((d, i) => (
-          <div key={i} className="flex flex-col items-center gap-1.5">
+          <div key={i} className="flex flex-col items-stretch gap-1.5 text-center">
             <span
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-[12px] font-bold"
+              className="h-11 rounded-xl flex items-center justify-center text-[10.5px] font-extrabold"
               style={
                 d.done
-                  ? { background: "var(--accent)", color: "#052e16" }
+                  ? {
+                      background: "linear-gradient(180deg, #34d36b, #16a34a)",
+                      color: "#04210f",
+                      boxShadow: "0 6px 18px -8px rgba(34,197,94,0.8), inset 0 1px 0 rgba(255,255,255,0.25)",
+                      outline: d.isToday ? "1.5px solid rgba(255,255,255,0.6)" : undefined,
+                      outlineOffset: 2,
+                    }
                   : d.isToday
-                    ? {
-                        border: "1.5px solid var(--accent)",
-                        color: "var(--accent)",
-                      }
-                    : { background: "var(--bg-elevated)" }
+                    ? { border: "1.5px solid var(--accent)", color: "var(--accent)" }
+                    : { background: "var(--bg-elevated)", border: "1px solid var(--border)" }
               }
             >
               {d.tag}
             </span>
             <span
-              className="text-[10px]"
-              style={{
-                color: d.isToday ? "var(--fg)" : "var(--fg-dim)",
-                fontFamily: "var(--font-geist-mono)",
-              }}
+              className="text-[10px] font-semibold"
+              style={{ color: d.isToday ? "var(--fg)" : "var(--fg-dim)" }}
             >
               {d.label}
             </span>
@@ -217,87 +198,144 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
       </div>
 
       <div
-        className="flex items-center gap-4 mt-4 pt-4"
-        style={{ borderTop: "1px solid var(--border)" }}
+        className="grid grid-cols-3 mt-3.5 py-3"
+        style={{ borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}
       >
-        {rhythm && <MuscleMap load={rhythm.load} sex={user?.sex} />}
-        <div className="flex-1 min-w-0 grid grid-cols-2 gap-x-3 gap-y-4">
-          <Stat value={String(week.length)} label="Sessions" />
-          <Stat value={String(prCount)} label="PRs" accent={prCount > 0} />
+        <Stat value={String(prCount)} label="PRs" accent={prCount > 0} icon={<Trophy on={prCount > 0} />} />
+        <div className="pl-3" style={{ borderLeft: "1px solid var(--border)" }}>
           <Stat value={String(sets)} label="Sets" />
-          <Link
-            href="/heart-rate"
-            aria-label="Average heart rate — open heart rate chart"
-            className="relative z-10 block min-w-0 active:opacity-70"
-          >
-            <Stat
-              value={avgHr != null ? String(avgHr) : "—"}
-              label="Avg HR ›"
-              icon={avgHr != null ? <BeatingHeart bpm={avgHr} /> : undefined}
-            />
-          </Link>
         </div>
+        <Link
+          href="/heart-rate"
+          aria-label="Average heart rate — open heart rate"
+          className="relative z-10 block min-w-0 pl-3 active:opacity-70"
+          style={{ borderLeft: "1px solid var(--border)" }}
+        >
+          <Stat
+            value={avgHr != null ? String(avgHr) : "—"}
+            label="Avg HR ›"
+            icon={avgHr != null ? <BeatingHeart bpm={avgHr} /> : undefined}
+          />
+        </Link>
       </div>
 
-      {rhythm && (
-        <>
-          {/* One continuous scale, dim to bright to red. */}
-          <div className="mt-4">
-            <span
-              className="block h-1.5 rounded-full"
-              style={{ background: HEAT_GRADIENT }}
-            />
-            <div
-              className="relative h-3 text-[9px] mt-1.5"
-              style={{
-                color: "var(--fg-dim)",
-                fontFamily: "var(--font-geist-mono)",
-              }}
-            >
-              {SCALE_LABELS.map(([label, at]) => (
-                <span
-                  key={label}
-                  className="absolute top-0 whitespace-nowrap"
-                  style={{
-                    left: `${(at / HEAT_MAX) * 100}%`,
-                    transform:
-                      at === 0
-                        ? "none"
-                        : at >= HEAT_MAX
-                          ? "translateX(-100%)"
-                          : "translateX(-50%)",
-                  }}
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
-          </div>
-          {(over.length > 0 || recovering.length > 0 || cold.length > 0) && (
-            <div className="mt-3 space-y-1 text-[12px] leading-snug">
-              {over.length > 0 && (
-                <p style={{ color: "#f87171" }}>
-                  <span className="font-semibold">Overworked:</span>{" "}
-                  {over.join(" · ")}
-                </p>
-              )}
-              {recovering.length > 0 && (
-                <p style={{ color: "var(--fg-muted)" }}>
-                  <span className="font-semibold">Ready in:</span>{" "}
-                  {recovering.join(" · ")}
-                </p>
-              )}
-              {cold.length > 0 && (
-                <p style={{ color: "var(--fg-muted)" }}>
-                  <span className="font-semibold">Cold:</span>{" "}
-                  {cold.join(", ")}
-                </p>
-              )}
-            </div>
-          )}
-        </>
-      )}
+      {rec && <RecoveryBars view={rec} />}
+
+      <HeartRateCard userId={userId} variant="row" />
     </section>
+  );
+}
+
+const STRIP_NAME: Record<string, string> = { FULL_BODY: "Full" };
+function dayName(split: string | null | undefined): string {
+  if (!split) return "Lift";
+  return STRIP_NAME[split] ?? splitLabel(split) ?? "Lift";
+}
+
+function Chevron() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--fg-dim)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+function Trophy({ on }: { on: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={on ? "#a3e635" : "var(--fg-dim)"} strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z" />
+      <path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3" />
+    </svg>
+  );
+}
+
+const ROW_COLOR = { over: "#ef4444", recovering: "#3b82f6", ready: "#22c55e" } as const;
+const LABEL_COLOR = { over: "#f87171", recovering: "#60a5fa", ready: "#4ade80" } as const;
+
+/// Recovery as bars: each major group fills as it recovers (full = ready to
+/// train hard again), anything overworked on top in red, the smaller
+/// muscles as a short list. Same numbers as the body map on Progress.
+function RecoveryBars({ view }: { view: RecoveryView }) {
+  return (
+    <div className="mt-3.5">
+      <div className="flex items-baseline justify-between">
+        <span className="label text-[9.5px] font-bold" style={{ color: "var(--fg-dim)" }}>
+          Muscle recovery
+        </span>
+        <span className="text-[11px] font-semibold nums" style={{ color: "#4ade80", fontFamily: "var(--font-geist-mono)" }}>
+          {view.readyMajors} of {MAJOR_GROUPS.length} ready
+        </span>
+      </div>
+      <p className="text-[11.5px] leading-snug mt-1" style={{ color: "var(--fg-dim)" }}>
+        Bars fill as a muscle recovers. Full means ready to train hard again.
+      </p>
+      <div className="flex flex-col gap-2.5 mt-2.5">
+        {view.rows.map((r) => {
+          const c = ROW_COLOR[r.state];
+          return (
+            <div key={r.name} className="grid items-center gap-2.5" style={{ gridTemplateColumns: "96px 1fr auto" }}>
+              <span className="min-w-0">
+                <span
+                  className="block text-[12.5px] font-semibold truncate"
+                  style={{ color: r.state === "over" ? "#f87171" : "var(--fg)" }}
+                >
+                  {r.name}
+                </span>
+                {r.note && (
+                  <span
+                    className="block text-[10px] leading-tight truncate"
+                    style={{ color: r.state === "over" ? "#fca5a5" : "var(--fg-dim)" }}
+                  >
+                    {r.note}
+                  </span>
+                )}
+              </span>
+              <span className="relative h-2 rounded-full" style={{ background: "#19191c" }}>
+                <span
+                  className="absolute inset-y-0 left-0 rounded-full"
+                  style={{
+                    width: `${r.fraction * 100}%`,
+                    background: `linear-gradient(90deg, color-mix(in srgb, ${c} 45%, #0a0a0a), ${c})`,
+                    boxShadow: `0 0 12px -2px ${c}`,
+                  }}
+                />
+                {r.state === "over" && (
+                  <span
+                    className="absolute -right-1.5 -top-[3px] w-3.5 h-3.5 rounded-full"
+                    style={{ background: c, boxShadow: `0 0 10px ${c}`, border: "2px solid var(--bg-card)" }}
+                  />
+                )}
+              </span>
+              <span
+                className="text-[11.5px] font-bold text-right whitespace-nowrap min-w-[64px]"
+                style={{ color: LABEL_COLOR[r.state] }}
+              >
+                {r.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {view.small.length > 0 && (
+        <div className="mt-3 pt-2.5 flex flex-col gap-1.5" style={{ borderTop: "1px solid var(--border)" }}>
+          <span className="label text-[9.5px] font-bold" style={{ color: "var(--fg-dim)" }}>
+            Smaller muscles
+          </span>
+          {view.small.map((m) => (
+            <p key={m.name} className="flex items-center gap-2 text-[12.5px] font-semibold">
+              <span
+                className="w-[7px] h-[7px] rounded-full shrink-0"
+                style={{ background: m.tone === "recovering" ? "#3b82f6" : "#52525b" }}
+              />
+              {m.name}
+              <span className="font-medium" style={{ color: "var(--fg-muted)" }}>
+                {m.text}
+              </span>
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

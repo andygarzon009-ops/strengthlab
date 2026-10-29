@@ -4,15 +4,13 @@ import { requireAuth } from "@/lib/session";
 import Link from "next/link";
 import WeeklyRecap from "@/components/WeeklyRecap";
 import PullToRefresh from "@/components/PullToRefresh";
-import HeartRateCard from "@/components/HeartRateCard";
 import PendingInvites from "@/components/PendingInvites";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
 import Wordmark from "@/components/Wordmark";
 import FeedTop, { FeedPRs } from "@/components/FeedTop";
-import CycleCard from "@/components/PhaseCard";
 import CrewPulse from "@/components/CrewPulse";
-import NewButton from "@/components/NewButton";
+import NotificationsBell from "@/components/NotificationsBell";
 import { loadSessionProgress } from "@/lib/sessionProgress";
 
 export default async function FeedPage() {
@@ -20,8 +18,17 @@ export default async function FeedPage() {
   // The feed is your own training. Friends' sessions live on the Crew page.
   const currentUser = await prisma.user.findUnique({
     where: { id: userId },
-    select: { name: true },
+    select: { name: true, timezone: true },
   });
+  const dateLine = new Intl.DateTimeFormat("en-US", {
+    timeZone: currentUser?.timezone || "UTC",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  })
+    .formatToParts(new Date())
+    .filter((p) => p.type === "weekday" || p.type === "month" || p.type === "day")
+    .map((p) => p.value);
 
   // The heavy nested workouts query lives inside <FeedList>, wrapped in
   // Suspense, so the page shell paints immediately instead of blocking.
@@ -29,7 +36,9 @@ export default async function FeedPage() {
   return (
     <PullToRefresh>
     <div className="relative isolate max-w-lg mx-auto px-4 pt-8">
-      <div className="flex items-end justify-between mb-8">
+      {/* Name, wordmark, today's date; notifications on the right. New
+          workouts and meals start from the + in the bottom bar. */}
+      <div className="flex items-start justify-between mb-6">
         <div>
           <p
             className="label mb-1"
@@ -37,9 +46,12 @@ export default async function FeedPage() {
           >
             {currentUser?.name?.split(" ")[0] ?? "Athlete"}
           </p>
-          <Wordmark size={28} />
+          <Wordmark size={26} />
+          <p className="label text-[11px] mt-1.5" style={{ color: "var(--fg-muted)" }}>
+            {dateLine[0]} · {dateLine[1]} {dateLine[2]}
+          </p>
         </div>
-<NewButton />
+        <NotificationsBell inline />
       </div>
 
       {/* Each card streams in independently. The glance rings make live
@@ -51,21 +63,14 @@ export default async function FeedPage() {
       <Suspense fallback={null}>
         <PendingInvites userId={userId} />
       </Suspense>
-      {/* A fresh PR leads for 48 h as a slim strip, then the training
-          block, then Today (readiness gauge + Macros / Activity tiles). */}
+      {/* A fresh PR leads for 48 h as a slim strip, then Today (training
+          block, readiness, Macros / Activity), then This week (days, stats,
+          muscle recovery, heart rate). */}
       <Suspense fallback={null}>
         <FeedPRs userId={userId} />
       </Suspense>
-      <Suspense fallback={<CardSkeleton height={130} />}>
-        <CycleCard userId={userId} />
-      </Suspense>
       <Suspense fallback={<CardSkeleton height={290} />}>
         <FeedTop userId={userId} />
-      </Suspense>
-      {/* Heart rate reads stored values, not Google Health, so it can't
-          hold up the rest. */}
-      <Suspense fallback={<CardSkeleton height={112} />}>
-        <HeartRateCard userId={userId} />
       </Suspense>
       <Suspense fallback={<CardSkeleton height={300} />}>
         <WeeklyRecap userId={userId} />

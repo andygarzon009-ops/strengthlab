@@ -4,16 +4,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// Floating top-right bell with an unread badge. Polls the pending
-// friend-request count, refetches on tab focus and on every route change so
-// the badge clears right after you accept/decline on /notifications.
-export default function NotificationsBell() {
+// Top-right bell with an unread badge. Polls the pending friend-request
+// count, refetches on tab focus and on every route change so the badge clears
+// right after you accept/decline on /notifications. Floats on the Crew page;
+// `inline` puts it in a page header instead (the feed).
+export default function NotificationsBell({ inline = false }: { inline?: boolean }) {
   const pathname = usePathname();
   const [count, setCount] = useState(0);
+  const shown = inline || pathname === "/group";
 
   useEffect(() => {
-    // Only poll on the Crew page, where the bell is actually shown.
-    if (pathname !== "/group") return;
+    // Only poll where the bell is actually shown.
+    if (!shown) return;
     let alive = true;
 
     const load = async () => {
@@ -39,11 +41,11 @@ export default function NotificationsBell() {
       clearInterval(id);
       window.removeEventListener("focus", onFocus);
     };
-  }, [pathname]);
+  }, [pathname, shown]);
 
-  // Only surface the bell on the Crew page — that's the social hub, and it
-  // keeps notifications out of the way everywhere else.
-  if (pathname !== "/group") return null;
+  // Floating, it only surfaces on the Crew page (the social hub); the feed
+  // carries an inline one in its header.
+  if (!shown) return null;
 
   const active = count > 0;
 
@@ -53,10 +55,10 @@ export default function NotificationsBell() {
       aria-label={
         active ? `Notifications, ${count} new` : "Notifications"
       }
-      className="fixed right-4 z-40 w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform backdrop-blur-xl"
+      className={`${inline ? "relative shrink-0" : "fixed right-4 z-40"} w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform backdrop-blur-xl`}
       style={{
-        top: "calc(env(safe-area-inset-top, 0px) + 12px)",
-        background: "rgba(20, 20, 20, 0.7)",
+        top: inline ? undefined : "calc(env(safe-area-inset-top, 0px) + 12px)",
+        background: inline ? "var(--bg-card)" : "rgba(20, 20, 20, 0.7)",
         border: "1px solid var(--border)",
       }}
     >

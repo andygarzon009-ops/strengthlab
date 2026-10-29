@@ -5,13 +5,14 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import {
+  REACTION_TYPES,
   FEELING_OPTIONS,
   labelForType,
   shapeForType,
   formatDuration,
   formatLoad,
 } from "@/lib/exercises";
-import ReactionButtons from "@/components/ReactionButtons";
+import ReactionButtons, { ReactionIcon } from "@/components/ReactionButtons";
 import ProgressRow from "@/components/ProgressRow";
 import type { SessionProgress } from "@/lib/sessionProgress";
 import CommentSection from "@/components/CommentSection";
@@ -98,31 +99,38 @@ export default function FeedWorkoutCard({
       {/* Header row */}
       <div className="p-4 pb-3">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-semibold shrink-0"
-              style={{
-                background: "var(--accent-dim)",
-                color: "var(--accent)",
-                border: "1px solid rgba(34,197,94,0.2)",
-              }}
-            >
-              {workout.user.name[0].toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-[14px] truncate">
-                {isOwn ? "You" : workout.user.name}
-              </p>
-              <p
-                className="text-[11px] mt-0.5"
-                style={{ color: "var(--fg-dim)" }}
+          {isOwn ? (
+            // Your own log: no avatar or "You", just when.
+            <p className="text-[12px] pt-0.5" style={{ color: "var(--fg-dim)" }}>
+              {formatDistanceToNow(new Date(workout.date), { addSuffix: true })}
+            </p>
+          ) : (
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-semibold shrink-0"
+                style={{
+                  background: "var(--accent-dim)",
+                  color: "var(--accent)",
+                  border: "1px solid rgba(34,197,94,0.2)",
+                }}
               >
-                {formatDistanceToNow(new Date(workout.date), {
-                  addSuffix: true,
-                })}
-              </p>
+                {workout.user.name[0].toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-[14px] truncate">
+                  {isOwn ? "You" : workout.user.name}
+                </p>
+                <p
+                  className="text-[11px] mt-0.5"
+                  style={{ color: "var(--fg-dim)" }}
+                >
+                  {formatDistanceToNow(new Date(workout.date), {
+                    addSuffix: true,
+                  })}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
           <div className="flex items-center gap-1.5 shrink-0">
             {feeling && (
               <span
@@ -159,7 +167,7 @@ export default function FeedWorkoutCard({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="w-full text-left mt-3"
+          className={`w-full text-left ${isOwn ? "mt-1.5" : "mt-3"}`}
           aria-expanded={expanded}
         >
           <div className="flex items-center justify-between gap-2">
@@ -300,16 +308,37 @@ export default function FeedWorkoutCard({
         </>
       )}
 
-      <div
-        className="px-4 py-3 flex items-center gap-2"
-        style={{ borderTop: "1px solid var(--border)" }}
-      >
-        <ReactionButtons
-          workoutId={workout.id}
-          reactions={workout.reactions}
-          currentUserId={currentUserId}
-        />
-        {!isOwn && (
+      {isOwn ? (
+        // Reacting to your own session isn't a thing, so your logs show what
+        // friends left as small counts, and nothing when there's nothing.
+        workout.reactions.length > 0 && (
+          <div className="px-4 pb-3 -mt-1 flex items-center gap-1.5">
+            {REACTION_TYPES.map((rt) => {
+              const n = workout.reactions.filter((r) => r.type === rt.value).length;
+              return n > 0 ? (
+                <span
+                  key={rt.value}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold tabular-nums"
+                  style={{ background: "var(--bg-elevated)", color: "var(--fg-muted)" }}
+                  aria-label={`${n} ${rt.label}`}
+                >
+                  <ReactionIcon name={rt.icon} color={rt.color} active />
+                  {n}
+                </span>
+              ) : null;
+            })}
+          </div>
+        )
+      ) : (
+        <div
+          className="px-4 py-3 flex items-center gap-2"
+          style={{ borderTop: "1px solid var(--border)" }}
+        >
+          <ReactionButtons
+            workoutId={workout.id}
+            reactions={workout.reactions}
+            currentUserId={currentUserId}
+          />
           <Link
             href={`/log?clone=${workout.id}`}
             className="ml-auto text-[11px] label px-2.5 py-1.5 rounded-lg"
@@ -321,8 +350,8 @@ export default function FeedWorkoutCard({
           >
             ⚡ Do this workout
           </Link>
-        )}
-      </div>
+        </div>
+      )}
 
       {expanded && (
         <CommentSection

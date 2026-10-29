@@ -332,3 +332,63 @@ export function PhaseSection({ phase }: { phase: ResolvedBlock }) {
     </Link>
   );
 }
+
+/// The cycle as one line for the top of the Today card: the block's name, a
+/// bar per week with this one lit, and the week count. Taps through to the
+/// cycle editor, like the full card used to.
+export function PhaseLine({ phase }: { phase: ResolvedBlock }) {
+  const { state, config } = phase;
+  const deload = state.isDeloadWeek;
+  const block = config.blocks[state.blockIndex];
+  const name = block?.name ?? state.blockName;
+  const total = deload ? (block?.weeks ?? 0) : state.blockWeeks;
+  const done = deload ? (state.pausedWeeksDone ?? 0) : state.weekInBlock;
+  const hue = deload ? DELOAD_BLUE : LIME;
+  return (
+    <Link
+      href="/profile#cycle"
+      aria-label={`${deload ? "Deload week" : name}, week ${done} of ${total}. Open your cycle`}
+      className="flex items-center gap-2.5 active:opacity-70"
+    >
+      <span
+        className="text-[11px] font-bold uppercase tracking-[0.12em] whitespace-nowrap"
+        style={{ color: hue }}
+      >
+        {deload ? "Deload week" : name}
+      </span>
+      <span className="flex-1 flex gap-1" aria-hidden>
+        {Array.from({ length: total }, (_, i) => {
+          const isNow = !deload && i === done - 1;
+          const past = deload ? i < done : i < done - 1;
+          return (
+            <span
+              key={i}
+              className="h-[5px] flex-1 rounded-full"
+              style={{
+                background: isNow || past ? hue : "var(--bg-elevated)",
+                opacity: past ? 0.4 : 1,
+                boxShadow: isNow ? `0 0 10px ${rgba(hue, 0.6)}` : undefined,
+              }}
+            />
+          );
+        })}
+      </span>
+      <span
+        className="text-[11px] tabular-nums whitespace-nowrap"
+        style={{ color: "var(--fg-muted)", fontFamily: "var(--font-geist-mono)" }}
+      >
+        {deload ? "recover" : `wk ${done}/${total}`}
+      </span>
+    </Link>
+  );
+}
+
+/// What this block means at the gym, as one quiet line ("6–12 reps · RIR 1–2
+/// · 90–120 s rest") — the same numbers as the full card's chips.
+export function phaseRx(phase: ResolvedBlock): string | null {
+  const { state, config } = phase;
+  const deload = state.isDeloadWeek;
+  const name = config.blocks[state.blockIndex]?.name ?? state.blockName;
+  const chips = CHIPS[deload ? "deload" : blockKindOf(name, false)];
+  return chips ? chips.map(([v, l]) => `${v} ${l}`).join(" · ") : null;
+}

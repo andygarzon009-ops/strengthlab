@@ -6,7 +6,7 @@ import { useTransition } from "react";
 
 type Reaction = { id: string; userId: string; type: string };
 
-function ReactionIcon({
+export function ReactionIcon({
   name,
   color,
   active,

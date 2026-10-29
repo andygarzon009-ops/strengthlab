@@ -12,6 +12,7 @@ import BackButton from "@/components/BackButton";
 import TopLiftsCard from "@/components/TopLiftsCard";
 import { mergeLiftsWithTargets } from "@/lib/strengthProgression";
 import Link from "next/link";
+import BodyScanCard from "@/components/BodyScanCard";
 
 export const dynamic = "force-dynamic";
 
@@ -151,6 +152,8 @@ export default async function StrengthOverviewPage() {
           </p>
         </div>
       )}
+
+      <BodyScanCard userId={userId} />
 
       <Projections items={projections} />
 

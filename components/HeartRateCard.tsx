@@ -5,6 +5,8 @@ import { refreshRecovery } from "@/lib/recovery";
 
 type Props = {
   userId: string;
+  /// "row": a line inside the feed's This week card instead of its own card.
+  variant?: "card" | "row";
 };
 
 function formatRelative(d: Date): string {
@@ -24,7 +26,7 @@ function formatRelative(d: Date): string {
 // Refresh the stored resting HR at most this often (background, post-response).
 const RESTING_STALE_MS = 2 * 60 * 60 * 1000; // 2 hours
 
-export default async function HeartRateCard({ userId }: Props) {
+export default async function HeartRateCard({ userId, variant = "card" }: Props) {
   // Read last-known resting HR straight from the DB — instant, no Google call.
   const account = await prisma.healthAccount.findUnique({
     where: { userId },
@@ -92,6 +94,64 @@ export default async function HeartRateCard({ userId }: Props) {
         lastWorkout.endedAt ?? lastWorkout.startedAt ?? lastWorkout.date,
       )
     : null;
+
+  if (variant === "row") {
+    const num = "text-[17px] font-semibold tabular-nums leading-none";
+    const unit = "text-[10.5px] ml-1";
+    return (
+      <Link
+        href="/heart-rate"
+        aria-label="Open heart rate"
+        className="relative z-10 flex items-center gap-3 mt-3.5 pt-3 active:opacity-70"
+        style={{ borderTop: "1px solid var(--border)" }}
+      >
+        <svg
+          className="heartbeat shrink-0"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="#ef4444"
+          aria-hidden
+          style={{ filter: "drop-shadow(0 0 6px rgba(239,68,68,0.55))" }}
+        >
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+        </svg>
+        {restingNow !== null && (
+          <div className="shrink-0">
+            <p className={label} style={{ color: "var(--fg-dim)" }}>Resting</p>
+            <p className="mt-1" style={{ fontFamily: "var(--font-geist-mono)" }}>
+              <span className={num}>{restingNow}</span>
+              <span className={unit} style={{ color: "var(--fg-muted)" }}>bpm</span>
+            </p>
+          </div>
+        )}
+        {lastWorkout && (
+          <div className="min-w-0">
+            <p className={`${label} truncate`} style={{ color: "var(--fg-dim)" }}>
+              Last session · {when}
+            </p>
+            <p className="mt-1 whitespace-nowrap" style={{ fontFamily: "var(--font-geist-mono)" }}>
+              {lastWorkout.avgHeartRate && (
+                <>
+                  <span className={num}>{lastWorkout.avgHeartRate}</span>
+                  <span className={`${unit} mr-2.5`} style={{ color: "var(--fg-muted)" }}>avg</span>
+                </>
+              )}
+              {lastWorkout.maxHeartRate && (
+                <>
+                  <span className={num}>{lastWorkout.maxHeartRate}</span>
+                  <span className={unit} style={{ color: "var(--fg-muted)" }}>max</span>
+                </>
+              )}
+            </p>
+          </div>
+        )}
+        <svg className="ml-auto shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--fg-dim)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </Link>
+    );
+  }
 
   // A title, then one row with two readings. Each side used to stack four
   // lines deep; now it's label, number, one line of context.

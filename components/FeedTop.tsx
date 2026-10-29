@@ -2,7 +2,8 @@ import Link from "next/link";
 import { formatPlates } from "@/lib/exercises";
 import { loadTodayPlan, type TodayPlan } from "@/lib/todayPlan";
 import { loadRecentPRs, type RecentPR } from "@/lib/recentPRs";
-import { loadPhase, DELOAD_BLUE } from "@/components/PhaseCard";
+import { loadPhase, DELOAD_BLUE, PhaseLine, phaseRx } from "@/components/PhaseCard";
+import type { ResolvedBlock } from "@/lib/blockStamp";
 import Sparkline from "@/components/Sparkline";
 import SharePRButton from "@/components/SharePRButton";
 import DailyGlance, { type ActivityGlance, type RecoveryGlance } from "@/components/DailyGlance";
@@ -25,6 +26,7 @@ export default async function FeedTop({ userId }: { userId: string }) {
   return (
     <TodayCard
       plan={plan}
+      phase={phase}
       deload={deload}
       deloadPct={deloadPct}
       compact={false}
@@ -44,6 +46,7 @@ export async function FeedPRs({ userId }: { userId: string }) {
 
 function TodayCard({
   plan,
+  phase,
   deload,
   deloadPct,
   compact,
@@ -51,6 +54,8 @@ function TodayCard({
   activity,
 }: {
   plan: TodayPlan;
+  /// The training cycle, drawn as one line on top. Null with no cycle set up.
+  phase: ResolvedBlock | null;
   deload: boolean;
   deloadPct: number;
   compact: boolean;
@@ -59,6 +64,7 @@ function TodayCard({
 }) {
   const done = plan.doneToday;
   const next = plan.next;
+  const rx = phase ? phaseRx(phase) : null;
   const eyebrow = `${deload ? "Deload week" : "Today"} · ${plan.dayLabel}`;
   const title = done
     ? `${done.title}`
@@ -106,8 +112,8 @@ function TodayCard({
         {eyebrow}
       </p>
       <h2
-        className="font-extrabold tracking-tight leading-none mt-1.5 truncate"
-        style={{ fontSize: compact ? 19 : 24 }}
+        className="font-extrabold tracking-tight leading-[1.05] mt-1.5 line-clamp-2"
+        style={{ fontSize: compact ? 19 : 22, textWrap: "balance" }}
       >
         {title}
       </h2>
@@ -123,7 +129,22 @@ function TodayCard({
   );
 
   return (
-    <DailyGlance recovery={recovery} activity={activity} head={head}>
+    <DailyGlance
+      recovery={recovery}
+      activity={activity}
+      top={phase ? <PhaseLine phase={phase} /> : null}
+      head={head}
+      below={
+        rx ? (
+          <p
+            className="text-[11.5px] mt-3 truncate"
+            style={{ color: "var(--fg-dim)", fontFamily: "var(--font-geist-mono)" }}
+          >
+            {rx}
+          </p>
+        ) : null
+      }
+    >
       <p className="text-[14px] leading-snug mt-3.5" style={{ color: "var(--fg)", opacity: 0.85 }}>
         {line}
       </p>

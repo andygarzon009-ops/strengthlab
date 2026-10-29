@@ -101,8 +101,7 @@ function SplitTile({
 }) {
   const cls = "relative min-w-0 rounded-2xl px-3 pt-3 pb-3.5 flex flex-col gap-[11px]";
   const style = {
-    background: `radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, ${color} 13%, transparent), transparent 60%), rgba(255,255,255,0.02)`,
-    border: "1px solid var(--border-strong)",
+    background: "var(--bg-elevated)",
   };
   const content = (
     <>
@@ -187,13 +186,19 @@ function SplitTile({
 export default function DailyGlance({
   recovery,
   activity,
+  top,
   head,
+  below,
   children,
 }: {
   recovery: RecoveryGlance | null;
   activity: ActivityGlance | null;
+  /// Above everything: the training block's line.
+  top?: ReactNode;
   /// The plan's title block, set beside the gauge.
   head: ReactNode;
+  /// Under the gauge row: the block's reps / effort / rest.
+  below?: ReactNode;
   /// The coach's line and the call to action, under the stats.
   children: ReactNode;
 }) {
@@ -277,46 +282,46 @@ export default function DailyGlance({
 
   const r = recovery;
   return (
-    <section aria-label="Today" className="card mb-3 overflow-hidden px-[18px] pt-4 pb-[18px]">
-      <div className="flex items-stretch gap-3.5">
-        {/* Readiness: the gauge, number and band, under an eyebrow that lines
-            up with the plan's. Tapping it opens the readiness page — the full
-            breakdown lives there. */}
-        <div className="shrink-0 flex flex-col items-center">
-          <p className="label text-[11px]" style={{ color: "var(--fg-dim)" }}>
-            Readiness
-          </p>
-          <Link
-            href="/recovery"
-            aria-label={r ? `Readiness ${r.score}, ${r.label}. Open readiness` : "Open readiness"}
-            className="relative shrink-0 rounded-2xl mt-1 active:opacity-80"
-          >
-            <TickGauge score={r?.score ?? null} size={96} id="feed-gauge" ticks={40} />
-            <span className="absolute inset-0 flex items-center justify-center pb-1.5">
-              <span
-                className="text-[26px] font-bold leading-none tabular-nums"
-                style={{ letterSpacing: "-0.04em" }}
-              >
-                {r?.score ?? "—"}
-              </span>
-            </span>
+    <section aria-label="Today" className="card mb-3 overflow-hidden px-4 pt-4 pb-4">
+      {top}
+      <div className={`flex items-center gap-3 ${top ? "mt-3.5" : ""}`}>
+        {/* Readiness: the gauge and number, with a chip under it naming what
+            it is and the band. Tapping it opens the readiness page — the
+            full breakdown lives there. */}
+        <Link
+          href="/recovery"
+          aria-label={r ? `Readiness ${r.score}, ${r.label}. Open readiness` : "Open readiness"}
+          className="relative shrink-0 w-[124px] flex justify-center pb-2 active:opacity-80"
+        >
+          <TickGauge score={r?.score ?? null} size={104} id="feed-gauge" ticks={40} />
+          <span className="absolute inset-x-0 top-0 h-[104px] flex items-center justify-center pb-3">
             <span
-              className="absolute left-0 right-0 flex items-center justify-center gap-0.5 text-[10px] font-bold"
-              style={{ bottom: 1, color: r?.color ?? "var(--fg-muted)" }}
+              className="text-[30px] font-bold leading-none tabular-nums"
+              style={{ letterSpacing: "-0.04em" }}
             >
-              {r?.label ?? "Readiness"}
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M9 6l6 6-6 6" />
-              </svg>
+              {r?.score ?? "—"}
             </span>
-          </Link>
-        </div>
-        {/* Eyebrow on top, level with Readiness; title and meta centred
-            beside the gauge below it. */}
-        <div className="min-w-0 flex-1 flex flex-col [&>*:nth-child(2)]:mt-auto [&>*:last-child]:mb-auto">
-          {head}
-        </div>
+          </span>
+          <span
+            className="absolute bottom-0 left-1/2 -translate-x-1/2 flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[3px] text-[11px] font-bold"
+            style={{
+              color: r?.color ?? "var(--fg-muted)",
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid var(--border-strong)",
+            }}
+          >
+            <span className="font-semibold" style={{ color: "var(--fg-muted)" }}>
+              Readiness
+            </span>
+            {r?.label}
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </span>
+        </Link>
+        <div className="min-w-0 flex-1">{head}</div>
       </div>
+      {below}
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         {fuelTile ? (
@@ -352,8 +357,10 @@ export default function DailyGlance({
             color={ACTIVITY_COLOR}
             big={`${activity.pct}%`}
             sub={`${activity.moveCal.toLocaleString()} cal`}
-            parts={activity.rows.map((row) => ({
-              label: row.label === "Sessions" ? "Lift" : row.label,
+            // Lift days show in This week's day strip, so the tile keeps
+            // Move and Exercise.
+            parts={activity.rows.filter((row) => row.label !== "Sessions").map((row) => ({
+              label: row.label,
               pct: row.goal > 0 ? (row.value / row.goal) * 100 : 0,
             }))}
           />
