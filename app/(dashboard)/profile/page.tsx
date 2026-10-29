@@ -105,33 +105,6 @@ export default async function ProfilePage() {
         <TutorialLauncher />
 
         <Link
-          href="/body"
-          className="card flex items-center justify-between px-4 py-4 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: "var(--bg-elevated)" }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--fg-muted)"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M3 8h18v8H3zM7 8v3M11 8v4M15 8v3M19 8v4" />
-              </svg>
-            </div>
-            <span className="font-medium text-[14px]">Body measurements</span>
-          </div>
-          <span style={{ color: "var(--fg-dim)" }}>→</span>
-        </Link>
-
-        <Link
           href="/exercises"
           className="card flex items-center justify-between px-4 py-4 transition-colors"
         >

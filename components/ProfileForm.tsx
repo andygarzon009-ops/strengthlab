@@ -7,8 +7,6 @@ import ImageUpload from "@/components/ImageUpload";
 import UsernameField from "@/components/UsernameField";
 import PeriodizationEditor from "@/components/PeriodizationEditor";
 import { isValidConfig, type PeriodizationConfig } from "@/lib/periodization";
-import { formatDelta } from "@/lib/bodyMeasurements";
-import type { MeasurementReport } from "@/lib/actions/workouts";
 
 type UserProfile = {
   name: string;
@@ -51,20 +49,9 @@ type MeasureUnit = "in" | "cm";
 const MEASURE_UNIT_KEY = "sl:measureUnit";
 const CM_PER_IN = 2.54;
 
-// Every length field on the form. Resting HR and bodyweight are not lengths
-// and never convert.
-const LENGTH_FIELDS = [
-  "height",
-  "neck",
-  "shoulders",
-  "chest",
-  "arm",
-  "forearm",
-  "waist",
-  "hips",
-  "thigh",
-  "calf",
-] as const;
+// Every length field on the form — tape measurements live on /body now, so
+// only height is left. Resting HR and bodyweight are not lengths.
+const LENGTH_FIELDS = ["height"] as const;
 
 // One decimal on screen: a tape measure doesn't resolve finer than that, and
 // it round-trips — 15in → 38.1cm → 15.0in, 32in → 81.3cm → 32.0in — so
@@ -72,17 +59,6 @@ const LENGTH_FIELDS = [
 const show = (n: number) => Math.round(n * 10) / 10;
 const inToCm = (inches: number) => show(inches * CM_PER_IN);
 const cmToIn = (cm: number) => show(cm / CM_PER_IN);
-
-// Which direction counts as progress, per field. A waist or a body-fat
-// reading going down is the win; a limb or the chest going up is. Bodyweight
-// is deliberately neutral — whether up is good depends entirely on the phase
-// the athlete is in, and the interpretation line says which.
-function progressColor(key: string, delta: number): string {
-  if (key === "bodyweight") return "var(--fg)";
-  const goodDown = key === "waist" || key === "bodyFat";
-  const good = goodDown ? delta < 0 : delta > 0;
-  return good ? "var(--accent)" : "#f97316";
-}
 
 export default function ProfileForm({
   user,
@@ -116,9 +92,6 @@ export default function ProfileForm({
   }, []);
   const [showMeasurements, setShowMeasurements] = useState(false);
   const [unit, setUnit] = useState<MeasureUnit>("in");
-  // What the last save did to the tape. Null until a save actually moves
-  // something — a profile edit that doesn't touch measurements says nothing.
-  const [report, setReport] = useState<MeasurementReport | null>(null);
   const [saved, setSaved] = useState(false);
   const [image, setImage] = useState<string | null>(user.image);
   const [coverImage, setCoverImage] = useState<string | null>(user.coverImage);
@@ -145,15 +118,6 @@ export default function ProfileForm({
     coachPrompt: user.coachPrompt ?? "",
     height: user.height?.toString() ?? "",
     restingHR: user.restingHR?.toString() ?? "",
-    waist: user.waist?.toString() ?? "",
-    hips: user.hips?.toString() ?? "",
-    chest: user.chest?.toString() ?? "",
-    shoulders: user.shoulders?.toString() ?? "",
-    neck: user.neck?.toString() ?? "",
-    arm: user.arm?.toString() ?? "",
-    forearm: user.forearm?.toString() ?? "",
-    thigh: user.thigh?.toString() ?? "",
-    calf: user.calf?.toString() ?? "",
   });
 
   const set = (key: keyof typeof form) => (v: string) =>
@@ -206,11 +170,6 @@ export default function ProfileForm({
   // height in centimetres.
   const ph = (inches: number) => String(unit === "cm" ? inToCm(inches) : inches);
 
-  // The report renders in whatever unit is on screen.
-  const lengthDisplay =
-    unit === "cm"
-      ? { convert: (i: number) => i * CM_PER_IN, label: "cm" }
-      : { convert: (i: number) => i, label: "in" };
 
   // Photos persist immediately on upload so they feel instant — no need to
   // hit Save. (The main Save also includes them, harmlessly.)
@@ -255,7 +214,7 @@ export default function ProfileForm({
     setCycleError(null);
 
     startTransition(async () => {
-      const res = await updateProfileAction({
+      await updateProfileAction({
         name: form.name,
         image,
         coverImage,
@@ -277,17 +236,7 @@ export default function ProfileForm({
         periodization,
         height: lengthInches(form.height),
         restingHR: intOrNull(form.restingHR),
-        waist: lengthInches(form.waist),
-        hips: lengthInches(form.hips),
-        chest: lengthInches(form.chest),
-        shoulders: lengthInches(form.shoulders),
-        neck: lengthInches(form.neck),
-        arm: lengthInches(form.arm),
-        forearm: lengthInches(form.forearm),
-        thigh: lengthInches(form.thigh),
-        calf: lengthInches(form.calf),
       });
-      setReport(res?.measurements ?? null);
 
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -413,8 +362,24 @@ export default function ProfileForm({
               />
             </div>
           </div>
-          {/* Body measurements — nested under body weight, so the body stats sit
-              together. */}
+          {/* Tape measurements moved to /body and its monthly check-in; the
+              link sits under body weight so the body stats stay together. */}
+          <Link
+            href="/body"
+            className="rounded-xl flex items-center justify-between px-4 py-3.5"
+            style={{
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <div>
+              <p className="label">Body measurements</p>
+              <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
+                Monthly check-in &amp; body map
+              </p>
+            </div>
+            <span style={{ color: "var(--fg-dim)" }}>→</span>
+          </Link>
           <div
             className="rounded-xl overflow-hidden"
             style={{
@@ -428,13 +393,13 @@ export default function ProfileForm({
               className="w-full flex items-center justify-between px-4 py-3.5 text-left"
             >
               <div>
-                <p className="label">Body measurements</p>
+                <p className="label">Height &amp; resting HR</p>
                 <p
                   className="text-[11px] mt-0.5"
                   style={{ color: "var(--fg-dim)" }}
                 >
                   {filledMeasurements > 0
-                    ? `${filledMeasurements} tracked`
+                    ? `${filledMeasurements} of 2 set`
                     : `Optional — ${unit === "cm" ? "centimetres" : "inches"}`}
                 </p>
               </div>
@@ -522,97 +487,6 @@ export default function ProfileForm({
                   />
                 </div>
 
-                <p
-                  className="label text-[9px] mt-4"
-                  style={{ color: "var(--fg-dim)" }}
-                >
-                  Upper body ({unit})
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  <Field
-                    label="Neck"
-                    type="number"
-                    value={form.neck}
-                    onChange={set("neck")}
-                    placeholder={ph(15)}
-                    compact
-                  />
-                  <Field
-                    label="Shoulders"
-                    type="number"
-                    value={form.shoulders}
-                    onChange={set("shoulders")}
-                    placeholder={ph(47)}
-                    compact
-                  />
-                  <Field
-                    label="Chest"
-                    type="number"
-                    value={form.chest}
-                    onChange={set("chest")}
-                    placeholder={ph(41)}
-                    compact
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <Field
-                    label="Arm"
-                    type="number"
-                    value={form.arm}
-                    onChange={set("arm")}
-                    placeholder={ph(15)}
-                    compact
-                  />
-                  <Field
-                    label="Forearm"
-                    type="number"
-                    value={form.forearm}
-                    onChange={set("forearm")}
-                    placeholder={ph(13)}
-                    compact
-                  />
-                  <Field
-                    label="Waist"
-                    type="number"
-                    value={form.waist}
-                    onChange={set("waist")}
-                    placeholder={ph(32)}
-                    compact
-                  />
-                </div>
-
-                <p
-                  className="label text-[9px] mt-4"
-                  style={{ color: "var(--fg-dim)" }}
-                >
-                  Lower body ({unit})
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  <Field
-                    label="Hips"
-                    type="number"
-                    value={form.hips}
-                    onChange={set("hips")}
-                    placeholder={ph(39)}
-                    compact
-                  />
-                  <Field
-                    label="Thigh"
-                    type="number"
-                    value={form.thigh}
-                    onChange={set("thigh")}
-                    placeholder={ph(24)}
-                    compact
-                  />
-                  <Field
-                    label="Calf"
-                    type="number"
-                    value={form.calf}
-                    onChange={set("calf")}
-                    placeholder={ph(16)}
-                    compact
-                  />
-                </div>
               </div>
             )}
           </div>
@@ -781,46 +655,6 @@ export default function ProfileForm({
             </p>
           </div>
 
-          {report && (
-            <div
-              className="rounded-xl p-4 animate-slide-up"
-              style={{
-                background: "var(--accent-dim)",
-                border: "1px solid var(--accent)",
-              }}
-            >
-              <p className="label text-[9px]" style={{ color: "var(--accent)" }}>
-                Since{" "}
-                {new Date(report.since).toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                })}
-              </p>
-              <div className="mt-2 space-y-1">
-                {report.deltas.map((d) => (
-                  <p
-                    key={d.key}
-                    className="text-[12px] nums"
-                    style={{
-                      fontFamily: "var(--font-geist-mono)",
-                      color: progressColor(d.key, d.delta),
-                    }}
-                  >
-                    {formatDelta(d, lengthDisplay)}
-                  </p>
-                ))}
-              </div>
-              {report.reading && (
-                <p
-                  className="text-[12px] mt-3 leading-relaxed"
-                  style={{ color: "var(--fg-muted)" }}
-                >
-                  {report.reading}
-                </p>
-              )}
-            </div>
-          )}
-
           <div className="flex items-center gap-2 pt-2">
             <button
               type="submit"
@@ -927,18 +761,5 @@ function Select({
 }
 
 function countMeasurements(user: UserProfile): number {
-  const keys: (keyof UserProfile)[] = [
-    "height",
-    "restingHR",
-    "waist",
-    "hips",
-    "chest",
-    "shoulders",
-    "neck",
-    "arm",
-    "forearm",
-    "thigh",
-    "calf",
-  ];
-  return keys.filter((k) => user[k] != null).length;
+  return [user.height, user.restingHR].filter((v) => v != null).length;
 }
