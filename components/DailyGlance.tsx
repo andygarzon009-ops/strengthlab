@@ -186,6 +186,7 @@ function SplitTile({
 export default function DailyGlance({
   recovery,
   activity,
+  activityHref,
   top,
   head,
   below,
@@ -193,6 +194,8 @@ export default function DailyGlance({
 }: {
   recovery: RecoveryGlance | null;
   activity: ActivityGlance | null;
+  /// Where the Activity tile goes: today's logged workout, when there is one.
+  activityHref?: string;
   /// Above everything: the training block's line.
   top?: ReactNode;
   /// The plan's title block, set beside the gauge.
@@ -353,6 +356,7 @@ export default function DailyGlance({
         {activity && (
           <SplitTile
             label="Activity"
+            href={activityHref}
             icon={<ZapIcon />}
             color={ACTIVITY_COLOR}
             big={`${activity.pct}%`}

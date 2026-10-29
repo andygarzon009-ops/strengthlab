@@ -83,10 +83,8 @@ function TodayCard({
   const ask = next
     ? `Plan today's ${next.label} workout for me${deload ? " — it's a deload week" : ""}. Include the warm-up.`
     : "Plan a workout for me today. Include the warm-up.";
-  const href = done
-    ? `/workout/${done.id}`
-    : `/?coach=1&ask=${encodeURIComponent(ask)}`;
-  const cta = done ? "View log" : next ? `Start ${next.label} day` : "Start a session";
+  const href = `/?coach=1&ask=${encodeURIComponent(ask)}`;
+  const cta = next ? `Start ${next.label} day` : "Start a session";
   // A deload overrides the readiness advice: however good the numbers look,
   // this is not the week to push.
   const line =
@@ -132,6 +130,8 @@ function TodayCard({
     <DailyGlance
       recovery={recovery}
       activity={activity}
+      // Once today's session is logged, Activity opens it (no button needed).
+      activityHref={done ? `/workout/${done.id}` : undefined}
       top={phase ? <PhaseLine phase={phase} /> : null}
       head={head}
       below={
@@ -148,16 +148,15 @@ function TodayCard({
       <p className="text-[14px] leading-snug mt-3.5" style={{ color: "var(--fg)", opacity: 0.85 }}>
         {line}
       </p>
-      <Link
-        href={href}
-        // A finished session is a quiet link to its log; only a session
-        // still to do gets the green call to action.
-        className={`${done ? "" : "btn-accent"} ${compact ? "mt-3 min-h-[42px] rounded-xl text-[14px]" : "mt-4 min-h-[48px] rounded-2xl text-[15px]"} flex items-center justify-center gap-2 font-bold`}
-        style={done ? { background: "var(--bg-elevated)", color: "var(--fg)" } : undefined}
-      >
-        {cta}
-        {Arrow}
-      </Link>
+      {!done && (
+        <Link
+          href={href}
+          className={`btn-accent ${compact ? "mt-3 min-h-[42px] rounded-xl text-[14px]" : "mt-4 min-h-[48px] rounded-2xl text-[15px]"} flex items-center justify-center gap-2 font-bold`}
+        >
+          {cta}
+          {Arrow}
+        </Link>
+      )}
     </DailyGlance>
   );
 }
