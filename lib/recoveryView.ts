@@ -40,6 +40,8 @@ export type RecoveryRow = {
   fraction: number;
   /// Right-hand label: "Ready", "Ready in 52h", "Overworked".
   label: string;
+  /// Under an "Overworked" label: when it's ready ("ready in 15h").
+  sub?: string;
   /// Small line under the name: when it's ready, why it's over, or that it
   /// hasn't been trained lately.
   note: string | null;
@@ -58,7 +60,14 @@ function progress(m: MuscleStat): number {
 }
 
 function overRow(name: string, m: MuscleStat): RecoveryRow {
-  return { name, state: "over", fraction: progress(m), label: "Overworked", note: overNote(m) };
+  return {
+    name,
+    state: "over",
+    fraction: progress(m),
+    label: "Overworked",
+    sub: `ready in ${hoursToRecovered(m)}h`,
+    note: overNote(m),
+  };
 }
 
 /// "this evening", "tomorrow morning", "Fri evening" — when `hours` from now

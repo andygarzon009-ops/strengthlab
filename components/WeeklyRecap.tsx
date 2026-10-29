@@ -306,6 +306,11 @@ function RecoveryBars({ view }: { view: RecoveryView }) {
                 style={{ color: LABEL_COLOR[r.state] }}
               >
                 {r.label}
+                {r.sub && (
+                  <span className="block text-[10px] font-semibold" style={{ color: "#fca5a5" }}>
+                    {r.sub}
+                  </span>
+                )}
               </span>
             </div>
           );
