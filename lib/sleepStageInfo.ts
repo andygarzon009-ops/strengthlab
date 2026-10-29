@@ -20,6 +20,25 @@ export const STAGE_TARGET: Record<Exclude<StageKey, "awake">, [number, number]> 
 /// Awake time above this on a night reads as restless.
 export const AWAKE_OK_MIN = 30;
 
+/// How one night's share of a stage reads. Deep and REM are what the night is
+/// for, so landing above the typical share is more of a good thing — only
+/// falling short is worth flagging. Light is the opposite: above range means it
+/// crowded the other two out.
+export function stageVerdict(
+  stage: StageKey,
+  min: number,
+  totalSleep: number,
+): { text: "Low" | "High" | "In range" | "Normal" | "Restless"; good: boolean } {
+  if (stage === "awake") {
+    return min <= AWAKE_OK_MIN ? { text: "Normal", good: true } : { text: "Restless", good: false };
+  }
+  const pct = totalSleep > 0 ? (min / totalSleep) * 100 : 0;
+  const [lo, hi] = STAGE_TARGET[stage];
+  if (pct < lo) return { text: "Low", good: false };
+  if (pct > hi) return { text: "High", good: stage !== "light" };
+  return { text: "In range", good: true };
+}
+
 export const STAGE_MIN_KEY: Record<StageKey, "deepMin" | "remMin" | "lightMin" | "awakeMin"> = {
   deep: "deepMin",
   rem: "remMin",

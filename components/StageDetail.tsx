@@ -16,6 +16,7 @@ import {
   STAGE_INFO,
   STAGE_MIN_KEY,
   STAGE_TARGET,
+  stageVerdict,
   type StageKey,
 } from "@/lib/sleepStageInfo";
 
@@ -81,19 +82,14 @@ function rangeMin(stage: StageKey, total: number): [number, number] {
   return [(lo / 100) * total, (hi / 100) * total];
 }
 
+// "Good" rather than strictly in range: deep or REM above the typical share
+// isn't a miss (see stageVerdict).
 function inRange(stage: StageKey, p: Point): boolean {
-  if (stage === "awake") return p.min <= AWAKE_OK_MIN;
-  const pct = p.total > 0 ? (p.min / p.total) * 100 : 0;
-  const [lo, hi] = STAGE_TARGET[stage];
-  return pct >= lo && pct <= hi;
+  return stageVerdict(stage, p.min, p.total).good;
 }
 
 function status(stage: StageKey, p: Point): { text: string; good: boolean } {
-  if (stage === "awake")
-    return p.min <= AWAKE_OK_MIN ? { text: "Normal", good: true } : { text: "Restless", good: false };
-  const pct = p.total > 0 ? (p.min / p.total) * 100 : 0;
-  const [lo, hi] = STAGE_TARGET[stage];
-  return pct < lo ? { text: "Low", good: false } : pct > hi ? { text: "High", good: false } : { text: "In range", good: true };
+  return stageVerdict(stage, p.min, p.total);
 }
 
 /// Round-number gridlines in minutes covering [0, hi].
@@ -495,7 +491,12 @@ function RangeStats({ stage, nights }: { stage: StageKey; nights: Point[] }) {
         <Stat label="Highest" value={fmtDur(hi.min)} note={dayLabel(hi.date)} />
       </div>
       <p className="text-[11px] mt-2 text-center tabular-nums" style={{ color: "var(--fg-muted)" }}>
-        {stage === "awake" ? "Normal" : "In the typical range"} on {ok} of {nights.length} night{nights.length === 1 ? "" : "s"}
+        {stage === "awake"
+          ? "Normal"
+          : stage === "light"
+            ? "In the typical range"
+            : "At or above the typical range"}{" "}
+        on {ok} of {nights.length} night{nights.length === 1 ? "" : "s"}
       </p>
     </>
   );

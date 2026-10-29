@@ -6,7 +6,7 @@
 import Link from "next/link";
 import SleepHypnogram from "@/components/SleepHypnogram";
 import { STAGE_STYLE, type StageSeg } from "@/lib/sleepStages";
-import { AWAKE_OK_MIN, STAGE_TARGET as TARGET } from "@/lib/sleepStageInfo";
+import { STAGE_TARGET as TARGET, stageVerdict } from "@/lib/sleepStageInfo";
 
 export type SleepSummary = {
   asleepMin: number;
@@ -127,18 +127,8 @@ function StageTile({
   const st = STAGE_STYLE[stage];
   const pct = totalSleep > 0 ? (min / totalSleep) * 100 : 0;
   const target = stage === "awake" ? null : TARGET[stage];
-  let status: { text: string; color: string } | null = null;
-  if (target) {
-    status =
-      pct < target[0]
-        ? { text: "Low", color: WARN }
-        : pct > target[1]
-          ? { text: "High", color: WARN }
-          : { text: "In range", color: GOOD };
-  } else {
-    status =
-      min <= AWAKE_OK_MIN ? { text: "Normal", color: GOOD } : { text: "Restless", color: WARN };
-  }
+  const verdict = stageVerdict(stage, min, totalSleep);
+  const status = { text: verdict.text, color: verdict.good ? GOOD : WARN };
   const scale = stage === "light" ? 80 : 40; // % axis for the track
   return (
     <Link
