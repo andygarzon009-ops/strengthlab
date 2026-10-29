@@ -108,6 +108,10 @@ export default function NextMeal({
   const [recipes, setRecipes] = useState<Partial<Record<Meal, Recipe[]>>>({});
   const [loading, setLoading] = useState<Partial<Record<Meal, boolean>>>({});
   const [errors, setErrors] = useState<Partial<Record<Meal, string>>>({});
+  // What each meal's recipes were built around ("" = anything), and the
+  // ingredients being typed for the next batch.
+  const [have, setHave] = useState<Partial<Record<Meal, string>>>({});
+  const [draft, setDraft] = useState("");
   // The recipe in the sheet: which meal's list and where in it.
   const [sheet, setSheet] = useState<{ meal: Meal; idx: number } | null>(null);
   const router = useRouter();
@@ -134,41 +138,51 @@ export default function NextMeal({
   // Recipes are kept for the day per meal and calorie budget, so leaving and
   // coming back to Fuel (or flipping between meals) doesn't pay for a new batch.
   const cacheKey = (m: Meal, kcal: number) =>
-    `nextmeal:v4:${new Date().toDateString()}:${m}:${Math.round(kcal / 100)}`;
+    `nextmeal:v5:${new Date().toDateString()}:${m}:${Math.round(kcal / 100)}`;
 
   const fetchRecipes = async (m: Meal, extra: Record<string, unknown> = {}) => {
     const budget = slotOf(m)?.budget ?? dayRoom;
     const res = await fetch("/api/food/recipes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...budget, meal: m, phase, ...extra }),
+      body: JSON.stringify({ ...budget, meal: m, phase, have: have[m] ?? "", ...extra }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok || !Array.isArray(body.recipes)) throw new Error(body.error ?? "Couldn't load recipes — try again");
     return body.recipes as Recipe[];
   };
 
-  const save = (m: Meal, list: Recipe[]) => {
+  const save = (m: Meal, list: Recipe[], built: string) => {
     try {
-      sessionStorage.setItem(cacheKey(m, slotOf(m)?.budget.kcal ?? 0), JSON.stringify(list));
+      sessionStorage.setItem(cacheKey(m, slotOf(m)?.budget.kcal ?? 0), JSON.stringify({ have: built, list }));
     } catch {}
   };
 
-  const loadRecipes = async (m: Meal) => {
+  /// Today's batch for this meal, if one was already made (leaving Fuel and
+  /// coming back, or flipping between meals, doesn't ask again).
+  const restore = (m: Meal) => {
     if (recipes[m] || loading[m]) return;
     try {
       const cached = sessionStorage.getItem(cacheKey(m, slotOf(m)?.budget.kcal ?? 0));
-      if (cached) {
-        setRecipes((r) => ({ ...r, [m]: JSON.parse(cached) }));
-        return;
-      }
+      if (!cached) return;
+      const { have: built, list } = JSON.parse(cached) as { have: string; list: Recipe[] };
+      setRecipes((r) => ({ ...r, [m]: list }));
+      setHave((h) => ({ ...h, [m]: built }));
     } catch {}
+  };
+
+  /// Recipes are only written once asked: around what the athlete says
+  /// they're cooking with, or anything ("" — Surprise me).
+  const generate = async (m: Meal, ingredients: string) => {
+    if (loading[m]) return;
+    const built = ingredients.trim().slice(0, 200);
+    setHave((h) => ({ ...h, [m]: built }));
     setLoading((l) => ({ ...l, [m]: true }));
     setErrors((e) => ({ ...e, [m]: undefined }));
     try {
-      const list = await fetchRecipes(m);
+      const list = await fetchRecipes(m, { have: built });
       setRecipes((r) => ({ ...r, [m]: list }));
-      save(m, list);
+      save(m, list, built);
     } catch (e) {
       setErrors((er) => ({ ...er, [m]: e instanceof Error ? e.message : "Couldn't load recipes — try again" }));
     } finally {
@@ -176,15 +190,24 @@ export default function NextMeal({
     }
   };
 
-  // The open meal's recipes load on their own — but only once the page is
-  // idle, so the rest of Fuel is on screen and usable first.
-  const wantRecipes = sel != null && !recipes[sel] && !loading[sel] && !errors[sel];
+  /// Back to the "what are you cooking with?" step for this meal.
+  const startOver = (m: Meal) => {
+    setDraft(have[m] ?? "");
+    setRecipes((r) => ({ ...r, [m]: undefined }));
+    setErrors((e) => ({ ...e, [m]: undefined }));
+    try {
+      sessionStorage.removeItem(cacheKey(m, slotOf(m)?.budget.kcal ?? 0));
+    } catch {}
+  };
+
+  // The open meal's earlier batch comes back once the page is idle, so the
+  // rest of Fuel is on screen and usable first.
   useEffect(() => {
-    if (!wantRecipes || sel == null) return;
-    return whenIdle(() => loadRecipes(sel));
-    // loadRecipes reads the latest state; re-running on its identity would loop.
+    if (sel == null) return;
+    return whenIdle(() => restore(sel));
+    // restore reads the latest state; re-running on its identity would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantRecipes, sel]);
+  }, [sel]);
 
   const swap = async (m: Meal, i: number, tweak: "other" | "quicker" | "no-cook") => {
     const list = recipes[m];
@@ -194,7 +217,7 @@ export default function NextMeal({
       const [next] = await fetchRecipes(m, { count: 1, tweak, exclude: list.map((r) => r.title) });
       const updated = list.map((r, j) => (j === i ? next : r));
       setRecipes((rs) => ({ ...rs, [m]: updated }));
-      save(m, updated);
+      save(m, updated, have[m] ?? "");
     } catch {
       // Keep the current recipe; the chip just stops spinning.
     } finally {
@@ -262,9 +285,8 @@ export default function NextMeal({
     setPicked(m);
     setCardIdx(0);
     railRef.current?.scrollTo({ left: 0 });
-    // A meal the athlete picked loads now; only the one shown for them waits
-    // for the page to go idle.
-    loadRecipes(m);
+    // A batch already made for this meal today comes straight back.
+    restore(m);
   };
 
   const list = sel ? recipes[sel] : undefined;
@@ -386,6 +408,25 @@ export default function NextMeal({
 
           {list ? (
             <>
+              <p className="flex items-center gap-1.5 text-[12px] mb-2 min-w-0" style={{ color: "var(--fg-muted)" }}>
+                <span className="truncate">
+                  {have[selSlot.meal] ? (
+                    <>
+                      Cooking with <b className="font-semibold" style={{ color: "var(--fg)" }}>{have[selSlot.meal]}</b>
+                    </>
+                  ) : (
+                    "Any recipe"
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => startOver(selSlot.meal)}
+                  className="shrink-0 font-semibold"
+                  style={{ color: PAGE }}
+                >
+                  · Change
+                </button>
+              </p>
               <div
                 ref={railRef}
                 onScroll={(e) => {
@@ -487,13 +528,56 @@ export default function NextMeal({
               <p className="text-[12.5px]" style={{ color: "#fca5a5" }}>{errors[selSlot.meal]}</p>
               <button
                 type="button"
-                onClick={() => loadRecipes(selSlot.meal)}
+                onClick={() => generate(selSlot.meal, have[selSlot.meal] ?? "")}
                 className="text-[12.5px] font-semibold mt-1"
                 style={{ color: "#86efac" }}
               >
                 Try again
               </button>
             </div>
+          ) : !loading[selSlot.meal] ? (
+            // Before any recipes: what they're cooking with, or anything.
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (draft.trim()) generate(selSlot.meal, draft);
+              }}
+              className="rounded-2xl p-3"
+              style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+            >
+              <label htmlFor="nextmeal-have" className="block text-[13px] font-semibold">
+                What are you cooking with?
+              </label>
+              <div className="flex gap-2 mt-2">
+                <input
+                  id="nextmeal-have"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder="e.g. chicken, rice, peppers"
+                  enterKeyHint="go"
+                  autoComplete="off"
+                  maxLength={200}
+                  className="min-w-0 flex-1 h-10 rounded-xl px-3 text-[14px] outline-none"
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)", color: "var(--fg)" }}
+                />
+                <button
+                  type="submit"
+                  disabled={!draft.trim()}
+                  className="shrink-0 h-10 px-3.5 rounded-xl text-[13px] font-bold disabled:opacity-40"
+                  style={{ background: PAGE, color: "#04130a" }}
+                >
+                  Find recipes
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => generate(selSlot.meal, "")}
+                className="w-full h-10 mt-2 rounded-xl text-[13px] font-semibold"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--border-strong)", color: "var(--fg)" }}
+              >
+                Surprise me · any recipe
+              </button>
+            </form>
           ) : (
             <div aria-live="polite">
               <div className="flex gap-2.5 -mx-4 px-4 overflow-hidden">

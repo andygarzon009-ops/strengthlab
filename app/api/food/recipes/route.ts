@@ -7,8 +7,8 @@ export type { Recipe, RecipeIngredient } from "@/lib/recipes";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-/// Recipes sized to what's left of today's targets, built around foods the
-/// athlete already eats. Generated on demand (the Recipes tab or a swap chip),
+/// Recipes sized to what's left of today's targets, built around what the
+/// athlete says they're cooking with (or anything). Generated on demand,
 /// never on page load.
 export async function POST(req: NextRequest) {
   const userId = await requireAuth();
@@ -22,11 +22,13 @@ export async function POST(req: NextRequest) {
   const count = Math.min(3, Math.max(1, num(body.count) || 3));
   const tweak = TWEAKS[String(body.tweak ?? "")] ?? "";
   const exclude = (Array.isArray(body.exclude) ? body.exclude : []).map(String).slice(0, 12);
+  // What the athlete said they're cooking with ("" = anything).
+  const have = String(body.have ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
   if (kcal < 100) {
     return Response.json({ error: "You've about hit today's calories" }, { status: 400 });
   }
 
-  const recipes = await generateRecipes(userId, { kcal, proteinG, carbsG, fatG, meal, phase, count, tweak, exclude });
+  const recipes = await generateRecipes(userId, { kcal, proteinG, carbsG, fatG, meal, phase, count, tweak, exclude, have });
 
   if (recipes.length === 0) {
     return Response.json({ error: "Couldn't come up with recipes right now — try again in a minute" }, { status: 502 });

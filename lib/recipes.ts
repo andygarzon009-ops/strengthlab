@@ -87,10 +87,12 @@ export type RecipeRequest = {
   count: number;
   tweak: string;
   exclude: string[];
+  /// What the athlete says they're cooking with; empty for anything.
+  have?: string;
 };
 
 export async function generateRecipes(userId: string, req: RecipeRequest): Promise<Recipe[]> {
-  const { kcal, proteinG, carbsG, fatG, meal, phase, count, tweak, exclude } = req;
+  const { kcal, proteinG, carbsG, fatG, meal, phase, count, tweak, exclude, have = "" } = req;
   const snack = meal === "snack";
   const [recent, user] = await Promise.all([
     listRecentMeals(userId, 40),
@@ -120,7 +122,8 @@ What makes a good recipe here:
 - Every ingredient belongs in that dish. Never add something only because they eat it. Sweet snack foods (dates, bars, granola, chocolate) never go in a savoury dish.
 - Titles read like a good menu: appetising and plain, max 6 words, e.g. "Chipotle Chicken Burrito Bowl", "Garlic Butter Steak Bites".
 - "blurb": one line, max 12 words, on what makes it great, e.g. "Charred, smoky chicken with cool lime crema and crunchy slaw."
-${usual.length ? `- Foods they often eat, as a hint to their taste: ${usual.join(", ")}. ${count === 1 ? "Use one only if it fits the dish naturally." : "At most one recipe may build on these, and only where a chef would naturally use them."}` : ""}
+${have ? `- They're cooking with what they have: ${have}. This is a hard rule. Build every recipe from these: each uses at least two of them as its main ingredients, and if they listed a protein (meat, fish, eggs, tofu…), that is the recipe's protein. Never swap in a different main protein, and never make a listed item a side note. Pantry basics are fine (oil, butter, salt, pepper, dried spices, garlic, onion, stock, soy sauce, vinegar); beyond those add at most two small fresh extras (a herb, a lime, a sauce) and only if the dish truly needs them. If something listed can't fit this meal or their diet, leave it out.
+` : ""}${!have && usual.length ? `- Foods they often eat, as a hint to their taste: ${usual.join(", ")}. ${count === 1 ? "Use one only if it fits the dish naturally." : "At most one recipe may build on these, and only where a chef would naturally use them."}` : ""}
 ${exclude.length ? `Already shown, make something different: ${exclude.join("; ")}.` : ""}
 ${tweak}
 ${snack ? "Snacks: 10 minutes or less, 2–6 ingredients, 1–3 steps, little or no cooking, protein-forward (Greek yogurt bowls, cottage cheese, shakes, egg bites, wraps, jerky and the like)." : "Home-cook friendly: common grocery ingredients, 5–9 ingredients, 3–5 steps, one serving."}
