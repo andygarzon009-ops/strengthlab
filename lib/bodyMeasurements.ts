@@ -196,3 +196,169 @@ export function interpret(prev: Snapshot, next: Snapshot): string | null {
   // Only bodyweight on file — nothing about composition can be claimed from it.
   return null;
 }
+
+// ─── The monthly check-in ───────────────────────────────────────────────────
+//
+// Everything below serves the /body pages: which way each number should move
+// for this athlete, how to read one move, and the per-field history the map
+// and the reward screen are built from.
+
+/// The ten spots a check-in walks through, in the order it walks them —
+/// bodyweight and waist first, since that pair carries the verdict. Neck stays
+/// on the profile form: it's an input to the body-fat estimate, not progress.
+export const CHECK_IN_KEYS: MeasurementKey[] = [
+  "bodyweight",
+  "waist",
+  "chest",
+  "shoulders",
+  "arm",
+  "forearm",
+  "hips",
+  "thigh",
+  "calf",
+  "bodyFat",
+];
+
+/// The hips column is one tape position — the fullest part of the seat — but
+/// women train it as glutes and track it by that name; men read it as hips.
+export function measurementLabel(
+  key: MeasurementKey,
+  sex: string | null | undefined,
+): string {
+  if (key === "hips") return sex === "FEMALE" ? "Glutes" : "Hips";
+  return MEASUREMENT_LABELS[key];
+}
+
+/// Which way is progress: 1 up, -1 down, 0 neither (tracked, never graded).
+/// Bodyweight follows the nutrition goal; a smaller waist and lower body fat
+/// are always wins; every other circumference is muscle, so bigger is better —
+/// on a cut too, where holding size is the whole game.
+export function wantFor(
+  key: MeasurementKey,
+  phase: string | null | undefined,
+  sex: string | null | undefined,
+): 1 | -1 | 0 {
+  if (key === "bodyweight") return phase === "BULK" ? 1 : phase === "CUT" ? -1 : 0;
+  if (key === "waist" || key === "bodyFat") return -1;
+  if (key === "neck") return 0;
+  if (key === "hips") return sex === "FEMALE" ? 1 : 0;
+  return 1;
+}
+
+export type MoveStatus = "good" | "bad" | "held";
+
+/// One move read against the noise floor and the direction that counts.
+/// A field with no preferred direction is "held" however far it moved — the
+/// colour would otherwise claim a judgement the app isn't making.
+export function moveStatus(
+  key: MeasurementKey,
+  delta: number,
+  want: 1 | -1 | 0,
+): MoveStatus {
+  if (want === 0 || Math.abs(delta) < NOISE_FLOOR[unitFor(key)]) return "held";
+  return Math.sign(delta) === want ? "good" : "bad";
+}
+
+/// A one- or two-word name for the bodyweight + waist reading, for headlines.
+/// Mirrors interpret(); null when interpret() has nothing to say.
+export function verdictWord(prev: Snapshot, next: Snapshot): string | null {
+  const move = (k: MeasurementKey) => {
+    const a = num(prev[k]);
+    const b = num(next[k]);
+    if (a === null || b === null) return "unknown";
+    const d = b - a;
+    if (Math.abs(d) < NOISE_FLOOR[unitFor(k)]) return "held";
+    return d > 0 ? "up" : "down";
+  };
+  const pair = `${move("bodyweight")}/${move("waist")}`;
+  const words: Record<string, string> = {
+    "up/up": "Bulking",
+    "up/down": "Recomposing",
+    "up/held": "Lean gains",
+    "down/down": "Cutting clean",
+    "down/held": "Getting lighter",
+    "down/up": "Re-measure",
+    "held/down": "Recomposing",
+    "held/up": "Waist creeping",
+    "held/held": "Holding steady",
+    "unknown/down": "Trimming",
+    "unknown/up": "Waist creeping",
+  };
+  return words[pair] ?? null;
+}
+
+/// A dated check-in as the pages pass it around: one value per field, null
+/// where that field wasn't taken.
+export type CheckIn = {
+  takenAt: string;
+  values: Partial<Record<MeasurementKey, number | null>>;
+};
+
+/// The most recent value of each field at or before `index`, so a field skipped
+/// at the last check-in still compares against the time it was last taken.
+export function latestValues(
+  history: CheckIn[],
+  index = history.length - 1,
+): Snapshot {
+  const out: Snapshot = {};
+  for (let i = 0; i <= index; i++) {
+    for (const key of MEASUREMENT_KEYS) {
+      const v = num(history[i].values[key]);
+      if (v !== null) out[key] = v;
+    }
+  }
+  return out;
+}
+
+/// The first value ever recorded for each field — the "since you started" baseline.
+export function firstValues(history: CheckIn[]): Snapshot {
+  const out: Snapshot = {};
+  for (const c of history) {
+    for (const key of MEASUREMENT_KEYS) {
+      const v = num(c.values[key]);
+      if (v !== null && out[key] === undefined) out[key] = v;
+    }
+  }
+  return out;
+}
+
+/// Best value on record per field in the direction that counts. Fields with no
+/// direction (and bodyweight, whose "best" depends on the phase you were in
+/// when you hit it) have no best.
+export function bestValues(
+  history: CheckIn[],
+  phase: string | null | undefined,
+  sex: string | null | undefined,
+): Partial<Record<MeasurementKey, number>> {
+  const out: Partial<Record<MeasurementKey, number>> = {};
+  for (const key of MEASUREMENT_KEYS) {
+    const want = wantFor(key, phase, sex);
+    if (want === 0 || key === "bodyweight") continue;
+    for (const c of history) {
+      const v = num(c.values[key]);
+      if (v === null) continue;
+      const cur = out[key];
+      if (cur === undefined || (want > 0 ? v > cur : v < cur)) out[key] = v;
+    }
+  }
+  return out;
+}
+
+/// Consecutive monthly check-ins ending at the latest one. A gap longer than
+/// about six weeks breaks the run — a month and a bit of slack.
+export function checkInStreak(history: CheckIn[]): number {
+  if (history.length === 0) return 0;
+  const MAX_GAP = 45 * 24 * 60 * 60 * 1000;
+  let streak = 1;
+  for (let i = history.length - 1; i > 0; i--) {
+    const gap = Date.parse(history[i].takenAt) - Date.parse(history[i - 1].takenAt);
+    // Two saves in the same week are one check-in, not two.
+    if (gap < 7 * 24 * 60 * 60 * 1000) continue;
+    if (gap > MAX_GAP) break;
+    streak++;
+  }
+  return streak;
+}
+
+/// The gap the reminder copy counts down to.
+export const CHECK_IN_INTERVAL_DAYS = 28;
