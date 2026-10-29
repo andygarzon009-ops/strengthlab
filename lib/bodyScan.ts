@@ -79,15 +79,35 @@ export function summarize(
 /// arms or core, which clear fatigue faster, don't), or past the weekly
 /// ceiling — and still inside the recovery window.
 const CARRY_LIMIT = 0.35;
+/// How far past its limits a muscle went: the share over the weekly ceiling,
+/// or the fatigue carried in past the limit — 0 when it didn't.
+function overExcess(m: MuscleStat): number {
+  if (m.weekSets <= m.mrv && m.carryIn < CARRY_LIMIT) return 0;
+  return Math.max(m.weekSets / m.mrv - 1, m.carryIn - CARRY_LIMIT, 0);
+}
+
+/// The recovery window, longer when the muscle was overworked: piled-up
+/// volume takes longer to clear than one hard session. After 8 sets of bench
+/// to failure, pec peak torque was back by 72 h but total work only by 96 h,
+/// a third longer (Ferreira et al., Muscle & Nerve 2017); sets taken to
+/// failure needed 24–48 h more than the same work short of it (Morán-Navarro
+/// et al., Eur J Appl Physiol 2017). So an overworked muscle gets at least a
+/// third more time, up to double the further past its limit it went.
+export function recoveryWindow(m: MuscleStat): number {
+  const excess = overExcess(m);
+  if (excess === 0) return m.recoveryHours;
+  return Math.round(m.recoveryHours * (1 + Math.min(Math.max(excess, 1 / 3), 1)));
+}
+
 export function isOverworked(m: MuscleStat | undefined): boolean {
-  if (!m || m.hoursSince >= m.recoveryHours) return false;
-  return m.weekSets > m.mrv || m.carryIn >= CARRY_LIMIT;
+  if (!m) return false;
+  return overExcess(m) > 0 && m.hoursSince < recoveryWindow(m);
 }
 
 /// Hours until the muscle is recovered from its last session (0 = ready).
 export function hoursToRecovered(m: MuscleStat | undefined): number {
   if (!m) return 0;
-  return Math.max(0, Math.round(m.recoveryHours - m.hoursSince));
+  return Math.max(0, Math.round(recoveryWindow(m) - m.hoursSince));
 }
 
 export function muscleHeat(m: MuscleStat | undefined): number {

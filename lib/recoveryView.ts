@@ -6,6 +6,7 @@ import {
   hoursToRecovered,
   isOverworked,
   muscleHeat,
+  recoveryWindow,
   type MuscleStat,
 } from "@/lib/bodyScan";
 
@@ -54,7 +55,7 @@ function overNote(m: MuscleStat): string {
 /// How far through its recovery window a muscle is, kept off the very ends
 /// so a bar never reads as empty or as ready.
 function progress(m: MuscleStat): number {
-  return Math.min(0.95, Math.max(0.05, 1 - hoursToRecovered(m) / m.recoveryHours));
+  return Math.min(0.95, Math.max(0.05, 1 - hoursToRecovered(m) / recoveryWindow(m)));
 }
 
 function overRow(name: string, m: MuscleStat): RecoveryRow {
