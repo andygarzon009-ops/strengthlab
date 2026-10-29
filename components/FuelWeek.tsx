@@ -191,15 +191,10 @@ export default function FuelWeek({
       )}
 
       {/* ── 7-day strip, stacked by macro ── */}
-      <p className="label mb-2" style={{ color: "var(--fg-muted)" }}>
-        This week
-        <span
-          className="float-right normal-case tracking-normal font-medium"
-          style={{ color: "var(--fg-dim)" }}
-        >
-          % of target · tap a day
-        </span>
-      </p>
+      <div className="flex items-baseline justify-between mb-2.5 px-1">
+        <h2 className="text-[20px] font-extrabold tracking-tight">This week</h2>
+        <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>% of target · tap a day</span>
+      </div>
       <div
         className="rounded-2xl px-3 pt-3 pb-3.5 mb-5"
         style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
@@ -213,15 +208,12 @@ export default function FuelWeek({
               editable, under "Logged today" at the top. ── */}
           {!isToday && (
             <>
-              <p className="label mb-2" style={{ color: "var(--fg-muted)" }}>
-                {weekdayName(day.date)}&apos;s food
-                <span
-                  className="float-right normal-case tracking-normal font-medium tabular-nums"
-                  style={{ color: "var(--fg-dim)" }}
-                >
+              <div className="flex items-baseline justify-between mb-2.5 px-1">
+                <h2 className="text-[20px] font-extrabold tracking-tight">{weekdayName(day.date)}&apos;s food</h2>
+                <span className="text-[12px] tabular-nums" style={{ color: "var(--fg-dim)" }}>
                   {i.entries} item{i.entries === 1 ? "" : "s"}
                 </span>
-              </p>
+              </div>
               <div
                 className="rounded-2xl p-4 mb-4"
                 style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
@@ -232,7 +224,7 @@ export default function FuelWeek({
           )}
 
           {/* ── micronutrients ── */}
-          <p className="label mb-2" style={{ color: "var(--fg-muted)" }}>Fiber &amp; the rest</p>
+          <h2 className="text-[20px] font-extrabold tracking-tight mb-2.5 px-1">Fiber &amp; the rest</h2>
           <div
             className="rounded-2xl p-4 mb-5"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
@@ -248,7 +240,7 @@ export default function FuelWeek({
         </>
       )}
 
-      <p className="label mb-2" style={{ color: "var(--fg-muted)" }}>Your plan</p>
+      <h2 className="text-[20px] font-extrabold tracking-tight mb-2.5 px-1">Your plan</h2>
       <GoalCard targets={day.targets} calibration={calibration} />
 
       <Link

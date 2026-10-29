@@ -405,7 +405,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
         onChange={onPhoto}
       />
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-[15px] font-bold tracking-tight">Log a meal</h2>
+        <h2 className="text-[20px] font-extrabold tracking-tight">Log a meal</h2>
         {saved && (
           <span className="text-[12px] font-semibold" style={{ color: "#86efac" }} role="status">
             ✓ {saved}

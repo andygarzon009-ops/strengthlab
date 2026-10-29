@@ -112,18 +112,23 @@ export async function generateRecipes(userId: string, req: RecipeRequest): Promi
   }
   const usual = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15).map(([n]) => n);
 
-  const prompt = `You are a chef who cooks for athletes, writing ${count} recipe${count === 1 ? "" : "s"} for a strength athlete's ${snack ? "snack, eaten after their main meals to close the gap to today's target" : meal}.
+  const items = haveItems(have);
+  const write = (retryNote: string) => `You are a chef who cooks for athletes, writing ${count} recipe${count === 1 ? "" : "s"} for a strength athlete's ${snack ? "snack, eaten after their main meals to close the gap to today's target" : meal}.
 Target for this ${meal}: about ${kcal} kcal, ${proteinG} g protein, ${carbsG} g carbs, ${fatG} g fat (its share of what's left today, not the whole day).${phase ? ` Phase: ${phase}.` : ""}
 Land within about 10% of those calories (never more than 15% over) and as close to that protein as is realistic; protein matters most.
-${diet ? `${diet}\n` : ""}${prefs ? `How they cook (follow it):\n${prefs}\n` : ""}
+${items.length ? `MOST IMPORTANT: they're cooking with what they have: ${have}.
+- Every recipe is built on these. ${items.length === 1 ? `${items[0]} is the star of every recipe.` : "Each recipe uses at least two of them as its main ingredients."} Any protein they listed is the recipe's protein: never swap in a different one (no chicken when they said beef).
+- Each listed item you use appears in "ingredients" by its name (e.g. "${items[0]}").
+- Pantry basics are fine (oil, butter, salt, pepper, dried spices, garlic, onion, stock, soy sauce, vinegar); beyond those add at most two small fresh extras (a herb, a lime, a sauce), only if the dish needs them.
+- Only leave a listed item out if their diet rules forbid it.${retryNote}
+` : ""}${diet ? `${diet}\n` : ""}${prefs ? `How they cook (follow it):\n${prefs}\n` : ""}
 What makes a good recipe here:
 - A dish people actually crave and would order: a burrito bowl, a stir-fry, a smash burger, a sheet-pan dinner, a loaded omelette. Real, well-known flavour combinations. Nothing odd or invented.
 - It suits the meal: ${snack ? "a snack" : meal === "breakfast" ? "breakfast food" : `a proper ${meal}, not a breakfast dish`}.
 - Every ingredient belongs in that dish. Never add something only because they eat it. Sweet snack foods (dates, bars, granola, chocolate) never go in a savoury dish.
 - Titles read like a good menu: appetising and plain, max 6 words, e.g. "Chipotle Chicken Burrito Bowl", "Garlic Butter Steak Bites".
 - "blurb": one line, max 12 words, on what makes it great, e.g. "Charred, smoky chicken with cool lime crema and crunchy slaw."
-${have ? `- They're cooking with what they have: ${have}. This is a hard rule. Build every recipe from these: each uses at least two of them as its main ingredients, and if they listed a protein (meat, fish, eggs, tofu…), that is the recipe's protein. Never swap in a different main protein, and never make a listed item a side note. Pantry basics are fine (oil, butter, salt, pepper, dried spices, garlic, onion, stock, soy sauce, vinegar); beyond those add at most two small fresh extras (a herb, a lime, a sauce) and only if the dish truly needs them. If something listed can't fit this meal or their diet, leave it out.
-` : ""}${!have && usual.length ? `- Foods they often eat, as a hint to their taste: ${usual.join(", ")}. ${count === 1 ? "Use one only if it fits the dish naturally." : "At most one recipe may build on these, and only where a chef would naturally use them."}` : ""}
+""}${!have && usual.length ? `- Foods they often eat, as a hint to their taste: ${usual.join(", ")}. ${count === 1 ? "Use one only if it fits the dish naturally." : "At most one recipe may build on these, and only where a chef would naturally use them."}` : ""}
 ${exclude.length ? `Already shown, make something different: ${exclude.join("; ")}.` : ""}
 ${tweak}
 ${snack ? "Snacks: 10 minutes or less, 2–6 ingredients, 1–3 steps, little or no cooking, protein-forward (Greek yogurt bowls, cottage cheese, shakes, egg bites, wraps, jerky and the like)." : "Home-cook friendly: common grocery ingredients, 5–9 ingredients, 3–5 steps, one serving."}
@@ -158,8 +163,33 @@ Return ONLY JSON:
 - "usual": true when that ingredient is one of the foods they often eat.
 - Nutrition numbers are totals for the serving, whole numbers, and must add up: kcal ≈ 4·protein + 4·carbs + 9·fat.`;
 
+  let recipes = await ask(write(""));
+  if (items.length) {
+    // The model sometimes drifts back to its favourites (chicken for "ground
+    // beef"). Keep only recipes that really use what they listed, and ask
+    // once more, naming the misses, when that leaves too few.
+    const kept = recipes.filter((r) => usesHave(r, items));
+    if (kept.length < count) {
+      const missed = recipes.filter((r) => !kept.includes(r)).map((r) => `"${r.title}"`);
+      const again = await ask(
+        write(`\n- Last try ignored this${missed.length ? ` (${missed.join(", ")} didn't use ${have})` : ""}. Every recipe must use ${have}.`),
+      );
+      kept.push(...again.filter((r) => usesHave(r, items) && !kept.some((k) => k.title === r.title)));
+    }
+    recipes = kept;
+  }
+  // Prefer the ones that actually fit; fall back to the closest rather than
+  // show nothing.
+  const fit = (r: Recipe) => r.kcal <= kcal * 1.15 && r.kcal >= kcal * 0.7;
+  recipes.sort((a, b) => Number(fit(b)) - Number(fit(a)) || Math.abs(a.kcal - kcal) - Math.abs(b.kcal - kcal));
+  recipes.splice(count);
+
+  return recipes;
+}
+
+async function ask(prompt: string): Promise<Recipe[]> {
   const parsed = await textToJson<{ recipes?: unknown[] }>(prompt, "recipes", { claudeFirst: true });
-  const recipes: Recipe[] = (Array.isArray(parsed?.recipes) ? parsed.recipes : [])
+  return (Array.isArray(parsed?.recipes) ? parsed.recipes : [])
     .map((r) => {
       const o = (r ?? {}) as Record<string, unknown>;
       const ing = Array.isArray(o.ingredients) ? o.ingredients : [];
@@ -196,11 +226,37 @@ Return ONLY JSON:
       const fromMacros = r.proteinG * 4 + r.carbsG * 4 + r.fatG * 9;
       return Math.abs(r.kcal - fromMacros) > fromMacros * 0.12 ? { ...r, kcal: Math.round(fromMacros) } : r;
     });
-  // Prefer the ones that actually fit; fall back to the closest rather than
-  // show nothing.
-  const fit = (r: Recipe) => r.kcal <= kcal * 1.15 && r.kcal >= kcal * 0.7;
-  recipes.sort((a, b) => Number(fit(b)) - Number(fit(a)) || Math.abs(a.kcal - kcal) - Math.abs(b.kcal - kcal));
-  recipes.splice(count);
-
-  return recipes;
 }
+
+/// "chicken thighs, rice and peppers" → ["chicken thighs", "rice", "peppers"].
+export function haveItems(have: string): string[] {
+  return have
+    .toLowerCase()
+    .split(/,|;|\/|\+|&|\band\b|\bwith\b|\n/)
+    .map((x) => x.replace(/[^a-z\s'-]/g, " ").replace(/\s+/g, " ").trim())
+    .filter((x) => x.length > 1)
+    .slice(0, 12);
+}
+
+const FILLER = new Set(["some", "a", "an", "the", "of", "fresh", "frozen", "leftover", "cooked", "raw", "lb", "lbs", "pack", "can", "bag"]);
+const stem = (w: string) => w.replace(/(ies)$/, "y").replace(/(oes|ses|ches|shes)$/, (m) => m.slice(0, -2)).replace(/([^s])s$/, "$1");
+
+/// Whether a listed item shows up in a recipe: every word of it (plurals
+/// folded, filler dropped) in one ingredient name, or in the title.
+function itemIn(item: string, r: Recipe): boolean {
+  const words = item.split(" ").filter((w) => !FILLER.has(w)).map(stem);
+  if (!words.length) return true;
+  const hay = [r.title, ...r.ingredients.map((i) => i.name)].map((t) => t.toLowerCase());
+  return hay.some((t) => words.every((w) => t.includes(w)));
+}
+
+/// A recipe uses what they have when it has one listed item, or two when
+/// they listed several; and any protein they listed is in it.
+function usesHave(r: Recipe, items: string[]): boolean {
+  const hits = items.filter((i) => itemIn(i, r));
+  if (hits.length < Math.min(2, items.length)) return false;
+  return items.filter((i) => PROTEIN.test(i)).every((i) => hits.includes(i));
+}
+
+const PROTEIN =
+  /\b(chicken|beef|steak|pork|turkey|lamb|bison|venison|sausage|bacon|ham|salmon|tuna|cod|tilapia|shrimp|prawn|fish|tofu|tempeh|egg|eggs)\b/;

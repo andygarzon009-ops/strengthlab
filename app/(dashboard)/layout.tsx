@@ -11,6 +11,7 @@ import NotificationWatcher from "@/components/NotificationWatcher";
 import PushAutoSubscribe from "@/components/PushAutoSubscribe";
 import { Suspense } from "react";
 import NavTracker from "@/components/NavTracker";
+import ViewportFix from "@/components/ViewportFix";
 
 export default function DashboardLayout({
   children,
@@ -32,6 +33,7 @@ export default function DashboardLayout({
       }}
     >
       <NavTracker />
+      <ViewportFix />
       {children}
       <NotificationsBell />
       <BottomNav />

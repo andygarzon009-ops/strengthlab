@@ -220,7 +220,7 @@ export default function FoodLogToday({
       style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
     >
       <div className="flex items-baseline justify-between">
-        <h2 className="text-[15px] font-bold tracking-tight">Logged today</h2>
+        <h2 className="text-[20px] font-extrabold tracking-tight">Logged today</h2>
         <span className="text-[11px]" style={{ color: "var(--fg-muted)" }}>Tap a meal to open</span>
       </div>
       {ORDER.filter((m) => live.some((r) => r.meal === m)).map((m) => {
