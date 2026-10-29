@@ -366,11 +366,14 @@ function FuelHero({
         border: "1px solid var(--border-strong)",
       }}
     >
-      <div className="flex items-center justify-between">
-        <p className="text-[12px] font-semibold" style={{ color: "var(--fg-muted)" }}>
-          {isToday ? `Today · ${longDate(day.date)}` : longDate(day.date)}
-        </p>
-        <p className="text-[11px] font-semibold" style={{ color: "var(--fg-muted)" }}>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-[20px] font-extrabold tracking-tight">{isToday ? "Today" : weekdayName(day.date)}</h2>
+          <p className="text-[12px] font-semibold mt-0.5" style={{ color: "var(--fg-muted)" }}>
+            {longDate(day.date)}
+          </p>
+        </div>
+        <p className="text-[11px] font-semibold mt-1.5" style={{ color: "var(--fg-muted)" }}>
           {t.phaseLabel}
         </p>
       </div>
