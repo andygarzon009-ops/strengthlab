@@ -3,6 +3,7 @@
 import { updateProfile as updateProfileAction } from "@/lib/actions/workouts";
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import ClearMeasurementsButton from "@/components/ClearMeasurementsButton";
 import ImageUpload from "@/components/ImageUpload";
 import UsernameField from "@/components/UsernameField";
 import PeriodizationEditor from "@/components/PeriodizationEditor";
@@ -69,11 +70,14 @@ export default function ProfileForm({
   deloadDates = [],
   /// Resting HR from the watch sync; when present it replaces manual entry.
   watchRestingHR = null,
+  /// Saved body check-ins; the clear button only shows when there are some.
+  checkIns = 0,
 }: {
   user: UserProfile;
   trainedDates?: string[];
   deloadDates?: string[];
   watchRestingHR?: number | null;
+  checkIns?: number;
 }) {
   const [pending, startTransition] = useTransition();
   // Both detail sections start collapsed so the profile opens clean — tap a
@@ -383,6 +387,7 @@ export default function ProfileForm({
             </div>
             <span style={{ color: "var(--fg-dim)" }}>→</span>
           </Link>
+          {checkIns > 0 && <ClearMeasurementsButton checkIns={checkIns} />}
           <div
             className="rounded-xl overflow-hidden"
             style={{

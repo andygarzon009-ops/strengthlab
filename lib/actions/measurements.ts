@@ -47,3 +47,30 @@ export async function saveCheckIn(
   revalidatePath("/profile");
   return { ok: true };
 }
+
+/// Wipe the tape history: every check-in row, plus the current tape and
+/// body-fat values on the User row. Bodyweight and height stay — they're
+/// profile basics the rest of the app runs on, not check-in readings.
+export async function clearBodyMeasurements(): Promise<void> {
+  const userId = await requireAuth();
+  await prisma.$transaction([
+    prisma.bodyMeasurement.deleteMany({ where: { userId } }),
+    prisma.user.update({
+      where: { id: userId },
+      data: {
+        neck: null,
+        shoulders: null,
+        chest: null,
+        arm: null,
+        forearm: null,
+        waist: null,
+        hips: null,
+        thigh: null,
+        calf: null,
+        bodyFat: null,
+      },
+    }),
+  ]);
+  revalidatePath("/body");
+  revalidatePath("/profile");
+}

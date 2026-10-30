@@ -44,7 +44,11 @@ export async function loadBodyHistory(userId: string): Promise<BodyHistory> {
   let history = rows.map((r) => toCheckIn(r, r.takenAt));
   if (history.length === 0 && user) {
     const baseline = toCheckIn(user, user.updatedAt);
-    if (Object.values(baseline.values).some((v) => v !== null)) history = [baseline];
+    // Bodyweight and height alone aren't a tape — after a clear, start fresh.
+    const taped = Object.entries(baseline.values).some(
+      ([k, v]) => v !== null && k !== "bodyweight" && k !== "height",
+    );
+    if (taped) history = [baseline];
   }
 
   return { sex: user?.sex ?? null, phase: user?.trainingPhase ?? null, history };

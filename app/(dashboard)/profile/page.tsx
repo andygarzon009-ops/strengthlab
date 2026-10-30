@@ -18,6 +18,7 @@ export default async function ProfilePage() {
 
   if (!user) return null;
 
+  const checkIns = await prisma.bodyMeasurement.count({ where: { userId } });
   const health = await prisma.healthAccount.findUnique({
     where: { userId },
     select: { restingBaselineHr: true, restingHr: true },
@@ -74,6 +75,7 @@ export default async function ProfilePage() {
         trainedDates={trainedDates}
         deloadDates={deloadDates}
         watchRestingHR={watchRestingHR}
+        checkIns={checkIns}
         user={{
           name: user.name,
           email: user.email,
