@@ -52,9 +52,14 @@ export default function UsernameField({ initial }: { initial: string | null }) {
           <input
             value={value}
             onChange={(e) => setValue(e.target.value)}
+            // A handle, not a login: "nickname" keeps iOS Passwords from
+            // reading this as a sign-in form and popping its sheet.
+            name="handle"
+            autoComplete="nickname"
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
+            data-1p-ignore
             placeholder="username"
             className="w-full rounded-xl pl-7 pr-4 py-3 text-[15px] focus:outline-none"
             style={{
