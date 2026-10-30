@@ -12,6 +12,18 @@ import { isOtherCompound } from "@/lib/prescribe";
 
 const LOOKBACK_DAYS = 28;
 
+/// Splits that train the same muscles as each one.
+const SPLIT_OVERLAP: Record<string, string[]> = {
+  LEGS: ["LOWER", "FULL_BODY"],
+  LOWER: ["LEGS", "FULL_BODY"],
+  PUSH: ["UPPER", "FULL_BODY"],
+  PULL: ["UPPER", "FULL_BODY"],
+  ARMS: ["UPPER", "FULL_BODY"],
+  UPPER: ["PUSH", "PULL", "ARMS", "FULL_BODY"],
+  FULL_BODY: ["LEGS", "LOWER", "PUSH", "PULL", "ARMS", "UPPER"],
+  CORE: [],
+};
+
 export type TodayPlan = {
   dayLabel: string; // "Wed"
   /// A strength session already logged today — the card shows it as done.
@@ -120,14 +132,30 @@ export const loadTodayPlan = cache(async (userId: string): Promise<TodayPlan> =>
       latestBySplit.set(w.split, w);
     }
   }
+  // A split is only as rested as the muscles it shares: legs yesterday means
+  // lower isn't up today, even if the last "Lower" session was weeks ago.
+  const restedSince = (split: string) => {
+    let last = 0;
+    for (const [other, w] of latestBySplit) {
+      if (SPLIT_OVERLAP[split]?.includes(other) || other === split) {
+        last = Math.max(last, w.date.getTime());
+      }
+    }
+    return last;
+  };
   let next: TodayPlan["next"] = null;
   const candidates = [...latestBySplit.entries()].filter(
-    ([split]) => split !== today?.split,
+    ([split]) =>
+      split !== today?.split &&
+      !(today?.split && SPLIT_OVERLAP[split]?.includes(today.split)),
   );
   if (candidates.length > 0) {
-    const [split, w] = candidates.reduce((a, b) =>
-      a[1].date < b[1].date ? a : b,
-    );
+    const [split, w] = candidates.reduce((a, b) => {
+      const ra = restedSince(a[0]);
+      const rb = restedSince(b[0]);
+      if (ra !== rb) return ra < rb ? a : b;
+      return a[1].date < b[1].date ? a : b;
+    });
     // The lift the advice names is the session's top set — a main barbell
     // compound, else another compound. Never an accessory: a heavy calf-raise
     // machine can outweigh the squat, but nobody pushes a top set on it.
