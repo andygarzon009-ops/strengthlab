@@ -325,6 +325,13 @@ export async function refreshRecovery(userId: string): Promise<void> {
     if (Object.keys(data).length > 0) {
       await prisma.healthAccount.update({ where: { userId }, data });
     }
+    // The profile's resting HR follows the watch — the 30-day baseline, not
+    // one morning's reading, since zones and the coach key off it.
+    const profileRhr =
+      rhrBaseline !== null ? Math.round(rhrBaseline) : rhrNow;
+    if (profileRhr !== null) {
+      await prisma.user.update({ where: { id: userId }, data: { restingHR: profileRhr } });
+    }
 
     // Backfill prior days so the trend has depth immediately — compute a score
     // per day from the same 30-day series we just fetched, using a rolling

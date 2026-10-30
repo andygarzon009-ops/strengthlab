@@ -67,10 +67,13 @@ export default function ProfileForm({
   trainedDates = [],
   /// Local dates of sessions logged as deloads, for the same preview.
   deloadDates = [],
+  /// Resting HR from the watch sync; when present it replaces manual entry.
+  watchRestingHR = null,
 }: {
   user: UserProfile;
   trainedDates?: string[];
   deloadDates?: string[];
+  watchRestingHR?: number | null;
 }) {
   const [pending, startTransition] = useTransition();
   // Both detail sections start collapsed so the profile opens clean — tap a
@@ -117,7 +120,7 @@ export default function ProfileForm({
     bio: user.bio ?? "",
     coachPrompt: user.coachPrompt ?? "",
     height: user.height?.toString() ?? "",
-    restingHR: user.restingHR?.toString() ?? "",
+    restingHR: (watchRestingHR ?? user.restingHR)?.toString() ?? "",
   });
 
   const set = (key: keyof typeof form) => (v: string) =>
@@ -235,7 +238,7 @@ export default function ProfileForm({
         coachPrompt: form.coachPrompt,
         periodization,
         height: lengthInches(form.height),
-        restingHR: intOrNull(form.restingHR),
+        restingHR: watchRestingHR ?? intOrNull(form.restingHR),
       });
 
       setSaved(true);
@@ -243,7 +246,7 @@ export default function ProfileForm({
     });
   };
 
-  const filledMeasurements = countMeasurements(user);
+  const filledMeasurements = countMeasurements(user, watchRestingHR);
 
   return (
     <>
@@ -476,15 +479,39 @@ export default function ProfileForm({
                     suffix={unit}
                     compact
                   />
-                  <Field
-                    label="Resting HR"
-                    type="number"
-                    value={form.restingHR}
-                    onChange={set("restingHR")}
-                    placeholder="58"
-                    suffix="bpm"
-                    compact
-                  />
+                  {watchRestingHR != null ? (
+                    <div>
+                      <p className="label mb-1.5">Resting HR</p>
+                      <div
+                        className="rounded-xl px-3 flex items-center justify-between"
+                        style={{
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border)",
+                          minHeight: 46,
+                        }}
+                      >
+                        <span className="nums text-[14px]" style={{ fontFamily: "var(--font-geist-mono)" }}>
+                          {watchRestingHR}
+                          <span className="label text-[10px] ml-1" style={{ color: "var(--fg-dim)" }}>
+                            bpm
+                          </span>
+                        </span>
+                        <span className="text-[10px]" style={{ color: "var(--accent)" }}>
+                          From watch
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <Field
+                      label="Resting HR"
+                      type="number"
+                      value={form.restingHR}
+                      onChange={set("restingHR")}
+                      placeholder="58"
+                      suffix="bpm"
+                      compact
+                    />
+                  )}
                 </div>
 
               </div>
@@ -760,6 +787,6 @@ function Select({
   );
 }
 
-function countMeasurements(user: UserProfile): number {
-  return [user.height, user.restingHR].filter((v) => v != null).length;
+function countMeasurements(user: UserProfile, watchRestingHR: number | null): number {
+  return [user.height, watchRestingHR ?? user.restingHR].filter((v) => v != null).length;
 }

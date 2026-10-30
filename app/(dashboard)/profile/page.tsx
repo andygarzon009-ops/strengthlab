@@ -18,6 +18,12 @@ export default async function ProfilePage() {
 
   if (!user) return null;
 
+  const health = await prisma.healthAccount.findUnique({
+    where: { userId },
+    select: { restingBaselineHr: true, restingHr: true },
+  });
+  const watchRestingHR = health?.restingBaselineHr ?? health?.restingHr ?? null;
+
   // Local dates of everything logged in the last 18 months. The cycle editor's
   // "right now your coach sees" preview has to run the same trained-week
   // arithmetic the coach does, or the athlete reads one week here and gets
@@ -67,6 +73,7 @@ export default async function ProfilePage() {
       <ProfileForm
         trainedDates={trainedDates}
         deloadDates={deloadDates}
+        watchRestingHR={watchRestingHR}
         user={{
           name: user.name,
           email: user.email,
