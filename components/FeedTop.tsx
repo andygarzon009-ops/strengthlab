@@ -63,17 +63,24 @@ function TodayCard({
   activity: ActivityGlance | null;
 }) {
   const done = plan.doneToday;
-  const next = plan.next;
+  const rest = plan.restDay;
+  // On a rest day the rotation's next split isn't "up"; it only backs the
+  // optional train-anyway link.
+  const next = rest ? null : plan.next;
   const rx = phase ? phaseRx(phase) : null;
   const eyebrow = `${deload ? "Deload week" : "Today"} · ${plan.dayLabel}`;
   const title = done
     ? `${done.title}`
-    : next
+    : rest
+      ? "Rest day"
+      : next
       ? `${next.label} day`
       : "Your call today";
   const meta = done
     ? ["Done", `${done.lifts} lifts`, done.minutes ? `${done.minutes} min` : null]
-    : next
+    : rest
+      ? [`${rest.daysTrained}/${rest.goal} days this week`, "Goal hit"]
+      : next
       ? [`${next.lifts} lifts`, next.minutes ? `~${next.minutes} min` : null]
       : [];
   const metaLine = meta.filter(Boolean).join(" · ");
@@ -88,7 +95,7 @@ function TodayCard({
   // A deload overrides the readiness advice: however good the numbers look,
   // this is not the week to push.
   const line =
-    deload && !done
+    deload && !done && !rest
       ? `Same lifts, about ${deloadPct}% less work — nothing near failure. Use the light sets to clean up technique.`
       : plan.readiness.line;
 
@@ -148,7 +155,15 @@ function TodayCard({
       <p className="text-[14px] leading-snug mt-3.5" style={{ color: "var(--fg)", opacity: 0.85 }}>
         {line}
       </p>
-      {!done && (
+      {rest ? (
+        <Link
+          href={href}
+          className="mt-3 block text-center text-[13px] font-semibold py-2"
+          style={{ color: "var(--fg-muted)" }}
+        >
+          Feeling fresh? Train anyway
+        </Link>
+      ) : !done && (
         <Link
           href={href}
           className={`btn-accent ${compact ? "mt-3 min-h-[42px] rounded-xl text-[14px]" : "mt-4 min-h-[48px] rounded-2xl text-[15px]"} flex items-center justify-center gap-2 font-bold`}

@@ -2,23 +2,12 @@ import { prisma } from "@/lib/db";
 import { localDateKey } from "@/lib/blockStamp";
 import { shapeForType } from "@/lib/exercises";
 import Link from "next/link";
-import { loadTodayPlan, splitLabel } from "@/lib/todayPlan";
+import { loadTodayPlan, splitLabel, weekKeys } from "@/lib/todayPlan";
 import { loadRhythm } from "@/lib/rhythm";
 import { MAJOR_GROUPS, recoveryView, type RecoveryView } from "@/lib/recoveryView";
 import HeartRateCard from "@/components/HeartRateCard";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
-
-/// Local YYYY-MM-DD keys for Monday..Sunday of the week containing today.
-function weekKeys(tz: string): string[] {
-  const todayKey = localDateKey(new Date(), tz);
-  const [y, m, d] = todayKey.split("-").map(Number);
-  const noon = Date.UTC(y, m - 1, d, 12);
-  const dow = (new Date(noon).getUTCDay() + 6) % 7; // Mon = 0
-  return Array.from({ length: 7 }, (_, i) =>
-    new Date(noon + (i - dow) * 86_400_000).toISOString().slice(0, 10),
-  );
-}
 
 // The feed's This week card: the goal streak, days trained against the goal,
 // a day strip named by what was trained (today, if not trained yet, shows the
@@ -101,9 +90,11 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
       ? strength
         ? dayName(strength.split)
         : "Cardio"
-      : isToday && plan.next
-        ? dayName(plan.next.split)
-        : "";
+      : isToday && plan.restDay
+        ? "Rest"
+        : isToday && plan.next
+          ? dayName(plan.next.split)
+          : "";
     return { label: WEEKDAYS[i], tag, done, isToday };
   });
   const daysHit = days.filter((d) => d.done).length;

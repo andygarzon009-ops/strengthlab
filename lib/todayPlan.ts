@@ -24,8 +24,22 @@ const SPLIT_OVERLAP: Record<string, string[]> = {
   CORE: [],
 };
 
+/// Local YYYY-MM-DD keys for Monday..Sunday of the week containing today.
+export function weekKeys(tz: string): string[] {
+  const todayKey = localDateKey(new Date(), tz);
+  const [y, m, d] = todayKey.split("-").map(Number);
+  const noon = Date.UTC(y, m - 1, d, 12);
+  const dow = (new Date(noon).getUTCDay() + 6) % 7; // Mon = 0
+  return Array.from({ length: 7 }, (_, i) =>
+    new Date(noon + (i - dow) * 86_400_000).toISOString().slice(0, 10),
+  );
+}
+
 export type TodayPlan = {
   dayLabel: string; // "Wed"
+  /// The week's training-day goal is already met and nothing's logged today:
+  /// today is a rest day, so the card doesn't push the next split.
+  restDay: { daysTrained: number; goal: number } | null;
   /// A strength session already logged today — the card shows it as done.
   doneToday: { id: string; title: string; lifts: number; minutes: number | null } | null;
   /// The split that's up next, from the rotation in recent history.
@@ -70,7 +84,10 @@ const roundMinutes = (sec: number | null | undefined) =>
 
 export const loadTodayPlan = cache(async (userId: string): Promise<TodayPlan> => {
   const [user, account, recent] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { timezone: true } }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { timezone: true, trainingDays: true },
+    }),
     prisma.healthAccount.findUnique({
       where: { userId },
       select: {
@@ -190,17 +207,36 @@ export const loadTodayPlan = cache(async (userId: string): Promise<TodayPlan> =>
     };
   }
 
+  // Days trained this week (any workout, same count as the This week card).
+  // Once the goal is in, the rest of the week is rest — not another split.
+  const week = weekKeys(tz);
+  const trainedDays = new Set(
+    recent.map((w) => localDateKey(w.date, tz)).filter((k) => week.includes(k)),
+  );
+  const goal = Math.max(1, user?.trainingDays ?? 4);
+  const restDay =
+    !doneToday && !trainedDays.has(todayKey) && trainedDays.size >= goal
+      ? { daysTrained: trainedDays.size, goal }
+      : null;
+
   return {
     dayLabel,
+    restDay,
     doneToday,
     next,
     readiness: {
       score: account?.recoveryScore ?? null,
       band: account?.recoveryBand ?? null,
-      line: readinessLine(account, next, !!doneToday),
+      line: restDay
+        ? restLine(restDay.daysTrained)
+        : readinessLine(account, next, !!doneToday),
     },
   };
 });
+
+function restLine(daysTrained: number): string {
+  return `${daysTrained} days trained this week — goal hit. Rest up today; recovery is where the work turns into strength.`;
+}
 
 type Recovery = {
   recoveryScore: number | null;
