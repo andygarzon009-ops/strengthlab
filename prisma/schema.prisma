@@ -47,6 +47,9 @@ model User {
   primaryFocus         String?
   trainingPhase        String?
   trainingDays         Int?
+  /// Weekdays the athlete rests (0 = Mon … 6 = Sun). The feed's Today card
+  /// reads a picked day as a rest day instead of putting up the next split.
+  restDays             Int[]     @default([])
   injuries             String?
   /// Preset dietary restrictions (keys from lib/diet.ts) and free-text notes
   /// on foods avoided or disliked. Read by recipe suggestions and the coach.

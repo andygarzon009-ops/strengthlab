@@ -91,6 +91,7 @@ export default async function ProfilePage() {
           primaryFocus: user.primaryFocus,
           trainingPhase: user.trainingPhase,
           trainingDays: user.trainingDays,
+          restDays: user.restDays,
           moveGoalKcal: user.moveGoalKcal,
           exerciseGoalMin: user.exerciseGoalMin,
           injuries: user.injuries,

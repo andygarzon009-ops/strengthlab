@@ -86,15 +86,20 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
     const strength = on.find((w) => shapeForType(w.type) === "STRENGTH");
     const done = on.length > 0;
     const isToday = key === todayKey;
+    // A picked rest day still ahead (or today) reads "Rest"; past ones that
+    // went untrained stay blank like any other missed day.
+    const restAhead = plan.restKeys.includes(key) && key >= todayKey;
     const tag = done
       ? strength
         ? dayName(strength.split)
         : "Cardio"
       : isToday && plan.restDay
         ? "Rest"
-        : isToday && plan.next
-          ? dayName(plan.next.split)
-          : "";
+        : restAhead
+          ? "Rest"
+          : isToday && plan.next
+            ? dayName(plan.next.split)
+            : "";
     return { label: WEEKDAYS[i], tag, done, isToday };
   });
   const daysHit = days.filter((d) => d.done).length;

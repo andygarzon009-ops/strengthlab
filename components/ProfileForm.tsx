@@ -24,6 +24,7 @@ type UserProfile = {
   primaryFocus: string | null;
   trainingPhase: string | null;
   trainingDays: number | null;
+  restDays: number[];
   moveGoalKcal: number | null;
   exerciseGoalMin: number | null;
   injuries: string | null;
@@ -107,6 +108,7 @@ export default function ProfileForm({
   const [periodization, setPeriodization] = useState<PeriodizationConfig | null>(
     user.periodization,
   );
+  const [restDays, setRestDays] = useState<number[]>(user.restDays ?? []);
 
   const [form, setForm] = useState({
     name: user.name,
@@ -231,6 +233,7 @@ export default function ProfileForm({
         trainingDays: form.trainingDays
           ? parseInt(form.trainingDays)
           : undefined,
+        restDays,
         moveGoalKcal: intOrNull(form.moveGoalKcal),
         exerciseGoalMin: intOrNull(form.exerciseGoalMin),
         experienceLevel: form.experienceLevel,
@@ -570,6 +573,7 @@ export default function ProfileForm({
               placeholder="e.g. PPL"
             />
           </div>
+          <RestDayPicker value={restDays} onChange={setRestDays} />
           <div>
             <label className="label block mb-1.5">
               Injuries / limitations
@@ -794,4 +798,49 @@ function Select({
 
 function countMeasurements(user: UserProfile, watchRestingHR: number | null): number {
   return [user.height, watchRestingHR ?? user.restingHR].filter((v) => v != null).length;
+}
+
+const REST_DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+const REST_DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+/// Seven weekday toggles; a picked day is a rest day on the feed.
+function RestDayPicker({
+  value,
+  onChange,
+}: {
+  value: number[];
+  onChange: (days: number[]) => void;
+}) {
+  const toggle = (d: number) =>
+    onChange(value.includes(d) ? value.filter((x) => x !== d) : [...value, d].sort());
+  return (
+    <div>
+      <label className="label block mb-1.5">Rest days</label>
+      <div className="grid grid-cols-7 gap-[5px]" role="group" aria-label="Rest days">
+        {REST_DAY_LABELS.map((l, d) => {
+          const on = value.includes(d);
+          return (
+            <button
+              key={d}
+              type="button"
+              onClick={() => toggle(d)}
+              aria-pressed={on}
+              aria-label={REST_DAY_NAMES[d]}
+              className="h-10 rounded-xl text-[12px] font-bold active:opacity-80"
+              style={
+                on
+                  ? { background: "var(--accent)", color: "#04210f", border: "1px solid var(--accent)" }
+                  : { background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--fg-muted)" }
+              }
+            >
+              {l}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[11.5px] mt-1.5" style={{ color: "var(--fg-dim)" }}>
+        The feed shows these as rest days instead of the next session.
+      </p>
+    </div>
+  );
 }

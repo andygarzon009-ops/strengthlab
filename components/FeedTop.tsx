@@ -79,7 +79,10 @@ function TodayCard({
   const meta = done
     ? ["Done", `${done.lifts} lifts`, done.minutes ? `${done.minutes} min` : null]
     : rest
-      ? [`${rest.daysTrained}/${rest.goal} days this week`, "Goal hit"]
+      ? [
+          `${rest.daysTrained}/${rest.goal} days this week`,
+          rest.daysTrained >= rest.goal ? "Goal hit" : null,
+        ]
       : next
       ? [`${next.lifts} lifts`, next.minutes ? `~${next.minutes} min` : null]
       : [];

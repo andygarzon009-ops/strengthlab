@@ -593,6 +593,7 @@ export async function updateProfile(data: {
   primaryFocus?: string;
   trainingPhase?: string;
   trainingDays?: number;
+  restDays?: number[];
   moveGoalKcal?: number | null;
   exerciseGoalMin?: number | null;
   injuries?: string;
@@ -614,7 +615,7 @@ export async function updateProfile(data: {
   calf?: number | null;
 }): Promise<{ measurements: MeasurementReport | null }> {
   const userId = await requireAuth();
-  const { birthDate, periodization, dietRestrictions, dietNotes, ...rest } = data;
+  const { birthDate, periodization, dietRestrictions, dietNotes, restDays, ...rest } = data;
 
   // The measurements as they stand before this save. Needed for the comparison
   // below, and as the baseline for an athlete who has no history rows yet.
@@ -635,6 +636,13 @@ export async function updateProfile(data: {
       ...rest,
       ...(dietRestrictions !== undefined ? { dietRestrictions: cleanDiet(dietRestrictions) } : {}),
       ...(dietNotes !== undefined ? { dietNotes: dietNotes.trim().slice(0, 300) || null } : {}),
+      ...(restDays !== undefined
+        ? {
+            restDays: [...new Set(restDays)]
+              .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)
+              .sort(),
+          }
+        : {}),
       // Validated here as well as in the editor: the coach states these week
       // numbers as fact, so a malformed cycle must never reach the database.
       periodization:
