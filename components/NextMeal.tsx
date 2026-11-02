@@ -24,11 +24,12 @@ const MEAL_WORD: Record<Meal, string> = { BREAKFAST: "breakfast", LUNCH: "lunch"
 const noop = () => () => {};
 const useHourNow = () => useSyncExternalStore(noop, () => new Date().getHours(), () => null);
 
-/// Past meals that best fit this meal's share of what's left: protein
-/// closest to the target matters most, going over the calories counts against
-/// it, and a meal usually eaten at this time of day gets a nudge. Anything
-/// well under half the budget (a handful of dates) isn't a meal, and only
-/// counts when the suggestion is a snack.
+/// "Your usual" for this meal: what you most often log as it, most-eaten
+/// first, with fit to what's left (protein closest to target, not blowing
+/// the calories) only breaking ties. A breakfast never offers last night's
+/// pizza. Snacks are looser: once your logged snacks run out, any small
+/// high-protein meal that fits fills in — a whey shake logged at lunch is as
+/// good a snack as one logged at night.
 function bestFits(recent: RecentMeal[], room: RoomLeft, meal: Meal): RecentMeal[] {
   const snack = meal === "SNACK";
   const score = (r: RecentMeal) => {
@@ -36,15 +37,18 @@ function bestFits(recent: RecentMeal[], room: RoomLeft, meal: Meal): RecentMeal[
     const over = Math.max(0, r.kcal - room.kcal) / Math.max(room.kcal, 200);
     const under = Math.max(0, room.kcal - r.kcal) / Math.max(room.kcal, 200);
     const protein = Math.abs(p - room.proteinG) / Math.max(room.proteinG, 20);
-    // Closing the gap after dinner, any small high-protein meal will do —
-    // a whey shake logged at lunch is as good a snack as one logged at night.
-    return protein * 0.6 + over * 1.5 + under * 0.3 + (r.meal === meal ? 0 : snack ? 0.1 : 0.35);
+    return protein * 0.6 + over * 1.5 + under * 0.3;
   };
-  return recent
-    .filter((r) => r.kcal <= room.kcal * (snack ? 1.3 : 1.15))
-    .filter((r) => (snack ? r.kcal >= Math.min(100, room.kcal * 0.25) : r.kcal >= room.kcal * 0.5 && r.meal !== "SNACK"))
-    .sort((a, b) => score(a) - score(b))
+  const usual = recent
+    .filter((r) => r.meal === meal)
+    .sort((a, b) => b.times - a.times || score(a) - score(b))
     .slice(0, 3);
+  if (!snack || usual.length >= 3) return usual;
+  const fillers = recent
+    .filter((r) => r.meal !== meal)
+    .filter((r) => r.kcal <= room.kcal * 1.3 && r.kcal >= Math.min(100, room.kcal * 0.25))
+    .sort((a, b) => score(a) - score(b));
+  return [...usual, ...fillers].slice(0, 3);
 }
 
 const MEAL_LABEL: Record<Meal, string> = { BREAKFAST: "Breakfast", LUNCH: "Lunch", DINNER: "Dinner", SNACK: "Snack" };
