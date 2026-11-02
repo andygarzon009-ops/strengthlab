@@ -55,11 +55,11 @@ export default function NotificationsBell({ inline = false }: { inline?: boolean
       aria-label={
         active ? `Notifications, ${count} new` : "Notifications"
       }
-      className={`${inline ? "relative shrink-0" : "fixed right-4 z-40"} w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform backdrop-blur-xl`}
+      className={`${inline ? "relative shrink-0" : "fixed right-4 z-40"} ${inline ? "w-11 h-11 rounded-[14px]" : "w-10 h-10 rounded-full"} flex items-center justify-center active:scale-95 transition-transform backdrop-blur-xl`}
       style={{
         top: inline ? undefined : "calc(env(safe-area-inset-top, 0px) + 12px)",
-        background: inline ? "var(--bg-card)" : "rgba(20, 20, 20, 0.7)",
-        border: "1px solid var(--border)",
+        background: inline ? "rgba(255,255,255,0.04)" : "rgba(20, 20, 20, 0.7)",
+        border: inline ? "1px solid rgba(255,255,255,0.08)" : "1px solid var(--border)",
       }}
     >
       <svg

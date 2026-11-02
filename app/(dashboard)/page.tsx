@@ -7,7 +7,6 @@ import PullToRefresh from "@/components/PullToRefresh";
 import PendingInvites from "@/components/PendingInvites";
 import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
-import Wordmark from "@/components/Wordmark";
 import FeedTop, { FeedPRs } from "@/components/FeedTop";
 import CrewPulse from "@/components/CrewPulse";
 import NotificationsBell from "@/components/NotificationsBell";
@@ -24,9 +23,8 @@ export default async function FeedPage() {
   const now = new Date();
   const part = (o: Intl.DateTimeFormatOptions) =>
     new Intl.DateTimeFormat("en-US", { timeZone: tz, ...o }).format(now);
-  const weekday = part({ weekday: "short" }).toUpperCase();
+  const weekdayLong = part({ weekday: "long" }).toUpperCase();
   const monthDay = part({ month: "short", day: "numeric" }).toUpperCase();
-  const firstName = currentUser?.name?.split(" ")[0] ?? "Athlete";
 
   // The heavy nested workouts query lives inside <FeedList>, wrapped in
   // Suspense, so the page shell paints immediately instead of blocking.
@@ -34,16 +32,16 @@ export default async function FeedPage() {
   return (
     <PullToRefresh>
     <div className="relative isolate max-w-lg mx-auto px-4 pt-8">
-      {/* The wordmark, big, with the athlete's name and today's date under
-          it; notifications on the right. New workouts and meals start from
-          the + in the bottom bar. */}
-      <div className="flex items-start justify-between mb-6">
+      {/* Today's date over the wordmark; notifications on the right. New
+          workouts and meals start from the + in the bottom bar. */}
+      <div className="flex items-center justify-between mb-5">
         <div className="min-w-0">
-          <Wordmark size={36} />
-          <p className="label text-[11px] mt-2.5 truncate">
-            <span style={{ color: "var(--accent)" }}>{firstName}</span>
-            <span style={{ color: "var(--fg-muted)" }}> · {weekday} · {monthDay}</span>
+          <p className="text-[11px] font-bold" style={{ letterSpacing: "0.14em", color: "var(--fg-dim)" }}>
+            {weekdayLong} · {monthDay}
           </p>
+          <h1 className="text-[28px] font-black leading-none mt-1" style={{ letterSpacing: "-0.045em" }}>
+            Strength<span style={{ color: "var(--accent)" }}>Lab</span>
+          </h1>
         </div>
         <NotificationsBell inline />
       </div>
