@@ -18,7 +18,7 @@ export default async function FeedPage() {
   // The feed is your own training. Friends' sessions live on the Crew page.
   const currentUser = await prisma.user.findUnique({
     where: { id: userId },
-    select: { name: true, timezone: true, image: true },
+    select: { name: true, timezone: true },
   });
   const tz = currentUser?.timezone || "UTC";
   const now = new Date();
@@ -27,7 +27,7 @@ export default async function FeedPage() {
   const hour = Number(part({ hour: "numeric", hourCycle: "h23" }));
   const greeting = hour < 5 ? "Good evening" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const weekday = part({ weekday: "short" }).toUpperCase();
-  const dayNum = part({ day: "numeric" });
+  const monthDay = part({ month: "short", day: "numeric" }).toUpperCase();
   const firstName = currentUser?.name?.split(" ")[0] ?? "Athlete";
 
   // The heavy nested workouts query lives inside <FeedList>, wrapped in
@@ -36,55 +36,24 @@ export default async function FeedPage() {
   return (
     <PullToRefresh>
     <div className="relative isolate max-w-lg mx-auto px-4 pt-4">
-      {/* A slim bar (wordmark, notifications, profile), then the greeting
-          with today's date as a small calendar tile. New workouts and meals
-          start from the + in the bottom bar. */}
+      {/* A slim bar (wordmark, notifications), then the greeting with
+          today's date under it. New workouts and meals start from the + in
+          the bottom bar. */}
       <div className="flex items-center justify-between h-11">
         <Wordmark size={18} />
-        <div className="flex items-center gap-2">
-          <NotificationsBell inline />
-          <Link
-            href="/profile"
-            aria-label="Profile"
-            className="w-10 h-10 rounded-full p-[2px] active:scale-95 transition-transform"
-            style={{ background: "linear-gradient(135deg, #4ade80, #15803d)" }}
-          >
-            {currentUser?.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={currentUser.image} alt="" className="w-full h-full rounded-full object-cover" style={{ border: "2px solid var(--bg)" }} />
-            ) : (
-              <span
-                className="w-full h-full rounded-full flex items-center justify-center text-[15px] font-extrabold"
-                style={{ background: "#1c1c1f", color: "#bbf7d0", border: "2px solid var(--bg)" }}
-              >
-                {firstName[0]?.toUpperCase()}
-              </span>
-            )}
-          </Link>
-        </div>
+        <NotificationsBell inline />
       </div>
 
-      <div className="flex items-end justify-between gap-4 mt-4 mb-5 px-0.5">
-        <div className="min-w-0">
-          <p className="text-[15px]" style={{ color: "var(--fg-muted)" }}>
-            {greeting},
-          </p>
-          <p className="text-[34px] font-extrabold leading-none mt-1 truncate" style={{ letterSpacing: "-0.04em" }}>
-            {firstName}
-          </p>
-        </div>
-        <div
-          className="shrink-0 w-[54px] rounded-[14px] overflow-hidden flex flex-col items-center"
-          style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}
-          aria-label={`Today, ${part({ weekday: "long", month: "long", day: "numeric" })}`}
-        >
-          <span className="w-full text-center text-[10px] font-extrabold py-[3px]" style={{ letterSpacing: "0.12em", background: "#22c55e", color: "#052e14" }}>
-            {weekday}
-          </span>
-          <span className="text-[22px] font-extrabold tabular-nums pt-1 pb-1.5" style={{ letterSpacing: "-0.03em" }}>
-            {dayNum}
-          </span>
-        </div>
+      <div className="mt-4 mb-5 px-0.5">
+        <p className="text-[15px]" style={{ color: "var(--fg-muted)" }}>
+          {greeting},
+        </p>
+        <p className="text-[34px] font-extrabold leading-none mt-1 truncate" style={{ letterSpacing: "-0.04em" }}>
+          {firstName}
+        </p>
+        <p className="label text-[11px] mt-2.5" style={{ color: "var(--fg-muted)" }}>
+          {weekday} · {monthDay}
+        </p>
       </div>
 
       {/* Each card streams in independently. The glance rings make live
