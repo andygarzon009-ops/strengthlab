@@ -7,6 +7,8 @@ import { deleteFoodLog, renameRecentMeal, updateFoodLog } from "@/lib/actions/fo
 import { MEALS, mealSig, type Meal } from "@/lib/meals";
 import { renameMealOptimistic, useMealNameOverrides } from "@/lib/mealNames";
 import { useSheetBack, SheetClose, backdropTap } from "@/components/useSheetBack";
+import MealIcon from "@/components/MealIcon";
+import { CARBS, FAT, PROTEIN } from "@/components/FuelCharts";
 
 type Row = {
   id: string;
@@ -27,7 +29,7 @@ const LABEL: Record<string, string> = {
   BREAKFAST: "Breakfast",
   LUNCH: "Lunch",
   DINNER: "Dinner",
-  SNACK: "Snacks",
+  SNACK: "Snack",
 };
 const MEAL_LABEL: Record<Meal, string> = {
   BREAKFAST: "Breakfast",
@@ -215,38 +217,49 @@ export default function FoodLogToday({
   const valid = !!draft && draft.name.trim() !== "" && n(draft.kcal) > 0;
 
   return (
-    <section
-      className="rounded-2xl p-4 mb-5"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
-    >
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-[20px] font-extrabold tracking-tight">Logged today</h2>
-        <span className="text-[11px]" style={{ color: "var(--fg-muted)" }}>Tap a meal to open</span>
-      </div>
+    <div className="mt-5">
+      <div className="h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent)" }} />
+      <p className="text-[11px] font-extrabold tracking-[0.12em] mt-4 mb-1" style={{ color: "var(--fg-dim)" }}>
+        LOGGED TODAY
+      </p>
       {ORDER.filter((m) => live.some((r) => r.meal === m)).map((m) => {
         const list = live.filter((r) => r.meal === m);
         const kcal = list.reduce((s, r) => s + r.kcal, 0);
         const isOpen = openMeals.has(m);
+        // Where this meal's calories came from: protein, carbs, fat.
+        const pK = list.reduce((s, r) => s + r.proteinG * 4, 0);
+        const cK = list.reduce((s, r) => s + r.carbsG * 4, 0);
+        const fK = list.reduce((s, r) => s + r.fatG * 9, 0);
+        const mK = Math.max(1, pK + cK + fK);
         return (
-          <div key={m} className="mt-2" style={{ borderBottom: isOpen ? undefined : "1px solid var(--border)" }}>
+          <div key={m}>
             <button
               type="button"
               onClick={() => toggle(m)}
               aria-expanded={isOpen}
-              className="w-full flex items-center gap-2 min-h-[44px] text-left active:opacity-70"
+              className="w-full flex items-center gap-3 min-h-16 text-left active:opacity-70"
             >
-              <span className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--fg-dim)" }}>
-                {LABEL[m]}
+              <MealIcon meal={m} />
+              <span className="flex-1 min-w-0 flex flex-col gap-1.5">
+                <span className="text-[15px] font-semibold truncate">
+                  {LABEL[m]}{" "}
+                  <span className="text-[12px] font-normal" style={{ color: "var(--fg-dim)" }}>
+                    ·{" "}
+                    {(() => {
+                      const groups = groupSaves(list);
+                      const only = groups.length === 1 && groups[0].length > 1 ? nameOf(mealSig(groups[0].map((r) => r.name))) : null;
+                      return only ?? `${list.length} item${list.length === 1 ? "" : "s"}`;
+                    })()}
+                  </span>
+                </span>
+                <span className="flex gap-0.5 h-1 w-[132px]" aria-hidden>
+                  <span className="rounded-sm" style={{ width: `${(pK / mK) * 100}%`, background: PROTEIN }} />
+                  <span className="rounded-sm" style={{ width: `${(cK / mK) * 100}%`, background: CARBS }} />
+                  <span className="rounded-sm" style={{ width: `${(fK / mK) * 100}%`, background: FAT }} />
+                </span>
               </span>
-              <span className="flex-1 min-w-0 text-[11px] truncate" style={{ color: "var(--fg-dim)" }}>
-                {(() => {
-                  const groups = groupSaves(list);
-                  const only = groups.length === 1 && groups[0].length > 1 ? nameOf(mealSig(groups[0].map((r) => r.name))) : null;
-                  return only ?? `${list.length} item${list.length === 1 ? "" : "s"}`;
-                })()}
-              </span>
-              <span className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--fg-muted)" }}>
-                {Math.round(kcal).toLocaleString()} kcal
+              <span className="text-[18px] font-bold tabular-nums" style={{ fontFamily: "var(--font-geist-mono)", letterSpacing: "-0.03em" }}>
+                {Math.round(kcal).toLocaleString()}
               </span>
               <svg
                   width="14"
@@ -487,6 +500,6 @@ export default function FoodLogToday({
           </div>,
           document.body,
         )}
-    </section>
+    </div>
   );
 }

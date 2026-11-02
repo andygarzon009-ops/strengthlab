@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { shrinkImage } from "@/lib/shrinkImage";
@@ -20,7 +20,8 @@ import SwipeRow from "@/components/SwipeRow";
 import type { RecentMeal } from "@/lib/foodLog";
 import type { DetectedFood } from "@/app/api/food/analyze/route";
 import { useSheetBack, SheetClose, backdropTap } from "@/components/useSheetBack";
-import { PAGE_FROM, PAGE_RGB, PAGE_TO } from "@/lib/macroColor";
+import { nextMealType } from "@/lib/nextMeal";
+import MealIcon, { MEAL_TINT } from "@/components/MealIcon";
 
 /// `base` is the leading count in the estimate's portion ("2 large eggs" → 2),
 /// so a miscount is fixed with a stepper instead of a ratio. `scale` is
@@ -60,7 +61,6 @@ const RECENT_HEADING: Record<Meal, string> = {
   DINNER: "Dinners",
   SNACK: "Snacks",
 };
-const MEAL_ICON: Record<Meal, string> = { BREAKFAST: "🍳", LUNCH: "🥗", DINNER: "🍽️", SNACK: "🍎" };
 
 // A weight or volume ("30 g almonds", "250 ml milk") isn't a count; those keep the chips.
 const leadingCount = (portion: string): number | null => {
@@ -98,7 +98,34 @@ const scaled = (it: Item) => ({
 /// The automatic name for a past meal: its biggest food, "+N" for the rest.
 const autoTitle = (r: RecentMeal) => autoMealTitle(r.items) || r.title;
 
-export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
+// The phone's hour picks the meal that's up next; null during SSR so the
+// first client render matches the server.
+const noop = () => () => {};
+const useHourNow = () => useSyncExternalStore(noop, () => new Date().getHours(), () => null);
+
+const MEAL_WORD: Record<Meal, string> = { BREAKFAST: "breakfast", LUNCH: "lunch", DINNER: "dinner", SNACK: "snack" };
+const UP_NEXT_LABEL: Record<Meal, string> = { BREAKFAST: "Breakfast", LUNCH: "Lunch", DINNER: "Dinner", SNACK: "Snack" };
+
+export default function FoodLogger({
+  recent = [],
+  loggedMeals = [],
+  children,
+}: {
+  recent?: RecentMeal[];
+  /// Meal types already logged today, to work out which one is up next.
+  loggedMeals?: string[];
+  /// Today's log, shown under the log buttons in the same card.
+  children?: ReactNode;
+}) {
+  const hour = useHourNow();
+  const upNext: Meal | null = hour == null ? null : nextMealType(hour, new Set(loggedMeals));
+  // What a new log is saved as by default: the meal that's up next. Read
+  // through a ref so the pending-meal listener set up on mount stays current.
+  const upNextRef = useRef<Meal | null>(upNext);
+  useEffect(() => {
+    upNextRef.current = upNext;
+  }, [upNext]);
+  const defaultMeal = (): Meal => upNextRef.current ?? mealForHour(new Date().getHours());
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [stage, setStage] = useState<Stage>({ kind: "closed" });
@@ -199,7 +226,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
   };
 
   const startPhoto = async (picked: File) => {
-    setMeal(mealForHour(new Date().getHours()));
+    setMeal(defaultMeal());
     // Show the sheet before the shrink: decoding a full camera photo can take
     // a few seconds on a phone, and the page shouldn't sit there looking idle.
     setStage({ kind: "analyzing", preview: null });
@@ -226,7 +253,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
       if (!p) return;
       if ("file" in p) startPhoto(p.file);
       else if ("review" in p) {
-        setMeal(mealForHour(new Date().getHours()));
+        setMeal(defaultMeal());
         setStage({
           kind: "review",
           items: p.review.items.map(toItem),
@@ -238,7 +265,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
           relog: true,
         });
       } else {
-        setMeal(mealForHour(new Date().getHours()));
+        setMeal(defaultMeal());
         setStage({ kind: "describe" });
       }
     };
@@ -259,7 +286,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
   // A recent meal skips the estimate: same foods, same numbers, straight to
   // review so the portion or meal can still be tweaked before saving.
   const relog = (r: RecentMeal) => {
-    setMeal(mealForHour(new Date().getHours()));
+    setMeal(defaultMeal());
     setStage({
       kind: "review",
       items: r.items.map(toItem),
@@ -395,8 +422,22 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
         )
       : null;
 
+  const tint = MEAL_TINT[upNext ?? "LUNCH"];
+  const glass = {
+    background: "linear-gradient(160deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
+    border: "1px solid rgba(255,255,255,0.08)",
+  };
+
   return (
-    <section id="log" className="rounded-2xl p-4 mb-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}>
+    <section
+      id="log"
+      className="relative overflow-hidden rounded-[28px] px-5 pt-[22px] pb-3 mb-5"
+      style={{
+        background: `radial-gradient(100% 45% at 50% 0%, rgba(${tint.rgb},0.26), transparent 60%), linear-gradient(180deg, #17151d, var(--bg-card) 55%)`,
+        border: "1px solid rgba(255,255,255,0.07)",
+        boxShadow: "0 20px 50px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)",
+      }}
+    >
       <input
         ref={fileRef}
         type="file"
@@ -404,107 +445,73 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
         className="hidden"
         onChange={onPhoto}
       />
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-[20px] font-extrabold tracking-tight">Log a meal</h2>
-        {saved && (
-          <span className="text-[12px] font-semibold" style={{ color: "#86efac" }} role="status">
-            ✓ {saved}
-          </span>
-        )}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-extrabold tracking-[0.14em]" style={{ color: tint.ink }}>
+            UP NEXT
+          </p>
+          <h2 className="text-[34px] font-extrabold leading-none mt-1" style={{ letterSpacing: "-0.035em" }}>
+            {upNext ? UP_NEXT_LABEL[upNext] : "Log a meal"}
+          </h2>
+          {saved && (
+            <p className="text-[12px] font-semibold mt-2" style={{ color: "#86efac" }} role="status">
+              ✓ {saved}
+            </p>
+          )}
+        </div>
+        {upNext && <MealIcon meal={upNext} size={52} />}
       </div>
-      {/* Same two tiles as the New sheet's meal options, so logging a meal
-          looks the same wherever it starts. */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="flex flex-col gap-3 rounded-2xl p-4 text-left active:scale-[0.99] transition-transform"
-          style={{
-            background:
-              `radial-gradient(120% 140% at 0% 0%, rgba(${PAGE_RGB},0.18) 0%, transparent 60%), var(--bg-elevated)`,
-            border: `1px solid rgba(${PAGE_RGB},0.3)`,
-          }}
-        >
-          <span
-            className="w-11 h-11 rounded-2xl flex items-center justify-center"
-            style={{ background: `linear-gradient(135deg, ${PAGE_TO}, ${PAGE_FROM})` }}
-            aria-hidden
-          >
-            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
-          </span>
-          <span>
-            <span className="block text-[15px] font-bold">Meal photo</span>
-            <span className="block text-[12px] mt-0.5" style={{ color: "var(--fg-muted)" }}>
-              Snap it, we count it
-            </span>
-          </span>
-        </button>
+
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        className="mt-4 w-full h-[60px] rounded-[18px] flex items-center justify-center gap-2.5 text-[17px] font-extrabold active:scale-[0.99] transition-transform"
+        style={{
+          background: "linear-gradient(160deg, #4ade80, #16a34a)",
+          color: "#052e14",
+          border: "1px solid rgba(255,255,255,0.25)",
+          boxShadow: "0 12px 30px rgba(34,197,94,0.42), inset 0 1px 0 rgba(255,255,255,0.4)",
+        }}
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+          <circle cx="12" cy="13" r="3" />
+        </svg>
+        Snap your {upNext ? MEAL_WORD[upNext] : "meal"}
+      </button>
+      <div className={`grid gap-2 mt-2 ${recent.length > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
         <button
           type="button"
           onClick={() => {
-            setMeal(mealForHour(new Date().getHours()));
+            setMeal(defaultMeal());
             setStage({ kind: "describe" });
           }}
-          className="flex flex-col gap-3 rounded-2xl p-4 text-left active:scale-[0.99] transition-transform"
-          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
+          className="h-[50px] rounded-2xl flex items-center justify-center gap-2 text-[14px] font-semibold active:scale-[0.99] transition-transform"
+          style={glass}
         >
-          <span
-            className="w-11 h-11 rounded-2xl flex items-center justify-center"
-            style={{ background: "rgba(255,255,255,0.08)" }}
-            aria-hidden
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--fg)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
-            </svg>
-          </span>
-          <span>
-            <span className="block text-[15px] font-bold">Describe a meal</span>
-            <span className="block text-[12px] mt-0.5" style={{ color: "var(--fg-muted)" }}>
-              Type what you ate
-            </span>
-          </span>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+          </svg>
+          Describe
         </button>
-      </div>
-      {recent.length > 0 && (
-        <div className="mt-3">
-          {/* Collapsed until asked for: a dropdown of past meals, the ones
-              logged most often first. */}
+        {recent.length > 0 && (
           <button
             type="button"
             onClick={() => setShowRecent((v) => !v)}
             aria-expanded={showRecent}
-            className="w-full flex items-center justify-between min-h-[44px] px-3.5 rounded-xl text-[14px] font-semibold"
-            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)" }}
+            className="h-[50px] rounded-2xl flex items-center justify-center gap-2 text-[14px] font-semibold active:scale-[0.99] transition-transform"
+            style={showRecent ? { ...glass, border: "1px solid rgba(255,255,255,0.22)" } : glass}
           >
-            <span className="flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-                <path d="M3 3v5h5M12 7v5l3 2" />
-              </svg>
-              Log a past meal
-            </span>
-            <span className="flex items-center gap-2 text-[12px]" style={{ color: "var(--fg-muted)" }}>
-              {shownRecent.length}
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-                style={{ transform: showRecent ? "rotate(180deg)" : undefined, transition: "transform 160ms" }}
-              >
-                <path d="M6 9l6 6 6-6" />
-              </svg>
-            </span>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+              <path d="M3 3v5h5M12 7v5l3 2" />
+            </svg>
+            Past meal
           </button>
-
+        )}
+      </div>
+      {recent.length > 0 && (
+        <div>
           {undo && (
             <div
               role="status"
@@ -538,7 +545,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
                       className="w-full flex items-center justify-between min-h-[44px] px-3.5 text-[13px] font-semibold"
                     >
                       <span className="flex items-center gap-2.5">
-                        <span aria-hidden className="text-[15px]">{MEAL_ICON[m]}</span>
+                        <MealIcon meal={m} size={28} />
                         {RECENT_HEADING[m]}
                       </span>
                       <span className="flex items-center gap-2 text-[12px] font-medium" style={{ color: "var(--fg-muted)" }}>
@@ -664,9 +671,7 @@ export default function FoodLogger({ recent = [] }: { recent?: RecentMeal[] }) {
           )}
         </div>
       )}
-      <p className="text-[11px] mt-2.5" style={{ color: "var(--fg-dim)" }}>
-        Estimates from a photo are rough — check portions before saving.
-      </p>
+      {children}
 
       {open &&
         createPortal(

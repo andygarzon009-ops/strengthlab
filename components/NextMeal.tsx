@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import type { Meal } from "@/lib/meals";
-import { planDay, type MealSlot } from "@/lib/nextMeal";
+import { planDay } from "@/lib/nextMeal";
 import { setPendingMeal } from "@/lib/pendingMeal";
 import type { RecentMeal } from "@/lib/foodLog";
 import type { RoomLeft } from "@/lib/roomLeft";
@@ -283,8 +283,6 @@ export default function NextMeal({
     }));
   };
 
-  const chipTag = (sl: MealSlot) =>
-    sl.status === "logged" ? "logged" : sl.status === "next" ? "next" : `~${sl.budget.kcal.toLocaleString()}`;
   const pick = (m: Meal) => {
     setPicked(m);
     setCardIdx(0);
@@ -343,7 +341,7 @@ export default function NextMeal({
               role="tab"
               aria-selected={on}
               onClick={() => pick(sl.meal)}
-              className="flex flex-col items-center gap-px pt-[7px] pb-1.5 rounded-[9px] text-[12.5px] font-semibold"
+              className="flex items-center justify-center min-h-10 rounded-[9px] text-[12.5px] font-semibold"
               style={
                 on
                   ? { background: "var(--bg-card)", color: "var(--fg)", boxShadow: "0 0 0 1px var(--border-strong)" }
@@ -351,12 +349,6 @@ export default function NextMeal({
               }
             >
               {MEAL_LABEL[sl.meal]}
-              <span
-                className="text-[9.5px] font-semibold uppercase tabular-nums"
-                style={{ letterSpacing: "0.04em", color: sl.status === "next" ? PAGE : "var(--fg-dim)" }}
-              >
-                {chipTag(sl)}
-              </span>
             </button>
           );
         })}

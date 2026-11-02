@@ -24,6 +24,21 @@ export type NextMealPlan = {
   snacksToClose: number | null;
 };
 
+/// The main meals still to come at this hour, in order. Between meals
+/// (mid-afternoon, late night) the hour maps to SNACK; the next main meal is
+/// whichever comes after this hour.
+function mainsAhead(hour: number, logged: Set<string>): Meal[] {
+  const now = mealForHour(hour);
+  const fromIdx = now === "SNACK" ? (hour < 17 && hour >= 15 ? 2 : 3) : MAINS.indexOf(now);
+  return MAINS.slice(fromIdx).filter((m) => !logged.has(m));
+}
+
+/// Which meal is up next — the same pick planNextMeal makes, without needing
+/// the day's numbers, so the log card and Next meal always agree.
+export function nextMealType(hour: number, logged: Set<string>): Meal {
+  return mainsAhead(hour, logged)[0] ?? "SNACK";
+}
+
 /// `logged` holds the meal types already logged today. A main meal that's
 /// already in moves the suggestion on to the next one; once dinner is in (or
 /// it's late) the suggestion is a snack.
@@ -33,11 +48,7 @@ export function planNextMeal(
   logged: Set<string>,
   dayTargetKcal: number,
 ): NextMealPlan {
-  const now = mealForHour(hour);
-  // Between meals (mid-afternoon, late night) the hour maps to SNACK; the next
-  // main meal is whichever comes after this hour.
-  const fromIdx = now === "SNACK" ? (hour < 17 && hour >= 15 ? 2 : 3) : MAINS.indexOf(now);
-  const ahead = MAINS.slice(fromIdx).filter((m) => !logged.has(m));
+  const ahead = mainsAhead(hour, logged);
   const scale = (f: number): RoomLeft => ({
     kcal: Math.round(room.kcal * f),
     proteinG: Math.round(room.proteinG * f),
