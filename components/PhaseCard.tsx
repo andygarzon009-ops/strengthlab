@@ -416,6 +416,12 @@ export function PhaseLine({ phase }: { phase: ResolvedBlock }) {
 
 /// What this block means at the gym, as one quiet line ("6–12 reps · RIR 1–2
 /// · 90–120 s rest") — the same numbers as the full card's chips.
+export function phaseChips(phase: ResolvedBlock): [string, string][] | null {
+  const { state, config } = phase;
+  const name = config.blocks[state.blockIndex]?.name ?? state.blockName;
+  return CHIPS[state.isDeloadWeek ? "deload" : blockKindOf(name, false)] ?? null;
+}
+
 export function phaseRx(phase: ResolvedBlock): string | null {
   const { state, config } = phase;
   const deload = state.isDeloadWeek;

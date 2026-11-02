@@ -2,7 +2,7 @@ import Link from "next/link";
 import { formatPlates } from "@/lib/exercises";
 import { loadTodayPlan, type TodayPlan } from "@/lib/todayPlan";
 import { loadRecentPRs, type RecentPR } from "@/lib/recentPRs";
-import { loadPhase, DELOAD_BLUE, PhaseLine, phaseRx } from "@/components/PhaseCard";
+import { loadPhase, DELOAD_BLUE, PhaseLine, phaseChips } from "@/components/PhaseCard";
 import type { ResolvedBlock } from "@/lib/blockStamp";
 import Sparkline from "@/components/Sparkline";
 import SharePRButton from "@/components/SharePRButton";
@@ -67,8 +67,8 @@ function TodayCard({
   // On a rest day the rotation's next split isn't "up"; it only backs the
   // optional train-anyway link.
   const next = rest ? null : plan.next;
-  const rx = phase ? phaseRx(phase) : null;
-  const eyebrow = `${deload ? "Deload week" : "Today"} · ${plan.dayLabel}`;
+  const chips = phase ? phaseChips(phase) : null;
+  const eyebrow = done ? "Done today" : rest ? `Today · ${plan.dayLabel}` : deload ? `Deload · ${plan.dayLabel}` : "Today's session";
   const title = done
     ? `${done.title}`
     : rest
@@ -77,13 +77,12 @@ function TodayCard({
       ? `${next.label} day`
       : "Your call today";
   const meta = done
-    ? ["Done", `${done.lifts} lifts`, done.minutes ? `${done.minutes} min` : null]
+    ? [`${done.lifts} lifts`, done.minutes ? `${done.minutes} min` : null]
     : rest
       ? [`${rest.daysTrained}/${rest.goal} days this week`, "Goal hit"]
       : next
       ? [`${next.lifts} lifts`, next.minutes ? `~${next.minutes} min` : null]
       : [];
-  const metaLine = meta.filter(Boolean).join(" · ");
   // Start opens the coach with the ask already sent, so the session the
   // athlete does is the coach's prescription — warm-up, loads, rest — and not
   // a copy of the last session of that split.
@@ -99,79 +98,90 @@ function TodayCard({
       ? `Same lifts, about ${deloadPct}% less work — nothing near failure. Use the light sets to clean up technique.`
       : plan.readiness.line;
 
-  const Arrow = (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M5 12h14M13 6l6 6-6 6" />
+  const Play = (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M7 4v16l13-8z" />
     </svg>
   );
+  const [metaMain, ...metaRest] = meta.filter((m): m is string => !!m);
 
-  // Option A: the plan sits beside the readiness gauge, Activity (and Fuel,
-  // once logged) run under it, then the coach's line and the button. With a
-  // PR card above, the title steps down and the button slims.
-  const head = (
-    <>
-      <p
-        className="label text-[11px]"
-        style={{ color: deload ? DELOAD_BLUE : "var(--fg-dim)" }}
-      >
-        {eyebrow}
-      </p>
-      <h2
-        className="font-extrabold tracking-tight leading-[1.05] mt-1.5 line-clamp-2"
-        style={{ fontSize: compact ? 19 : 22, textWrap: "balance" }}
-      >
-        {title}
-      </h2>
-      {metaLine && (
-        <p
-          className="text-[13px] mt-2 truncate"
-          style={{ color: "var(--fg-muted)", fontFamily: "var(--font-geist-mono)" }}
-        >
-          {metaLine}
-        </p>
-      )}
-    </>
-  );
-
+  // Rings and the coach's line on top (DailyGlance), then today's session as
+  // one panel: eyebrow and title with lifts/time beside it, the block's
+  // reps / effort / rest as three chips, and the button.
   return (
     <DailyGlance
       recovery={recovery}
       activity={activity}
-      // Once today's session is logged, Activity opens it (no button needed).
+      // Once today's session is logged, Activity opens it.
       activityHref={done ? `/workout/${done.id}` : undefined}
       top={phase ? <PhaseLine phase={phase} /> : null}
-      head={head}
-      below={
-        rx ? (
-          <p
-            className="text-[11.5px] mt-3 truncate"
-            style={{ color: "var(--fg-dim)", fontFamily: "var(--font-geist-mono)" }}
-          >
-            {rx}
-          </p>
-        ) : null
-      }
+      line={line}
     >
-      <p className="text-[14px] leading-snug mt-3.5" style={{ color: "var(--fg)", opacity: 0.85 }}>
-        {line}
-      </p>
-      {rest ? (
-        <Link
-          href={href}
-          className="mt-3 block text-center text-[13px] font-semibold py-2"
-          style={{ color: "var(--fg-muted)" }}
-        >
-          Feeling fresh? Train anyway
-        </Link>
-      ) : !done && (
-        <Link
-          href={href}
-          className={`btn-accent ${compact ? "mt-3 min-h-[42px] rounded-xl text-[14px]" : "mt-4 min-h-[48px] rounded-2xl text-[15px]"} flex items-center justify-center gap-2 font-bold`}
-        >
-          {cta}
-          {Arrow}
-        </Link>
-      )}
+      <div
+        className="mt-4 rounded-[22px] p-3.5"
+        style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.07)" }}
+      >
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="label text-[10px] font-extrabold" style={{ color: deload ? DELOAD_BLUE : "var(--fg-dim)", letterSpacing: "0.14em" }}>
+              {eyebrow}
+            </p>
+            <h2
+              className="font-black leading-none mt-1.5 truncate"
+              style={{ fontSize: compact ? 22 : 28, letterSpacing: "-0.035em" }}
+            >
+              {title}
+            </h2>
+          </div>
+          {metaMain && (
+            <span className="shrink-0 flex flex-col items-end gap-0.5 tabular-nums" style={{ fontFamily: "var(--font-geist-mono)" }}>
+              <span className="text-[13px] font-bold">{metaMain}</span>
+              {metaRest.length > 0 && (
+                <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
+                  {metaRest.join(" · ")}
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+        {chips && !done && !rest && (
+          <div className="grid gap-1.5 mt-3" style={{ gridTemplateColumns: `repeat(${chips.length}, minmax(0, 1fr))` }}>
+            {chips.map(([v, l]) => (
+              <span key={l} className="rounded-xl px-2.5 py-2 flex flex-col gap-px min-w-0" style={{ background: "rgba(255,255,255,0.04)" }}>
+                <span className="text-[9.5px] font-bold uppercase truncate" style={{ letterSpacing: "0.12em", color: "var(--fg-dim)" }}>
+                  {l}
+                </span>
+                <b className="text-[13px] tabular-nums truncate" style={{ fontFamily: "var(--font-geist-mono)" }}>
+                  {v}
+                </b>
+              </span>
+            ))}
+          </div>
+        )}
+        {rest ? (
+          <Link
+            href={href}
+            className="mt-2 block text-center text-[13px] font-semibold py-2"
+            style={{ color: "var(--fg-muted)" }}
+          >
+            Feeling fresh? Train anyway
+          </Link>
+        ) : !done && (
+          <Link
+            href={href}
+            className={`mt-3 ${compact ? "min-h-[46px] text-[14px]" : "min-h-[56px] text-[16px]"} rounded-[17px] flex items-center justify-center gap-2 font-extrabold active:scale-[0.99] transition-transform`}
+            style={{
+              background: "linear-gradient(160deg, #4ade80, #16a34a)",
+              color: "#052e14",
+              border: "1px solid rgba(255,255,255,0.28)",
+              boxShadow: "0 12px 30px rgba(34,197,94,0.42), inset 0 1px 0 rgba(255,255,255,0.45)",
+            }}
+          >
+            {Play}
+            {cta}
+          </Link>
+        )}
+      </div>
     </DailyGlance>
   );
 }

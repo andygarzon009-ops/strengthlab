@@ -3,33 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { type NutritionResponse, RATING_COLOR } from "@/components/FuelDetail";
-import TickGauge from "@/components/TickGauge";
-import { MACRO, MACRO_FROM, MACRO_TO } from "@/lib/macroColor";
-
-const ICON_PROPS = {
-  width: 14,
-  height: 14,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-};
-function FlameIcon() {
-  return (
-    <svg {...ICON_PROPS}>
-      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
-    </svg>
-  );
-}
-function ZapIcon() {
-  return (
-    <svg {...ICON_PROPS}>
-      <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />
-    </svg>
-  );
-}
+import { MACRO, MACRO_TO } from "@/lib/macroColor";
 
 export type RecoveryGlance = {
   score: number;
@@ -46,178 +20,130 @@ export type ActivityGlance = {
   rows: { label: string; value: number; goal: number; unit: string; color: string; done: boolean }[];
 };
 
-// Each stat keeps one colour whatever the numbers say, so the tile names the
-// stat and never judges it — readiness is the card's only red→green verdict.
-// Macros wears Fire (lib/macroColor), Activity the brand's button green.
-const FUEL_COLOR = MACRO;
-const ACTIVITY_COLOR = "#22c55e";
-
-const CHEVRON = (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="var(--fg-muted)"
-    strokeWidth="2.6"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden
-    className="ml-auto shrink-0"
-  >
-    <path d="M9 6l6 6-6 6" />
-  </svg>
-);
-
-/// One of the two tiles under the plan: a glowing icon, the big reading in the
-/// stat's colour, then its parts as mini-bars in the same colour. With an
-/// `href` the whole tile is a link and carries a ›; without one it's just a
-/// readout — Activity's parts are already all there is to see.
-function SplitTile({
+/// One ring: the arc, the reading in the middle, a label and a note under.
+function Ring({
   href,
-  label,
-  icon,
+  ariaLabel,
+  size,
+  stroke,
+  pct,
   color,
-  big,
-  sub,
-  subColor,
-  parts,
-  gradient,
-  children,
+  center,
+  centerSize,
+  caption,
+  label,
+  note,
+  noteColor,
 }: {
-  href?: string;
-  /// [from, to]: the big number and the bars run this instead of `color`.
-  gradient?: [string, string];
-  label: string;
-  icon: ReactNode;
+  href: string;
+  ariaLabel: string;
+  size: number;
+  stroke: number;
+  pct: number;
   color: string;
-  big?: string;
-  sub?: string;
-  /// The closed-day grade wears its own colour.
-  subColor?: string;
-  parts?: { label: string; pct: number }[];
-  /// Replaces the reading — the empty state's call to action.
-  children?: ReactNode;
+  center: string;
+  centerSize: number;
+  /// Under the number, inside the ring (Recovery's band).
+  caption?: string;
+  label: string;
+  note?: string;
+  noteColor?: string;
 }) {
-  const cls = "relative min-w-0 rounded-2xl px-3 pt-3 pb-3.5 flex flex-col gap-[11px]";
-  const style = {
-    background: "var(--bg-elevated)",
-  };
-  const content = (
-    <>
-      <span className="flex items-center gap-1.5 text-[13px] font-semibold">
-        <span className="inline-flex" style={{ color, filter: "drop-shadow(0 0 6px currentColor)" }}>
-          {icon}
-        </span>
-        {label}
-        {href && CHEVRON}
-      </span>
-      {children ?? (
-        <>
-          <span className="flex items-baseline gap-1.5 min-w-0">
-            <b
-              className="text-[30px] font-semibold leading-none tabular-nums"
-              style={{
-                fontFamily: "var(--font-geist-mono)",
-                letterSpacing: "-0.05em",
-                ...(gradient
-                  ? {
-                      background: `linear-gradient(90deg, ${gradient[1]}, ${gradient[0]})`,
-                      WebkitBackgroundClip: "text",
-                      backgroundClip: "text",
-                      color: "transparent",
-                    }
-                  : { color }),
-              }}
-            >
-              {big}
-            </b>
-            <span
-              className="min-w-0 truncate text-[12px] font-medium"
-              style={{ color: subColor ?? "var(--fg-dim)" }}
-            >
-              {sub}
-            </span>
-          </span>
-          <span className="flex flex-col gap-[7px]">
-            {parts?.map((p) => (
-              <span
-                key={p.label}
-                className="grid items-center gap-1.5 text-[10px] font-semibold uppercase"
-                style={{ gridTemplateColumns: "54px 1fr", letterSpacing: "0.06em", color: "var(--fg-dim)" }}
-              >
-                {p.label}
-                <span className="relative block h-[5px] rounded-full" style={{ background: "#232328" }}>
-                  <span
-                    className="absolute inset-y-0 left-0 rounded-full"
-                    style={{
-                      width: `${Math.max(0, Math.min(100, p.pct))}%`,
-                      background: gradient
-                        ? `linear-gradient(90deg, ${gradient[0]}, ${gradient[1]})`
-                        : `linear-gradient(90deg, color-mix(in srgb, ${color} 55%, #0a0a0a), ${color})`,
-                      boxShadow: `0 0 8px color-mix(in srgb, ${color} 40%, transparent)`,
-                    }}
-                  />
-                </span>
-              </span>
-            ))}
-          </span>
-        </>
-      )}
-    </>
-  );
-  if (!href) {
-    return (
-      <div className={cls} style={style}>
-        {content}
-      </div>
-    );
-  }
+  const r = (size - stroke) / 2 - 2;
+  const c = 2 * Math.PI * r;
+  const fill = (Math.max(0, Math.min(100, pct)) / 100) * c;
+  const big = size > 100;
   return (
-    <Link href={href} className={`${cls} active:scale-[0.98] transition-transform`} style={style}>
-      {content}
+    <Link
+      href={href}
+      aria-label={ariaLabel}
+      className={`flex flex-col items-center active:scale-[0.97] transition-transform ${big ? "gap-1" : "gap-1.5 w-[86px]"}`}
+    >
+      <span className="relative block" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeOpacity={0.14} strokeWidth={stroke} />
+          {fill > 0 && (
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke={color}
+              strokeWidth={stroke}
+              strokeLinecap="round"
+              strokeDasharray={`${fill} ${c}`}
+              transform={`rotate(-90 ${size / 2} ${size / 2})`}
+              style={{ filter: `drop-shadow(0 0 ${big ? 9 : 5}px ${color})`, transition: "stroke-dasharray 600ms ease" }}
+            />
+          )}
+        </svg>
+        <span className="absolute inset-0 flex flex-col items-center justify-center">
+          <span
+            className="font-bold leading-none tabular-nums"
+            style={{ fontSize: centerSize, fontFamily: "var(--font-geist-mono)", letterSpacing: big ? "-0.05em" : "-0.03em" }}
+          >
+            {center}
+          </span>
+          {caption && (
+            <span className="text-[10.5px] font-extrabold uppercase mt-1.5" style={{ color, letterSpacing: "0.16em" }}>
+              {caption}
+            </span>
+          )}
+        </span>
+      </span>
+      <span className="text-[12px] font-bold" style={{ color: big ? "var(--fg-muted)" : "var(--fg)" }}>
+        {label}
+      </span>
+      {note && (
+        <span
+          className="-mt-1 text-[10.5px] tabular-nums whitespace-nowrap"
+          style={{ fontFamily: "var(--font-geist-mono)", color: noteColor ?? "var(--fg-muted)" }}
+        >
+          {note}
+        </span>
+      )}
     </Link>
   );
 }
 
-/// The Today card's top: the readiness gauge beside the plan, then Fuel and
-/// Activity as two tiles; Fuel opens its page. Recovery + activity come
+const ACTIVITY_RING = "#38bdf8";
+
+/// The Today card: the training block on top, then three rings — Macros,
+/// Recovery (big, centre) and Activity — the coach's line under them, and
+/// today's session as a panel at the bottom. Recovery and activity come
 /// server-side as props; fuel is fetched client-side from the shared endpoint.
 export default function DailyGlance({
   recovery,
   activity,
   activityHref,
   top,
-  head,
-  below,
+  line,
   children,
 }: {
   recovery: RecoveryGlance | null;
   activity: ActivityGlance | null;
-  /// Where the Activity tile goes: today's logged workout, when there is one.
+  /// Where the Activity ring goes: today's logged workout, when there is one.
   activityHref?: string;
   /// Above everything: the training block's line.
   top?: ReactNode;
-  /// The plan's title block, set beside the gauge.
-  head: ReactNode;
-  /// Under the gauge row: the block's reps / effort / rest.
-  below?: ReactNode;
-  /// The coach's line and the call to action, under the stats.
+  /// The coach's line, centred under the rings.
+  line?: ReactNode;
+  /// Today's session panel.
   children: ReactNode;
 }) {
   const [fuel, setFuel] = useState<NutritionResponse | null>(null);
 
   // Stale-while-revalidate: paint the last cached Fuel value instantly (the
-  // live Google Health call is slow, so re-fetching on every page open made
-  // this ring lag/pop-in), then refresh in the background. The cache read is
-  // deferred to a microtask so it isn't a synchronous in-effect setState (and
-  // so SSR/first paint stays consistent — no hydration flash).
+  // live call is slow, so re-fetching on every page open made this ring
+  // lag/pop-in), then refresh in the background. The cache read is deferred
+  // to a microtask so it isn't a synchronous in-effect setState (and so
+  // SSR/first paint stays consistent — no hydration flash).
   useEffect(() => {
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
       try {
-        // Only today's snapshot: yesterday's "logged" would flash a Fuel row
+        // Only today's snapshot: yesterday's "logged" would flash a ring
         // in this morning and then pull it out when the fetch lands.
         const raw = localStorage.getItem("fuelGlanceCache");
         const cached = raw
@@ -248,8 +174,6 @@ export default function DailyGlance({
     };
   }, []);
 
-  // Fuel only shows once something's been logged today — before that it was
-  // a row of dashes ("not logged", "not connected") taking up the card.
   const fuelLogged =
     !!fuel &&
     fuel.connected &&
@@ -257,121 +181,92 @@ export default function DailyGlance({
     !fuel.needsNutritionScope &&
     !fuel.needsProfile &&
     fuel.loggedToday;
-  // Mid-day there's no grade to give — show how much of the targets are in.
-  // The score only appears once the eating day has closed.
-  const fuelTile = !fuelLogged
-    ? null
+  // Mid-day the ring is how much of the targets are in, with the calories
+  // still to eat under it; once the day closes it's the grade.
+  const left =
+    fuel?.targets && fuel.intake
+      ? Math.max(0, Math.round(fuel.targets.calorieTargetKcal - fuel.intake.kcal))
+      : null;
+  const macros = !fuelLogged
+    ? { pct: 0, center: "0%", note: "Log a meal", noteColor: "var(--accent)", href: "/fuel#log" }
     : fuel.partial && fuel.progress
       ? {
-          big: `${fuel.progress.pct}%`,
-          sub: "so far",
-          subColor: undefined,
-          parts: [
-            { label: "Protein", pct: fuel.progress.proteinPct },
-            { label: "Cals", pct: fuel.progress.caloriePct },
-          ],
+          pct: fuel.progress.pct,
+          center: `${fuel.progress.pct}%`,
+          note: left != null ? `${left.toLocaleString()} left` : "so far",
+          noteColor: MACRO_TO,
+          href: "/fuel",
         }
       : fuel.score
         ? {
-            big: String(fuel.score.score),
-            sub: fuel.score.rating.charAt(0).toUpperCase() + fuel.score.rating.slice(1),
-            subColor: RATING_COLOR[fuel.score.rating],
-            parts: [
-              { label: "Protein", pct: fuel.score.proteinPct },
-              { label: "Cals", pct: fuel.score.caloriePct },
-            ],
+            pct: fuel.score.score,
+            center: String(fuel.score.score),
+            note: fuel.score.rating.charAt(0).toUpperCase() + fuel.score.rating.slice(1),
+            noteColor: RATING_COLOR[fuel.score.rating],
+            href: "/fuel",
           }
-        : null;
+        : { pct: 0, center: "—", note: undefined, noteColor: undefined, href: "/fuel" };
 
   const r = recovery;
+  const glow = r?.color ?? "#4ade80";
   return (
-    <section aria-label="Today" className="card mb-3 overflow-hidden px-4 pt-4 pb-4">
+    <section
+      aria-label="Today"
+      className="relative mb-3 overflow-hidden rounded-[30px] px-4 pt-4 pb-4"
+      style={{
+        background: `radial-gradient(70% 34% at 50% 20%, color-mix(in srgb, ${glow} 22%, transparent), transparent 70%), linear-gradient(180deg, #17171a, var(--bg-card) 70%)`,
+        border: "1px solid rgba(255,255,255,0.08)",
+        boxShadow: "0 24px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.07)",
+      }}
+    >
       {top}
-      <div className={`flex items-center gap-3 ${top ? "mt-3.5" : ""}`}>
-        {/* Readiness: the gauge and number, with a chip under it naming what
-            it is and the band. Tapping it opens the readiness page — the
-            full breakdown lives there. */}
-        <Link
+      <div className={`flex items-end justify-between px-0.5 ${top ? "mt-3.5" : ""}`}>
+        <Ring
+          href={macros.href}
+          ariaLabel={fuelLogged ? `Macros ${macros.center}. Open Fuel` : "Macros — nothing logged yet. Log a meal"}
+          size={66}
+          stroke={7}
+          pct={macros.pct}
+          color={MACRO}
+          center={macros.center}
+          centerSize={15}
+          label="Macros"
+          note={macros.note}
+          noteColor={macros.noteColor}
+        />
+        <Ring
           href="/recovery"
-          aria-label={r ? `Readiness ${r.score}, ${r.label}. Open readiness` : "Open readiness"}
-          className="relative shrink-0 w-[124px] flex justify-center pb-2 active:opacity-80"
-        >
-          <TickGauge score={r?.score ?? null} size={104} id="feed-gauge" ticks={40} />
-          <span className="absolute inset-x-0 top-0 h-[104px] flex items-center justify-center pb-3">
-            <span
-              className="text-[30px] font-bold leading-none tabular-nums"
-              style={{ letterSpacing: "-0.04em" }}
-            >
-              {r?.score ?? "—"}
-            </span>
-          </span>
-          <span
-            className="absolute bottom-0 left-1/2 -translate-x-1/2 flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[3px] text-[11px] font-bold"
-            style={{
-              color: r?.color ?? "var(--fg-muted)",
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid var(--border-strong)",
-            }}
-          >
-            <span className="font-semibold" style={{ color: "var(--fg-muted)" }}>
-              Readiness
-            </span>
-            {r?.label}
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-          </span>
-        </Link>
-        <div className="min-w-0 flex-1">{head}</div>
-      </div>
-      {below}
-
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        {fuelTile ? (
-          <SplitTile
-            href="/fuel"
-            label="Macros"
-            icon={<FlameIcon />}
-            color={FUEL_COLOR}
-            gradient={[MACRO_FROM, MACRO_TO]}
-            big={fuelTile.big}
-            sub={fuelTile.sub}
-            subColor={fuelTile.subColor}
-            parts={fuelTile.parts}
-          />
-        ) : (
-          // Nothing eaten logged yet: no empty bars, just the way in.
-          <SplitTile href="/fuel#log" label="Macros" icon={<FlameIcon />} color={FUEL_COLOR}>
-            <span className="text-[12px] leading-snug" style={{ color: "var(--fg-muted)" }}>
-              Nothing logged yet
-            </span>
-            <span
-              className="mt-auto self-start text-[12px] font-bold px-2.5 py-1 rounded-full"
-              style={{ background: "var(--accent)", color: "#04130a" }}
-            >
-              Log a meal
-            </span>
-          </SplitTile>
-        )}
-        {activity && (
-          <SplitTile
-            label="Activity"
-            href={activityHref}
-            icon={<ZapIcon />}
-            color={ACTIVITY_COLOR}
-            big={`${activity.pct}%`}
-            sub={`${activity.moveCal.toLocaleString()} cal`}
-            // Lift days show in This week's day strip, so the tile keeps
-            // Move and Exercise.
-            parts={activity.rows.filter((row) => row.label !== "Sessions").map((row) => ({
-              label: row.label,
-              pct: row.goal > 0 ? (row.value / row.goal) * 100 : 0,
-            }))}
-          />
-        )}
+          ariaLabel={r ? `Readiness ${r.score}, ${r.label}. Open readiness` : "Open readiness"}
+          size={150}
+          stroke={12}
+          pct={r?.score ?? 0}
+          color={glow}
+          center={r ? String(r.score) : "—"}
+          centerSize={46}
+          caption={r?.label}
+          label="Recovery"
+        />
+        <Ring
+          href={activityHref ?? "/activity"}
+          ariaLabel={activity ? `Activity ${activity.pct}%. Open activity` : "Open activity"}
+          size={66}
+          stroke={7}
+          pct={activity?.pct ?? 0}
+          color={ACTIVITY_RING}
+          center={activity ? `${activity.pct}%` : "—"}
+          centerSize={15}
+          label="Activity"
+          note={activity ? `${activity.moveCal.toLocaleString()} cal` : undefined}
+          noteColor="#7dd3fc"
+        />
       </div>
 
-      {/* What to do today — the coach's line lives here. */}
+      {line && (
+        <p className="mt-3.5 px-2 text-center text-[13.5px] leading-snug" style={{ color: "var(--fg)", opacity: 0.85, textWrap: "balance" }}>
+          {line}
+        </p>
+      )}
+
       {children}
     </section>
   );
