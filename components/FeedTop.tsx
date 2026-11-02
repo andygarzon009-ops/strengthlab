@@ -6,6 +6,7 @@ import { loadPhase, DELOAD_BLUE, PhaseLine, phaseChips } from "@/components/Phas
 import type { ResolvedBlock } from "@/lib/blockStamp";
 import Sparkline from "@/components/Sparkline";
 import SharePRButton from "@/components/SharePRButton";
+import DoneSummary from "@/components/DoneSummary";
 import DailyGlance, { type ActivityGlance, type RecoveryGlance } from "@/components/DailyGlance";
 import { loadGlance } from "@/lib/glance";
 
@@ -113,7 +114,11 @@ function TodayCard({
       recovery={recovery}
       activity={activity}
       top={phase ? <PhaseLine phase={phase} /> : null}
-      line={line}
+      line={
+        done
+          ? done.coachSummary ?? <DoneSummary workoutId={done.id} fallback={line} />
+          : line
+      }
     >
       <Panel doneHref={done ? `/workout/${done.id}` : null}>
         <div className="flex items-end justify-between gap-3">

@@ -41,7 +41,14 @@ export type TodayPlan = {
   /// today is a rest day, so the card doesn't push the next split.
   restDay: { daysTrained: number; goal: number } | null;
   /// A strength session already logged today — the card shows it as done.
-  doneToday: { id: string; title: string; lifts: number; minutes: number | null } | null;
+  doneToday: {
+    id: string;
+    title: string;
+    lifts: number;
+    minutes: number | null;
+    /// The coach's take on it, once written (lib/workoutSummary.ts).
+    coachSummary: string | null;
+  } | null;
   /// The split that's up next, from the rotation in recent history.
   next: {
     split: string; // "PULL"
@@ -107,6 +114,7 @@ export const loadTodayPlan = cache(async (userId: string): Promise<TodayPlan> =>
       select: {
         id: true,
         title: true,
+        coachSummary: true,
         type: true,
         split: true,
         date: true,
@@ -136,6 +144,7 @@ export const loadTodayPlan = cache(async (userId: string): Promise<TodayPlan> =>
     ? {
         id: today.id,
         title: today.title,
+        coachSummary: today.coachSummary,
         lifts: today.exercises.length,
         minutes: roundMinutes(today.duration),
       }

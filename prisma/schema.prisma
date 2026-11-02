@@ -478,6 +478,9 @@ model Workout {
   endedAt        DateTime?
   /// Coach-prescribed warmup payload: { items: [{ kind, name, durationSec?, reps?, instructions? }] }
   warmup         Json?
+  /// The coach's short take on this session for the Today card
+  /// (lib/workoutSummary.ts). Null until first asked for; cleared on edit.
+  coachSummary   String?
   /// Where in the training cycle this session was run, stamped at log time
   /// from the athlete's periodization config (lib/periodization.ts). Frozen
   /// history: editing or restarting the cycle later must not rewrite what a

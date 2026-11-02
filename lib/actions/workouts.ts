@@ -478,6 +478,8 @@ export async function updateWorkout(
     prisma.workout.update({
       where: { id: workoutId },
       data: {
+        // The old summary describes the old sets.
+        coachSummary: null,
         title: data.title,
         type: data.type,
         split: data.split ?? null,

@@ -963,6 +963,12 @@ export default function WorkoutForm({
           }).catch(() => {});
         }
 
+        // Write the coach's short recap for the Today card now, so it's
+        // there by the time the feed paints. Fire-and-forget.
+        if (id) {
+          fetch(`/api/workouts/${id}/coach-summary`, { method: "POST", keepalive: true }).catch(() => {});
+        }
+
         // Live-timed workout — sync Fitbit HR for [startedAt, endedAt] in the
         // background. Endpoint is a no-op if the user hasn't connected Fitbit,
         // so it's safe to always call. Fire-and-forget; never blocks navigation.
