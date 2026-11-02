@@ -221,7 +221,7 @@ export default function DailyGlance({
       aria-label="Today"
       className="relative mb-3 overflow-hidden rounded-[30px] px-4 pt-4 pb-4"
       style={{
-        background: `radial-gradient(70% 34% at 50% 20%, color-mix(in srgb, ${glow} 22%, transparent), transparent 70%), linear-gradient(180deg, #17171a, var(--bg-card) 70%)`,
+        background: "var(--bg-card)",
         border: "1px solid rgba(255,255,255,0.08)",
         boxShadow: "0 24px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.07)",
       }}
