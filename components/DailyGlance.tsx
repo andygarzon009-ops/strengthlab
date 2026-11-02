@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { type NutritionResponse, RATING_COLOR } from "@/components/FuelDetail";
 import { MACRO, MACRO_FROM, MACRO_TO } from "@/lib/macroColor";
+import { lerpHex, scaleColor } from "@/components/TickGauge";
 
 export type RecoveryGlance = {
   score: number;
@@ -20,15 +21,15 @@ export type ActivityGlance = {
   rows: { label: string; value: number; goal: number; unit: string; color: string; done: boolean }[];
 };
 
-/// One ring: a hairline track, a gradient arc up to the reading ending in a
-/// glowing white dot, the reading in the middle, a label and a note under.
+/// One ring, drawn as a dial of ticks: lit up to the reading, each lit tick
+/// tinted along its page's colour (Recovery runs red→green like its page's
+/// gauge), the reading in the middle, a label and a note under.
 function Ring({
   href,
   ariaLabel,
   size,
   pct,
-  from,
-  to,
+  tint,
   glow,
   center,
   centerSize,
@@ -41,9 +42,8 @@ function Ring({
   ariaLabel: string;
   size: number;
   pct: number;
-  /// The arc's gradient, light end to deep end.
-  from: string;
-  to: string;
+  /// Colour of a lit tick at position t (0 → 1 around the dial).
+  tint: (t: number) => string;
   glow: string;
   center: string;
   centerSize: number;
@@ -53,72 +53,57 @@ function Ring({
   note?: string;
   noteColor?: string;
 }) {
-  const id = useId().replace(/:/g, "");
   const big = size > 100;
-  const stroke = big ? 9 : 6;
+  const n = big ? 60 : 36;
   const c = size / 2;
-  const r = c - stroke / 2 - 2;
-  const circ = 2 * Math.PI * r;
-  const p = Math.max(0, Math.min(100, pct)) / 100;
-  const end = ((-90 + p * 360) * Math.PI) / 180;
+  const rOut = c - 2;
+  const rIn = rOut - (big ? 14 : 8);
+  const lit = Math.round((Math.max(0, Math.min(100, pct)) / 100) * n);
+  const tick = (i: number) => {
+    const a = ((-90 + (i / n) * 360) * Math.PI) / 180;
+    return { x1: c + rIn * Math.cos(a), y1: c + rIn * Math.sin(a), x2: c + rOut * Math.cos(a), y2: c + rOut * Math.sin(a) };
+  };
+  const w = big ? 2.4 : 1.7;
   return (
     <Link
       href={href}
       aria-label={ariaLabel}
-      className={`flex flex-col items-center active:scale-[0.97] transition-transform ${big ? "gap-2" : "gap-2 w-[86px]"}`}
+      className={`flex flex-col items-center active:scale-[0.97] transition-transform ${big ? "gap-1.5" : "gap-2 w-[86px]"}`}
     >
       <span className="relative block" style={{ width: size, height: size }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
-          <defs>
-            <linearGradient id={`ring-${id}`} x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor={from} />
-              <stop offset="1" stopColor={to} />
-            </linearGradient>
-          </defs>
-          <circle cx={c} cy={c} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={2} />
-          {p > 0 && (
-            <>
-              <circle
-                cx={c}
-                cy={c}
-                r={r}
-                fill="none"
-                stroke={`url(#ring-${id})`}
-                strokeWidth={stroke}
-                strokeLinecap="round"
-                strokeDasharray={`${p * circ} ${circ}`}
-                transform={`rotate(-90 ${c} ${c})`}
-                style={{ transition: "stroke-dasharray 600ms ease" }}
-              />
-              <circle
-                cx={c + r * Math.cos(end)}
-                cy={c + r * Math.sin(end)}
-                r={big ? 6 : 4}
-                fill="#fff"
-                style={{ filter: `drop-shadow(0 0 ${big ? 8 : 6}px ${glow})` }}
-              />
-            </>
+          {Array.from({ length: n }, (_, i) =>
+            i < lit ? null : <line key={i} {...tick(i)} stroke="rgba(255,255,255,0.09)" strokeWidth={w} strokeLinecap="round" />,
           )}
+          <g style={{ filter: `drop-shadow(0 0 ${big ? 5 : 3}px ${glow})` }}>
+            {Array.from({ length: lit }, (_, i) => (
+              <line key={i} {...tick(i)} stroke={tint(n > 1 ? i / (n - 1) : 1)} strokeWidth={w} strokeLinecap="round" />
+            ))}
+          </g>
+          {big && <circle cx={c} cy={c} r={rIn - 7} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={1} />}
         </svg>
         <span className="absolute inset-0 flex flex-col items-center justify-center">
           <span
             className="font-bold leading-none tabular-nums"
-            style={{ fontSize: centerSize, letterSpacing: big ? "-0.045em" : "-0.02em" }}
+            style={{ fontSize: centerSize, fontFamily: "var(--font-geist-mono)", letterSpacing: big ? "-0.05em" : "-0.03em" }}
           >
             {center}
           </span>
           {caption && (
-            <span className="text-[10px] font-bold uppercase mt-1.5" style={{ color: from, letterSpacing: "0.2em" }}>
+            <span className="text-[10px] font-extrabold uppercase mt-1.5" style={{ color: glow, letterSpacing: "0.18em" }}>
               {caption}
             </span>
           )}
         </span>
       </span>
-      <span className="text-[10px] font-bold uppercase" style={{ letterSpacing: "0.14em", color: "var(--fg-muted)" }}>
+      <span className="text-[12px] font-bold" style={{ color: big ? "var(--fg-muted)" : "var(--fg)" }}>
         {label}
       </span>
       {note && (
-        <span className="-mt-1.5 text-[12px] font-semibold tabular-nums whitespace-nowrap" style={{ color: noteColor ?? "var(--fg-muted)" }}>
+        <span
+          className="-mt-1.5 text-[10.5px] tabular-nums whitespace-nowrap"
+          style={{ fontFamily: "var(--font-geist-mono)", color: noteColor ?? "var(--fg-muted)" }}
+        >
           {note}
         </span>
       )}
@@ -126,14 +111,12 @@ function Ring({
   );
 }
 
+// Macros wears Fire (red warming to orange), Activity the Activity page's
+// sky, Recovery the readiness scale.
+const macroTint = (t: number) => lerpHex(MACRO_FROM, MACRO_TO, t);
+const activityTint = (t: number) => lerpHex("#0284c7", "#7dd3fc", t);
+const recoveryTint = (t: number) => scaleColor(t * 100);
 const ACTIVITY_RING = "#38bdf8";
-
-/// The light end of Recovery's arc: its band colour (an hsl() from the
-/// readiness scale) lifted toward white.
-function lighten(color: string): string {
-  const m = color.match(/hsl\((\d+)/);
-  return m ? `hsl(${m[1]} 80% 72%)` : color;
-}
 
 /// The Today card: the training block on top, then three rings — Macros,
 /// Recovery (big, centre) and Activity — the coach's line under them, and
@@ -250,8 +233,7 @@ export default function DailyGlance({
           ariaLabel={fuelLogged ? `Macros ${macros.center}. Open Fuel` : "Macros — nothing logged yet. Log a meal"}
           size={66}
           pct={macros.pct}
-          from={MACRO_TO}
-          to={MACRO_FROM}
+          tint={macroTint}
           glow={MACRO}
           center={macros.center}
           centerSize={15}
@@ -264,11 +246,10 @@ export default function DailyGlance({
           ariaLabel={r ? `Readiness ${r.score}, ${r.label}. Open readiness` : "Open readiness"}
           size={150}
           pct={r?.score ?? 0}
-          from={lighten(glow)}
-          to={glow}
+          tint={recoveryTint}
           glow={glow}
           center={r ? String(r.score) : "—"}
-          centerSize={48}
+          centerSize={46}
           caption={r?.label}
           label="Recovery"
         />
@@ -277,8 +258,7 @@ export default function DailyGlance({
           ariaLabel={activity ? `Activity ${activity.pct}%. Open activity` : "Open activity"}
           size={66}
           pct={activity?.pct ?? 0}
-          from="#7dd3fc"
-          to="#0284c7"
+          tint={activityTint}
           glow={ACTIVITY_RING}
           center={activity ? `${activity.pct}%` : "—"}
           centerSize={15}
