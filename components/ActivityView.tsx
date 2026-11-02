@@ -84,27 +84,27 @@ export default function ActivityView({
       />
 
       <div className="mt-6">
-        <div className="flex items-baseline justify-between mb-2">
-          <h2 className="text-[15px] font-bold tracking-tight">Workouts</h2>
-          <span className="text-[11px]" style={{ color: "var(--fg-dim)" }}>
+        <div className="flex items-baseline justify-between mb-2.5 px-1">
+          <h2 className="text-[17px] font-extrabold tracking-tight">Workouts</h2>
+          <span className="text-[11px] font-bold uppercase" style={{ letterSpacing: "0.12em", color: "var(--fg-dim)" }}>
             {RANGE_LABEL[range]}
           </span>
         </div>
         {filtered.length === 0 ? (
           <div
-            className="rounded-2xl p-5 text-center"
-            style={{
-              background: "var(--bg-card)",
-              border: "1px solid var(--border)",
-            }}
+            className="rounded-[22px] p-6 text-center"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.12)" }}
           >
-            <p className="text-[13px]" style={{ color: "var(--fg-dim)" }}>
+            <p className="text-[13px]" style={{ color: "var(--fg-muted)" }}>
               No workouts {RANGE_LABEL[range].toLowerCase()}.
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {filtered.map((w) => {
+          <div
+            className="rounded-[22px] overflow-hidden"
+            style={{ background: "linear-gradient(180deg, #141416, var(--bg-card))", border: "1px solid rgba(255,255,255,0.07)" }}
+          >
+            {filtered.map((w, i) => {
               const min =
                 w.activeZoneMin && w.activeZoneMin > 0
                   ? w.activeZoneMin
@@ -115,36 +115,36 @@ export default function ActivityView({
                 <Link
                   key={w.id}
                   href={`/workout/${w.id}`}
-                  className="card flex items-center justify-between px-4 py-3"
+                  className="flex items-center gap-3 px-4 min-h-16 active:opacity-70"
+                  style={{ borderTop: i === 0 ? undefined : "1px solid rgba(255,255,255,0.05)" }}
                 >
-                  <div className="min-w-0">
-                    <p className="text-[14px] font-medium truncate">{w.title}</p>
-                    <p
-                      className="text-[11px] mt-0.5"
-                      style={{ color: "var(--fg-dim)" }}
-                    >
+                  <span
+                    className="w-10 h-10 shrink-0 rounded-[13px] flex items-center justify-center"
+                    style={{ background: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.3)" }}
+                    aria-hidden
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fb923c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+                    </svg>
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[14.5px] font-semibold truncate">{w.title}</p>
+                    <p className="text-[11.5px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
                       {formatWorkoutDate(w.sortAt)}
+                      {min !== null ? ` · ${min} min` : ""}
                     </p>
                   </div>
-                  <div className="text-right tabular-nums">
-                    <p className="text-[15px] font-bold">
+                  <p className="text-right tabular-nums" style={{ fontFamily: "var(--font-geist-mono)" }}>
+                    <span className="text-[16px] font-bold" style={{ color: w.calories ? "#fb923c" : "var(--fg-dim)" }}>
                       {w.calories ?? "—"}
-                      <span
-                        className="text-[10px] ml-1"
-                        style={{ color: "var(--fg-dim)" }}
-                      >
-                        cal
-                      </span>
-                    </p>
-                    {min !== null && (
-                      <p
-                        className="text-[11px]"
-                        style={{ color: "var(--fg-dim)" }}
-                      >
-                        {min} min
-                      </p>
-                    )}
-                  </div>
+                    </span>
+                    <span className="text-[10px] ml-1" style={{ color: "var(--fg-dim)" }}>
+                      cal
+                    </span>
+                  </p>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--fg-dim)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0">
+                    <path d="M9 6l6 6-6 6" />
+                  </svg>
                 </Link>
               );
             })}
