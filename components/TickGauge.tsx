@@ -21,7 +21,7 @@ function polar(c: number, r: number, deg: number) {
 }
 
 /// "#rrggbb" a → b at t (0–1).
-function lerpHex(a: string, b: string, t: number): string {
+export function lerpHex(a: string, b: string, t: number): string {
   const n = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
   const ch = (i: number) => Math.round(n(a, i) + (n(b, i) - n(a, i)) * t).toString(16).padStart(2, "0");
   return `#${ch(0)}${ch(1)}${ch(2)}`;

@@ -3,7 +3,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { type NutritionResponse, RATING_COLOR } from "@/components/FuelDetail";
-import { MACRO, MACRO_TO } from "@/lib/macroColor";
+import { PAGE, PAGE_FROM, PAGE_INK, PAGE_TO } from "@/lib/macroColor";
+import { lerpHex, scaleColor } from "@/components/TickGauge";
 
 export type RecoveryGlance = {
   score: number;
@@ -20,14 +21,16 @@ export type ActivityGlance = {
   rows: { label: string; value: number; goal: number; unit: string; color: string; done: boolean }[];
 };
 
-/// One ring: the arc, the reading in the middle, a label and a note under.
+/// One ring, drawn as a dial of ticks: lit up to the reading, each lit tick
+/// tinted along its page's colour (Recovery runs red→green like its page's
+/// gauge), the reading in the middle, a label and a note under.
 function Ring({
   href,
   ariaLabel,
   size,
-  stroke,
   pct,
-  color,
+  tint,
+  glow,
   center,
   centerSize,
   caption,
@@ -38,9 +41,10 @@ function Ring({
   href: string;
   ariaLabel: string;
   size: number;
-  stroke: number;
   pct: number;
-  color: string;
+  /// Colour of a lit tick at position t (0 → 1 around the dial).
+  tint: (t: number) => string;
+  glow: string;
   center: string;
   centerSize: number;
   /// Under the number, inside the ring (Recovery's band).
@@ -49,33 +53,34 @@ function Ring({
   note?: string;
   noteColor?: string;
 }) {
-  const r = (size - stroke) / 2 - 2;
-  const c = 2 * Math.PI * r;
-  const fill = (Math.max(0, Math.min(100, pct)) / 100) * c;
   const big = size > 100;
+  const n = big ? 60 : 36;
+  const c = size / 2;
+  const rOut = c - 2;
+  const rIn = rOut - (big ? 14 : 8);
+  const lit = Math.round((Math.max(0, Math.min(100, pct)) / 100) * n);
+  const tick = (i: number) => {
+    const a = ((-90 + (i / n) * 360) * Math.PI) / 180;
+    return { x1: c + rIn * Math.cos(a), y1: c + rIn * Math.sin(a), x2: c + rOut * Math.cos(a), y2: c + rOut * Math.sin(a) };
+  };
+  const w = big ? 2.4 : 1.7;
   return (
     <Link
       href={href}
       aria-label={ariaLabel}
-      className={`flex flex-col items-center active:scale-[0.97] transition-transform ${big ? "gap-1" : "gap-1.5 w-[86px]"}`}
+      className={`flex flex-col items-center active:scale-[0.97] transition-transform ${big ? "gap-1.5" : "gap-2 w-[86px]"}`}
     >
       <span className="relative block" style={{ width: size, height: size }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeOpacity={0.14} strokeWidth={stroke} />
-          {fill > 0 && (
-            <circle
-              cx={size / 2}
-              cy={size / 2}
-              r={r}
-              fill="none"
-              stroke={color}
-              strokeWidth={stroke}
-              strokeLinecap="round"
-              strokeDasharray={`${fill} ${c}`}
-              transform={`rotate(-90 ${size / 2} ${size / 2})`}
-              style={{ filter: `drop-shadow(0 0 ${big ? 9 : 5}px ${color})`, transition: "stroke-dasharray 600ms ease" }}
-            />
+          {Array.from({ length: n }, (_, i) =>
+            i < lit ? null : <line key={i} {...tick(i)} stroke="rgba(255,255,255,0.09)" strokeWidth={w} strokeLinecap="round" />,
           )}
+          <g style={{ filter: `drop-shadow(0 0 ${big ? 5 : 3}px ${glow})` }}>
+            {Array.from({ length: lit }, (_, i) => (
+              <line key={i} {...tick(i)} stroke={tint(n > 1 ? i / (n - 1) : 1)} strokeWidth={w} strokeLinecap="round" />
+            ))}
+          </g>
+          {big && <circle cx={c} cy={c} r={rIn - 7} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={1} />}
         </svg>
         <span className="absolute inset-0 flex flex-col items-center justify-center">
           <span
@@ -85,7 +90,7 @@ function Ring({
             {center}
           </span>
           {caption && (
-            <span className="text-[10.5px] font-extrabold uppercase mt-1.5" style={{ color, letterSpacing: "0.16em" }}>
+            <span className="text-[10px] font-extrabold uppercase mt-1.5" style={{ color: glow, letterSpacing: "0.18em" }}>
               {caption}
             </span>
           )}
@@ -96,7 +101,7 @@ function Ring({
       </span>
       {note && (
         <span
-          className="-mt-1 text-[10.5px] tabular-nums whitespace-nowrap"
+          className="-mt-1.5 text-[10.5px] tabular-nums whitespace-nowrap"
           style={{ fontFamily: "var(--font-geist-mono)", color: noteColor ?? "var(--fg-muted)" }}
         >
           {note}
@@ -106,6 +111,11 @@ function Ring({
   );
 }
 
+// Each ring wears its page's colour: Macros the Fuel page's green, Activity
+// the Activity page's sky, Recovery the readiness scale.
+const macroTint = (t: number) => lerpHex(PAGE_FROM, PAGE_TO, t);
+const activityTint = (t: number) => lerpHex("#0284c7", "#7dd3fc", t);
+const recoveryTint = (t: number) => scaleColor(t * 100);
 const ACTIVITY_RING = "#38bdf8";
 
 /// The Today card: the training block on top, then three rings — Macros,
@@ -191,7 +201,7 @@ export default function DailyGlance({
           pct: fuel.progress.pct,
           center: `${fuel.progress.pct}%`,
           note: left != null ? `${left.toLocaleString()} left` : "so far",
-          noteColor: MACRO_TO,
+          noteColor: PAGE_INK,
           href: "/fuel",
         }
       : fuel.score
@@ -222,9 +232,9 @@ export default function DailyGlance({
           href={macros.href}
           ariaLabel={fuelLogged ? `Macros ${macros.center}. Open Fuel` : "Macros — nothing logged yet. Log a meal"}
           size={66}
-          stroke={7}
           pct={macros.pct}
-          color={MACRO}
+          tint={macroTint}
+          glow={PAGE}
           center={macros.center}
           centerSize={15}
           label="Macros"
@@ -235,9 +245,9 @@ export default function DailyGlance({
           href="/recovery"
           ariaLabel={r ? `Readiness ${r.score}, ${r.label}. Open readiness` : "Open readiness"}
           size={150}
-          stroke={12}
           pct={r?.score ?? 0}
-          color={glow}
+          tint={recoveryTint}
+          glow={glow}
           center={r ? String(r.score) : "—"}
           centerSize={46}
           caption={r?.label}
@@ -247,9 +257,9 @@ export default function DailyGlance({
           href="/activity"
           ariaLabel={activity ? `Activity ${activity.pct}%. Open activity` : "Open activity"}
           size={66}
-          stroke={7}
           pct={activity?.pct ?? 0}
-          color={ACTIVITY_RING}
+          tint={activityTint}
+          glow={ACTIVITY_RING}
           center={activity ? `${activity.pct}%` : "—"}
           centerSize={15}
           label="Activity"
