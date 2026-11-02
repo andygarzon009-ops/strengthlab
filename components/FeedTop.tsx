@@ -122,8 +122,10 @@ function TodayCard({
               {eyebrow}
             </p>
             <h2
-              className="font-black leading-none mt-1.5 truncate"
-              style={{ fontSize: compact ? 22 : 28, letterSpacing: "-0.035em" }}
+              className={`${done ? "font-bold leading-tight" : "font-black leading-none"} mt-1.5 truncate`}
+              // A logged session's own title runs long ("Upper — chest &
+              // back focus"); the planned "Push day" can stand tall.
+              style={{ fontSize: done ? 18 : compact ? 22 : 28, letterSpacing: done ? "-0.02em" : "-0.035em" }}
             >
               {title}
             </h2>
