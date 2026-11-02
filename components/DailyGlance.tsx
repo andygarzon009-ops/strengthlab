@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { type NutritionResponse, RATING_COLOR } from "@/components/FuelDetail";
-import { PAGE, PAGE_FROM, PAGE_INK, PAGE_TO } from "@/lib/macroColor";
+import { MACRO, MACRO_FROM, MACRO_TO } from "@/lib/macroColor";
 import { lerpHex, scaleColor } from "@/components/TickGauge";
 
 export type RecoveryGlance = {
@@ -111,9 +111,9 @@ function Ring({
   );
 }
 
-// Each ring wears its page's colour: Macros the Fuel page's green, Activity
-// the Activity page's sky, Recovery the readiness scale.
-const macroTint = (t: number) => lerpHex(PAGE_FROM, PAGE_TO, t);
+// Macros wears Fire (red warming to orange), Activity the Activity page's
+// sky, Recovery the readiness scale.
+const macroTint = (t: number) => lerpHex(MACRO_FROM, MACRO_TO, t);
 const activityTint = (t: number) => lerpHex("#0284c7", "#7dd3fc", t);
 const recoveryTint = (t: number) => scaleColor(t * 100);
 const ACTIVITY_RING = "#38bdf8";
@@ -201,7 +201,7 @@ export default function DailyGlance({
           pct: fuel.progress.pct,
           center: `${fuel.progress.pct}%`,
           note: left != null ? `${left.toLocaleString()} left` : "so far",
-          noteColor: PAGE_INK,
+          noteColor: MACRO_TO,
           href: "/fuel",
         }
       : fuel.score
@@ -234,7 +234,7 @@ export default function DailyGlance({
           size={66}
           pct={macros.pct}
           tint={macroTint}
-          glow={PAGE}
+          glow={MACRO}
           center={macros.center}
           centerSize={15}
           label="Macros"
