@@ -9,6 +9,7 @@ import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
 import FeedTop, { FeedPRs } from "@/components/FeedTop";
 import CrewPulse from "@/components/CrewPulse";
+import Wordmark from "@/components/Wordmark";
 import NotificationsBell from "@/components/NotificationsBell";
 import { loadSessionProgress } from "@/lib/sessionProgress";
 
@@ -24,6 +25,7 @@ export default async function FeedPage() {
   const part = (o: Intl.DateTimeFormatOptions) =>
     new Intl.DateTimeFormat("en-US", { timeZone: tz, ...o }).format(now);
   const weekdayLong = part({ weekday: "long" }).toUpperCase();
+  const firstName = currentUser?.name?.split(" ")[0] ?? "Athlete";
   const monthDay = part({ month: "short", day: "numeric" }).toUpperCase();
 
   // The heavy nested workouts query lives inside <FeedList>, wrapped in
@@ -32,16 +34,17 @@ export default async function FeedPage() {
   return (
     <PullToRefresh>
     <div className="relative isolate max-w-lg mx-auto px-4 pt-8">
-      {/* Today's date over the wordmark; notifications on the right. New
-          workouts and meals start from the + in the bottom bar. */}
+      {/* Name and today's date over the wordmark; notifications on the
+          right. New workouts and meals start from the + in the bottom bar. */}
       <div className="flex items-center justify-between mb-5">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold" style={{ letterSpacing: "0.14em", color: "var(--fg-dim)" }}>
-            {weekdayLong} · {monthDay}
+          <p className="text-[11px] font-bold truncate" style={{ letterSpacing: "0.14em" }}>
+            <span style={{ color: "var(--accent)" }}>{firstName.toUpperCase()}</span>
+            <span style={{ color: "var(--fg-dim)" }}> · {weekdayLong} · {monthDay}</span>
           </p>
-          <h1 className="text-[28px] font-black leading-none mt-1" style={{ letterSpacing: "-0.045em" }}>
-            Strength<span style={{ color: "var(--accent)" }}>Lab</span>
-          </h1>
+          <div className="mt-1.5">
+            <Wordmark size={30} />
+          </div>
         </div>
         <NotificationsBell inline />
       </div>
