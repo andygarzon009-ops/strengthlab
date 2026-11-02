@@ -53,7 +53,7 @@ type WorkoutProp = {
   comments: Parameters<typeof CommentSection>[0]["comments"];
 };
 
-const PR_LIME = "#a3e635";
+const PR_GOLD = "#facc15";
 
 export default function FeedWorkoutCard({
   workout,
@@ -176,7 +176,7 @@ export default function FeedWorkoutCard({
               {progress?.isPR && (
                 <span
                   className="label text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0"
-                  style={{ background: "rgba(163,230,53,0.14)", color: PR_LIME }}
+                  style={{ background: "rgba(250,204,21,0.14)", color: PR_GOLD }}
                 >
                   PR
                 </span>

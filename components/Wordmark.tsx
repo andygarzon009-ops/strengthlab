@@ -7,8 +7,8 @@
 // slant at whatever angle it chooses — steeper on iOS than on Android. A skew
 // is one chosen angle everywhere.
 //
-// LAB carries the same lime as the trained-day rings on the profile calendar,
-// so the mark is built from a colour the app already owns.
+// LAB carries the brand green (the accent, Start buttons, trained days), so
+// the mark and the app share one green rather than two near-misses.
 
 export default function Wordmark({ size = 28 }: { size?: number }) {
   return (
@@ -20,7 +20,7 @@ export default function Wordmark({ size = 28 }: { size?: number }) {
         transformOrigin: "0 100%",
       }}
     >
-      Strength<span style={{ color: "#a3e635" }}>Lab</span>
+      Strength<span style={{ color: "#4ade80" }}>Lab</span>
     </h1>
   );
 }

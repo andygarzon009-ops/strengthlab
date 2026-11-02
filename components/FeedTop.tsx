@@ -10,7 +10,8 @@ import DoneSummary from "@/components/DoneSummary";
 import DailyGlance, { type ActivityGlance, type RecoveryGlance } from "@/components/DailyGlance";
 import { loadGlance } from "@/lib/glance";
 
-export const PR_LIME = "#a3e635";
+// PRs on the feed are gold: an achievement colour, apart from the brand green.
+export const PR_GOLD = "#facc15";
 
 // The Today card. It opens with the day's glance (readiness gauge + Macros /
 // Activity tiles), so readiness shows exactly once. A fresh PR sits above the
@@ -252,23 +253,23 @@ function PRCard({ prs }: { prs: RecentPR[] }) {
           <>
             <span
               className="w-9 h-9 shrink-0 rounded-[11px] flex items-center justify-center"
-              style={{ background: "rgba(163,230,53,0.14)" }}
+              style={{ background: "rgba(250,204,21,0.14)" }}
               aria-hidden
             >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={PR_LIME} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={PR_GOLD} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z" />
                 <path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3" />
               </svg>
             </span>
             <span className="min-w-0 flex-1">
-              <span className="label block text-[10px] font-bold truncate" style={{ color: PR_LIME }}>
+              <span className="label block text-[10px] font-bold truncate" style={{ color: PR_GOLD }}>
                 New PR · {pr.when}
                 {prs.length > 1 ? ` · ${i + 1} of ${prs.length}` : ""}
               </span>
               <span className="block mt-0.5 text-[13.5px] font-semibold truncate">{pr.exercise}</span>
               <span
                 className="block mt-0.5 text-[13px] nums truncate"
-                style={{ fontFamily: "var(--font-geist-mono)", color: PR_LIME }}
+                style={{ fontFamily: "var(--font-geist-mono)", color: PR_GOLD }}
               >
                 {load.big}
                 {load.unit ? ` ${load.unit}` : ""} × {reps}
@@ -279,7 +280,7 @@ function PRCard({ prs }: { prs: RecentPR[] }) {
               values={pr.trend}
               width={54}
               height={26}
-              color={PR_LIME}
+              color={PR_GOLD}
               strokeWidth={2}
               dot
               label={`${pr.exercise} top set, last 8 weeks`}
@@ -291,8 +292,8 @@ function PRCard({ prs }: { prs: RecentPR[] }) {
             key={pr.id}
             className="card snap-center shrink-0 w-full flex items-center gap-2.5 py-2.5 pl-3 pr-2.5"
             style={{
-              borderColor: "rgba(163,230,53,0.4)",
-              background: "radial-gradient(120% 140% at 0% 0%, rgba(163,230,53,0.12), transparent 60%), var(--bg-card)",
+              borderColor: "rgba(250,204,21,0.4)",
+              background: "radial-gradient(120% 140% at 0% 0%, rgba(250,204,21,0.12), transparent 60%), var(--bg-card)",
             }}
           >
             {pr.workoutId ? (
