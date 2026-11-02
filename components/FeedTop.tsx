@@ -121,36 +121,52 @@ function TodayCard({
       }
     >
       <Panel doneHref={done ? `/workout/${done.id}` : null}>
-        <div className="flex items-end justify-between gap-3">
-          <div className="min-w-0">
-            <p className="label text-[10px] font-extrabold" style={{ color: deload ? DELOAD_BLUE : "var(--fg-dim)", letterSpacing: "0.14em" }}>
-              {eyebrow}
-            </p>
-            <h2
-              className={`${done ? "font-bold leading-tight" : "font-black leading-none"} mt-1.5 truncate`}
-              // A logged session's own title runs long ("Upper — chest &
-              // back focus"); the planned "Push day" can stand tall.
-              style={{ fontSize: done ? 18 : compact ? 22 : 28, letterSpacing: done ? "-0.02em" : "-0.035em" }}
-            >
-              {title}
-            </h2>
-          </div>
-          {metaMain && (
-            <span className="shrink-0 flex flex-col items-end gap-0.5 tabular-nums" style={{ fontFamily: "var(--font-geist-mono)" }}>
-              <span className="text-[13px] font-bold">{metaMain}</span>
-              {metaRest.length > 0 && (
-                <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
-                  {metaRest.join(" · ")}
-                </span>
+        {done ? (
+          // Logged: eyebrow, title and its lifts · minutes stacked on the
+          // left, a single "View ›" centred on the right.
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="label text-[10px] font-extrabold" style={{ color: "var(--fg-dim)", letterSpacing: "0.14em" }}>
+                {eyebrow}
+              </p>
+              <h2 className="font-bold leading-tight mt-1 truncate" style={{ fontSize: 18, letterSpacing: "-0.02em" }}>
+                {title}
+              </h2>
+              {metaMain && (
+                <p className="text-[12px] mt-0.5 tabular-nums" style={{ color: "var(--fg-muted)", fontFamily: "var(--font-geist-mono)" }}>
+                  {[metaMain, ...metaRest].join(" · ")}
+                </p>
               )}
-              {done && (
-                <span className="text-[12px] font-bold" style={{ color: "var(--accent)", fontFamily: "var(--font-geist-sans)" }}>
-                  View ›
-                </span>
-              )}
+            </div>
+            <span className="shrink-0 text-[13px] font-bold" style={{ color: "var(--accent)" }}>
+              View ›
             </span>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="label text-[10px] font-extrabold" style={{ color: deload ? DELOAD_BLUE : "var(--fg-dim)", letterSpacing: "0.14em" }}>
+                {eyebrow}
+              </p>
+              <h2
+                className="font-black leading-none mt-1.5 truncate"
+                style={{ fontSize: compact ? 22 : 28, letterSpacing: "-0.035em" }}
+              >
+                {title}
+              </h2>
+            </div>
+            {metaMain && (
+              <span className="shrink-0 flex flex-col items-end gap-0.5 tabular-nums" style={{ fontFamily: "var(--font-geist-mono)" }}>
+                <span className="text-[13px] font-bold">{metaMain}</span>
+                {metaRest.length > 0 && (
+                  <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
+                    {metaRest.join(" · ")}
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+        )}
         {chips && !done && !rest && (
           <div className="grid gap-1.5 mt-3" style={{ gridTemplateColumns: `repeat(${chips.length}, minmax(0, 1fr))` }}>
             {chips.map(([v, l]) => (
