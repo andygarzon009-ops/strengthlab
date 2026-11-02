@@ -24,8 +24,6 @@ export default async function FeedPage() {
   const now = new Date();
   const part = (o: Intl.DateTimeFormatOptions) =>
     new Intl.DateTimeFormat("en-US", { timeZone: tz, ...o }).format(now);
-  const hour = Number(part({ hour: "numeric", hourCycle: "h23" }));
-  const greeting = hour < 5 ? "Good evening" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const weekday = part({ weekday: "short" }).toUpperCase();
   const monthDay = part({ month: "short", day: "numeric" }).toUpperCase();
   const firstName = currentUser?.name?.split(" ")[0] ?? "Athlete";
@@ -35,25 +33,19 @@ export default async function FeedPage() {
 
   return (
     <PullToRefresh>
-    <div className="relative isolate max-w-lg mx-auto px-4 pt-4">
-      {/* A slim bar (wordmark, notifications), then the greeting with
-          today's date under it. New workouts and meals start from the + in
-          the bottom bar. */}
-      <div className="flex items-center justify-between h-11">
-        <Wordmark size={18} />
+    <div className="relative isolate max-w-lg mx-auto px-4 pt-8">
+      {/* The wordmark, big, with the athlete's name and today's date under
+          it; notifications on the right. New workouts and meals start from
+          the + in the bottom bar. */}
+      <div className="flex items-start justify-between mb-6">
+        <div className="min-w-0">
+          <Wordmark size={36} />
+          <p className="label text-[11px] mt-2.5 truncate">
+            <span style={{ color: "var(--accent)" }}>{firstName}</span>
+            <span style={{ color: "var(--fg-muted)" }}> · {weekday} · {monthDay}</span>
+          </p>
+        </div>
         <NotificationsBell inline />
-      </div>
-
-      <div className="mt-4 mb-5 px-0.5">
-        <p className="text-[15px]" style={{ color: "var(--fg-muted)" }}>
-          {greeting},
-        </p>
-        <p className="text-[34px] font-extrabold leading-none mt-1 truncate" style={{ letterSpacing: "-0.04em" }}>
-          {firstName}
-        </p>
-        <p className="label text-[11px] mt-2.5" style={{ color: "var(--fg-muted)" }}>
-          {weekday} · {monthDay}
-        </p>
       </div>
 
       {/* Each card streams in independently. The glance rings make live
