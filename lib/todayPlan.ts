@@ -171,7 +171,8 @@ export const loadTodayPlan = cache(async (userId: string): Promise<TodayPlan> =>
       const ra = restedSince(a[0]);
       const rb = restedSince(b[0]);
       if (ra !== rb) return ra < rb ? a : b;
-      return a[1].date < b[1].date ? a : b;
+      // Same muscles (Legs vs Lower): name it the way you train it now.
+      return a[1].date > b[1].date ? a : b;
     });
     // The lift the advice names is the session's top set — a main barbell
     // compound, else another compound. Never an accessory: a heavy calf-raise

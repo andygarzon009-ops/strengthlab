@@ -27,13 +27,13 @@ import {
 import { useMeasureUnit } from "@/components/useMeasureUnit";
 
 // The map's drawing box. The figure (100 × 200) is scaled 2.2× and centred,
-// leaving a 76px gutter each side for the labels.
+// leaving a 92px gutter each side for the labels (value + change).
 const W = 350;
 const H = 460;
 const FX = 65;
 const FY = 10;
 const S = 2.2;
-const LABEL_W = 76;
+const LABEL_W = 92;
 const MIRROR = "translate(100,0) scale(-1,1)";
 
 const shortDate = (iso: string) =>
@@ -88,11 +88,13 @@ export default function BodyMapView({
     const now = latest[key];
     if (typeof now !== "number") return null;
     const from = base?.[key];
+    const value = fmtValue(key, now, lengths);
     if (typeof from !== "number") {
-      return { text: fmtValue(key, now, lengths), status: "held" as MoveStatus, isDelta: false };
+      return { value, text: value, status: "held" as MoveStatus, isDelta: false };
     }
     const d = now - from;
     return {
+      value,
       text: fmtDelta(key, d, lengths),
       status: moveStatus(key, d, wantFor(key, phase, sex)),
       isDelta: true,
@@ -224,14 +226,14 @@ export default function BodyMapView({
             <Link
               key={s.key}
               href={`/body/${s.key}`}
-              className="absolute flex flex-col justify-center px-2 rounded-[10px]"
+              className="absolute flex flex-col justify-center px-1.5 rounded-[10px]"
               style={{
                 left: left ? 0 : undefined,
                 right: left ? undefined : 0,
                 top: `${((FY + s.y * S) / H) * 100}%`,
                 transform: "translateY(-50%)",
                 width: `${(LABEL_W / W) * 100}%`,
-                minWidth: 68,
+                minWidth: 84,
                 height: 44,
                 alignItems: left ? "flex-start" : "flex-end",
                 background: "#0f0f10",
@@ -244,11 +246,18 @@ export default function BodyMapView({
               >
                 {measurementLabel(s.key, sex)}
               </span>
-              <span
-                className="font-mono text-[14px] font-semibold tabular-nums"
-                style={{ color: s.r!.isDelta ? STATUS_TEXT[s.r!.status] : "var(--fg)" }}
-              >
-                {s.r!.text}
+              <span className="flex items-baseline gap-1 font-mono tabular-nums whitespace-nowrap">
+                <span className="text-[13px] font-semibold" style={{ color: "var(--fg)" }}>
+                  {s.r!.value}
+                </span>
+                {s.r!.isDelta && (
+                  <span
+                    className="text-[10px] font-semibold"
+                    style={{ color: STATUS_TEXT[s.r!.status] }}
+                  >
+                    {s.r!.text}
+                  </span>
+                )}
               </span>
             </Link>
           );
