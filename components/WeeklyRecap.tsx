@@ -111,10 +111,7 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
     <section
       aria-label="This week"
       className="card relative p-4 mb-3"
-      style={{
-        background:
-          "radial-gradient(100% 60% at 0% 0%, rgba(34,197,94,0.07), transparent 65%), var(--bg-card)",
-      }}
+
     >
       <Link
         href="/strength"
