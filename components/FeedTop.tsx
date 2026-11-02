@@ -112,15 +112,10 @@ function TodayCard({
     <DailyGlance
       recovery={recovery}
       activity={activity}
-      // Once today's session is logged, Activity opens it.
-      activityHref={done ? `/workout/${done.id}` : undefined}
       top={phase ? <PhaseLine phase={phase} /> : null}
       line={line}
     >
-      <div
-        className="mt-4 rounded-[22px] p-3.5"
-        style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.07)" }}
-      >
+      <Panel doneHref={done ? `/workout/${done.id}` : null}>
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
             <p className="label text-[10px] font-extrabold" style={{ color: deload ? DELOAD_BLUE : "var(--fg-dim)", letterSpacing: "0.14em" }}>
@@ -139,6 +134,11 @@ function TodayCard({
               {metaRest.length > 0 && (
                 <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
                   {metaRest.join(" · ")}
+                </span>
+              )}
+              {done && (
+                <span className="text-[12px] font-bold" style={{ color: "var(--accent)", fontFamily: "var(--font-geist-sans)" }}>
+                  View ›
                 </span>
               )}
             </span>
@@ -181,8 +181,23 @@ function TodayCard({
             {cta}
           </Link>
         )}
-      </div>
+      </Panel>
     </DailyGlance>
+  );
+}
+
+/// Today's session panel. Once the session is logged the whole panel opens it.
+function Panel({ doneHref, children }: { doneHref: string | null; children: React.ReactNode }) {
+  const cls = "mt-4 block rounded-[22px] p-3.5";
+  const style = { background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.07)" };
+  return doneHref ? (
+    <Link href={doneHref} aria-label="Open today's workout" className={`${cls} active:scale-[0.99] transition-transform`} style={style}>
+      {children}
+    </Link>
+  ) : (
+    <div className={cls} style={style}>
+      {children}
+    </div>
   );
 }
 

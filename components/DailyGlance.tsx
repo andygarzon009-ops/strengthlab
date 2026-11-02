@@ -115,15 +115,12 @@ const ACTIVITY_RING = "#38bdf8";
 export default function DailyGlance({
   recovery,
   activity,
-  activityHref,
   top,
   line,
   children,
 }: {
   recovery: RecoveryGlance | null;
   activity: ActivityGlance | null;
-  /// Where the Activity ring goes: today's logged workout, when there is one.
-  activityHref?: string;
   /// Above everything: the training block's line.
   top?: ReactNode;
   /// The coach's line, centred under the rings.
@@ -247,7 +244,7 @@ export default function DailyGlance({
           label="Recovery"
         />
         <Ring
-          href={activityHref ?? "/activity"}
+          href="/activity"
           ariaLabel={activity ? `Activity ${activity.pct}%. Open activity` : "Open activity"}
           size={66}
           stroke={7}
