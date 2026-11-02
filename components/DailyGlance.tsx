@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { type NutritionResponse, RATING_COLOR } from "@/components/FuelDetail";
 import { MACRO, MACRO_FROM, MACRO_TO } from "@/lib/macroColor";
-import { lerpHex, scaleColor } from "@/components/TickGauge";
+import { lerpHex } from "@/components/TickGauge";
 
 export type RecoveryGlance = {
   score: number;
@@ -115,7 +115,13 @@ function Ring({
 // sky, Recovery the readiness scale.
 const macroTint = (t: number) => lerpHex(MACRO_FROM, MACRO_TO, t);
 const activityTint = (t: number) => lerpHex("#0284c7", "#7dd3fc", t);
-const recoveryTint = (t: number) => scaleColor(t * 100);
+/// Recovery is one colour — its band's — deepening as it fills, like the
+/// other two. (Tinting each tick by its position ran red→green around the
+/// dial, so a near-full ring ended green right beside its red first tick.)
+const recoveryTint = (score: number | null) => {
+  const hue = Math.round((Math.max(0, Math.min(100, score ?? 0)) / 100) * 130);
+  return (t: number) => `hsl(${hue} 78% ${Math.round(38 + t * 22)}%)`;
+};
 const ACTIVITY_RING = "#38bdf8";
 
 /// The Today card: the training block on top, then three rings — Macros,
@@ -246,7 +252,7 @@ export default function DailyGlance({
           ariaLabel={r ? `Readiness ${r.score}, ${r.label}. Open readiness` : "Open readiness"}
           size={150}
           pct={r?.score ?? 0}
-          tint={recoveryTint}
+          tint={recoveryTint(r?.score ?? null)}
           glow={glow}
           center={r ? String(r.score) : "—"}
           centerSize={46}
