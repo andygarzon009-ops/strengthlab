@@ -7,10 +7,12 @@
 // Data is a live read (getFuelWeek): StrengthLab's own food log plus whatever
 // Google Health has for the last seven local days.
 
-import { useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import TickGauge from "@/components/TickGauge";
+import { MEAL_TINT } from "@/components/MealIcon";
+import { nextMealType } from "@/lib/nextMeal";
 import NextMeal from "@/components/NextMeal";
 import { roomLeft } from "@/lib/roomLeft";
 import { PAGE, PAGE_FROM, PAGE_GRADIENT, PAGE_RGB, PAGE_TO } from "@/lib/macroColor";
@@ -84,6 +86,9 @@ const RATING_COLOR: Record<string, string> = {
 const FIBER_TARGET_G = 30;
 const SUGAR_LIMIT_G = 40;
 const SODIUM_LIMIT_MG = 2300;
+
+const noop = () => () => {};
+const useHourNow = () => useSyncExternalStore(noop, () => new Date().getHours(), () => null);
 
 
 function weekdayName(dateKey: string): string {
@@ -312,8 +317,17 @@ function FuelHero({
   const t = day.targets;
   const inProgress = day.partial;
   const value = !day.logged ? null : inProgress ? day.progress.pct : day.score.score;
-  const tint = !day.logged ? "var(--fg-dim)" : inProgress ? PROGRESS : scoreColor;
-  const glow = fuelTint(day)(0.12);
+  // While today is open the gauge wears the colour of the meal that's up
+  // next, matching the log card below it; otherwise the page green.
+  const hour = useHourNow();
+  const meal =
+    isToday && inProgress && hour != null
+      ? MEAL_TINT[nextMealType(hour, new Set(i.foods.map((f) => f.meal)))]
+      : null;
+  const fillFrom = meal?.deep ?? PAGE_FROM;
+  const fillTo = meal?.ink ?? PAGE_TO;
+  const tint = !day.logged ? "var(--fg-dim)" : inProgress ? (meal?.ink ?? PROGRESS) : scoreColor;
+  const glow = meal && day.logged ? `rgba(${meal.rgb}, 0.12)` : fuelTint(day)(0.12);
   const pill = !day.logged
     ? "Nothing logged"
     : inProgress
@@ -380,7 +394,7 @@ function FuelHero({
 
       <div className="relative -mt-1">
         <div className="flex justify-center">
-          <TickGauge score={value} size={240} id="fuel-glow" tint={inProgress ? PAGE_FROM : undefined} tintEnd={inProgress ? PAGE_TO : undefined} />
+          <TickGauge score={value} size={240} id="fuel-glow" tint={inProgress ? fillFrom : undefined} tintEnd={inProgress ? fillTo : undefined} />
         </div>
         <div className="absolute inset-0 flex flex-col items-center justify-center pb-2">
           <span
@@ -411,7 +425,7 @@ function FuelHero({
             {day.logged && inProgress ? (
               <span
                 style={{
-                  background: PAGE_GRADIENT,
+                  background: meal ? `linear-gradient(90deg, ${fillFrom}, ${fillTo})` : PAGE_GRADIENT,
                   WebkitBackgroundClip: "text",
                   backgroundClip: "text",
                   color: "transparent",

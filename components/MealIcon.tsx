@@ -1,11 +1,12 @@
 // Each meal's colour and glyph on Fuel: sun, bowl, moon, apple. No "use
 // client" — it's plain SVG, so server and client components can both use it.
 
-export const MEAL_TINT: Record<string, { ink: string; rgb: string; from: string; to: string }> = {
-  BREAKFAST: { ink: "#fbbf24", rgb: "245,158,11", from: "#3a2a0c", to: "#22190a" },
-  LUNCH: { ink: "#4ade80", rgb: "34,197,94", from: "#0f3a22", to: "#0a2216" },
-  DINNER: { ink: "#c4b5fd", rgb: "167,139,250", from: "#2e2152", to: "#1a1430" },
-  SNACK: { ink: "#f472b6", rgb: "244,114,182", from: "#3a0f2a", to: "#220a19" },
+// `deep` → `ink` is the fill for gauges in the meal's colour (the Macros hero).
+export const MEAL_TINT: Record<string, { ink: string; deep: string; rgb: string; from: string; to: string }> = {
+  BREAKFAST: { ink: "#fbbf24", deep: "#d97706", rgb: "245,158,11", from: "#3a2a0c", to: "#22190a" },
+  LUNCH: { ink: "#4ade80", deep: "#16a34a", rgb: "34,197,94", from: "#0f3a22", to: "#0a2216" },
+  DINNER: { ink: "#c4b5fd", deep: "#7c3aed", rgb: "167,139,250", from: "#2e2152", to: "#1a1430" },
+  SNACK: { ink: "#f472b6", deep: "#db2777", rgb: "244,114,182", from: "#3a0f2a", to: "#220a19" },
 };
 
 const tintOf = (meal: string) => MEAL_TINT[meal] ?? MEAL_TINT.SNACK;
