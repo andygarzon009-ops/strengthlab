@@ -175,14 +175,39 @@ export const loadTodayPlan = cache(async (userId: string): Promise<TodayPlan> =>
       split !== today?.split &&
       !(today?.split && SPLIT_OVERLAP[split]?.includes(today.split)),
   );
+  // Your own rotation first: what came after the last few sessions the
+  // previous times you trained them in that order (Upper → Legs → Push).
+  const allowed = new Set(candidates.map(([s]) => s));
+  const seq = strength
+    .filter((w) => w.split && splitLabel(w.split))
+    .map((w) => w.split as string)
+    .reverse();
+  let rotated: string | null = null;
+  for (let k = Math.min(3, seq.length - 1); k >= 1 && !rotated; k--) {
+    const tail = seq.slice(-k).join(">");
+    const votes = new Map<string, { n: number; at: number }>();
+    for (let i = 0; i + k < seq.length; i++) {
+      const follower = seq[i + k];
+      if (seq.slice(i, i + k).join(">") !== tail || !allowed.has(follower)) continue;
+      const v = votes.get(follower) ?? { n: 0, at: 0 };
+      votes.set(follower, { n: v.n + 1, at: i });
+    }
+    let best: [string, { n: number; at: number }] | null = null;
+    for (const e of votes) {
+      if (!best || e[1].n > best[1].n || (e[1].n === best[1].n && e[1].at > best[1].at)) best = e;
+    }
+    rotated = best?.[0] ?? null;
+  }
   if (candidates.length > 0) {
-    const [split, w] = candidates.reduce((a, b) => {
-      const ra = restedSince(a[0]);
-      const rb = restedSince(b[0]);
-      if (ra !== rb) return ra < rb ? a : b;
-      // Same muscles (Legs vs Lower): name it the way you train it now.
-      return a[1].date > b[1].date ? a : b;
-    });
+    const [split, w] = rotated
+      ? [rotated, latestBySplit.get(rotated)!]
+      : candidates.reduce((a, b) => {
+          const ra = restedSince(a[0]);
+          const rb = restedSince(b[0]);
+          if (ra !== rb) return ra < rb ? a : b;
+          // Same muscles (Legs vs Lower): name it the way you train it now.
+          return a[1].date > b[1].date ? a : b;
+        });
     // The lift the advice names is the session's top set — a main barbell
     // compound, else another compound. Never an accessory: a heavy calf-raise
     // machine can outweigh the squat, but nobody pushes a top set on it.
