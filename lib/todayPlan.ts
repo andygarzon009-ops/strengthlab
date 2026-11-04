@@ -24,6 +24,56 @@ const SPLIT_OVERLAP: Record<string, string[]> = {
   CORE: [],
 };
 
+/// "Legs/push/pull/lower/upper", "PPL", "Upper Lower" → the split's days in
+/// order. Empty when it doesn't name any we know.
+export function parsePreferredSplit(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const t = text.toLowerCase().replace(/full[\s-]*body/g, "fullbody");
+  const out: string[] = [];
+  for (const word of t.split(/[^a-z]+/).filter(Boolean)) {
+    if (word === "ppl") out.push("PUSH", "PULL", "LEGS");
+    else if (word === "ul") out.push("UPPER", "LOWER");
+    else {
+      const split = WORD_SPLIT[word];
+      if (split) out.push(split);
+    }
+  }
+  return out;
+}
+
+const WORD_SPLIT: Record<string, string> = {
+  push: "PUSH", chest: "PUSH",
+  pull: "PULL", back: "PULL",
+  legs: "LEGS", leg: "LEGS",
+  lower: "LOWER", upper: "UPPER",
+  arms: "ARMS", arm: "ARMS",
+  fullbody: "FULL_BODY", full: "FULL_BODY",
+  core: "CORE",
+};
+
+/// Legs and Lower are the same day for matching a session to the split.
+const family = (split: string) => (split === "LOWER" ? "LEGS" : split);
+
+/// Monday's local date key for a local date key.
+function mondayOf(dateKey: string): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const noon = Date.UTC(y, m - 1, d, 12);
+  const dow = (new Date(noon).getUTCDay() + 6) % 7;
+  return new Date(noon - dow * 86_400_000).toISOString().slice(0, 10);
+}
+
+/// Which slots of `slots` the sessions fill: an exact split first, else the
+/// same muscles (a "Legs" session on the Lower day). Returns the filled flags.
+function fillSlots(slots: string[], done: string[]): boolean[] {
+  const filled = slots.map(() => false);
+  for (const d of done) {
+    let i = slots.findIndex((s, j) => !filled[j] && s === d);
+    if (i < 0) i = slots.findIndex((s, j) => !filled[j] && family(s) === family(d));
+    if (i >= 0) filled[i] = true;
+  }
+  return filled;
+}
+
 /// Local YYYY-MM-DD keys for Monday..Sunday of the week containing today.
 export function weekKeys(tz: string): string[] {
   const todayKey = localDateKey(new Date(), tz);
@@ -93,7 +143,7 @@ export const loadTodayPlan = cache(async (userId: string): Promise<TodayPlan> =>
   const [user, account, recent] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: { timezone: true, trainingDays: true },
+      select: { timezone: true, trainingDays: true, preferredSplit: true },
     }),
     prisma.healthAccount.findUnique({
       where: { userId },
@@ -175,20 +225,71 @@ export const loadTodayPlan = cache(async (userId: string): Promise<TodayPlan> =>
       split !== today?.split &&
       !(today?.split && SPLIT_OVERLAP[split]?.includes(today.split)),
   );
-  // Your own rotation first: what came after the last few sessions the
-  // previous times you trained them in that order (Upper → Legs → Push).
   const allowed = new Set(candidates.map(([s]) => s));
+  // The session that stands in for a split's day: its own latest, else the
+  // latest of the same muscles (no Lower lately → last Legs).
+  const sessionFor = (split: string) =>
+    latestBySplit.get(split) ??
+    [...latestBySplit.entries()].find(([o]) => family(o) === family(split))?.[1];
+  const usable = (split: string) =>
+    !!splitLabel(split) &&
+    !!sessionFor(split) &&
+    split !== today?.split &&
+    !(today?.split && SPLIT_OVERLAP[split]?.includes(today.split));
+
+  const goal = Math.max(1, user?.trainingDays ?? 4);
   const seq = strength
     .filter((w) => w.split && splitLabel(w.split))
-    .map((w) => w.split as string)
-    .reverse();
-  let rotated: string | null = null;
-  for (let k = Math.min(3, seq.length - 1); k >= 1 && !rotated; k--) {
-    const tail = seq.slice(-k).join(">");
+    .map((w) => ({ split: w.split as string, key: localDateKey(w.date, tz) }))
+    .reverse(); // oldest first
+
+  // 1. The split itself — the one in the profile, else the shape of your
+  // fullest recent week. The days already trained this week fill its slots
+  // in any order, so moving a day around just shifts what's left; the next
+  // open slot is today's.
+  let template = parsePreferredSplit(user?.preferredSplit);
+  if (template.length < 2) {
+    const thisMonday = mondayOf(todayKey);
+    const byWeek = new Map<string, string[]>();
+    for (const x of seq) {
+      const mon = mondayOf(x.key);
+      if (mon === thisMonday) continue;
+      byWeek.set(mon, [...(byWeek.get(mon) ?? []), x.split]);
+    }
+    for (const days of byWeek.values()) {
+      if (days.length >= 2 && days.length >= template.length) template = days;
+    }
+  }
+  let planned: string | null = null;
+  if (template.length >= 2) {
+    if (template.length <= goal) {
+      // A week of it (PPL at six days a week runs it twice).
+      const slots = Array.from({ length: Math.ceil(goal / template.length) }, () => template).flat();
+      const thisWeek = new Set(weekKeys(tz));
+      const filled = fillSlots(slots, seq.filter((x) => thisWeek.has(x.key)).map((x) => x.split));
+      planned = slots.find((s, i) => !filled[i] && usable(s)) ?? null;
+    } else {
+      // Longer than a week: it rolls on from the last day trained.
+      const last = seq[seq.length - 1]?.split;
+      let at = last ? template.indexOf(last) : -1;
+      if (at < 0 && last) at = template.findIndex((s) => family(s) === family(last));
+      for (let n = 1; at >= 0 && n <= template.length && !planned; n++) {
+        const s = template[(at + n) % template.length];
+        if (usable(s)) planned = s;
+      }
+    }
+  }
+
+  // 2. No split to go on: what came after the last few sessions the previous
+  // times you trained them in that order (Upper → Legs → Push).
+  const order = seq.map((x) => x.split);
+  let rotated: string | null = planned;
+  for (let k = Math.min(3, order.length - 1); k >= 1 && !rotated; k--) {
+    const tail = order.slice(-k).join(">");
     const votes = new Map<string, { n: number; at: number }>();
-    for (let i = 0; i + k < seq.length; i++) {
-      const follower = seq[i + k];
-      if (seq.slice(i, i + k).join(">") !== tail || !allowed.has(follower)) continue;
+    for (let i = 0; i + k < order.length; i++) {
+      const follower = order[i + k];
+      if (order.slice(i, i + k).join(">") !== tail || !allowed.has(follower)) continue;
       const v = votes.get(follower) ?? { n: 0, at: 0 };
       votes.set(follower, { n: v.n + 1, at: i });
     }
@@ -198,9 +299,10 @@ export const loadTodayPlan = cache(async (userId: string): Promise<TodayPlan> =>
     }
     rotated = best?.[0] ?? null;
   }
-  if (candidates.length > 0) {
+  // 3. Last resort: whichever muscles have rested longest.
+  if (rotated || candidates.length > 0) {
     const [split, w] = rotated
-      ? [rotated, latestBySplit.get(rotated)!]
+      ? [rotated, sessionFor(rotated)!]
       : candidates.reduce((a, b) => {
           const ra = restedSince(a[0]);
           const rb = restedSince(b[0]);
@@ -248,7 +350,6 @@ export const loadTodayPlan = cache(async (userId: string): Promise<TodayPlan> =>
   const trainedDays = new Set(
     recent.map((w) => localDateKey(w.date, tz)).filter((k) => week.includes(k)),
   );
-  const goal = Math.max(1, user?.trainingDays ?? 4);
   const restDay =
     !doneToday && !trainedDays.has(todayKey) && trainedDays.size >= goal
       ? { daysTrained: trainedDays.size, goal }
