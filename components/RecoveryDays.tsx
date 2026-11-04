@@ -249,7 +249,7 @@ function TrendChart({
                 type="button"
                 onClick={() => onSelect(d.dateKey)}
                 aria-pressed={d.dateKey === selected}
-                aria-label={`${longLabel(d.dateKey)}: readiness ${d.score}`}
+                aria-label={`${longLabel(d.dateKey)}: recovery ${d.score}`}
                 className="flex-1"
               />
             ))}

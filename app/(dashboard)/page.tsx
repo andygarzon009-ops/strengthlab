@@ -60,7 +60,7 @@ export default async function FeedPage() {
         <PendingInvites userId={userId} />
       </Suspense>
       {/* A fresh PR leads for 48 h as a slim strip, then Today (training
-          block, readiness, Macros / Activity), then This week (days, stats,
+          block, recovery, Macros / Activity), then This week (days, stats,
           muscle recovery), with heart rate as its own card just above it. */}
       <Suspense fallback={null}>
         <FeedPRs userId={userId} />

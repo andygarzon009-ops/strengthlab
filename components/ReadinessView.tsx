@@ -231,7 +231,7 @@ export default function ReadinessView(p: ReadinessViewProps) {
       </Link>
 
       <p className="text-[12px] mt-4 mb-8 leading-relaxed" style={{ color: "var(--fg-muted)" }}>
-        Readiness blends last night&apos;s sleep, overnight HRV and resting
+        Recovery blends last night&apos;s sleep, overnight HRV and resting
         heart rate against your own baseline, then takes points off for a
         skin-temperature spike, a raised breathing rate, or two unusually hard
         training days. Wear your tracker to bed for the most accurate score.

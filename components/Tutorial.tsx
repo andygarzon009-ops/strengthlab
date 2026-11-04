@@ -45,7 +45,7 @@ const SLIDES: Slide[] = [
   {
     badge: "Feed",
     title: "Your day at a glance",
-    body: "Readiness, today's session and your training cycle — first thing you see.",
+    body: "Recovery, today's session and your training cycle — first thing you see.",
     visual: <VisualFeed />,
     steps: [
       "Tap Start to open today's session, pre-filled from last time.",
@@ -136,7 +136,7 @@ const SLIDES: Slide[] = [
     body: "You → Health & Fitbit → connect Google Health.",
     visual: <VisualHealth />,
     steps: [
-      "Sleep, HRV and resting HR power your readiness.",
+      "Sleep, HRV and resting HR power your recovery score.",
       "Set your Nutrition goal so your Macros score is right.",
     ],
   },

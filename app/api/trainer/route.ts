@@ -736,7 +736,7 @@ ${lines.join("\n\n")}`;
         awakeMin?: number;
       } | null;
       const ls: string[] = [];
-      ls.push(`- Readiness score: ${ha.recoveryScore}/100 (${ha.recoveryBand ?? "?"})`);
+      ls.push(`- Recovery score: ${ha.recoveryScore}/100 (${ha.recoveryBand ?? "?"})`);
       if (sleep?.asleepMin != null) {
         const h = Math.floor(sleep.asleepMin / 60);
         const m = sleep.asleepMin % 60;
@@ -762,14 +762,14 @@ ${lines.join("\n\n")}`;
       for (const f of factors) {
         if (f.key === "temp" || f.key === "resp" || f.key === "load") {
           ls.push(
-            `- ${FACTOR_LABEL[f.key]}: ${f.value} (${f.note})${f.penalty ? ` — cost ${f.penalty} readiness pts` : ""}`,
+            `- ${FACTOR_LABEL[f.key]}: ${f.value} (${f.note})${f.penalty ? ` — cost ${f.penalty} recovery pts` : ""}`,
           );
         }
       }
       return `READINESS & SLEEP (from the athlete's Fitbit via Google Health — last night; a HARD INPUT into today's recommendation):
 ${ls.join("\n")}
-Readiness = sleep + overnight HRV + resting HR against the athlete's own baseline, minus deductions for a skin-temperature spike, a raised breathing rate, or a training-load spike over the last two days. A temperature or breathing deduction can be early illness: if either fired, say so plainly and steer to an easy day or rest — never a PR attempt. A load deduction means they've stacked hard days: cut volume, not just intensity.
-Calibrate today's intensity and volume to this: a low readiness score, short or poor sleep, suppressed HRV, or elevated resting HR means pull back load, add rest, or suggest a lighter / mobility / deload day — and say so explicitly. A high score with good sleep green-lights harder work. Don't over-react to a single night, and remember sleep/recovery only update on nights the watch is worn.`;
+Recovery (the app calls this score "Recovery" — never call it "readiness") = sleep + overnight HRV + resting HR against the athlete's own baseline, minus deductions for a skin-temperature spike, a raised breathing rate, or a training-load spike over the last two days. A temperature or breathing deduction can be early illness: if either fired, say so plainly and steer to an easy day or rest — never a PR attempt. A load deduction means they've stacked hard days: cut volume, not just intensity.
+Calibrate today's intensity and volume to this: a low recovery score, short or poor sleep, suppressed HRV, or elevated resting HR means pull back load, add rest, or suggest a lighter / mobility / deload day — and say so explicitly. A high score with good sleep green-lights harder work. Don't over-react to a single night, and remember sleep/recovery only update on nights the watch is worn.`;
     })();
 
     // Where the athlete is in their declared training cycle. Computed, not
@@ -1533,7 +1533,7 @@ How to use weak spots:
 
 DATA-USE RULES (MANDATORY — the PRE-FLIGHT review above is how you satisfy these):
 - Workout-plan blocks earlier in this conversation are PRESCRIPTIONS — what you told them to do. What they actually did is ONLY in RECENT SESSIONS / PER-EXERCISE PROGRESSION. When reviewing or citing a session, never carry a lift, set, load or rep over from a prescription; if they skipped a prescribed lift or missed reps, the log is the truth.
-- "HR recovery −N bpm/60s" on a session is how far heart rate fell a minute into rest after hard sets (median of the clean rests; bigger = better recovered/conditioned). Compare it only across sessions of the same workout (same lifts, deload vs deload). Wrist HR is noisy while lifting: treat gaps under ~5 bpm as noise. A clearly slower recovery than their usual for that workout — especially with poor sleep or low readiness — is a fatigue signal worth acting on (lighter next session, longer rests); a rising trend over weeks is improving conditioning. Don't bring it up unless it's clearly off or they ask about recovery/conditioning.
+- "HR recovery −N bpm/60s" on a session is how far heart rate fell a minute into rest after hard sets (median of the clean rests; bigger = better recovered/conditioned). Compare it only across sessions of the same workout (same lifts, deload vs deload). Wrist HR is noisy while lifting: treat gaps under ~5 bpm as noise. A clearly slower recovery than their usual for that workout — especially with poor sleep or a low recovery score — is a fatigue signal worth acting on (lighter next session, longer rests); a rising trend over weeks is improving conditioning. Don't bring it up unless it's clearly off or they ask about recovery/conditioning.
 - Never invent a PR, load, or session that isn't in the data. If the log doesn't contain the answer, say "I don't see that in your log yet" and ask the athlete to confirm — never guess.
 - WHEN THE ATHLETE CONTRADICTS THE DATA, DO NOT CAVE. Their memory is not a source of truth and you must never restate their claim back as a confirmed fact. Re-read the blocks above first. If their number IS there, you misread it — correct yourself and cite the session and date. If it is NOT there, say so plainly: "My log shows 235lb × 4 on May 12 — I don't have a 235 × 5 in there. If you hit it, it never got logged; want to add it?" Then either coach from the logged number or ask them to log the missing set. Never apologize for an "oversight", never say "you're absolutely right" and adopt their figure, and never invent a date ("5 days ago") for a session that isn't in your data. Being wrong about their history is worse than disagreeing with them.
 - A grind set of a lift flagged with a plateau or rep-stall must not be repeated — switch the stimulus (rep range, tempo, variation). A push day can't be emitted while back is flagged undertrained without addressing the conflict.

@@ -100,7 +100,7 @@ export async function loadGlance(
     recovery = {
       score: account.recoveryScore,
       color: scaleColor(account.recoveryScore),
-      label: BAND_LABEL[band] ?? "Readiness",
+      label: BAND_LABEL[band] ?? "Recovery",
       sub: BAND_SUB[band] ?? "",
       sleepLabel:
         sleep?.asleepMin != null

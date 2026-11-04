@@ -73,7 +73,7 @@ export default async function RecoveryPage() {
     <div className="max-w-lg mx-auto px-4 pt-8">
       <div className="flex items-center gap-3 mb-5">
         <BackButton href="/" ariaLabel="Back to feed" />
-        <h1 className="text-[22px] font-bold tracking-tight">Readiness</h1>
+        <h1 className="text-[22px] font-bold tracking-tight">Recovery</h1>
       </div>
 
       <HealthReconnectBanner />
@@ -114,14 +114,14 @@ function EmptyState({ connected }: { connected: boolean }) {
       style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
     >
       <div className="text-[32px] mb-3">😴</div>
-      <p className="text-[15px] font-semibold">No readiness score yet</p>
+      <p className="text-[15px] font-semibold">No recovery score yet</p>
       <p
         className="text-[13px] mt-1.5 leading-snug max-w-[20rem] mx-auto"
         style={{ color: "var(--fg-dim)" }}
       >
         {connected
-          ? "Wear your tracker to bed — readiness is built from your overnight HRV and resting heart rate. It'll appear here after your next night's sync."
-          : "Connect Fitbit via Health & Fitbit in your profile, and wear your tracker overnight to get a readiness score."}
+          ? "Wear your tracker to bed — recovery is built from your overnight HRV and resting heart rate. It'll appear here after your next night's sync."
+          : "Connect Fitbit via Health & Fitbit in your profile, and wear your tracker overnight to get a recovery score."}
       </p>
       {!connected && (
         <Link

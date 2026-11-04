@@ -253,7 +253,7 @@ export default function DailyGlance({
         />
         <Ring
           href="/recovery"
-          ariaLabel={r ? `Readiness ${r.score}, ${r.label}. Open readiness` : "Open readiness"}
+          ariaLabel={r ? `Recovery ${r.score}, ${r.label}. Open recovery` : "Open recovery"}
           size={150}
           pct={r?.score ?? 0}
           tint={recoveryTint(r?.score ?? null)}

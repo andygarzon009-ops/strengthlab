@@ -105,7 +105,7 @@ export default function ReadinessHero({
             className="text-[11px] font-semibold uppercase"
             style={{ color: "var(--fg-muted)", letterSpacing: "0.16em" }}
           >
-            Readiness
+            Recovery
           </span>
           <span
             className="text-[68px] font-bold leading-none tabular-nums mt-1"
