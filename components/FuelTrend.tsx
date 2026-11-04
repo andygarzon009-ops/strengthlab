@@ -73,9 +73,9 @@ const shortDate = (key: string) => {
   const d = new Date(utc(key));
   return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
 };
-const ratioColor = (kcal: number, target: number) => {
+const ratioColor = (kcal: number, target: number, filling = false) => {
   const r = kcal / Math.max(1, target);
-  return r > HI ? OVER : r >= LO ? GREEN : UNDER;
+  return r > HI ? OVER : r >= LO || filling ? GREEN : UNDER;
 };
 const fmt = (n: number) => Math.round(n).toLocaleString();
 
@@ -170,15 +170,28 @@ export default function FuelTrend({
       const rows = [...todayEntries].sort((a, b) => a.t.localeCompare(b.t));
       let k = 0, p = 0, c = 0, f = 0;
       const out: Pt[] = [{ key: "start", label: "Midnight", xf: 0, kcal: 0, p: 0, c: 0, f: 0, target: ref }];
+      // Foods saved together share a timestamp — that's one meal, one step.
+      const meals: { t: string; names: string[]; kcal: number; p: number; c: number; f: number }[] = [];
       for (const r of rows) {
-        k += r.kcal;
-        p += r.proteinG;
-        c += r.carbsG;
-        f += r.fatG;
-        const d = new Date(r.t);
+        const m = meals[meals.length - 1];
+        if (m && m.t === r.t) {
+          m.names.push(r.name);
+          m.kcal += r.kcal;
+          m.p += r.proteinG;
+          m.c += r.carbsG;
+          m.f += r.fatG;
+        } else meals.push({ t: r.t, names: [r.name], kcal: r.kcal, p: r.proteinG, c: r.carbsG, f: r.fatG });
+      }
+      for (const m of meals) {
+        k += m.kcal;
+        p += m.p;
+        c += m.c;
+        f += m.f;
+        const d = new Date(m.t);
+        const name = m.names.length > 1 ? `${m.names[0]} +${m.names.length - 1} more` : m.names[0];
         out.push({
-          key: r.t + r.name,
-          label: `${d.toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" })} · ${r.name}`,
+          key: m.t,
+          label: `${d.toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" })} · ${name} · +${fmt(m.kcal)}`,
           xf: minuteOf(d) / 1440,
           kcal: k,
           p,
@@ -248,8 +261,12 @@ export default function FuelTrend({
   const last = points[points.length - 1];
 
   // ── scale ──
-  const top = Math.max(ref * 1.3, ...points.map((p) => p.kcal ?? 0), ...points.map((p) => (p.p / proteinRef) * ref));
-  const yHi = Math.ceil((top * 1.05) / 500) * 500;
+  const top = Math.max(
+    ref * 1.18,
+    ...points.map((p) => p.kcal ?? 0),
+    ...(range === "D" ? [] : points.map((p) => (p.p / proteinRef) * ref)),
+  );
+  const yHi = Math.ceil((top * 1.04) / 250) * 250;
   const yFor = (kcal: number) => PAD_T + PLOT_H * (1 - Math.max(0, Math.min(yHi, kcal)) / yHi);
   const xFor = (xf: number) => PAD_L + xf * PLOT_W;
   const base = PAD_T + PLOT_H;
@@ -325,10 +342,12 @@ export default function FuelTrend({
   };
   const endX = (seg: { x: number }[]) => (range === "D" ? Math.max(nowX, seg[seg.length - 1].x) : seg[seg.length - 1].x);
 
+  // Mid-day, being under target only means the day isn't eaten yet, so the
+  // day view stays green until it goes over.
   const gradStops = [
     { from: yHi, to: ref * HI, c: OVER },
     { from: ref * HI, to: ref * LO, c: GREEN },
-    { from: ref * LO, to: 0, c: UNDER },
+    { from: ref * LO, to: 0, c: range === "D" ? GREEN : UNDER },
   ].flatMap((b) => [
     { o: (yFor(b.from) - PAD_T) / PLOT_H, c: b.c },
     { o: (yFor(b.to) - PAD_T) / PLOT_H, c: b.c },
@@ -398,7 +417,7 @@ export default function FuelTrend({
                 <div className="flex items-baseline gap-2 tabular-nums">
                   <span
                     className="text-[20px] font-bold leading-none"
-                    style={{ color: active.kcal != null ? ratioColor(active.kcal, active.target) : "var(--fg-muted)" }}
+                    style={{ color: active.kcal != null ? ratioColor(active.kcal, active.target, range === "D") : "var(--fg-muted)" }}
                   >
                     {active.kcal != null ? fmt(active.kcal) : "—"}
                   </span>
@@ -439,13 +458,15 @@ export default function FuelTrend({
           ) : (
             <div className="flex items-center gap-3 text-[11px]" style={{ color: "var(--fg-muted)" }}>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-0.5 rounded" style={{ background: `linear-gradient(90deg, ${UNDER}, ${GREEN}, ${OVER})` }} />
+                <span className="w-3 h-0.5 rounded" style={{ background: range === "D" ? `linear-gradient(90deg, ${GREEN}, ${OVER})` : `linear-gradient(90deg, ${UNDER}, ${GREEN}, ${OVER})` }} />
                 Calories
               </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-0.5 rounded" style={{ background: PROTEIN }} />
-                Protein
-              </span>
+              {range !== "D" && (
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-0.5 rounded" style={{ background: PROTEIN }} />
+                  Protein
+                </span>
+              )}
               <span className="truncate">· hold and drag to read</span>
             </div>
           )}
@@ -460,11 +481,12 @@ export default function FuelTrend({
                 ))}
               </linearGradient>
               <linearGradient id="fuel-fade" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#fff" stopOpacity={0.4} />
+                <stop offset="0%" stopColor="#fff" stopOpacity={0.45} />
                 <stop offset="100%" stopColor="#fff" stopOpacity={0} />
               </linearGradient>
-              <mask id="fuel-mask" maskUnits="userSpaceOnUse">
-                <rect x={0} y={PAD_T} width={W} height={PLOT_H} fill="url(#fuel-fade)" />
+              {/* Fades over each area's own height, so a low trace still glows. */}
+              <mask id="fuel-mask" maskUnits="objectBoundingBox" maskContentUnits="objectBoundingBox" x={0} y={0} width={1} height={1}>
+                <rect x={0} y={0} width={1} height={1} fill="url(#fuel-fade)" />
               </mask>
             </defs>
 
@@ -520,7 +542,7 @@ export default function FuelTrend({
                 </g>
               ),
             )}
-            {segments(protPts).map((seg, i) =>
+            {range !== "D" && segments(protPts).map((seg, i) =>
               seg.length < 2 ? null : (
                 <path
                   key={`p${i}`}
@@ -551,7 +573,7 @@ export default function FuelTrend({
               )}
             {range === "D" &&
               kcalPts.slice(1).map((p) => (
-                <circle key={p.key} cx={p.x.toFixed(2)} cy={p.y.toFixed(2)} r={2.6} fill={ratioColor(p.kcal!, ref)} stroke="var(--bg-card)" strokeWidth={1} />
+                <circle key={p.key} cx={p.x.toFixed(2)} cy={p.y.toFixed(2)} r={3} fill={ratioColor(p.kcal!, ref, true)} stroke="var(--bg-card)" strokeWidth={1} />
               ))}
 
             {peak && peak.kcal != null && (
@@ -569,21 +591,23 @@ export default function FuelTrend({
 
             {liveEnd && liveEnd.kcal != null && (range !== "D" || liveEnd.kcal > 0) && (
               <g>
-                <circle cx={(range === "D" ? nowX : liveEnd.x).toFixed(2)} cy={liveEnd.y.toFixed(2)} r={3} fill={ratioColor(liveEnd.kcal, liveEnd.target)} opacity={0.35}>
+                <circle cx={(range === "D" ? nowX : liveEnd.x).toFixed(2)} cy={liveEnd.y.toFixed(2)} r={3} fill={ratioColor(liveEnd.kcal, liveEnd.target, true)} opacity={0.35}>
                   <animate attributeName="r" values="3;8;3" dur="1.8s" repeatCount="indefinite" />
                   <animate attributeName="opacity" values="0.45;0;0.45" dur="1.8s" repeatCount="indefinite" />
                 </circle>
-                <circle cx={(range === "D" ? nowX : liveEnd.x).toFixed(2)} cy={liveEnd.y.toFixed(2)} r={2.8} fill={ratioColor(liveEnd.kcal, liveEnd.target)} stroke="var(--bg-card)" strokeWidth={1} />
+                <circle cx={(range === "D" ? nowX : liveEnd.x).toFixed(2)} cy={liveEnd.y.toFixed(2)} r={2.8} fill={ratioColor(liveEnd.kcal, liveEnd.target, true)} stroke="var(--bg-card)" strokeWidth={1} />
               </g>
             )}
 
             {active && active.key !== "start" && (
               <>
-                <line x1={xFor(active.xf)} x2={xFor(active.xf)} y1={PAD_T} y2={base} stroke="var(--fg)" strokeWidth={1.2} />
+                <line x1={xFor(active.xf)} x2={xFor(active.xf)} y1={PAD_T} y2={base} stroke="var(--fg)" strokeWidth={1} opacity={0.45} />
                 {active.kcal != null && (
                   <>
                     <circle cx={xFor(active.xf)} cy={yFor(active.kcal)} r={4} fill="var(--bg-card)" stroke="var(--fg)" strokeWidth={2} />
-                    <circle cx={xFor(active.xf)} cy={yFor((active.p / proteinRef) * ref)} r={3} fill="var(--bg-card)" stroke={PROTEIN} strokeWidth={1.8} />
+                    {range !== "D" && (
+                      <circle cx={xFor(active.xf)} cy={yFor((active.p / proteinRef) * ref)} r={3} fill="var(--bg-card)" stroke={PROTEIN} strokeWidth={1.8} />
+                    )}
                   </>
                 )}
               </>
