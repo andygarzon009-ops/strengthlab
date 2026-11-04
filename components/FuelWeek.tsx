@@ -1,7 +1,7 @@
 "use client";
 
 // The Fuel page body: a readiness-style hero for the selected day (with the
-// room left while it's open), then the intake trend (FuelTrend: D / W / M / Y),
+// room left while it's open), then the intake history (FuelTrend: W / M / Y stacked bars),
 // the day's diary by meal, and fiber & the limits — charts in
 // FuelCharts.tsx.
 // Data is a live read (getFuelWeek): StrengthLab's own food log plus whatever
@@ -18,7 +18,7 @@ import { roomLeft } from "@/lib/roomLeft";
 import { PAGE, PAGE_FROM, PAGE_GRADIENT, PAGE_RGB, PAGE_TO } from "@/lib/macroColor";
 import type { RecentMeal } from "@/lib/foodLog";
 import { CARBS, FAT, FoodDiary, MicroGrid, PROTEIN } from "@/components/FuelCharts";
-import FuelTrend, { type TodayEntry } from "@/components/FuelTrend";
+import FuelTrend from "@/components/FuelTrend";
 import type { DailyIntake } from "@/lib/foodLog";
 
 
@@ -151,8 +151,6 @@ export default function FuelWeek({
   batchServings = null,
   todayMeals = {},
   history = [],
-  todayEntries = [],
-  tz = "UTC",
   children,
 }: {
   days: FuelDayView[];
@@ -166,9 +164,6 @@ export default function FuelWeek({
   todayMeals?: Record<string, { sig: string; name: string | null }>;
   /// A year of daily totals, for the trend chart's month and year views.
   history?: DailyIntake[];
-  /// Today's foods with the time each was logged, for the day view.
-  todayEntries?: TodayEntry[];
-  tz?: string;
   /// Rendered under the hero — the meal logger and today's entries.
   children?: ReactNode;
 }) {
@@ -205,17 +200,15 @@ export default function FuelWeek({
         />
       )}
 
-      {/* ── intake trend: today, the week, the month, the year ── */}
+      {/* ── intake history: the week, the month, the year ── */}
       <div className="flex items-baseline justify-between mb-2.5 px-1">
         <h2 className="text-[20px] font-extrabold tracking-tight">Your intake</h2>
-        <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>hold a day to open it</span>
+        <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>vs your target</span>
       </div>
       <FuelTrend
         days={days}
         history={history}
-        todayEntries={todayEntries}
         today={today}
-        tz={tz}
         selected={day.date}
         onSelect={setSelected}
       />

@@ -54,15 +54,6 @@ export default async function FuelPage() {
           batchServings={prefs.mealPrep ? prefs.batchServings : null}
           todayMeals={loggedMealIds(todayOnly, mealNames)}
           history={history}
-          tz={tz}
-          todayEntries={todayOnly.map((r) => ({
-            t: r.createdAt.toISOString(),
-            kcal: r.kcal,
-            proteinG: r.proteinG,
-            carbsG: r.carbsG,
-            fatG: r.fatG,
-            name: r.name,
-          }))}
         >
           <FoodLogger recent={recent} loggedMeals={[...new Set(todayOnly.map((r) => r.meal))]}>
             <FoodLogToday rows={todayOnly} mealNames={mealNames} />
