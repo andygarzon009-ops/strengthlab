@@ -513,6 +513,8 @@ export type SleepNight = {
   awakeMin: number;
   toSleepMin: number; // minutes to fall asleep (0 if not reported)
   afterWakeMin: number; // minutes awake after final wake (0 if not reported)
+  restlessMin: number; // short awakenings summed — Google's "Restlessness"
+  mainSleep: boolean; // Google's pick when a night has several sessions
   // Per-stage segments across the night, in time order — powers the hypnogram
   // timeline. Empty when the provider returns only stage totals.
   stages: SleepStageSeg[];
@@ -576,7 +578,8 @@ type SleepPoint = {
       endTime?: string;
       startUtcOffset?: string;
     };
-    metadata?: { nap?: boolean };
+    metadata?: { nap?: boolean; mainSleep?: boolean };
+    shortAwakenings?: { startTime?: string; endTime?: string }[];
     summary?: {
       minutesAsleep?: string | number;
       minutesInSleepPeriod?: string | number;
@@ -659,6 +662,13 @@ function parseSleepPoints(
       awakeMin: stages.awake,
       toSleepMin: num(sum.minutesToFallAsleep),
       afterWakeMin: num(sum.minutesAfterWakeUp),
+      restlessMin: Math.round(
+        (s?.shortAwakenings ?? []).reduce((a, w) => {
+          const d = Date.parse(w.endTime ?? "") - Date.parse(w.startTime ?? "");
+          return a + (Number.isFinite(d) && d > 0 ? d / 60_000 : 0);
+        }, 0),
+      ),
+      mainSleep: s?.metadata?.mainSleep === true,
       stages: segs,
     });
   }

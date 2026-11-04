@@ -6,7 +6,7 @@
 // back to the stage-composition view built from the 30-night sleep history.
 
 import { useState } from "react";
-import { sleepQualityScore } from "@/lib/sleepScore";
+import { scoreSleep } from "@/lib/sleepScore";
 import SleepDetail, { type SleepSummary } from "@/components/SleepDetail";
 import { type SleepNightHistory } from "@/components/SleepHistoryChart";
 
@@ -86,10 +86,10 @@ export default function RecoveryDays({
       {sleep ? (
         <SleepDetail
           sleep={sleep}
-          qualityScore={sleepQualityScore(
-            sleep.asleepMin,
-            sleep.deepMin,
-            sleep.remMin,
+          // Scored against the nights before it, as the server does.
+          score={scoreSleep(
+            sleep,
+            history.filter((n) => selected != null && n.date < selected).sort((a, b) => a.date.localeCompare(b.date)),
           )}
           title={title}
           nightDate={selected ?? undefined}

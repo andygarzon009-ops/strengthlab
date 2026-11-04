@@ -20,6 +20,7 @@ export type SleepNightHistory = {
   // Per-stage segments, kept only on the newest 7 nights (see lib/recovery) so
   // the tappable 7-day trend can render a full hypnogram for a past night.
   toSleepMin?: number;
+  restlessMin?: number;
   stages?: StageSeg[];
 };
 

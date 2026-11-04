@@ -7,6 +7,7 @@ import Link from "next/link";
 import SleepHypnogram from "@/components/SleepHypnogram";
 import { STAGE_STYLE, type StageSeg } from "@/lib/sleepStages";
 import { STAGE_TARGET as TARGET, stageVerdict } from "@/lib/sleepStageInfo";
+import { sleepScoreBand, type SleepScore } from "@/lib/sleepScore";
 
 export type SleepSummary = {
   asleepMin: number;
@@ -21,6 +22,7 @@ export type SleepSummary = {
   endUtc?: string;
   offsetSec?: number;
   toSleepMin?: number;
+  restlessMin?: number;
   stages?: StageSeg[];
 };
 
@@ -52,11 +54,10 @@ function fmtClock(iso: string, offsetSec: number): string {
   return `${h}:${String(m).padStart(2, "0")}${ampm}`;
 }
 
+/// Google Health's bands, so the label reads the same in both apps.
 function verdict(score: number): { label: string; color: string } {
-  if (score >= 80) return { label: "Excellent", color: GOOD };
-  if (score >= 60) return { label: "Good", color: GOOD };
-  if (score >= 40) return { label: "Fair", color: WARN };
-  return { label: "Poor", color: BAD };
+  const label = sleepScoreBand(score);
+  return { label, color: label === "Poor" ? BAD : label === "Fair" ? WARN : GOOD };
 }
 
 function ScoreRing({ score, color }: { score: number; color: string }) {
@@ -213,12 +214,12 @@ function Stat({
 
 export default function SleepDetail({
   sleep,
-  qualityScore,
+  score,
   title = "Last night",
   nightDate,
 }: {
   sleep: SleepSummary;
-  qualityScore: number;
+  score: SleepScore;
   title?: string;
   /// Wake date of this night, so a stage tile opens its page on it.
   nightDate?: string;
@@ -229,7 +230,7 @@ export default function SleepDetail({
     sleep.inBedMin > 0
       ? Math.round((sleep.asleepMin / sleep.inBedMin) * 100)
       : null;
-  const v = verdict(qualityScore);
+  const v = verdict(score.score);
   const hasWindow =
     !!sleep.startUtc && !!sleep.endUtc && sleep.offsetSec != null;
   const hasTimeline = hasWindow && (sleep.stages?.length ?? 0) > 0;
@@ -262,10 +263,22 @@ export default function SleepDetail({
               </p>
             </div>
             <div className="flex flex-col items-center">
-              <ScoreRing score={qualityScore} color={v.color} />
+              <ScoreRing score={score.score} color={v.color} />
               <span className="text-[11px] font-semibold mt-1" style={{ color: v.color }}>
                 {v.label}
               </span>
+              {/* Same wording as Google's "Sleep quality" tile. */}
+              {score.checked > 0 && (
+                <span
+                  className="text-[10px] mt-0.5 whitespace-nowrap"
+                  style={{ color: "var(--fg-muted)" }}
+                  title={score.outOfRange.length ? `Outside your range: ${score.outOfRange.join(", ")}` : undefined}
+                >
+                  {score.outOfRange.length
+                    ? `${score.outOfRange.length} of ${score.checked} out of range`
+                    : "all in range"}
+                </span>
+              )}
             </div>
           </div>
 

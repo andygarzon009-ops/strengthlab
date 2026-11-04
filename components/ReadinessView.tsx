@@ -10,7 +10,7 @@ import SleepHistoryChart, {
   type SleepNightHistory,
 } from "@/components/SleepHistoryChart";
 import Spo2Card from "@/components/Spo2Card";
-import { sleepQualityScore } from "@/lib/sleepScore";
+import { scoreSleep } from "@/lib/sleepScore";
 import type { ReadinessBand, ReadinessFactor } from "@/lib/readiness";
 
 export type ReadinessDay = {
@@ -123,7 +123,12 @@ export default function ReadinessView(p: ReadinessViewProps) {
   const hrvSeries = p.days.map((d) => d.hrvMs).filter((v): v is number => v != null);
   const rhrSeries = p.days.map((d) => d.restingHr).filter((v): v is number => v != null);
   const sleepQuality = p.lastNight
-    ? sleepQualityScore(p.lastNight.asleepMin, p.lastNight.deepMin, p.lastNight.remMin)
+    ? scoreSleep(
+        p.lastNight,
+        p.sleepHistory
+          .filter((n) => p.lastNightKey == null || n.date < p.lastNightKey)
+          .sort((a, b) => a.date.localeCompare(b.date)),
+      )
     : null;
 
   return (
@@ -146,7 +151,7 @@ export default function ReadinessView(p: ReadinessViewProps) {
       ) : (
         p.lastNight &&
         sleepQuality != null && (
-          <SleepDetail sleep={p.lastNight} qualityScore={sleepQuality} nightDate={p.lastNightKey ?? undefined} />
+          <SleepDetail sleep={p.lastNight} score={sleepQuality!} nightDate={p.lastNightKey ?? undefined} />
         )
       )}
 

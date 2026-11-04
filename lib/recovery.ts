@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { sleepQualityScore } from "@/lib/sleepScore";
+import { scoreSleep } from "@/lib/sleepScore";
 import {
   listRestingHeartRate,
   listDailyHrv,
@@ -24,14 +24,22 @@ import {
 export type RecoveryBand = ReadinessBand;
 export const recoveryBand = readinessBand;
 
-// Sleep → 0–100: mostly duration, nudged by quality (deep+REM share).
-// Duration: 3h(180m)=0 … 8h(480m)+=100. Quality: 20% deep+REM=0 … 50%+=100.
-// Exported so the recovery page can label last night's sleep with the same
-// number the recovery blend uses, instead of re-deriving its own.
-export { sleepQualityScore };
+// Sleep → 0–100 the way Google Health scores it (lib/sleepScore): half
+// duration, half how many measures sat in your typical range, judged against
+// the nights before this one.
+function sleepScore(night: SleepNight, nights: SleepNight[]): number {
+  const prior = nights
+    .filter((n) => n.end.getTime() < night.end.getTime())
+    .sort((a, b) => a.end.getTime() - b.end.getTime());
+  return scoreSleep(night, prior).score;
+}
 
-function sleepScore(night: SleepNight): number {
-  return sleepQualityScore(night.asleepMin, night.deepMin, night.remMin);
+/// When a night has several sessions, Google's main sleep wins, then the
+/// longest — so a short doze after waking can't stand in for the whole night.
+function betterNight(prev: SleepNight | undefined, n: SleepNight): boolean {
+  if (!prev) return true;
+  if (n.mainSleep !== prev.mainSleep) return n.mainSleep;
+  return n.asleepMin > prev.asleepMin;
 }
 
 // Average of all-but-the-latest reading — "your normal", excluding today.
@@ -187,7 +195,14 @@ export async function refreshRecovery(userId: string): Promise<void> {
     const rhrBaseline = baselineExcludingLast(rhr.map((s) => s.bpm));
     const hrvNow = hrv.length ? hrv[hrv.length - 1].rmssd : null;
     const hrvBaseline = baselineExcludingLast(hrv.map((s) => s.rmssd));
-    const lastNight: SleepNight | null = sleep.length ? sleep[0] : null;
+    const byNight = new Map<string, SleepNight>();
+    for (const n of sleep) {
+      const k = new Date(n.end.getTime() + n.offsetSec * 1000).toISOString().slice(0, 10);
+      if (betterNight(byNight.get(k), n)) byNight.set(k, n);
+    }
+    // Newest first, like `sleep`, but one session per night.
+    const nights = [...byNight.values()].sort((a, b) => b.end.getTime() - a.end.getTime());
+    const lastNight: SleepNight | null = nights.length ? nights[0] : null;
 
     // Temperature and breathing only count when they're from last night (or
     // the night before, if Fitbit hasn't posted today's yet) — a week-old
@@ -199,7 +214,7 @@ export async function refreshRecovery(userId: string): Promise<void> {
     const respKey = latestKeyOf(resp);
     const tempKey = latestKeyOf(temp);
     const readiness = computeReadiness({
-      sleepScore: lastNight ? sleepScore(lastNight) : null,
+      sleepScore: lastNight ? sleepScore(lastNight, nights) : null,
       asleepMin: lastNight?.asleepMin ?? null,
       hrv:
         hrvNow !== null && hrvBaseline !== null
@@ -244,6 +259,7 @@ export async function refreshRecovery(userId: string): Promise<void> {
         offsetSec: lastNight.offsetSec,
         toSleepMin: lastNight.toSleepMin,
         afterWakeMin: lastNight.afterWakeMin,
+        restlessMin: lastNight.restlessMin,
         // Per-stage segments for the hypnogram timeline (epoch ms).
         stages: lastNight.stages.map((s) => ({
           type: s.type,
@@ -259,7 +275,7 @@ export async function refreshRecovery(userId: string): Promise<void> {
         .slice(0, 10);
     }
     // 30-night history for the weekly/monthly chart (one entry per local night,
-    // longest sleep wins on the rare night with multiple sessions).
+    // Google's main sleep winning on a night with several sessions).
     if (sleep.length) {
       const hist = new Map<
         string,
@@ -275,15 +291,15 @@ export async function refreshRecovery(userId: string): Promise<void> {
           endUtc: string;
           offsetSec: number;
           toSleepMin: number;
+          restlessMin: number;
           stages: { type: string; startMs: number; endMs: number }[];
         }
       >();
-      for (const n of sleep) {
+      for (const n of nights) {
         const date = new Date(n.end.getTime() + n.offsetSec * 1000)
           .toISOString()
           .slice(0, 10);
-        const prev = hist.get(date);
-        if (!prev || n.asleepMin > prev.asleepMin) {
+        {
           hist.set(date, {
             date,
             asleepMin: n.asleepMin,
@@ -296,6 +312,7 @@ export async function refreshRecovery(userId: string): Promise<void> {
             endUtc: n.end.toISOString(),
             offsetSec: n.offsetSec,
             toSleepMin: n.toSleepMin,
+            restlessMin: n.restlessMin,
             stages: n.stages.map((s) => ({
               type: s.type,
               startMs: s.startMs,
@@ -342,12 +359,7 @@ export async function refreshRecovery(userId: string): Promise<void> {
     for (const s of rhr) rhrByKey.set(dayKey(s.date), s.bpm);
     const hrvByKey = new Map<string, number>();
     for (const s of hrv) hrvByKey.set(dayKey(s.date), s.rmssd);
-    const sleepByKey = new Map<string, SleepNight>();
-    for (const n of sleep) {
-      const k = dayKey(new Date(n.end.getTime() + n.offsetSec * 1000));
-      const prev = sleepByKey.get(k);
-      if (!prev || n.asleepMin > prev.asleepMin) sleepByKey.set(k, n);
-    }
+    const sleepByKey = byNight;
     const rhrSeries = [...rhrByKey.entries()].sort((a, b) =>
       a[0].localeCompare(b[0]),
     );
@@ -379,7 +391,7 @@ export async function refreshRecovery(userId: string): Promise<void> {
       const rhrB = baselineBefore(rhrSeries, k);
       const hrvB = baselineBefore(hrvSeries, k);
       const day = computeReadiness({
-        sleepScore: night ? sleepScore(night) : null,
+        sleepScore: night ? sleepScore(night, nights) : null,
         asleepMin: night?.asleepMin ?? null,
         hrv: hrvV !== null && hrvB !== null ? { now: hrvV, baseline: hrvB } : null,
         rhr: rhrV !== null && rhrB !== null ? { now: rhrV, baseline: rhrB } : null,
