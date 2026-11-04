@@ -158,11 +158,8 @@ export default async function HeartRateCard({ userId, variant = "card" }: Props)
   return (
     <Link
       href="/heart-rate"
-      className="block rounded-2xl px-4 py-3 mb-3 transition-colors"
-      style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--border)",
-      }}
+      aria-label="Open heart rate"
+      className="card block px-4 py-3 mb-3 active:scale-[0.99] transition-transform"
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
@@ -179,7 +176,9 @@ export default async function HeartRateCard({ userId, variant = "card" }: Props)
           </svg>
           <h3 className="text-[14px] font-bold tracking-tight">Heart rate</h3>
         </div>
-        <span style={{ color: "var(--fg-dim)" }}>→</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--fg-dim)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M9 6l6 6-6 6" />
+        </svg>
       </div>
 
       <div className="flex items-stretch gap-3">

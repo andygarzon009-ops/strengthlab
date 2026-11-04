@@ -1,8 +1,8 @@
 "use client";
 
 // The Fuel page body: a readiness-style hero for the selected day (with the
-// room left while it's open), then the week as fill-up capsules toward each
-// day's target, the day's diary by meal, and fiber & the limits — charts in
+// room left while it's open), then the intake trend (FuelTrend: D / W / M / Y),
+// the day's diary by meal, and fiber & the limits — charts in
 // FuelCharts.tsx.
 // Data is a live read (getFuelWeek): StrengthLab's own food log plus whatever
 // Google Health has for the last seven local days.
@@ -17,7 +17,9 @@ import NextMeal from "@/components/NextMeal";
 import { roomLeft } from "@/lib/roomLeft";
 import { PAGE, PAGE_FROM, PAGE_GRADIENT, PAGE_RGB, PAGE_TO } from "@/lib/macroColor";
 import type { RecentMeal } from "@/lib/foodLog";
-import { CARBS, FAT, FoodDiary, MicroGrid, PROTEIN, WeekChart } from "@/components/FuelCharts";
+import { CARBS, FAT, FoodDiary, MicroGrid, PROTEIN } from "@/components/FuelCharts";
+import FuelTrend, { type TodayEntry } from "@/components/FuelTrend";
+import type { DailyIntake } from "@/lib/foodLog";
 
 
 export type FoodRow = {
@@ -148,6 +150,9 @@ export default function FuelWeek({
   recent = [],
   batchServings = null,
   todayMeals = {},
+  history = [],
+  todayEntries = [],
+  tz = "UTC",
   children,
 }: {
   days: FuelDayView[];
@@ -159,6 +164,11 @@ export default function FuelWeek({
   batchServings?: number | null;
   /// Today's meals that have a name (see loggedMealIds), for Next meal.
   todayMeals?: Record<string, { sig: string; name: string | null }>;
+  /// A year of daily totals, for the trend chart's month and year views.
+  history?: DailyIntake[];
+  /// Today's foods with the time each was logged, for the day view.
+  todayEntries?: TodayEntry[];
+  tz?: string;
   /// Rendered under the hero — the meal logger and today's entries.
   children?: ReactNode;
 }) {
@@ -195,17 +205,20 @@ export default function FuelWeek({
         />
       )}
 
-      {/* ── 7-day strip, stacked by macro ── */}
+      {/* ── intake trend: today, the week, the month, the year ── */}
       <div className="flex items-baseline justify-between mb-2.5 px-1">
-        <h2 className="text-[20px] font-extrabold tracking-tight">This week</h2>
-        <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>% of target · tap a day</span>
+        <h2 className="text-[20px] font-extrabold tracking-tight">Your intake</h2>
+        <span className="text-[12px]" style={{ color: "var(--fg-dim)" }}>hold a day to open it</span>
       </div>
-      <div
-        className="rounded-2xl px-3 pt-3 pb-3.5 mb-5"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--border-strong)" }}
-      >
-        <WeekChart days={days} selected={day.date} onSelect={setSelected} />
-      </div>
+      <FuelTrend
+        days={days}
+        history={history}
+        todayEntries={todayEntries}
+        today={today}
+        tz={tz}
+        selected={day.date}
+        onSelect={setSelected}
+      />
 
       {day.logged && (
         <>

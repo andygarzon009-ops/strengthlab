@@ -9,6 +9,7 @@ import FeedWorkoutCard from "@/components/FeedWorkoutCard";
 import { CardSkeleton, FeedListSkeleton } from "@/components/FeedSkeletons";
 import FeedTop, { FeedPRs } from "@/components/FeedTop";
 import CrewPulse from "@/components/CrewPulse";
+import HeartRateCard from "@/components/HeartRateCard";
 import Wordmark from "@/components/Wordmark";
 import NotificationsBell from "@/components/NotificationsBell";
 import { loadSessionProgress } from "@/lib/sessionProgress";
@@ -60,12 +61,15 @@ export default async function FeedPage() {
       </Suspense>
       {/* A fresh PR leads for 48 h as a slim strip, then Today (training
           block, readiness, Macros / Activity), then This week (days, stats,
-          muscle recovery, heart rate). */}
+          muscle recovery), with heart rate as its own card just above it. */}
       <Suspense fallback={null}>
         <FeedPRs userId={userId} />
       </Suspense>
       <Suspense fallback={<CardSkeleton height={290} />}>
         <FeedTop userId={userId} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <HeartRateCard userId={userId} />
       </Suspense>
       <Suspense fallback={<CardSkeleton height={300} />}>
         <WeeklyRecap userId={userId} />

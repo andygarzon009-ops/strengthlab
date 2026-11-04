@@ -5,15 +5,14 @@ import Link from "next/link";
 import { loadTodayPlan, splitLabel, weekKeys } from "@/lib/todayPlan";
 import { loadRhythm } from "@/lib/rhythm";
 import { MAJOR_GROUPS, recoveryView, type RecoveryView } from "@/lib/recoveryView";
-import HeartRateCard from "@/components/HeartRateCard";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 // The feed's This week card: the goal streak, days trained against the goal,
 // a day strip named by what was trained (today, if not trained yet, shows the
 // split the Today card suggests), PRs / sets / avg HR, muscle recovery as
-// bars, and heart rate. The body map itself lives on Progress, which the card
-// opens.
+// bars. Heart rate is its own card just above. The body map itself lives on
+// Progress, which the card opens.
 export default async function WeeklyRecap({ userId }: { userId: string }) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -106,8 +105,7 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
 
   return (
     // The card opens Progress from anywhere on it, via a link stretched
-    // across the whole card underneath; Avg HR and the heart-rate row sit
-    // above it as their own links (links can't nest, so the card isn't one).
+    // across the whole card underneath; Avg HR sits above it as its own link (links can't nest, so the card isn't one).
     <section
       aria-label="This week"
       className="card relative p-4 mb-3"
@@ -208,8 +206,6 @@ export default async function WeeklyRecap({ userId }: { userId: string }) {
       </div>
 
       {rec && <RecoveryBars view={rec} />}
-
-      <HeartRateCard userId={userId} variant="row" />
     </section>
   );
 }

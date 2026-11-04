@@ -6,28 +6,31 @@ import FuelWeek from "@/components/FuelWeek";
 import HealthReconnectBanner from "@/components/HealthReconnectBanner";
 import FoodLogger from "@/components/FoodLogger";
 import FoodLogToday from "@/components/FoodLogToday";
-import { listFoodLog, listRecentMeals, loggedMealIds, mealNamesFor } from "@/lib/foodLog";
+import { listDailyIntake, listFoodLog, listRecentMeals, loggedMealIds, mealNamesFor } from "@/lib/foodLog";
 import { cleanMealPrefs } from "@/lib/mealPrefs";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 /// The Fuel page — log a meal (photo or description), then seven days of
-/// intake from StrengthLab's own food log, with every food and its macros.
+/// intake from StrengthLab's own food log (the trend chart reaches back a year), with every food and its macros.
 export default async function FuelPage() {
   const userId = await requireAuth();
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { timezone: true, mealPrefs: true } });
   const prefs = cleanMealPrefs(user?.mealPrefs);
+  const tz = user?.timezone || "UTC";
   const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: user?.timezone || "UTC",
+    timeZone: tz,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
-  const [week, todayRows, recent] = await Promise.all([
+  const yearAgo = new Date(Date.parse(`${today}T12:00:00Z`) - 371 * 86_400_000).toISOString().slice(0, 10);
+  const [week, todayRows, recent, history] = await Promise.all([
     getFuelWeek(userId),
     listFoodLog(userId, today),
     listRecentMeals(userId, 40),
+    listDailyIntake(userId, yearAgo),
   ]);
 
   const todayOnly = todayRows.filter((r) => r.localDate === today);
@@ -50,6 +53,16 @@ export default async function FuelPage() {
           recent={recent}
           batchServings={prefs.mealPrep ? prefs.batchServings : null}
           todayMeals={loggedMealIds(todayOnly, mealNames)}
+          history={history}
+          tz={tz}
+          todayEntries={todayOnly.map((r) => ({
+            t: r.createdAt.toISOString(),
+            kcal: r.kcal,
+            proteinG: r.proteinG,
+            carbsG: r.carbsG,
+            fatG: r.fatG,
+            name: r.name,
+          }))}
         >
           <FoodLogger recent={recent} loggedMeals={[...new Set(todayOnly.map((r) => r.meal))]}>
             <FoodLogToday rows={todayOnly} mealNames={mealNames} />

@@ -96,8 +96,12 @@ function Ring({
           )}
         </span>
       </span>
-      <span className="text-[12px] font-bold" style={{ color: big ? "var(--fg-muted)" : "var(--fg)" }}>
+      {/* The chevron says the ring opens its page. */}
+      <span className="flex items-center gap-0.5 text-[12px] font-bold" style={{ color: big ? "var(--fg-muted)" : "var(--fg)" }}>
         {label}
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--fg-dim)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M9 6l6 6-6 6" />
+        </svg>
       </span>
       {note && (
         <span

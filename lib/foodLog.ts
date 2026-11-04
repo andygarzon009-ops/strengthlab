@@ -270,3 +270,23 @@ export async function listRecentMeals(userId: string, limit = 8): Promise<Recent
   }
   return top;
 }
+
+export type DailyIntake = { date: string; kcal: number; proteinG: number; carbsG: number; fatG: number };
+
+/// One row per logged day since `sinceDate` — the totals the Macros trend
+/// chart draws its month and year views from.
+export async function listDailyIntake(userId: string, sinceDate: string): Promise<DailyIntake[]> {
+  const rows = await prisma.foodLog.groupBy({
+    by: ["localDate"],
+    where: { userId, localDate: { gte: sinceDate } },
+    _sum: { kcal: true, proteinG: true, carbsG: true, fatG: true },
+    orderBy: { localDate: "asc" },
+  });
+  return rows.map((r) => ({
+    date: r.localDate,
+    kcal: Math.round(r._sum.kcal ?? 0),
+    proteinG: Math.round(r._sum.proteinG ?? 0),
+    carbsG: Math.round(r._sum.carbsG ?? 0),
+    fatG: Math.round(r._sum.fatG ?? 0),
+  }));
+}
