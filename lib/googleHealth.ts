@@ -821,7 +821,7 @@ const GRAMS_PER_LB = 453.592;
 /// Body weight (lb) per local calendar day from Google Health `weight` — the
 /// scale readings MyFitnessPal and Fitbit both write. Multiple readings a day
 /// are averaged. Covered by the health_metrics_and_measurements scope we
-/// already hold, so no reconnect. Sorted oldest → newest; [] if unavailable.
+/// already hold, so no reconnect. Sorted oldest → newest; throws if unavailable.
 export async function listDailyWeights(
   userId: string,
   sinceISO: string,
@@ -830,24 +830,23 @@ export async function listDailyWeights(
   const path =
     "/users/me/dataTypes/weight/dataPoints?pageSize=1000&filter=" +
     encodeURIComponent(filter);
-  try {
-    const data = (await healthFetch(userId, path)) as { dataPoints?: WeightPoint[] };
-    const byDay = new Map<string, { sum: number; n: number }>();
-    for (const dp of data.dataPoints ?? []) {
-      const grams = dp.weight?.weightGrams;
-      const key = civilDayKey(dp.weight?.sampleTime?.civilTime?.date);
-      if (!grams || !key) continue;
-      const cur = byDay.get(key) ?? { sum: 0, n: 0 };
-      cur.sum += grams / GRAMS_PER_LB;
-      cur.n += 1;
-      byDay.set(key, cur);
-    }
-    return [...byDay.entries()]
-      .map(([date, v]) => ({ date, lb: v.sum / v.n }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-  } catch {
-    return [];
+  // No try/catch: a failure throws rather than returning []. An empty series
+  // silently drops measured maintenance back to the formula (a ~1,000 kcal
+  // swing in the calorie target), and the caller caches what we return.
+  const data = (await healthFetch(userId, path)) as { dataPoints?: WeightPoint[] };
+  const byDay = new Map<string, { sum: number; n: number }>();
+  for (const dp of data.dataPoints ?? []) {
+    const grams = dp.weight?.weightGrams;
+    const key = civilDayKey(dp.weight?.sampleTime?.civilTime?.date);
+    if (!grams || !key) continue;
+    const cur = byDay.get(key) ?? { sum: 0, n: 0 };
+    cur.sum += grams / GRAMS_PER_LB;
+    cur.n += 1;
+    byDay.set(key, cur);
   }
+  return [...byDay.entries()]
+    .map(([date, v]) => ({ date, lb: v.sum / v.n }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 type ActiveEnergyPoint = {
@@ -870,6 +869,7 @@ export async function getActiveEnergyByDay(
     "/users/me/dataTypes/active-energy-burned/dataPoints?pageSize=1000&filter=" +
     encodeURIComponent(filter);
   const byDay: Record<string, number> = {};
+  let pages = 0;
   try {
     let pageToken: string | undefined;
     do {
@@ -886,13 +886,17 @@ export async function getActiveEnergyByDay(
         if (!a || !key) continue;
         byDay[key] = (byDay[key] ?? 0) + Math.max(0, a.kcal ?? 0);
       }
+      pages++;
       pageToken = data.nextPageToken;
     } while (pageToken);
-  } catch {
+  } catch (e) {
     // Active energy arrives per-minute — a week is several pages, and the
     // per-request timeout can bite partway through. Keep what did arrive
     // rather than throwing the day away: an understated burn is far better
     // than a zero, which would silently drop the calorie target by hundreds.
+    // But if nothing arrived at all, that *is* a zero — throw so the caller
+    // doesn't cache it and keeps serving the last good read instead.
+    if (pages === 0) throw e;
   }
   for (const k of Object.keys(byDay)) byDay[k] = Math.round(byDay[k]);
   return byDay;

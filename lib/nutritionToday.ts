@@ -207,8 +207,13 @@ export async function getFuelWeek(
   const [nowH, nowM] = hm.split(":").map(Number);
   const todayIsOver = dayIsOver(nowH, nowM);
 
+  // A failed Google read throws, so unstable_cache never stores it and keeps
+  // serving the last good result (stale-while-revalidate). Only with no prior
+  // good read at all do we fall back to "no active energy, no weigh-ins".
   const [activeByDay, weights] = googleP
-    ? await googleP
+    ? await googleP.catch(
+        (): [Record<string, number>, { date: string; lb: number }[]] => [{}, []],
+      )
     : [{} as Record<string, number>, []];
   const days = mergeFoodLog([], ownRows);
   const byDate = new Map(days.map((d) => [d.date, d]));
