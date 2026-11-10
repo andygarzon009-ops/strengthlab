@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { decrypt, issueSession, SESSION_RENEW_AFTER_MS } from "@/lib/session";
 
 const publicRoutes = ["/login", "/signup"];
+const openRoutes = ["/privacy", "/terms"];
 
 export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const isPublic = publicRoutes.includes(path);
+
+  // Linked from Google's OAuth consent screen: open to everyone, signed in or not.
+  if (openRoutes.includes(path)) return NextResponse.next();
 
   const session = req.cookies.get("session")?.value;
   const payload = await decrypt(session);
